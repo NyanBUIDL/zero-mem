@@ -5,7 +5,7 @@
 **Starting commit:** `87b81c3e806fbc4bbcd571737704596f191f980f`
 **Implementation commit:** `a2818decfc8e9f1083e4f4cb32d635272c7c9eaa`
 **Product-code test state:** `dd36562e35a64f0984fb1acd9a84b88b1a4350f5`
-**Current evidence-review HEAD:** `2558c9f1d915e5f7162e5c9c18d3d5d84be8fb85`
+**Current evidence-review HEAD:** `0559d8b389f00dab899365afa2b4606f5e3322be`
 **No-op patch incident:** attempted identical old/new patch for `src/redaction/redactor.py`; product impact none; no file change required.
 **Fresh verification:** focused tests `14 passed in 0.12s`; canonical suite `30 passed in 0.10s`; focused redaction ad-hoc verification `PASS`, `exit_code=0`, `cleaned=True`.
 **Rerun required:** No. Changes after the product-code test state are documentation, plan, acceptance-evidence, and project-state records only; no executable source, tests, redaction policy, schema, or runtime configuration changed.

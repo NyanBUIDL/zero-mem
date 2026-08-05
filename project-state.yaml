@@ -18,8 +18,8 @@ m1_increment_2_focused_result: 14 passed in 0.12s
 m1_increment_2_canonical_result: 30 passed in 0.10s
 m1_increment_2_ad_hoc_verification: "PASS; exit_code=0; cleaned=True; focused redaction immutability/hash/never_store/contract compatibility"
 m1_increment_2_commit: dd36562e35a64f0984fb1acd9a84b88b1a4350f5
-m1_increment_2_evidence_final_commit: 2558c9f1d915e5f7162e5c9c18d3d5d84be8fb85
-m1_increment_2_final_evidence_review_head: 2558c9f1d915e5f7162e5c9c18d3d5d84be8fb85
+m1_increment_2_evidence_final_commit: 0559d8b389f00dab899365afa2b4606f5e3322be
+m1_increment_2_final_evidence_review_head: 0559d8b389f00dab899365afa2b4606f5e3322be
 m1_increment_2_rerun_required: false
 m1_increment_2_rerun_reason: "post-test changes are documentation, plan, evidence, and project-state records only"
 m1_production_code_started: true
