@@ -1,14 +1,17 @@
 schema_version: 1
 project: hermes-external-zero-mem
-status: m1_plan_approved_awaiting_implementation
+status: m1_increment_1_verified
 authority: Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx
 master_spec_source_note: The requested .md path is absent; the workspace contains the DOCX with extracted text.
 current_milestone: M1
 next_incomplete_milestone: M1
-next_milestone_status: plan_approved_not_started
+next_milestone_status: increment_1_verified
+m1_current_increment: increment_1_event_contract
+m1_increment_1_status: verified
+m1_increment_1_evidence: acceptance-m1-increment-1.md
+m1_production_code_started: true
 m1_plan: .hermes/plans/2026-08-05_000000-m1-observation-only-sidecar.md
 m1_decision_ids: ADR-M1-001, ADR-M1-002, ADR-M1-003, ADR-M1-004, ADR-M1-005, ADR-M1-006, ADR-M1-007
-m1_production_code_started: false
 completed_milestones:
   - M0
 blocked_milestones:
@@ -38,8 +41,9 @@ artifacts:
   acceptance_verification: acceptance-m0-verification.md
   m1_acceptance_criteria: acceptance-m1-criteria.md
   m1_plan: .hermes/plans/2026-08-05_000000-m1-observation-only-sidecar.md
+  m1_increment_1_evidence: acceptance-m1-increment-1.md
 notes:
-  - M1 plan approved and binding decisions recorded; production implementation has not started.
+  - M1 Increment 1 event contract is verified; later M1 increments remain unimplemented.
   - M0 acceptance criteria M0-A through M0-E are fully verified; later milestones remain unimplemented.
   - Project-local .venv created with uv and pytest installed only in that environment.
   - No full implementation, corpus ingestion, automatic injection, or system-wide installation performed.

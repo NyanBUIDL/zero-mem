@@ -41,7 +41,17 @@
       "deferred_event_classes": ["file_operations", "skill_usage", "generic_task_transitions"],
       "acceptance": [">=99% capture for declared supported hook classes", "correct order/timestamps", "secret corpus absent from raw/dead-letter/audit/log/exception/temp outputs; SQLite/index scan deferred to M2", "redaction audit without original secret", "observer non-interference: no prompt/message/tool/context/action mutation and capture failure cannot change Hermes control flow"],
       "binding_decision_ids": ["ADR-M1-001", "ADR-M1-002", "ADR-M1-003", "ADR-M1-004", "ADR-M1-005", "ADR-M1-006", "ADR-M1-007"],
-      "plan_status": "approved"
+      "plan_status": "approved",
+      "increment_1": {
+        "name": "Freeze M1 event contract",
+        "status": "verified",
+        "evidence": "acceptance-m1-increment-1.md",
+        "focused_test": "tests/unit/test_m1_event_contract.py",
+        "focused_result": "13 passed in 0.05s",
+        "canonical_result": "16 passed in 0.02s",
+        "production_scope": ["event types", "normalized envelope", "deterministic validation", "serialization/deserialization", "supported/deferred registry"],
+        "excluded_scope": ["Hermes integration", "redaction execution", "JSONL persistence", "retry", "dead-letter", "deduplication", "retrieval", "injection"]
+      }
     },
     {
       "id": "M2",
