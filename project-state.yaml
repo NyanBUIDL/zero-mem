@@ -22,7 +22,7 @@ m1_increment_4_3_status: verified
 m1_increment_4_3_evidence: acceptance-m1-increment-4-3.md
 m1_increment_4_3_focused_result: 14 passed in 0.04s
 m1_increment_4_3_canonical_result: 109 passed in 0.13s
-m1_increment_4_3_commit: pending-final-commit
+m1_increment_4_3_commit: bd216ebaadfe6c663694c3ac90be0e8ffb2921cd
 m1_increment_4_3_scope: redaction/envelope/CaptureStore adapter only; no real hooks, retries, dead letters, or runtime integration
 m1_increment_4_2_evidence_final_commit: 05360c4a10ac831809c587cf0c5ab6d695b6b84e
 m1_increment_4_2_rerun_required: true

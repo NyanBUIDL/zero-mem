@@ -140,7 +140,7 @@
           "focused_result": "14 passed in 0.04s",
           "canonical_result": "109 passed in 0.13s",
           "implementation_started": true,
-          "commit": "pending-final-commit",
+          "commit": "bd216ebaadfe6c663694c3ac90be0e8ffb2921cd",
           "scope": ["sanitized mapping input", "Increment 2 redaction", "Increment 1 envelope/validation", "Increment 3 append/duplicate adapter", "sanitized failures"],
           "excluded_scope": ["real hook registration", "runtime integration", "retry", "dead-letter", "capture-rate harness", "SQLite", "retrieval", "MCP", "Obsidian", "prompt/context injection"]
         },
