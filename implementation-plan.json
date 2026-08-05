@@ -73,6 +73,13 @@
         "rerun_required": false,
         "rerun_reason": "post-test changes are documentation, plan, evidence, and project-state records only",
         "excluded_scope": ["JSONL persistence", "retry", "dead-letter", "deduplication", "Hermes integration", "capture-rate harness", "retrieval", "SQLite", "MCP", "Obsidian", "prompt/context injection"]
+      },
+      "increment_3": {
+        "name": "Capture boundary and deduplication",
+        "status": "ready_for_approval",
+        "plan": ".hermes/plans/2026-08-05_000000-m1-increment-3-capture-boundary.md",
+        "implementation_started": false,
+        "excluded_scope": ["retry", "dead-letter", "Hermes hooks", "retrieval", "SQLite", "MCP", "Obsidian", "prompt/context injection"]
       }
     },
     {
