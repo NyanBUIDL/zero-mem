@@ -18,6 +18,7 @@ m1_increment_2_focused_result: 14 passed in 0.12s
 m1_increment_2_canonical_result: 30 passed in 0.10s
 m1_increment_2_ad_hoc_verification: "PASS; exit_code=0; cleaned=True; focused redaction immutability/hash/never_store/contract compatibility"
 m1_increment_2_commit: dd36562e35a64f0984fb1acd9a84b88b1a4350f5
+m1_increment_2_evidence_final_commit: 181eb8473d1f719ea8acd094099aeb559c5698e4
 m1_production_code_started: true
 m1_plan: .hermes/plans/2026-08-05_000000-m1-observation-only-sidecar.md
 m1_decision_ids: ADR-M1-001, ADR-M1-002, ADR-M1-003, ADR-M1-004, ADR-M1-005, ADR-M1-006, ADR-M1-007

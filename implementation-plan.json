@@ -68,6 +68,7 @@
         "ad_hoc_result": "PASS; exit_code=0; cleaned=True",
         "implementation_started": true,
         "commit": "dd36562e35a64f0984fb1acd9a84b88b1a4350f5",
+        "evidence_final_commit": "181eb8473d1f719ea8acd094099aeb559c5698e4",
         "excluded_scope": ["JSONL persistence", "retry", "dead-letter", "deduplication", "Hermes integration", "capture-rate harness", "retrieval", "SQLite", "MCP", "Obsidian", "prompt/context injection"]
       }
     },
