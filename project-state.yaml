@@ -32,6 +32,8 @@ verification:
   m0_criterion_verification: "PASS; python3 scripts/verify_m0_acceptance.py; M0-A/M0-B/M0-C all PASS; exit_code=0"
   temporary_script_incident: "Resolved; PosixPath emission/import was a test-script generation error, not product-code failure"
   increment_1_noop_patch: "type: no-op patch attempt; product impact: none; resolution: no file change required"
+  increment_1_test_evidence_commit: 75025155bd08c668d508c02691fd0160717ea6d2
+  increment_1_latest_ad_hoc_scope: "state and acceptance evidence records only; not a fresh canonical test run"
   evidence_path: acceptance-m0-verification.md
   sanitized: true
 artifacts:
