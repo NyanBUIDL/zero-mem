@@ -160,8 +160,16 @@
           "canonical_result": "121 passed in 0.09s",
           "implementation_started": true,
           "commit": "38f97eb29de8670b5ea7527c88f58b03afa808ae",
+          "tested_commit": "735f7600ba15de0b02c1ec620e456093f04193c1",
+          "ad_hoc_result": "PASS; exit_code=0; cleaned=True; corrected verifier; first attempt was a verifier defect",
           "scope": ["project-local registration adapter", "verified hook set", "idempotent registration", "neutral callbacks", "failure isolation"],
           "excluded_scope": ["conditional hooks", "deferred hooks", "runtime Hermes integration", "retry", "dead-letter", "capture-rate harness", "SQLite", "retrieval", "MCP", "Obsidian", "prompt/context injection"]
+        },
+        "increment_4_5": {
+          "name": "Non-interference integration",
+          "status": "ready_for_approval",
+          "plan": ".hermes/plans/2026-08-05_000000-m1-increment-4-5-non-interference-integration.md",
+          "implementation_started": false
         },
         "excluded_scope": ["retry", "dead-letter", "SQLite", "retrieval", "MCP", "Obsidian", "prompt/context injection"]
       }

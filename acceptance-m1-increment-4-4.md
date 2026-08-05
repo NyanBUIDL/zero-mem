@@ -6,6 +6,10 @@
 **Hermes:** v0.19.1 (2026.7.30)
 **Hermes upstream:** `1be70d63` reported by installed CLI; local source HEAD `0a62610f` with pre-existing `package-lock.json` modification
 **Registration mechanism:** project-local context-compatible adapter using the verified `register_hook(hook_name, callback)` surface; no installed Hermes source modification
+**Implementation commit:** `38f97eb29de8670b5ea7527c88f58b03afa808ae`
+**Tested commit:** `735f7600ba15de0b02c1ec620e456093f04193c1`
+**Corrected ad-hoc verifier commit:** `735f7600ba15de0b02c1ec620e456093f04193c1`
+**Rerun required:** Yes — the canonical suite was rerun after the state assertion update; focused and canonical results below are bound to the tested commit.
 
 | Criterion | Status | Objective evidence |
 |---|---|---|
@@ -56,9 +60,19 @@ Canonical regression suite:
 
 The first canonical run exposed a stale baseline state assertion after advancing project state to Increment 4.4. The baseline assertion was updated to the verified state, then the canonical suite passed. This was test-state maintenance, not a product failure.
 
+## Corrected ad-hoc verification
+
+The first verifier attempt failed because it incorrectly treated the fake context callback list as callable. This was a verifier-script defect, not a product-code failure; no product-code modification resulted. The corrected verifier passed:
+
+```text
+PASS
+exit_code=0
+cleaned=True
+```
+
 ## Incidents
 
-No failed or no-op patch attempt occurred during Increment 4.4. No real Hermes source or real Hermes-home file was modified. Generated caches and temporary artifacts were removed.
+No real Hermes source or real Hermes-home file was modified. Generated caches and temporary artifacts were removed.
 
 **M1 INCREMENT 4.4: VERIFIED**
 
