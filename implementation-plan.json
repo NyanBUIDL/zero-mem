@@ -117,9 +117,14 @@
         },
         "increment_4_2": {
           "name": "Pure payload mapping",
-          "status": "ready_for_approval",
+          "status": "verified",
           "plan": ".hermes/plans/2026-08-05_000000-m1-increment-4-2-pure-payload-mapping.md",
-          "implementation_started": false
+          "evidence": "acceptance-m1-increment-4-2.md",
+          "focused_test": "tests/unit/test_hermes_payload_mapping.py tests/unit/test_hermes_payload_fixtures.py",
+          "focused_result": "42 passed in 0.05s",
+          "canonical_result": "95 passed in 0.11s",
+          "implementation_started": true,
+          "commit": "pending-final-commit"
         },
         "excluded_scope": ["retry", "dead-letter", "SQLite", "retrieval", "MCP", "Obsidian", "prompt/context injection"]
       }
