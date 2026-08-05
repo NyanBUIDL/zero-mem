@@ -3,7 +3,9 @@
 **Increment:** Freeze the M1 event contract
 **Status:** VERIFIED
 **Scope boundary:** Contract definitions, normalization, deterministic validation, serialization/deserialization, supported/deferred registry, and contract tests only. No Hermes integration, redaction execution, persistence, retry, dead-letter, deduplication, retrieval, or injection implemented.
+**Commit:** `5b58b5caef92f042924cca5949861d3c98ef68b8`
 **Checkpoint:** `checkpoint-m1-increment-1-start` → `0194113675afe8e433bd1bcede1607e672fc0bcd`
+**No-op patch incident:** attempted identical old/new patch for `src/capture/adapter.py`; product impact none; no file change required.
 
 | Criterion | Status | Objective evidence |
 |---|---|---|
