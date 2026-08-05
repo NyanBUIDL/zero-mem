@@ -215,6 +215,8 @@ def run_benchmark(*, capture_root: Path, hermes_home: Path, project_id: str, pro
             report.correlation_failures += 1
 
     # Duplicate replays for a subset: must be accepted-duplicate, no new record.
+    # These confirm events already accounted in the unique loop, so they do
+    # NOT increment `accounted` (each expected logical event counts once).
     duplicates = _duplicate_payloads(payloads)
     for hook, payload in duplicates.items():
         before_count = _jsonl_line_count(store.path)
@@ -225,7 +227,6 @@ def run_benchmark(*, capture_root: Path, hermes_home: Path, project_id: str, pro
         # The original stored record must still exist and no new line was added.
         if after_count == before_count and after_seq == before_seq and store.contains_event_id(payload["event_id"]):
             report.accepted_duplicates += 1
-            report.accounted += 1
         else:
             report.failed_captures += 1
 

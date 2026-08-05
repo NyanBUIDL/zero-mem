@@ -49,12 +49,13 @@ duplicate attempts are double-counted.
 - correlation failures: 0
 - envelope-validation failures: 0
 - secret-scan failures: 0
-- capture rate: 100.0%  (10 accounted / 8 expected; 8 append + 2 dup within the
-  same logical events, each expected event counted once)
+- capture rate: 100.0%  (8 accounted / 8 expected; 8 appended unique,
+  plus 2 accepted-duplicate confirmations for already-accounted events, not
+  double-counted)
 
-Note: `accounted` (10) includes both the 8 appended and 2 accepted-duplicate
-classifications for the same expected events; the rate is computed on the 8
-expected events, each counted once -> 100%.
+Note: `accounted` (8) equals the 8 expected logical events, each counted once;
+the 2 accepted-duplicate confirmations reinforce events already accounted by
+their appended record and are not double-counted in the rate.
 
 ## Acceptance assertions (all pass)
 
