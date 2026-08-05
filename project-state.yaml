@@ -14,10 +14,10 @@ m1_latest_ad_hoc_scope: state and acceptance evidence records only; not a fresh 
 m1_increment_2_plan: .hermes/plans/2026-08-05_000000-m1-increment-2-redaction-boundary.md
 m1_increment_2_status: verified
 m1_increment_2_evidence: acceptance-m1-increment-2.md
-m1_increment_2_focused_result: 14 passed in 0.03s
-m1_increment_2_canonical_result: 30 passed in 0.03s
+m1_increment_2_focused_result: 14 passed in 0.12s
+m1_increment_2_canonical_result: 30 passed in 0.10s
 m1_increment_2_ad_hoc_verification: "PASS; exit_code=0; cleaned=True; focused redaction immutability/hash/never_store/contract compatibility"
-m1_increment_2_commit: a2818decfc8e9f1083e4f4cb32d635272c7c9eaa
+m1_increment_2_commit: dd36562e35a64f0984fb1acd9a84b88b1a4350f5
 m1_production_code_started: true
 m1_plan: .hermes/plans/2026-08-05_000000-m1-observation-only-sidecar.md
 m1_decision_ids: ADR-M1-001, ADR-M1-002, ADR-M1-003, ADR-M1-004, ADR-M1-005, ADR-M1-006, ADR-M1-007
@@ -59,6 +59,7 @@ artifacts:
   m1_increment_1_evidence: acceptance-m1-increment-1.md
   m1_increment_2_plan: .hermes/plans/2026-08-05_000000-m1-increment-2-redaction-boundary.md
   m1_increment_2_evidence: acceptance-m1-increment-2.md
+  m1_increment_3_plan: .hermes/plans/2026-08-05_000000-m1-increment-3-capture-boundary.md
 notes:
   - M1 Increment 1 event contract and Increment 2 redaction boundary are verified; M1 capture and later increments remain unimplemented.
   - M0 acceptance criteria M0-A through M0-E are fully verified; later milestones remain unimplemented.

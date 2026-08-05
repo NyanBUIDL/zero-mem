@@ -63,10 +63,11 @@
         "plan": ".hermes/plans/2026-08-05_000000-m1-increment-2-redaction-boundary.md",
         "evidence": "acceptance-m1-increment-2.md",
         "focused_test": "tests/unit/test_m1_redaction.py",
-        "focused_result": "14 passed in 0.10s",
-        "canonical_result": "30 passed in 0.02s",
+        "focused_result": "14 passed in 0.12s",
+        "canonical_result": "30 passed in 0.10s",
+        "ad_hoc_result": "PASS; exit_code=0; cleaned=True",
         "implementation_started": true,
-        "commit": "a2818decfc8e9f1083e4f4cb32d635272c7c9eaa",
+        "commit": "dd36562e35a64f0984fb1acd9a84b88b1a4350f5",
         "excluded_scope": ["JSONL persistence", "retry", "dead-letter", "deduplication", "Hermes integration", "capture-rate harness", "retrieval", "SQLite", "MCP", "Obsidian", "prompt/context injection"]
       }
     },
