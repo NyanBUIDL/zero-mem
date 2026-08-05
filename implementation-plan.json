@@ -66,6 +66,7 @@
         "focused_result": "14 passed in 0.10s",
         "canonical_result": "30 passed in 0.02s",
         "implementation_started": true,
+        "commit": "a2818decfc8e9f1083e4f4cb32d635272c7c9eaa",
         "excluded_scope": ["JSONL persistence", "retry", "dead-letter", "deduplication", "Hermes integration", "capture-rate harness", "retrieval", "SQLite", "MCP", "Obsidian", "prompt/context injection"]
       }
     },

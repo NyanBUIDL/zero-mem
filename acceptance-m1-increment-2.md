@@ -3,6 +3,8 @@
 **Increment:** Redaction boundary
 **Status:** VERIFIED
 **Starting commit:** `87b81c3e806fbc4bbcd571737704596f191f980f`
+**Final commit:** `a2818decfc8e9f1083e4f4cb32d635272c7c9eaa`
+**No-op patch incident:** attempted identical old/new patch for `src/redaction/redactor.py`; product impact none; no file change required.
 **Checkpoint:** `checkpoint-m1-increment-2-start` → `87b81c3e806fbc4bbcd571737704596f191f980f`
 
 | Criterion | Status | Objective evidence |
