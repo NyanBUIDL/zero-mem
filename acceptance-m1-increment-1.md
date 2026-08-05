@@ -7,6 +7,9 @@
 **Evidence reconciliation commit:** `75025155bd08c668d508c02691fd0160717ea6d2`
 **Canonical test evidence is bound to:** `75025155bd08c668d508c02691fd0160717ea6d2`
 **Latest evidence reconciliation commit:** `43eb46be1e3bc1ec761c0023996bb87fcfeb561a`
+**Current evidence-chain review commit:** `f159633a5079b8f67440835391b84a9510c75353`
+**Rerun required:** No — changes after tested commit are documentation, planning, and state-record updates only; no source, tests, contracts, configuration, or executable state logic changed.
+**Latest ad-hoc scope:** state and planning records only; not fresh canonical test evidence.
 **Checkpoint:** `checkpoint-m1-increment-1-start` → `0194113675afe8e433bd1bcede1607e672fc0bcd`
 **No-op patch incident:** attempted identical old/new patch for `src/capture/adapter.py`; product impact none; no file change required.
 

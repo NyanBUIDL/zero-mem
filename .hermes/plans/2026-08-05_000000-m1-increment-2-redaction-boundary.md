@@ -281,7 +281,7 @@ Increment 2 is not M1-complete. It verifies only the redaction boundary and rema
 
 The binding decisions resolve the architecture, but one policy detail must be made explicit during RED/GREEN and documented before GREEN:
 
-- **Replacement versus whole-event rejection:** for each recognized secret pattern, decide whether the field is replaced with a stable marker or the entire payload is rejected. Conservative default: replace clearly isolated secret fields with a marker; reject explicit `secret`/`never_store` payloads and ambiguous/unsafe structures. This is an implementation-level interpretation of ADR-M1-004 and must be covered by tests, not silently varied by pattern.
+1. **Replacement versus whole-event rejection:** approved implementation default is to replace clearly isolated recognized secret fields with a stable marker; reject explicit `secret`/`never_store` payloads and ambiguous/unsafe structures. This interpretation must be covered by tests and must not vary silently by pattern.
 
 No other blocker is identified for Increment 2 planning.
 

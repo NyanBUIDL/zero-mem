@@ -38,6 +38,9 @@ verification:
   increment_1_noop_patch: "type: no-op patch attempt; product impact: none; resolution: no file change required"
   increment_1_test_evidence_commit: 75025155bd08c668d508c02691fd0160717ea6d2
   increment_1_latest_ad_hoc_scope: "state and acceptance evidence records only; not a fresh canonical test run"
+  increment_1_evidence_chain_commit: f159633a5079b8f67440835391b84a9510c75353
+  increment_1_evidence_rerun_required: false
+  increment_1_evidence_rerun_reason: "post-tested-commit changes are documentation/planning/state records only"
   evidence_path: acceptance-m0-verification.md
   sanitized: true
 artifacts:

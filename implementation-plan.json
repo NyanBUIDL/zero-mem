@@ -51,6 +51,9 @@
         "canonical_result": "16 passed in 0.02s",
         "test_evidence_commit": "75025155bd08c668d508c02691fd0160717ea6d2",
         "latest_ad_hoc_scope": "state and acceptance evidence records only; not a fresh canonical test run",
+        "evidence_chain_commit": "f159633a5079b8f67440835391b84a9510c75353",
+        "rerun_required": false,
+        "rerun_reason": "post-tested-commit changes are documentation/planning/state records only",
         "production_scope": ["event types", "normalized envelope", "deterministic validation", "serialization/deserialization", "supported/deferred registry"],
         "excluded_scope": ["Hermes integration", "redaction execution", "JSONL persistence", "retry", "dead-letter", "deduplication", "retrieval", "injection"]
       },
