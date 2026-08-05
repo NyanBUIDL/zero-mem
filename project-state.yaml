@@ -4,7 +4,14 @@ status: m1_increment_4_3_verified
 m1_increment_4_1_status: verified
 m1_increment_4_2_status: verified
 m1_increment_4_3_status: verified
+m1_increment_4_4_status: in_progress
+m1_increment_4_4_evidence: acceptance-m1-increment-4-4.md
+m1_increment_4_4_focused_result: 12 passed in 0.03s
+m1_increment_4_4_canonical_result: 121 passed in 0.09s
+m1_increment_4_4_commit: pending-final-commit
+m1_increment_4_4_scope: project-local registration adapter only; no installed Hermes modification or runtime hook integration
 m1_increment_4_status: in_progress
+m1_increment_4_5_status: not_started
 m1_increment_4_1_evidence: acceptance-m1-increment-4-1.md
 m1_increment_4_1_commit: 674b7892a6a921eff2a542937b439750127ee7c1
 m1_increment_4_1_tested_commit: bba02890fadbdc0fee3b264fb3106854d5f45f5e
@@ -31,7 +38,9 @@ m1_increment_4_3_rerun_required: true
 m1_increment_4_3_patch_incident: "failed patch against tests/unit/test_hermes_capture_adapter.py; hunk not found; file already added in implementation commit; no source change; no product impact"
 m1_increment_4_3_scope: redaction/envelope/CaptureStore adapter only; no real hooks, retries, dead letters, or runtime integration
 m1_increment_4_4_plan: .hermes/plans/2026-08-05_000000-m1-increment-4-4-verified-hook-registration.md
-m1_increment_4_4_status: ready_for_approval
+m1_increment_4_4_status: verified
+m1_increment_4_4_evidence: acceptance-m1-increment-4-4.md
+m1_increment_4_4_plan: .hermes/plans/2026-08-05_000000-m1-increment-4-4-verified-hook-registration.md
 m1_increment_4_2_evidence_final_commit: 05360c4a10ac831809c587cf0c5ab6d695b6b84e
 m1_increment_4_2_rerun_required: true
 m1_increment_4_2_rerun_reason: "fresh focused and canonical tests run against executable Increment 4.2 state"
