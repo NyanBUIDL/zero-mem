@@ -124,7 +124,7 @@
           "focused_result": "42 passed in 0.05s",
           "canonical_result": "95 passed in 0.11s",
           "implementation_started": true,
-          "commit": "pending-final-commit"
+          "commit": "1e89ae28bec9368323983adf332af8137eaaa0b8"
         },
         "excluded_scope": ["retry", "dead-letter", "SQLite", "retrieval", "MCP", "Obsidian", "prompt/context injection"]
       }
