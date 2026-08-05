@@ -160,6 +160,7 @@
           "canonical_result": "121 passed in 0.09s",
           "implementation_started": true,
           "commit": "38f97eb29de8670b5ea7527c88f58b03afa808ae",
+          "evidence_final_commit": "5db1db32de3954e3d32e49ae31ab26d5f2f8a450",
           "tested_commit": "735f7600ba15de0b02c1ec620e456093f04193c1",
           "ad_hoc_result": "PASS; exit_code=0; cleaned=True; corrected verifier; first attempt was a verifier defect",
           "scope": ["project-local registration adapter", "verified hook set", "idempotent registration", "neutral callbacks", "failure isolation"],
