@@ -59,9 +59,14 @@
       },
       "increment_2": {
         "name": "Redaction boundary",
-        "status": "ready_for_approval",
+        "status": "verified",
         "plan": ".hermes/plans/2026-08-05_000000-m1-increment-2-redaction-boundary.md",
-        "implementation_started": false
+        "evidence": "acceptance-m1-increment-2.md",
+        "focused_test": "tests/unit/test_m1_redaction.py",
+        "focused_result": "14 passed in 0.10s",
+        "canonical_result": "30 passed in 0.02s",
+        "implementation_started": true,
+        "excluded_scope": ["JSONL persistence", "retry", "dead-letter", "deduplication", "Hermes integration", "capture-rate harness", "retrieval", "SQLite", "MCP", "Obsidian", "prompt/context injection"]
       }
     },
     {
