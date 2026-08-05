@@ -106,7 +106,7 @@
           "focused_result": "13 passed in 0.01s",
           "canonical_result": "53 passed in 0.19s",
           "implementation_started": true,
-          "commit": "pending-final-commit",
+          "commit": "674b7892a6a921eff2a542937b439750127ee7c1",
           "scope": ["BridgeConfig", "disabled-by-default", "explicit identity", "safe capture_root", "temporary hermes_home", "supported/conditional/deferred registries", "sanitized aggregate metrics"],
           "excluded_scope": ["real hook registration", "callback execution", "payload mapping", "redaction invocation", "capture append", "runtime integration", "capture-rate harness", "retry", "dead-letter", "SQLite", "retrieval", "MCP", "Obsidian", "prompt/context injection"]
         },
