@@ -141,8 +141,19 @@
           "canonical_result": "109 passed in 0.13s",
           "implementation_started": true,
           "commit": "bd216ebaadfe6c663694c3ac90be0e8ffb2921cd",
+          "tested_commit": "fd8efe7b3c9c3cb1fd1ad8bf60279d122d093b82",
+          "focused_result": "14 passed in 0.06s",
+          "canonical_result": "109 passed in 0.11s",
+          "rerun_required": true,
+          "patch_incident": "failed patch against tests/unit/test_hermes_capture_adapter.py; hunk not found; file already added in implementation commit; no source change; no product impact",
           "scope": ["sanitized mapping input", "Increment 2 redaction", "Increment 1 envelope/validation", "Increment 3 append/duplicate adapter", "sanitized failures"],
           "excluded_scope": ["real hook registration", "runtime integration", "retry", "dead-letter", "capture-rate harness", "SQLite", "retrieval", "MCP", "Obsidian", "prompt/context injection"]
+        },
+        "increment_4_4": {
+          "name": "Verified hook registration",
+          "status": "ready_for_approval",
+          "plan": ".hermes/plans/2026-08-05_000000-m1-increment-4-4-verified-hook-registration.md",
+          "implementation_started": false
         },
         "excluded_scope": ["retry", "dead-letter", "SQLite", "retrieval", "MCP", "Obsidian", "prompt/context injection"]
       }
