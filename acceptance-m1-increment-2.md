@@ -5,6 +5,7 @@
 **Starting commit:** `87b81c3e806fbc4bbcd571737704596f191f980f`
 **Final commit:** `a2818decfc8e9f1083e4f4cb32d635272c7c9eaa`
 **No-op patch incident:** attempted identical old/new patch for `src/redaction/redactor.py`; product impact none; no file change required.
+**Fresh verification:** focused tests `14 passed in 0.03s`; canonical suite `30 passed in 0.03s`; focused redaction ad-hoc verification `PASS`, `exit_code=0`, `cleaned=True`.
 **Checkpoint:** `checkpoint-m1-increment-2-start` → `87b81c3e806fbc4bbcd571737704596f191f980f`
 
 | Criterion | Status | Objective evidence |
