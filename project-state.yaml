@@ -21,7 +21,7 @@ verification:
   canonical_pytest_suite: passed
   blocker: null
   last_command: ".venv/bin/python -m pytest tests/ -q"
-  last_result: "3 passed in 0.00s"
+  last_result: "3 passed in 0.01s"
   focused_verification: "PASS; exit_code=0; cleaned=True; focused changed-plan/state/evidence assertions"
   m0_criterion_verification: "PASS; python3 scripts/verify_m0_acceptance.py; M0-A/M0-B/M0-C all PASS; exit_code=0"
   temporary_script_incident: "Resolved; PosixPath emission/import was a test-script generation error, not product-code failure"
