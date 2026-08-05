@@ -34,11 +34,12 @@ def test_implementation_plan_is_machine_readable_and_gated() -> None:
 
 def test_project_state_is_explicitly_unverified() -> None:
     state = (ROOT / "project-state.yaml").read_text(encoding="utf-8")
-    assert "status: m1_increment_4_4_verified" in state
+    assert "status: m1_verified" in state
     assert "status: fully_verified" in state
     assert "current_milestone: M1" in state
     assert "m1_production_code_started: true" in state
-    assert "m1_increment_1_status: verified" in state
+    assert "m1_increment_4_6_status: verified" in state
+    assert "m1_status: verified" in state
     assert "m1_increment_2_status: verified" in state
     assert "m1_increment_3_status: verified" in state
     assert "m1_increment_4_1_status: verified" in state
