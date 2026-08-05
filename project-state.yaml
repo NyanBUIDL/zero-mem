@@ -1,6 +1,16 @@
 schema_version: 1
 project: hermes-external-zero-mem
-status: m1_increment_3_verified
+status: m1_increment_4_1_verified
+m1_increment_4_1_status: verified
+m1_increment_4_status: in_progress
+m1_increment_4_1_evidence: acceptance-m1-increment-4-1.md
+m1_increment_4_1_focused_result: 13 passed in 0.01s
+m1_increment_4_1_canonical_result: 53 passed in 0.19s
+m1_increment_4_1_commit: pending-final-commit
+m1_increment_4_1_scope: configuration and registries only; no real hook registration or callback execution
+m1_increment_4_1_plan_clarifications_recorded: true
+m1_increment_4_1_processing_order: copy-normalize-structurally-redact-map-resolve-hash-validate-append
+m1_increment_4_1_capture_rate_formula: successfully_accounted_logical_events / expected_supported_logical_events * 100
 authority: Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx
 master_spec_source_note: The requested .md path is absent; the workspace contains the DOCX with extracted text.
 current_milestone: M1
