@@ -121,10 +121,14 @@
           "plan": ".hermes/plans/2026-08-05_000000-m1-increment-4-2-pure-payload-mapping.md",
           "evidence": "acceptance-m1-increment-4-2.md",
           "focused_test": "tests/unit/test_hermes_payload_mapping.py tests/unit/test_hermes_payload_fixtures.py",
-          "focused_result": "42 passed in 0.05s",
-          "canonical_result": "95 passed in 0.11s",
+          "focused_result": "42 passed in 0.04s",
+          "canonical_result": "95 passed in 0.10s",
+          "ad_hoc_result": "PASS; exit_code=0; cleaned=True; supported/conditional/deferred mapping, redaction, immutability, correlation",
           "implementation_started": true,
-          "commit": "1e89ae28bec9368323983adf332af8137eaaa0b8"
+          "commit": "1e89ae28bec9368323983adf332af8137eaaa0b8",
+          "tested_commit": "0366afb82f5c4034024c9f1e4d382107cff12ead",
+          "rerun_required": true,
+          "rerun_reason": "fresh focused and canonical tests run against executable Increment 4.2 state"
         },
         "excluded_scope": ["retry", "dead-letter", "SQLite", "retrieval", "MCP", "Obsidian", "prompt/context injection"]
       }
