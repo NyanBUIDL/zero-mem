@@ -126,6 +126,7 @@
           "ad_hoc_result": "PASS; exit_code=0; cleaned=True; supported/conditional/deferred mapping, redaction, immutability, correlation",
           "implementation_started": true,
           "commit": "1e89ae28bec9368323983adf332af8137eaaa0b8",
+          "evidence_final_commit": "05360c4a10ac831809c587cf0c5ab6d695b6b84e",
           "tested_commit": "0366afb82f5c4034024c9f1e4d382107cff12ead",
           "rerun_required": true,
           "rerun_reason": "fresh focused and canonical tests run against executable Increment 4.2 state"
