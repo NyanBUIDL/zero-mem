@@ -80,8 +80,9 @@
         "plan": ".hermes/plans/2026-08-05_000000-m1-increment-3-capture-boundary.md",
         "evidence": "acceptance-m1-increment-3.md",
         "focused_test": "tests/unit/test_m1_capture_boundary.py",
-        "focused_result": "10 passed in 0.02s",
-        "canonical_result": "40 passed in 0.04s",
+        "focused_result": "10 passed in 0.14s",
+        "canonical_result": "40 passed in 0.05s",
+        "ad_hoc_result": "PASS; exit_code=0; cleaned=True; append/dedup/secret-absence focused check",
         "implementation_started": true,
         "commit": "0a18c912477e4324d0a60580a043573f3630f217",
         "excluded_scope": ["retry", "dead-letter", "Hermes hooks", "retrieval", "SQLite", "MCP", "Obsidian", "prompt/context injection"]

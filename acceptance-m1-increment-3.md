@@ -25,14 +25,24 @@ Focused Increment 3 tests:
 
 ```text
 .venv/bin/python -m pytest tests/unit/test_m1_capture_boundary.py -q
-10 passed in 0.02s
+10 passed in 0.14s
 ```
 
 Canonical regression suite:
 
 ```text
 .venv/bin/python -m pytest tests/ -q
-40 passed in 0.04s
+40 passed in 0.05s
+```
+
+Fresh verification: focused tests and canonical suite passed. The first temporary ad-hoc verifier attempt failed during script startup because it omitted the project-root `sys.path` setup; it was a verifier-generation error, not product-code failure. The temporary file was cleaned, the corrected verifier passed, and was cleaned successfully.
+
+Corrected focused Increment 3 ad-hoc verification:
+
+```text
+focused Increment 3 ad-hoc verification: PASS
+exit_code=0
+cleaned=True
 ```
 
 ## Semantics

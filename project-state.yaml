@@ -9,8 +9,9 @@ next_milestone_status: increment_3_verified
 m1_current_increment: increment_3_capture_boundary
 m1_increment_3_status: verified
 m1_increment_3_evidence: acceptance-m1-increment-3.md
-m1_increment_3_focused_result: 10 passed in 0.02s
-m1_increment_3_canonical_result: 40 passed in 0.04s
+m1_increment_3_focused_result: 10 passed in 0.14s
+m1_increment_3_canonical_result: 40 passed in 0.05s
+m1_increment_3_ad_hoc_verification: "PASS; exit_code=0; cleaned=True; append/dedup/secret-absence focused check"
 m1_increment_3_plan: .hermes/plans/2026-08-05_000000-m1-increment-3-capture-boundary.md
 m1_increment_3_commit: 0a18c912477e4324d0a60580a043573f3630f217
 m1_increment_1_status: verified
