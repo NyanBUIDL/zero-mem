@@ -49,8 +49,16 @@
         "focused_test": "tests/unit/test_m1_event_contract.py",
         "focused_result": "13 passed in 0.03s",
         "canonical_result": "16 passed in 0.02s",
+        "test_evidence_commit": "75025155bd08c668d508c02691fd0160717ea6d2",
+        "latest_ad_hoc_scope": "state and acceptance evidence records only; not a fresh canonical test run",
         "production_scope": ["event types", "normalized envelope", "deterministic validation", "serialization/deserialization", "supported/deferred registry"],
         "excluded_scope": ["Hermes integration", "redaction execution", "JSONL persistence", "retry", "dead-letter", "deduplication", "retrieval", "injection"]
+      },
+      "increment_2": {
+        "name": "Redaction boundary",
+        "status": "ready_for_approval",
+        "plan": ".hermes/plans/2026-08-05_000000-m1-increment-2-redaction-boundary.md",
+        "implementation_started": false
       }
     },
     {

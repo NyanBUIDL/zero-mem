@@ -6,6 +6,7 @@
 **Initial implementation commit:** `5b58b5caef92f042924cca5949861d3c98ef68b8`
 **Evidence reconciliation commit:** `75025155bd08c668d508c02691fd0160717ea6d2`
 **Canonical test evidence is bound to:** `75025155bd08c668d508c02691fd0160717ea6d2`
+**Latest evidence reconciliation commit:** `43eb46be1e3bc1ec761c0023996bb87fcfeb561a`
 **Checkpoint:** `checkpoint-m1-increment-1-start` → `0194113675afe8e433bd1bcede1607e672fc0bcd`
 **No-op patch incident:** attempted identical old/new patch for `src/capture/adapter.py`; product impact none; no file change required.
 
