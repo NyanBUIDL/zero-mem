@@ -1,0 +1,156 @@
+{
+  "schema_version": 1,
+  "authority": "Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx",
+  "status": "awaiting_user_approval",
+  "current_milestone_status": "fully_verified",
+  "current_milestone_verification": "acceptance-m0-verification.md",
+  "next_incomplete_milestone": "M1",
+  "next_milestone_status": "not_started",
+  "scope": "External Zero-Mem sidecar for Hermes Agent; local-first, observation-only before controlled injection",
+  "principles": [
+    "trace-first and append-only raw provenance",
+    "deterministic before generative; memory-operation LLM calls = 0",
+    "verified state over assistant self-report",
+    "profile as policy; global reads are profile-first and bounded",
+    "explicit authorization for cross-profile writes",
+    "privacy by design with redaction before persistence",
+    "SQLite/JSONL/artifacts canonical; Obsidian is curated projection/workspace",
+    "rebuildable indexes and projections"
+  ],
+  "milestones": [
+    {
+      "id": "M0",
+      "name": "Policy and architecture",
+      "spec_sections": ["3", "4", "5", "6", "7", "8", "9", "14", "16.1", "16.2", "18.1", "21"],
+      "deliverables": ["ARCHITECTURE.md", "versioned schemas and policies", "benchmark plan", "runbooks", "project state"],
+      "acceptance": ["architecture decisions recorded", "taxonomy/provenance/lifecycle/sensitivity/retention defined", "benchmark scenarios defined", "no full corpus ingestion"],
+      "verification": {
+        "status": "fully_verified",
+        "evidence": "acceptance-m0-verification.md",
+        "verifier": "scripts/verify_m0_acceptance.py",
+        "passed": ["M0-A", "M0-B", "M0-C", "M0-D", "M0-E"],
+        "not_run": []
+      }
+    },
+    {
+      "id": "M1",
+      "name": "Observation-only capture sidecar",
+      "spec_sections": ["10", "14.2", "17.1", "17.2", "18"],
+      "deliverables": ["event adapter", "redaction boundary", "schema validation", "append-only JSONL/SQLite capture", "retry/dead-letter path"],
+      "acceptance": [">=99% harness capture", "correct order/timestamps", "secret corpus absent from raw/index", "redaction audit without original secret", "no prompt injection"]
+    },
+    {
+      "id": "M2",
+      "name": "Canonical store and artifact store",
+      "spec_sections": ["9", "14.3", "14.4", "16.3"],
+      "deliverables": ["SQLite WAL/FTS5 schema", "JSONL per session/day", "versioned artifacts", "migrations", "backup/restore runbook"],
+      "acceptance": ["metadata rebuildable", "raw append-first", "delete/tombstone workflow tested", "migration rollback documented"]
+    },
+    {
+      "id": "M3",
+      "name": "Read-only retrieval",
+      "spec_sections": ["11", "13.2", "17.1", "17.2"],
+      "deliverables": ["FTS search", "get_trace", "task/decision queries", "provenance response envelope"],
+      "acceptance": ["gold evidence top-k", "100% evidence provenance fields", "p95 target initially <2s local", "structured errors"]
+    },
+    {
+      "id": "M4",
+      "name": "Query routing",
+      "spec_sections": ["11.1", "15"],
+      "deliverables": ["no/session/project/user/research/global/external-current routes", "bounded retry/insufficiency"],
+      "acceptance": ["route benchmark reaches approved threshold", "no evidence for no_memory", "token/evidence metrics recorded"]
+    },
+    {
+      "id": "M5",
+      "name": "Profile and access policy",
+      "spec_sections": ["8", "11.2", "14.4", "17"],
+      "deliverables": ["general-assistant plus initial profiles", "profile-first/global/explicit_union/isolated/source_restricted", "write authorization policy"],
+      "acceptance": ["isolation has no scope leak", "explicit union combines only named spaces", "priority and privacy tests pass", "cross-profile writes denied without authorization"]
+    },
+    {
+      "id": "M6",
+      "name": "MCP/Hermes read-only integration",
+      "spec_sections": ["5", "13"],
+      "deliverables": ["zero_mem.search", "zero_mem.get_trace", "zero_mem.get_task_state", "zero_mem.get_decisions", "structured errors"],
+      "acceptance": ["Hermes can call read-only memory", "native memory remains minimal", "no deep Hermes-core modification"]
+    },
+    {
+      "id": "M7",
+      "name": "Controlled injection",
+      "spec_sections": ["11.3", "11.4", "15.2", "Appendix E"],
+      "deliverables": ["confidence/sensitivity gate", "5 primary + 3 supporting budget", "conflict set", "kill switch"],
+      "acceptance": ["no wrong-scope injection", "insufficient/conflict states explicit", "redaction/isolation/stale-state/latency/token gates pass"]
+    },
+    {
+      "id": "M8",
+      "name": "Graph, temporal hierarchy, calibration",
+      "spec_sections": ["6", "7", "9.3", "11.2", "11.3"],
+      "deliverables": ["entities/links", "temporal validity", "closure/neighbor expansion", "deterministic conflict calibration"],
+      "acceptance": ["multi-hop and temporal benchmark improves without provenance loss", "conflicts never silently overwrite"]
+    },
+    {
+      "id": "M9",
+      "name": "Obsidian projection",
+      "spec_sections": ["12", "14", "17.3"],
+      "deliverables": ["single Vault namespace", "idempotent projection", "review/change queue", "required operational pages"],
+      "acceptance": ["100% generated notes required metadata", "rebuildable", "no raw overwrite/secrets/duplicate loops", "scope modes benchmarked"]
+    },
+    {
+      "id": "M10",
+      "name": "Corpus expansion and operations",
+      "spec_sections": ["10.3", "14", "18.1", "19", "20"],
+      "deliverables": ["sample then larger corpus ingestion", "daily/weekly/monthly runbooks", "release benchmark/security gates"],
+      "acceptance": ["batch QA passes", "backup restore and index rebuild verified", "profile/knowledge additions follow documented process"]
+    }
+  ],
+  "baseline": {
+    "purpose": "establish executable test harness before major implementation",
+    "planned_tests": [
+      "spec artifact and project-state validation",
+      "trace/provenance contract fixtures",
+      "redaction security regression fixtures",
+      "profile mode boundary fixtures",
+      "acceptance evidence format validation"
+    ],
+    "policy": "baseline tests may be contract/fixture tests only; they must not imply unimplemented behavior passes"
+  },
+  "open_questions_and_conflicts": [
+    {
+      "id": "OQ-1",
+      "issue": "The user supplied a .md path, but only the .docx exists in the workspace.",
+      "impact": "The DOCX extracted text is currently treated as the master specification; the missing Markdown path must be confirmed or supplied before implementation if it differs.",
+      "resolution_needed": "User confirmation"
+    },
+    {
+      "id": "OQ-2",
+      "issue": "The master spec offers alternatives (FastAPI/local MCP; FAISS/Qdrant; BGE-M3 or another local embedding) without selecting one.",
+      "impact": "MVP dependency and interface choices cannot be finalized without inventing a requirement.",
+      "resolution_needed": "Choose defaults during M0 approval, with local-only/no external service as the conservative assumption"
+    },
+    {
+      "id": "OQ-3",
+      "issue": "Acceptance thresholds are incomplete in places: capture harness, route accuracy, token reduction, useful-evidence rate, and local latency machine-specific.",
+      "impact": "Some release gates cannot be evaluated numerically.",
+      "resolution_needed": "Define thresholds and benchmark baselines during M0; retain <2s p95 as the proposed initial latency target"
+    },
+    {
+      "id": "OQ-4",
+      "issue": "Security says private data may use encryption/access policy, but key-management and threat model are unspecified.",
+      "impact": "Private persistence cannot be safely implemented beyond metadata/policy stubs.",
+      "resolution_needed": "Define local key source, encryption boundary, and threat model before private-data persistence"
+    },
+    {
+      "id": "OQ-5",
+      "issue": "Cross-profile write authorization workflow and Hermes event adapter contract are named but not defined.",
+      "impact": "Integration and write-back behavior require an explicit interface.",
+      "resolution_needed": "Inspect available Hermes integration surface or approve a sidecar-neutral event/MCP contract"
+    },
+    {
+      "id": "OQ-6",
+      "issue": "The specification names an initial profile set as alternatives: quant-researcher or coin68-editor.",
+      "impact": "Profile fixtures and isolation benchmark need a fixed set.",
+      "resolution_needed": "Select the third profile after general-assistant and developer"
+    }
+  ],
+  "approval_gate": "No milestone implementation, system-wide installation, destructive operation, full corpus ingestion, automatic injection, or deep Hermes-core change before user approval and resolution/acceptance of open questions."
+}

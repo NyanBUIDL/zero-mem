@@ -1,0 +1,41 @@
+schema_version: 1
+project: hermes-external-zero-mem
+status: m0_fully_verified_awaiting_next_milestone_approval
+authority: Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx
+master_spec_source_note: The requested .md path is absent; the workspace contains the DOCX with extracted text.
+current_milestone: M0
+next_incomplete_milestone: M1
+next_milestone_status: not_started
+completed_milestones:
+  - M0
+blocked_milestones:
+  - id: M0
+    reason: User approval required before implementation; open questions OQ-1 through OQ-6 are recorded in implementation-plan.json.
+repository:
+  git_initialized: true
+  baseline_commit: null
+  last_checkpoint: null
+verification:
+  status: fully_verified
+  ad_hoc_verification: passed
+  canonical_pytest_suite: passed
+  blocker: null
+  last_command: ".venv/bin/python -m pytest tests/ -q"
+  last_result: "3 passed in 0.00s"
+  focused_verification: "PASS; exit_code=0; cleaned=True; focused changed-plan/state/evidence assertions"
+  m0_criterion_verification: "PASS; python3 scripts/verify_m0_acceptance.py; M0-A/M0-B/M0-C all PASS; exit_code=0"
+  temporary_script_incident: "Resolved; PosixPath emission/import was a test-script generation error, not product-code failure"
+  evidence_path: acceptance-m0-verification.md
+  sanitized: true
+artifacts:
+  derived_agents: AGENTS.md
+  implementation_plan: implementation-plan.json
+  project_state: project-state.yaml
+  baseline_tests: tests/baseline/test_project_artifacts.py
+  acceptance_verification: acceptance-m0-verification.md
+notes:
+  - Planning and environment inspection only.
+  - M0 acceptance criteria M0-A through M0-E are fully verified; later milestones remain unimplemented.
+  - Project-local .venv created with uv and pytest installed only in that environment.
+  - No full implementation, corpus ingestion, automatic injection, or system-wide installation performed.
+  - Do not mark a milestone complete without executable acceptance evidence.

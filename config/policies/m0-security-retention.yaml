@@ -1,0 +1,38 @@
+schema_version: 1
+authority: Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx
+redact_before_persist: true
+secret_policy: reject_or_redact_at_capture_boundary
+redaction_audit: record_event_without_original_value
+cross_profile_write: explicit_authorization_required
+assistant_claim_to_active_fact: forbidden_without_evidence
+
+sensitivity:
+  public: persist_and_search
+  internal: persist_with_user_or_profile_scope
+  private: persist_with_encryption_and_access_policy
+  secret: never_persist
+
+retention:
+  temporary: delete_after_deadline
+  session: retain_until_session_or_project_close
+  persistent: retain_per_user_policy
+  never_store: memory_only
+
+delete_workflow:
+  remove_raw: true
+  remove_artifacts: true
+  remove_indexes: true
+  remove_projections: true
+  tombstone_or_version_index: true
+
+write_back:
+  mode: propose_then_review
+  audit_log: required
+  raw_trace_overwrite: forbidden
+
+m0_deferred:
+  private_encryption_key_management: unresolved_master_spec_detail
+  threat_model: unresolved_master_spec_detail
+  embedding_backend: unresolved_choice
+  service_transport: unresolved_choice
+  initial_third_profile: unresolved_choice

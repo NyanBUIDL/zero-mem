@@ -1,0 +1,109 @@
+schema_version: 1
+authority: Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx
+purpose: M0 implementation contracts; derived from master specification
+
+trace_taxonomy:
+  user_statement:
+    source: user
+    default_confidence: high_for_intent_preference
+  assistant_claim:
+    source: assistant
+    default_confidence: low_to_medium
+    active_requires: tool_observation_or_user_confirmation_or_deterministic_verification
+  tool_observation:
+    source: tool_terminal_api
+    default_confidence: high_when_exit_code_and_original_output_present
+  system_event:
+    source: runtime
+    default_confidence: high
+  external_source:
+    source: pdf_web_file
+    default_confidence: source_dependent
+  inference:
+    source: agent_or_rule
+    default_confidence: medium_or_low
+  decision:
+    source: user_or_confirmed_workflow
+    default_confidence: high
+  verified_state:
+    source: tool_rule_or_approval
+    default_confidence: very_high
+  derived_summary:
+    source: rule_or_llm
+    source_of_record: false
+
+provenance_required:
+  - trace_id
+  - trace_type
+  - source
+  - session_id
+  - profile_id
+  - project_id
+  - created_at
+  - valid_from
+  - valid_until
+  - status
+  - verification
+  - confidence
+  - sensitivity
+  - retention
+  - content_ref
+  - hash
+  - parent_trace_ids
+  - replaces_trace_id
+
+lifecycle_states:
+  - raw
+  - observed
+  - candidate
+  - confirmed
+  - active
+  - superseded
+  - conflicted
+  - archived
+  - deleted
+
+sensitivity_classes:
+  public:
+    policy: persist_and_search
+  internal:
+    policy: persist_with_user_or_profile_scope
+  private:
+    policy: persist_with_encryption_and_access_policy
+  secret:
+    policy: redact_or_reject_before_persist
+
+never_store:
+  - api_keys
+  - bearer_tokens
+  - oauth_secrets
+  - passwords
+  - private_keys
+  - unredacted_credentials
+
+redaction_patterns:
+  - bearer_authorization_headers
+  - api_key_assignments
+  - private_key_blocks
+  - password_assignments
+  - oauth_client_secrets
+  - credential_url_userinfo
+
+retention_classes:
+  temporary: delete_after_policy_deadline
+  session: retain_until_session_or_project_close
+  persistent: retain_per_user_policy
+  never_store: process_in_memory_only
+
+conflict_policy:
+  detect_on: same_entity_attribute_overlapping_valid_time
+  preserve_all_sources: true
+  unresolved_result: conflict_set
+  silent_overwrite: false
+
+storage_policy:
+  canonical_trace_store: sqlite_jsonl
+  artifact_store: local_versioned_files
+  raw_trace_mode: append_only
+  derived_views: rebuildable
+  obsidian_role: curated_projection_and_human_workspace
