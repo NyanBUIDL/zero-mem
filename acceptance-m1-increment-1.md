@@ -9,7 +9,7 @@
 
 | Criterion | Status | Objective evidence |
 |---|---|---|
-| Valid minimal envelope | PASS | `tests/unit/test_m1_event_contract.py::test_valid_minimal_envelope`; included in focused run: `13 passed in 0.01s` |
+| Valid minimal envelope | PASS | `tests/unit/test_m1_event_contract.py::test_valid_minimal_envelope`; included in focused run: `13 passed in 0.03s` |
 | Valid complete envelope | PASS | `test_valid_complete_envelope`; focused run passed |
 | Missing required field rejected | PASS | `test_missing_required_field_rejected`; focused run passed |
 | Invalid event type rejected | PASS | `test_invalid_event_type_rejected`; focused run passed |
@@ -28,7 +28,7 @@ Focused contract tests:
 
 ```text
 .venv/bin/python -m pytest tests/unit/test_m1_event_contract.py -q
-13 passed in 0.01s
+13 passed in 0.03s
 ```
 
 Canonical repository suite:
