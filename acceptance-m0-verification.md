@@ -10,7 +10,7 @@
 | M0-B | “Chốt taxonomy trace, provenance envelope và lifecycle state”; “Viết danh sách dữ liệu never_store và redaction patterns.” | PASS | `python3 scripts/verify_m0_acceptance.py` | Exit code `0`; output `M0-B: PASS`; artifacts `config/schemas/m0-contracts.yaml` and `config/policies/m0-security-retention.yaml` | None |
 | M0-C | “Tạo 30-50 scenario benchmark, ưu tiên task continuation và stale-state.” | PASS | `python3 scripts/verify_m0_acceptance.py` | Exit code `0`; output `M0-C: PASS`; artifact `benchmark-plan.json` contains 30 unique scenarios, required classes, gold fields, and evaluation metrics | None |
 | M0-D | “Chưa ingest toàn bộ 600 PDF; chỉ dùng corpus nhỏ khi test research route.” | PASS | Repository file inspection | No corpus files found; no full-corpus ingestion performed | None |
-| M0-E | Baseline verification evidence is recorded | PASS | `.venv/bin/python -m pytest tests/ -q` and focused verification | Canonical: `.venv/bin/python -m pytest tests/ -q` → `3 passed in 0.00s`; focused: `PASS`, `exit_code=0`, `cleaned=True`; criterion verifier: `python3 scripts/verify_m0_acceptance.py` → `M0-A: PASS`, `M0-B: PASS`, `M0-C: PASS`, `exit_code=0` | None |
+| M0-E | Baseline verification evidence is recorded | PASS | `.venv/bin/python -m pytest tests/ -q` and focused verification | Canonical: `.venv/bin/python -m pytest tests/ -q` → `3 passed in 0.01s`; focused: `PASS`, `exit_code=0`, `cleaned=True`; criterion verifier: `python3 scripts/verify_m0_acceptance.py` → `M0-A: PASS`, `M0-B: PASS`, `M0-C: PASS`, `exit_code=0` | None |
 
 ## Criterion-specific verifier
 
