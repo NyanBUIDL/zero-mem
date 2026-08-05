@@ -103,12 +103,23 @@
           "status": "verified",
           "evidence": "acceptance-m1-increment-4-1.md",
           "focused_test": "tests/unit/test_hermes_bridge_config.py",
-          "focused_result": "13 passed in 0.01s",
-          "canonical_result": "53 passed in 0.19s",
+          "focused_result": "13 passed in 0.02s",
+          "canonical_result": "53 passed in 0.08s",
           "implementation_started": true,
           "commit": "674b7892a6a921eff2a542937b439750127ee7c1",
+          "tested_commit": "bba02890fadbdc0fee3b264fb3106854d5f45f5e",
+          "focused_result": "13 passed in 0.02s",
+          "canonical_result": "53 passed in 0.08s",
+          "rerun_required": true,
+          "rerun_reason": "baseline state assertion changed after prior canonical evidence",
           "scope": ["BridgeConfig", "disabled-by-default", "explicit identity", "safe capture_root", "temporary hermes_home", "supported/conditional/deferred registries", "sanitized aggregate metrics"],
           "excluded_scope": ["real hook registration", "callback execution", "payload mapping", "redaction invocation", "capture append", "runtime integration", "capture-rate harness", "retry", "dead-letter", "SQLite", "retrieval", "MCP", "Obsidian", "prompt/context injection"]
+        },
+        "increment_4_2": {
+          "name": "Pure payload mapping",
+          "status": "ready_for_approval",
+          "plan": ".hermes/plans/2026-08-05_000000-m1-increment-4-2-pure-payload-mapping.md",
+          "implementation_started": false
         },
         "excluded_scope": ["retry", "dead-letter", "SQLite", "retrieval", "MCP", "Obsidian", "prompt/context injection"]
       }

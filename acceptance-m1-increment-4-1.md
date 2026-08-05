@@ -3,6 +3,10 @@
 **Increment:** Bridge configuration and registry
 **Status:** VERIFIED
 **Starting commit:** `ecb2d9cdd402dcbf6c71d7b7fd5352e9a2f62466`
+**Implementation commit:** `674b7892a6a921eff2a542937b439750127ee7c1`
+**Focused/canonical tested commit:** `bba02890fadbdc0fee3b264fb3106854d5f45f5e`
+**Latest state/plan review HEAD:** `bba02890fadbdc0fee3b264fb3106854d5f45f5e`
+**Rerun required:** Yes — executable state assertion changed after the prior canonical evidence; focused and canonical results below are fresh.
 **Checkpoint:** `checkpoint-m1-increment-4-1-start` → `ecb2d9cdd402dcbf6c71d7b7fd5352e9a2f62466`
 
 | Criterion | Status | Objective evidence |
@@ -26,15 +30,17 @@ Focused Increment 4.1 tests:
 
 ```text
 .venv/bin/python -m pytest tests/unit/test_hermes_bridge_config.py -q
-13 passed in 0.01s
+13 passed in 0.02s
 ```
 
 Canonical regression suite:
 
 ```text
 .venv/bin/python -m pytest tests/ -q
-53 passed in 0.19s
+53 passed in 0.08s
 ```
+
+The focused and canonical results are bound to `bba02890fadbdc0fee3b264fb3106854d5f45f5e`. The latest ad-hoc verification is separately recorded as state/plan/configuration verification only.
 
 The initial canonical run exposed a stale baseline state assertion after advancing the verified project state to Increment 4.1. The baseline assertion was updated to the objectively verified Increment 4.1 state, then the canonical suite passed. This was a test-state maintenance correction, not a production failure.
 
