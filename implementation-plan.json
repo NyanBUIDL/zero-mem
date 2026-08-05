@@ -83,7 +83,7 @@
         "focused_result": "10 passed in 0.02s",
         "canonical_result": "40 passed in 0.04s",
         "implementation_started": true,
-        "commit": "pending-final-commit",
+        "commit": "0a18c912477e4324d0a60580a043573f3630f217",
         "excluded_scope": ["retry", "dead-letter", "Hermes hooks", "retrieval", "SQLite", "MCP", "Obsidian", "prompt/context injection"]
       }
     },
