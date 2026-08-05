@@ -34,8 +34,10 @@ def test_implementation_plan_is_machine_readable_and_gated() -> None:
 
 def test_project_state_is_explicitly_unverified() -> None:
     state = (ROOT / "project-state.yaml").read_text(encoding="utf-8")
-    assert "status: m0_fully_verified_awaiting_next_milestone_approval" in state
+    assert "status: m1_plan_approved_awaiting_implementation" in state
     assert "status: fully_verified" in state
+    assert "current_milestone: M1" in state
+    assert "m1_production_code_started: false" in state
     assert "completed_milestones:" in state
     assert "  - M0" in state
     assert "git_initialized: true" in state

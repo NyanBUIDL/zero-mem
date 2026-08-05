@@ -94,5 +94,64 @@ project state.
 - §§16–18: stack, repository, build order, acceptance, roadmap
 - §21 and Appendices A–F: defaults, first implementation, fixtures, checklists
 
+## 11. M1 Architecture Decision Records
+
+### ADR-M1-001 — JSONL raw trace source of record
+
+M1 uses a versioned, append-only JSONL raw event store as the authoritative raw trace stream.
+This is not disposable temporary storage. M2 adds SQLite metadata, lifecycle state,
+relationships, and indexes above the JSONL source of record. M1 exposes a stable project-owned
+storage interface: `append(event)`, `contains(event_id)`, and `write_dead_letter(event, error)`.
+M1 does not create a competing canonical store.
+
+### ADR-M1-002 — Verified-hook coverage only
+
+M1 integrates only Hermes lifecycle/plugin hooks directly verified during planning. Supported
+classes are session lifecycle, pre/post tool, LLM/API lifecycle where used for observation,
+subagent, and verified task/Kanban lifecycle events. File-operation, skill-usage, and generic
+task hooks are deferred coverage because no generic verified hook was found. M1 must declare
+unsupported classes rather than claim them captured, and must not modify installed Hermes core.
+The >=99% capture threshold applies only to the declared supported event classes in the
+controlled harness.
+
+### ADR-M1-003 — Opt-in project-local observer bridge
+
+The integration is a project-local, independently enabled/disabled observer bridge based on
+verified lifecycle hooks. It is not the shell-hook subprocess bridge and does not modify the
+installed Hermes source or real `~/.hermes` state. Capture failures are fail-open with respect
+to Hermes control flow: they cannot alter tool results, prompts, model context, or actions.
+
+### ADR-M1-004 — Project-owned redaction boundary
+
+M1 owns deterministic redaction rules derived from the M0 schema and policy files. Incoming
+payloads are copied, normalized into an isolated structure, redacted or rejected, hashed only
+after sanitization, validated, and then persisted. Original secrets must not occur in raw JSONL,
+dead-letter JSONL, redaction audits, logs, exceptions, temporary files, or test snapshots.
+Installed Hermes private redaction modules are compatibility references only, not runtime
+dependencies.
+
+### ADR-M1-005 — Bounded retry and sanitized dead-letter
+
+Storage receives three total attempts with 50 ms then 200 ms backoff and a 500 ms maximum
+event deadline. There is no automatic dead-letter replay in M1. Sanitized dead-letter records
+are written to `data/dead-letter/YYYY-MM-DD.jsonl` and contain event ID, available trace ID,
+failure class, timestamp, attempt count, and sanitized diagnostic message. If both normal and
+dead-letter persistence fail, only a sanitized local diagnostic is emitted and the failure is
+not raised into Hermes.
+
+### ADR-M1-006 — Explicit identity metadata
+
+`project_id` resolves only from `HERMES_PROJECT_ID`, then project-local bridge configuration,
+then null/`unassigned`. `profile_id` follows the same explicit-value-or-null rule. Neither is
+inferred from cwd, repository name, session text, prompt content, or unrelated Hermes state.
+
+### ADR-M1-007 — M1 secret-scan and observer-only acceptance scope
+
+M1 secret scanning covers raw capture, dead-letter output, redaction audits, logs, exceptions,
+temporary verification artifacts, and test snapshots. SQLite/index scanning is deferred to M2.
+“No prompt injection” means observer non-interference: M1 must not modify, append, rewrite, or
+inject content into prompts, messages, tool arguments, model context, or Hermes actions; it is
+not a prompt-injection classifier.
+
 This document is a derived architecture artifact. The master specification remains the highest
 source of truth.

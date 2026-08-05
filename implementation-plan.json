@@ -36,8 +36,12 @@
       "id": "M1",
       "name": "Observation-only capture sidecar",
       "spec_sections": ["10", "14.2", "17.1", "17.2", "18"],
-      "deliverables": ["event adapter", "redaction boundary", "schema validation", "append-only JSONL/SQLite capture", "retry/dead-letter path"],
-      "acceptance": [">=99% harness capture", "correct order/timestamps", "secret corpus absent from raw/index", "redaction audit without original secret", "no prompt injection"]
+      "deliverables": ["event adapter", "redaction boundary", "schema validation", "versioned append-only JSONL raw trace source of record", "stable append/contains/dead-letter interface", "retry/dead-letter path"],
+      "supported_event_classes": ["session_lifecycle", "pre_tool_call", "post_tool_call", "llm_api_lifecycle", "subagent_lifecycle", "verified_task_or_kanban_lifecycle"],
+      "deferred_event_classes": ["file_operations", "skill_usage", "generic_task_transitions"],
+      "acceptance": [">=99% capture for declared supported hook classes", "correct order/timestamps", "secret corpus absent from raw/dead-letter/audit/log/exception/temp outputs; SQLite/index scan deferred to M2", "redaction audit without original secret", "observer non-interference: no prompt/message/tool/context/action mutation and capture failure cannot change Hermes control flow"],
+      "binding_decision_ids": ["ADR-M1-001", "ADR-M1-002", "ADR-M1-003", "ADR-M1-004", "ADR-M1-005", "ADR-M1-006", "ADR-M1-007"],
+      "plan_status": "approved"
     },
     {
       "id": "M2",

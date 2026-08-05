@@ -1,11 +1,14 @@
 schema_version: 1
 project: hermes-external-zero-mem
-status: m0_fully_verified_awaiting_next_milestone_approval
+status: m1_plan_approved_awaiting_implementation
 authority: Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx
 master_spec_source_note: The requested .md path is absent; the workspace contains the DOCX with extracted text.
-current_milestone: M0
+current_milestone: M1
 next_incomplete_milestone: M1
-next_milestone_status: not_started
+next_milestone_status: plan_approved_not_started
+m1_plan: .hermes/plans/2026-08-05_000000-m1-observation-only-sidecar.md
+m1_decision_ids: ADR-M1-001, ADR-M1-002, ADR-M1-003, ADR-M1-004, ADR-M1-005, ADR-M1-006, ADR-M1-007
+m1_production_code_started: false
 completed_milestones:
   - M0
 blocked_milestones:
@@ -33,8 +36,10 @@ artifacts:
   project_state: project-state.yaml
   baseline_tests: tests/baseline/test_project_artifacts.py
   acceptance_verification: acceptance-m0-verification.md
+  m1_acceptance_criteria: acceptance-m1-criteria.md
+  m1_plan: .hermes/plans/2026-08-05_000000-m1-observation-only-sidecar.md
 notes:
-  - Planning and environment inspection only.
+  - M1 plan approved and binding decisions recorded; production implementation has not started.
   - M0 acceptance criteria M0-A through M0-E are fully verified; later milestones remain unimplemented.
   - Project-local .venv created with uv and pytest installed only in that environment.
   - No full implementation, corpus ingestion, automatic injection, or system-wide installation performed.
