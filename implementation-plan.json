@@ -176,7 +176,7 @@
           "canonical_result": "146 passed in 0.12s",
           "implementation_started": true,
           "preflight_correction": "legacy top-level status field updated from m1_increment_4_3_verified to m1_increment_4_4_verified; no product-code change",
-          "commit": "PENDING_FINAL_COMMIT",
+          "commit": "50713c6f73cd82bf3e19caa7a4bf9bc8493223b8",
           "scope": ["isolated non-interference harness", "enabled/disabled equivalence", "failure isolation", "exception preservation", "secret scan", "temporary HERMES_HOME"],
           "excluded_scope": ["capture-rate benchmark (4.6)", "conditional hooks", "subagent hooks", "on_session_reset", "retry", "dead-letter", "SQLite", "retrieval", "MCP", "Obsidian", "prompt/context injection", "installed Hermes source changes"]
         },
