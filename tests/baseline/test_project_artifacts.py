@@ -46,7 +46,7 @@ def test_project_state_is_explicitly_unverified() -> None:
     assert "m1_increment_4_3_status: verified" in state
     assert "m1_increment_4_4_status: verified" in state
     assert "m1_increment_4_status: in_progress" in state
-    assert "m1_increment_4_5_status: in_progress" in state
+    assert "m1_increment_4_5_status: verified" in state
     assert "completed_milestones:" in state
     assert "  - M0" in state
     assert "git_initialized: true" in state
