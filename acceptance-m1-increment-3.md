@@ -3,21 +3,29 @@
 **Increment:** Capture boundary and deduplication
 **Status:** VERIFIED
 **Starting commit:** `df44a7d016ec13fb4c0038f493f8609da3ce316d`
+**Implementation commit:** `0a18c912477e4324d0a60580a043573f3630f217`
+**Product-code test state:** `17ca41e5e9c6f91dfe45fbcbbddcf0205a8e2118`
+**Current evidence-review HEAD:** `17ca41e5e9c6f91dfe45fbcbbddcf0205a8e2118`
+**Rerun required:** No. Changes after the product-code test state are documentation, state, and acceptance-evidence records only; no executable source, tests, schemas, storage behavior, redaction behavior, or runtime configuration changed.
 **Checkpoint:** `checkpoint-m1-increment-3-start` → `df44a7d016ec13fb4c0038f493f8609da3ce316d`
 
 | Criterion | Status | Objective evidence |
 |---|---|---|
-| Append-only authoritative JSONL source | PASS | 10 focused tests validate one deterministic newline-terminated JSON object per record, append-only bytes, and reopen recovery |
-| Stable CaptureStore interface | PASS | `CaptureStoreConfig`, `AppendResult`, `CaptureStore`, `append`, `contains_event_id`, `contains_content_hash`, `inspect_record`, and `close` are implemented and tested |
-| Redaction before persistence | PASS | Test redacts a synthetic secret before append; raw stream contains no original secret; missing audit/secret policy is rejected |
-| Event-ID deduplication | PASS | Repeated event ID returns `duplicate` with `duplicate_class=event_id`; source bytes remain unchanged |
-| Sanitized-content-hash deduplication | PASS | Equal sanitized hash returns `duplicate` with unchanged source bytes |
-| Deterministic serialization | PASS | Equivalent key order produces equal content hashes; JSON lines parse independently |
-| Monotonic sequence and restart recovery | PASS | Reopen test reconstructs next sequence; records are contiguous `[0, 1]`; source timestamps remain separate |
-| Partial/malformed line handling | PASS | Partial final line and malformed historical line fail closed without deletion |
-| Restrictive permissions/path configuration | PASS | Explicit root is honored; POSIX tests assert directory `0700` and file `0600` |
-| Immutability and secret absence | PASS | Sanitized source event is used; synthetic secret is absent from persisted JSONL |
-| Future behavior excluded | PASS | Store exposes no retry/search/injection methods; no Hermes hooks, retries, dead letters, SQLite, retrieval, MCP, Obsidian, or prompt injection added |
+| Append-only authoritative JSONL source | PASS | Focused tests validate append-only bytes, no rewrite/delete, and restart recovery | `src/storage/jsonl_capture.py`; `tests/unit/test_m1_capture_boundary.py` |
+| One complete parseable record per line | PASS | JSONL line count/newline and independent `json.loads` checks pass | `test_valid_append_and_one_record_per_line` |
+| Stable CaptureStore interface | PASS | Config, append result, append/contains/inspect/close operations are implemented and exercised | `src/storage/capture_boundary.py`; focused tests |
+| Redaction before persistence | PASS | Synthetic secret is redacted before append; missing audit and never-store cases reject | `test_redaction_before_persistence_and_secret_absence` |
+| Event-ID deduplication | PASS | Repeated event ID returns explicit duplicate class and no append | `test_event_id_and_hash_duplicates_do_not_rewrite` |
+| Sanitized-content-hash deduplication | PASS | Equal sanitized hash returns explicit duplicate and preserves first record | Same focused test |
+| Deterministic serialization | PASS | Equivalent key order yields equal sanitized content hashes and stable JSON | `test_deterministic_serialization` |
+| Monotonic sequence/restart recovery | PASS | Reopen reconstructs next sequence; values are contiguous and duplicate attempts do not advance | `test_sequence_recovery_and_timestamp_preservation` |
+| Source timestamp preservation | PASS | Source timestamp remains distinct from assigned capture sequence | Same focused test; event contract |
+| Partial/malformed line handling | PASS | Partial final and malformed historical lines fail closed without deletion | `test_partial_final_line_blocks_append_without_deletion`; malformed-line test |
+| Atomic/recoverable append behavior | PASS | Append flushes and fsyncs complete line; unsafe write returns sanitized rejection | `src/storage/jsonl_capture.py`; focused tests |
+| Restrictive permissions/path configuration | PASS | Explicit root honored; POSIX permissions assert directory `0700`, file `0600` | `test_restrictive_permissions_and_explicit_path` |
+| Source immutability/secret absence | PASS | Sanitized event is used; synthetic secret absent from persisted JSONL | Redaction-before-persistence test and ad-hoc verification |
+| Increment 1/2 compatibility and no LLM | PASS | Canonical suite includes contract/redaction tests; storage uses no LLM/network | `.venv/bin/python -m pytest tests/ -q` |
+| Future behavior excluded | PASS | No retries, dead letters, Hermes hooks, SQLite, retrieval, MCP, Obsidian, or prompt injection added | Scope boundary and Git diff |
 
 ## Commands
 

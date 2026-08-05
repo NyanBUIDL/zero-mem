@@ -85,7 +85,17 @@
         "ad_hoc_result": "PASS; exit_code=0; cleaned=True; append/dedup/secret-absence focused check",
         "implementation_started": true,
         "commit": "0a18c912477e4324d0a60580a043573f3630f217",
+        "product_code_test_state": "17ca41e5e9c6f91dfe45fbcbbddcf0205a8e2118",
+        "rerun_required": false,
+        "rerun_reason": "intervening changes are documentation/state/acceptance evidence only",
         "excluded_scope": ["retry", "dead-letter", "Hermes hooks", "retrieval", "SQLite", "MCP", "Obsidian", "prompt/context injection"]
+      },
+      "increment_4": {
+        "name": "Verified Hermes hook integration",
+        "status": "ready_for_approval",
+        "plan": ".hermes/plans/2026-08-05_000000-m1-increment-4-hermes-hook-integration.md",
+        "implementation_started": false,
+        "excluded_scope": ["retry", "dead-letter", "SQLite", "retrieval", "MCP", "Obsidian", "prompt/context injection"]
       }
     },
     {
