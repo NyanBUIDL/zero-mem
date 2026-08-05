@@ -180,6 +180,28 @@
           "scope": ["isolated non-interference harness", "enabled/disabled equivalence", "failure isolation", "exception preservation", "secret scan", "temporary HERMES_HOME"],
           "excluded_scope": ["capture-rate benchmark (4.6)", "conditional hooks", "subagent hooks", "on_session_reset", "retry", "dead-letter", "SQLite", "retrieval", "MCP", "Obsidian", "prompt/context injection", "installed Hermes source changes"]
         },
+        "increment_4_6": {
+          "name": "Capture-rate benchmark and final M1 acceptance",
+          "status": "verified",
+          "plan": ".hermes/plans/2026-08-05_000000-m1-increment-4-6-capture-rate-benchmark.md",
+          "evidence": "acceptance-m1-increment-4-6.md",
+          "final_evidence": "acceptance-m1-final.md",
+          "focused_result": "20 passed in 0.09s",
+          "canonical_result": "166 passed in 0.25s",
+          "commit": "21d460f5278e2044c3c7d9e78ae17647cd71c76a",
+          "tested_commit": "21d460f5278e2044c3c7d9e78ae17647cd71c76a",
+          "expected_supported": 8,
+          "appended_unique": 8,
+          "accepted_duplicates": 2,
+          "failed_captures": 0,
+          "capture_rate": 100.0,
+          "scope": ["controlled capture-rate benchmark over 8 supported hooks", "conditional/deferred excluded", "final M1 acceptance"],
+          "excluded_scope": ["conditional hooks (8)", "deferred hooks (10)", "retry", "dead-letter", "SQLite", "retrieval", "MCP", "Obsidian", "prompt/context injection", "installed Hermes source changes"]
+        },
+        "status": "verified",
+        "m1_final_evidence": "acceptance-m1-final.md",
+        "m1_canonical_result": "166 passed in 0.25s",
+        "m1_capture_rate": 100.0,
         "excluded_scope": ["retry", "dead-letter", "SQLite", "retrieval", "MCP", "Obsidian", "prompt/context injection"]
       }
     },
