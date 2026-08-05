@@ -68,7 +68,10 @@
         "ad_hoc_result": "PASS; exit_code=0; cleaned=True",
         "implementation_started": true,
         "commit": "dd36562e35a64f0984fb1acd9a84b88b1a4350f5",
-        "evidence_final_commit": "181eb8473d1f719ea8acd094099aeb559c5698e4",
+        "evidence_final_commit": "2558c9f1d915e5f7162e5c9c18d3d5d84be8fb85",
+        "final_evidence_review_head": "2558c9f1d915e5f7162e5c9c18d3d5d84be8fb85",
+        "rerun_required": false,
+        "rerun_reason": "post-test changes are documentation, plan, evidence, and project-state records only",
         "excluded_scope": ["JSONL persistence", "retry", "dead-letter", "deduplication", "Hermes integration", "capture-rate harness", "retrieval", "SQLite", "MCP", "Obsidian", "prompt/context injection"]
       }
     },
