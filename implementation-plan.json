@@ -269,6 +269,20 @@
         "tested_commit": "ca31d521a74860e731671c2759289cd959253e79",
         "scope": ["zm_relations (child_of from parent_trace_id, derived_from from relation_ids, supersedes from active-key enforcement)", "zm_scopes (project/profile/knowledge_space observed only, no inference)", "zm_artifacts registry (populated only from explicit artifact_refs, stored_path NULL deferred)", "active-key uniqueness enforcement (trace_id key; prior active marked superseded, supersedes edge, no silent overwrite)", "relation provenance (verifier=deterministic_check, evidence_ref=trace_id)", "migration v4 (CURRENT_SCHEMA_VERSION=4)", "rebuild_from_jsonl re-derives relations/scopes/artifacts; verify_rebuild_parity extended", "secret scan across new tables"],
         "excluded_scope": ["FTS5 content indexing (M2.5)", "retention tombstones (M2.6)", "authorization/access-control across profiles (M5)", "retrieval", "ranking", "query routing", "MCP", "Obsidian", "context injection", "artifact content storage"]
+      },
+      "increment_5": {
+        "name": "Relational indexes, FTS5, and minimal inspection helpers",
+        "status": "verified",
+        "evidence": "acceptance-m2-increment-5.md",
+        "focused_test": "tests/unit/test_m2_indexes.py",
+        "focused_result": "12 passed, 3 skipped (FTS5-conditional) in 1.62s",
+        "canonical_result": "283 passed, 3 skipped",
+        "starting_commit": "3a2bae05a97b0f9c12426763a5ac5ce0535d5d2e",
+        "plan_commit": "51d042e39d4db37aad360830cf8e07c03b91ae50",
+        "implementation_commit": "514c73783fd52566ba213ff6b53b274142e4f20f",
+        "tested_commit": "514c73783fd52566ba213ff6b53b274142e4f20f",
+        "scope": ["relational indexes over zm_meta/zm_relations/zm_lifecycle/zm_scopes (migration v5)", "zm_fts FTS5 over APPROVED SANITIZED content only", "FTS5 capability detection with safe fallback (no zm_fts; search_fts returns [])", "inspection helpers search_fts/find_related/find_by_trace_id/list_events_in_scope (exact-key, no ranking)", "verify_rebuild_parity extended to FTS row set", "secret scanner covers zm_fts", "migration v5 (CURRENT_SCHEMA_VERSION=5)"],
+        "excluded_scope": ["semantic search/vectors/ranking/scoring (M3+)", "retrieval/query routing/context injection (M3)", "retention tombstones (M2.6)", "artifact content storage", "modifying zm_meta to store raw payload text"]
       }
     },
     {
