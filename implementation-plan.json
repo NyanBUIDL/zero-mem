@@ -255,6 +255,20 @@
         "tested_commit": "b4b9c849a235d1fbfaffad54cdb277c3323ed65b",
         "scope": ["zm_lifecycle projection (current_state mirror)", "zm_provenance projection (deterministic_check verifier, evidence_ref=trace_id)", "rebuild_from_jsonl (full derived-layer rebuild, parity with incremental, deterministic)", "idempotent lifecycle/provenance seeding on new_event", "migration v3 (CURRENT_SCHEMA_VERSION=3)", "secret scan across new tables"],
         "excluded_scope": ["supersession link creation (zm_relations, M2.4)", "active-key uniqueness enforcement (M2.4)", "zm_scopes (M2.4)", "FTS5 content indexing (M2.5)", "retention tombstones (M2.6)", "retrieval", "ranking", "query routing", "MCP", "Obsidian", "context injection"]
+      },
+      "increment_4": {
+        "name": "Relations and project/profile/knowledge-space mappings",
+        "status": "verified",
+        "evidence": "acceptance-m2-increment-4.md",
+        "focused_test": "tests/unit/test_m2_relations.py",
+        "focused_result": "22 passed in 0.91s",
+        "canonical_result": "270 passed, 1 deselected (pre-existing M1 timing flake)",
+        "starting_commit": "3340a8e779b6c592146e8c7f5eb8d1b06ff3f9c6",
+        "plan_commit": "6c4acadb254c3ee13eb23570770789727134cb6c",
+        "implementation_commit": "ca31d521a74860e731671c2759289cd959253e79",
+        "tested_commit": "ca31d521a74860e731671c2759289cd959253e79",
+        "scope": ["zm_relations (child_of from parent_trace_id, derived_from from relation_ids, supersedes from active-key enforcement)", "zm_scopes (project/profile/knowledge_space observed only, no inference)", "zm_artifacts registry (populated only from explicit artifact_refs, stored_path NULL deferred)", "active-key uniqueness enforcement (trace_id key; prior active marked superseded, supersedes edge, no silent overwrite)", "relation provenance (verifier=deterministic_check, evidence_ref=trace_id)", "migration v4 (CURRENT_SCHEMA_VERSION=4)", "rebuild_from_jsonl re-derives relations/scopes/artifacts; verify_rebuild_parity extended", "secret scan across new tables"],
+        "excluded_scope": ["FTS5 content indexing (M2.5)", "retention tombstones (M2.6)", "authorization/access-control across profiles (M5)", "retrieval", "ranking", "query routing", "MCP", "Obsidian", "context injection", "artifact content storage"]
       }
     },
     {
