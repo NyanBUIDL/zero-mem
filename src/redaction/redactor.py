@@ -6,7 +6,6 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from collections.abc import Mapping
 from typing import Any
 
@@ -54,10 +53,18 @@ def supported_secret_patterns() -> tuple[str, ...]:
     return _RULES
 
 
+DEFAULT_OBSERVED_AT = "1970-01-01T00:00:00.000Z"
+
+
 def _utc(value: str | None) -> str:
+    # Deterministic default: when the caller does not supply an observed_at, use a stable
+    # sentinel rather than wall-clock. This keeps redaction a pure function of its inputs
+    # (map_hook_payload is deterministic given the same hook+payload). Real capture paths
+    # always pass an explicit observed_at derived from the event, so live timestamps are
+    # unaffected.
     if value is not None:
         return value
-    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    return DEFAULT_OBSERVED_AT
 
 
 def _canonical(value: Any) -> str:
