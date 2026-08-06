@@ -315,7 +315,7 @@
         "implementation_commit": "efb0fba6bfdaec83cd4f6b21ba984e47340ee3ee",
         "tested_commit": "efb0fba6bfdaec83cd4f6b21ba984e47340ee3ee",
         "isolation_hardening_commit": "d03aa7c2d6f6f8e557fdcec60e91eaa73326435c",
-        "final_evidence_commit": "PENDING",
+        "final_evidence_commit": "c97357e95820a510c05a0e777f0d450f19594d51",
         "schema_version": 6,
         "scope": ["clean rebuild from representative canonical JSONL corpus", "incremental vs rebuild parity (verify_rebuild_parity over all derived surfaces)", "deterministic repeated rebuild", "idempotent repeated ingestion (first-write-wins)", "lifecycle states raw..deleted + supersession via trace_id active-key", "relations (child_of from parent_trace_id, derived_from from relation_ids) + scopes + artifact registry parity", "FTS5 over sanitized content only; deleted excluded; no ranking/semantic behavior", "Decision B logical deletion: append-only tombstones, no physical JSONL mutation", "migration path v1..v6, idempotent reopen, unknown-future rejected, adjacent downgrades incl v6->v5, no partial advance", "crash/resume + consumed-prefix integrity (append tolerated; prefix modification/truncation rejected)", "secret scan across all derived tables; injected secret detected without printing", "JSONL byte-for-byte immutability", "real ~/.hermes isolation (baseline-aware M2-attributable-file check)", "no M3 behavior (no ranking/routing/vectors/injection/MCP/Obsidian)"],
         "excluded_scope": ["physical deletion/rewrite/truncation/compaction of canonical JSONL (Decision B; deferred)", "background retention scheduler / automatic expiry", "retrieval/ranking/scoring/query routing/semantic search (M3+)", "MCP/Obsidian/context injection", "authorization/access-control"],
