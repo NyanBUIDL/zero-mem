@@ -16,9 +16,11 @@ Invariants (required rules):
   sanitized record, not a dead-letter store.
 - No LLM or network calls.
 
-This module must not be used for lifecycle/provenance/relation/scope projection,
-FTS5 indexing, retrieval, ranking, routing, MCP, Obsidian, or context injection
-(those are later milestones / out of scope).
+This module handles M2.2 (idempotent ingestion) and M2.3 (lifecycle/verification
+projection + rebuild_from_jsonl). It must not be used for relation/scope projection
+(zm_relations/zm_scopes, M2.4), FTS5 indexing (M2.5), retention tombstones (M2.6),
+retrieval, ranking, routing, MCP, Obsidian, or context injection (those are later
+milestones / out of scope).
 """
 from __future__ import annotations
 
@@ -178,6 +180,29 @@ def _project_row(env: dict, source_id: str) -> tuple:
         redaction,
         _now(),
         source_id,
+    )
+
+
+def _seed_lifecycle_and_provenance(conn, env: dict) -> None:
+    """Seed derived lifecycle-state and verification/provenance projections (M2.3).
+
+    Called within the same per-line transaction as the zm_meta insert for a NEW_EVENT.
+    - zm_lifecycle: mirrors the observed lifecycle_status; superseded_by/active_key are
+      reserved (seeded NULL) for M2.4 enforcement — no invented transition logic here.
+    - zm_provenance: one row from the envelope's verification_status + deterministic verifier;
+      verifier-rank is stored as data only (no ranking/scoring/retrieval in M2).
+    """
+    event_id = env["event_id"]
+    lifecycle_status = env["lifecycle_status"]
+    conn.execute(
+        "INSERT INTO zm_lifecycle (event_id, current_state, superseded_by, active_key, updated_at) "
+        "VALUES (?,?,?,?,?)",
+        (event_id, lifecycle_status, None, None, _now()),
+    )
+    conn.execute(
+        "INSERT INTO zm_provenance (event_id, verification_status, verifier, evidence_ref, recorded_at) "
+        "VALUES (?,?,?,?,?)",
+        (event_id, env["verification_status"], "deterministic_check", env.get("trace_id"), _now()),
     )
 
 
@@ -354,6 +379,7 @@ def _commit_outcome(conn, source_id, line_number, outcome, event_id, content_has
                 f"VALUES ({placeholders})",
                 row,
             )
+            _seed_lifecycle_and_provenance(conn, env)
         if outcome in _COMMITTED_OUTCOMES:
             _insert_log(conn, source_id, line_number, outcome, event_id, content_hash, diagnostic_code)
             # Advance the incremental prefix hash with this committed complete line.
@@ -437,7 +463,11 @@ def get_checkpoint(store, source_id: str) -> Optional[dict]:
 
 
 def scan_sqlite_for_secrets(store, secret_corpus) -> list:
-    """Return any secret-corpus token found in derived SQLite rows/logs (empty = clean)."""
+    """Return any secret-corpus token found in derived SQLite rows/logs (empty = clean).
+
+    Covers zm_meta, zm_lifecycle, zm_provenance, and zm_ingest_log. Sanitized content is
+    never stored in any of these tables (secrets cannot appear by construction).
+    """
     found: list = []
     corpus = list(secret_corpus)
     if not corpus:
@@ -450,6 +480,18 @@ def scan_sqlite_for_secrets(store, secret_corpus) -> list:
         for token in corpus:
             if token and token in blob:
                 found.append(token)
+    cur.execute("SELECT event_id, current_state, superseded_by, active_key FROM zm_lifecycle")
+    for row in cur.fetchall():
+        blob = " ".join("" if row[c] is None else str(row[c]) for c in ("event_id", "current_state", "superseded_by", "active_key"))
+        for token in corpus:
+            if token and token in blob:
+                found.append(token)
+    cur.execute("SELECT event_id, verification_status, verifier, evidence_ref FROM zm_provenance")
+    for row in cur.fetchall():
+        blob = " ".join("" if row[c] is None else str(row[c]) for c in ("event_id", "verification_status", "verifier", "evidence_ref"))
+        for token in corpus:
+            if token and token in blob:
+                found.append(token)
     cur.execute("SELECT jsonl_path, event_id, content_hash, diagnostic_code FROM zm_ingest_log")
     for row in cur.fetchall():
         blob = " ".join("" if row[c] is None else str(row[c]) for c in ("jsonl_path", "event_id", "content_hash", "diagnostic_code"))
@@ -459,14 +501,146 @@ def scan_sqlite_for_secrets(store, secret_corpus) -> list:
     return found
 
 
+# ---- M2.3: lifecycle / provenance projection + rebuild ---------------------
+
+DERIVED_TABLES = ("zm_meta", "zm_lifecycle", "zm_provenance", "zm_ingest_checkpoint", "zm_ingest_log", "zm_migrations")
+
+
+def get_lifecycle(store, event_id: str) -> Optional[dict]:
+    """Return the zm_lifecycle row for an event, or None."""
+    cur = store._conn.cursor()
+    cur.execute(
+        "SELECT event_id, current_state, superseded_by, active_key, updated_at "
+        "FROM zm_lifecycle WHERE event_id=?",
+        (event_id,),
+    )
+    row = cur.fetchone()
+    if row is None:
+        return None
+    return {
+        "event_id": row["event_id"],
+        "current_state": row["current_state"],
+        "superseded_by": row["superseded_by"],
+        "active_key": row["active_key"],
+        "updated_at": row["updated_at"],
+    }
+
+
+def get_provenance(store, event_id: str) -> list:
+    """Return all zm_provenance rows for an event (list of dicts)."""
+    cur = store._conn.cursor()
+    cur.execute(
+        "SELECT id, event_id, verification_status, verifier, evidence_ref, recorded_at "
+        "FROM zm_provenance WHERE event_id=?",
+        (event_id,),
+    )
+    return [
+        {
+            "id": int(r["id"]),
+            "event_id": r["event_id"],
+            "verification_status": r["verification_status"],
+            "verifier": r["verifier"],
+            "evidence_ref": r["evidence_ref"],
+            "recorded_at": r["recorded_at"],
+        }
+        for r in cur.fetchall()
+    ]
+
+
+def list_by_lifecycle_state(store, state: str) -> list:
+    """Return event_ids whose derived current_state equals `state` (exact-key inspection)."""
+    cur = store._conn.cursor()
+    cur.execute("SELECT event_id FROM zm_lifecycle WHERE current_state=?", (state,))
+    return [r["event_id"] for r in cur.fetchall()]
+
+
+def rebuild_from_jsonl(store, jsonl_paths, source_ids=None, synchronous_full: bool = False) -> dict:
+    """Rebuild the entire derived SQLite layer from canonical JSONL (M2.3).
+
+    Drops all derived tables, recreates schema, then ingests every supplied file in order
+    via ``ingest_file``. Deterministic and idempotent: identical input -> identical derived
+    state. ``zm_migrations`` (schema version) is preserved. JSONL is never mutated.
+
+    Returns ``{source_id: IngestionReport}`` for each file.
+    """
+    conn = store._conn
+    if synchronous_full:
+        try:
+            conn.execute("PRAGMA synchronous=FULL")
+        except Exception:
+            pass
+    # Drop every derived table (preserving zm_migrations + any future zm_artifacts).
+    try:
+        conn.execute("BEGIN")
+        for table in DERIVED_TABLES:
+            conn.execute(f"DROP TABLE IF EXISTS {table}")
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
+    # Recreate all derived tables for the current schema version.
+    store.ensure_schema()
+    # Ingest each file in order, reusing M2.2 per-line transactions/idempotence.
+    reports: dict = {}
+    if isinstance(jsonl_paths, (str, bytes)) or hasattr(jsonl_paths, "__fspath__"):
+        jsonl_paths = [jsonl_paths]
+    for idx, path in enumerate(jsonl_paths):
+        sid = None
+        if source_ids is not None and idx < len(source_ids):
+            sid = source_ids[idx]
+        reports[_safe_source_id(Path(path)) if sid is None else sid] = ingest_file(store, path, source_id=sid)
+    return reports
+
+
+def verify_rebuild_parity(store_a, store_b) -> bool:
+    """True if two derived DBs hold identical zm_meta/zm_lifecycle/zm_provenance key sets + states.
+
+    Used by tests to assert rebuild parity vs incremental ingest. ``zm_ingest_checkpoint`` /
+    ``zm_ingest_log`` history is intentionally excluded (not part of the parity contract).
+    """
+    conn_a, conn_b = store_a._conn, store_b._conn
+
+    def snapshot(conn):
+        meta = {
+            (r["event_id"], r["trace_id"], r["lifecycle_status"], r["verification_status"])
+            for r in conn.execute(
+                "SELECT zm_meta.event_id, zm_meta.trace_id, zm_meta.lifecycle_status, "
+                "zm_meta.verification_status FROM zm_meta"
+            ).fetchall()
+        }
+        life = {
+            (r["event_id"], r["current_state"])
+            for r in conn.execute("SELECT event_id, current_state FROM zm_lifecycle").fetchall()
+        }
+        prov = {
+            (r["event_id"], r["verification_status"], r["verifier"], r["evidence_ref"])
+            for r in conn.execute(
+                "SELECT event_id, verification_status, verifier, evidence_ref FROM zm_provenance"
+            ).fetchall()
+        }
+        return meta, life, prov
+
+    a_meta, a_life, a_prov = snapshot(conn_a)
+    b_meta, b_life, b_prov = snapshot(conn_b)
+    return a_meta == b_meta and a_life == b_life and a_prov == b_prov
+
+
 __all__ = [
     "IngestionOutcome",
     "IngestionFailure",
     "IngestionReport",
     "ingest_file",
+    "rebuild_from_jsonl",
     "get_trace",
+    "get_lifecycle",
+    "get_provenance",
+    "list_by_lifecycle_state",
     "count_metadata",
     "get_checkpoint",
+    "verify_rebuild_parity",
     "scan_sqlite_for_secrets",
     "CURRENT_SCHEMA_VERSION",
 ]

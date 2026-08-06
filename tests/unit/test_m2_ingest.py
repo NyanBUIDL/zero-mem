@@ -14,6 +14,7 @@ from typing import Any, Optional
 import pytest
 
 from src.capture.validation import REQUIRED_FIELDS
+from src.storage.migrations import CURRENT_SCHEMA_VERSION
 from src.storage.sqlite_store import SQLiteStore, SQLiteStoreConfig
 from src.storage.ingest import (
     IngestionOutcome,
@@ -75,10 +76,10 @@ def _real_hermes_entries() -> set:
 
 # ---- migration framework ----------------------------------------------------
 
-def test_migration_upgrade_1_to_2(tmp_path: pathlib.Path) -> None:
+def test_migration_upgrade_1_to_current(tmp_path: pathlib.Path) -> None:
     store = _open_store(tmp_path)
     try:
-        assert store.get_schema_version() == 2
+        assert store.get_schema_version() == CURRENT_SCHEMA_VERSION
         assert store.table_exists("zm_meta")
         assert store.table_exists("zm_ingest_checkpoint")
         assert store.table_exists("zm_ingest_log")
@@ -89,7 +90,7 @@ def test_migration_upgrade_1_to_2(tmp_path: pathlib.Path) -> None:
 def test_migration_downgrade_2_to_1(tmp_path: pathlib.Path) -> None:
     store = _open_store(tmp_path)
     try:
-        assert store.get_schema_version() == 2
+        assert store.get_schema_version() == CURRENT_SCHEMA_VERSION
         store.downgrade_to(1)
         assert store.get_schema_version() == 1
         assert not store.table_exists("zm_ingest_checkpoint")
@@ -104,7 +105,7 @@ def test_reopen_upgraded_db_is_idempotent(tmp_path: pathlib.Path) -> None:
     s1.close()
     s2 = _open_store(tmp_path)
     try:
-        assert s2.get_schema_version() == 2
+        assert s2.get_schema_version() == CURRENT_SCHEMA_VERSION
         assert s2.table_exists("zm_ingest_checkpoint")
     finally:
         s2.close()
@@ -620,9 +621,11 @@ def test_no_real_hermes_home_writes(tmp_path: pathlib.Path) -> None:
 
 
 def test_no_later_m2_behavior(tmp_path: pathlib.Path) -> None:
+    # Asserts tables/methods strictly beyond M2.3 are absent (relations/scopes/FTS/artifacts,
+    # replay/dead-letter). zm_lifecycle / zm_provenance / rebuild_from_jsonl belong to M2.3.
     store = _open_store(tmp_path)
     try:
-        for t in ("zm_lifecycle", "zm_provenance", "zm_relations", "zm_scopes", "zm_fts", "zm_artifacts"):
+        for t in ("zm_relations", "zm_scopes", "zm_fts", "zm_artifacts"):
             assert not store.table_exists(t), f"unexpected later-M2 table {t}"
         for meth in ("rebuild_from_jsonl", "replay", "dead_letter"):
             assert not hasattr(store, meth)
