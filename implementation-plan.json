@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "authority": "Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx",
-  "status": "awaiting_user_approval",
-  "current_milestone_status": "fully_verified",
-  "current_milestone_verification": "acceptance-m0-verification.md",
-  "next_incomplete_milestone": "M1",
-  "next_milestone_status": "not_started",
+  "status": "in_progress",
+  "current_milestone_status": "m2_in_progress",
+  "current_milestone_verification": "acceptance-m2-increment-1.md",
+  "next_incomplete_milestone": "M2",
+  "next_milestone_status": "in_progress",
   "scope": "External Zero-Mem sidecar for Hermes Agent; local-first, observation-only before controlled injection",
   "principles": [
     "trace-first and append-only raw provenance",
@@ -207,10 +207,27 @@
     },
     {
       "id": "M2",
-      "name": "Canonical store and artifact store",
+      "name": "SQLite metadata, state, relations, and indexes",
       "spec_sections": ["9", "14.3", "14.4", "16.3"],
       "deliverables": ["SQLite WAL/FTS5 schema", "JSONL per session/day", "versioned artifacts", "migrations", "backup/restore runbook"],
-      "acceptance": ["metadata rebuildable", "raw append-first", "delete/tombstone workflow tested", "migration rollback documented"]
+      "acceptance": ["metadata rebuildable", "raw append-first", "delete/tombstone workflow tested", "migration rollback documented"],
+      "status": "in_progress",
+      "plan": ".hermes/plans/2026-08-05_000000-m2-sqlite-metadata-state-relations-indexes.md",
+      "plan_commit": "dac2f91930fff6b2f1164e3df2b9108802e29d9b",
+      "increment_1": {
+        "name": "SQLite foundation and migration framework",
+        "status": "verified",
+        "evidence": "acceptance-m2-increment-1.md",
+        "focused_test": "tests/unit/test_m2_sqlite_foundation.py",
+        "focused_result": "25 passed in 0.72s",
+        "canonical_result": "191 passed in 0.98s",
+        "starting_commit": "72fe813f9e890f2f9441ccaa701751553ef9e4ee",
+        "plan_commit": "dac2f91930fff6b2f1164e3df2b9108802e29d9b",
+        "implementation_commit": "81ffb683950a14de992c872215792f3340ff8df4",
+        "tested_commit": "81ffb683950a14de992c872215792f3340ff8df4",
+        "scope": ["SQLite connection lifecycle", "WAL/FK/synchronous/busy_timeout pragmas", "zm_meta + zm_migrations only", "deterministic migration registry", "idempotent ensure_schema", "transaction-safe up/down", "downgrade_to", "sanitized errors", "restrictive permissions", "guard against real ~/.hermes path"],
+        "excluded_scope": ["JSONL ingestion", "rebuild_from_jsonl", "lifecycle/provenance/relations/scopes projection", "FTS5 content ingestion", "retention tombstones", "retry/backoff", "dead-letter", "retrieval", "ranking", "query routing", "MCP", "Obsidian", "context injection", "M2.2 or later"]
+      }
     },
     {
       "id": "M3",

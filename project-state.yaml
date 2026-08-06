@@ -52,8 +52,8 @@ m2_increment_1_focused_result: 25 passed in 0.72s
 m2_increment_1_canonical_result: 191 passed in 0.98s
 m2_increment_1_starting_commit: 72fe813f9e890f2f9441ccaa701751553ef9e4ee
 m2_increment_1_plan_commit: dac2f91930fff6b2f1164e3df2b9108802e29d9b
-m2_increment_1_implementation_commit: PENDING_IMPL_COMMIT
-m2_increment_1_tested_commit: PENDING_TESTED_COMMIT
+m2_increment_1_implementation_commit: 81ffb683950a14de992c872215792f3340ff8df4
+m2_increment_1_tested_commit: 81ffb683950a14de992c872215792f3340ff8df4
 m1_increment_4_5_scope: isolated non-interference harness; enabled/disabled equivalence; failure isolation; exception preservation; secret scan; temporary HERMES_HOME
 m1_increment_4_1_evidence: acceptance-m1-increment-4-1.md
 m1_increment_4_1_commit: 674b7892a6a921eff2a542937b439750127ee7c1
