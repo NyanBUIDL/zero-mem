@@ -71,13 +71,16 @@ def _write_jsonl(path: pathlib.Path, items) -> None:
 
 # ---- migration / schema -----------------------------------------------------
 
-def test_migration_v2_to_v3(tmp_path: pathlib.Path) -> None:
+def test_migration_v2_to_current(tmp_path: pathlib.Path) -> None:
     store = _open_store(tmp_path)
     try:
         assert store.get_schema_version() == CURRENT_SCHEMA_VERSION
-        assert CURRENT_SCHEMA_VERSION == 3
         assert store.table_exists("zm_lifecycle")
         assert store.table_exists("zm_provenance")
+        # v4 relation/scope/artifact tables also present
+        assert store.table_exists("zm_relations")
+        assert store.table_exists("zm_scopes")
+        assert store.table_exists("zm_artifacts")
     finally:
         store.close()
 
@@ -85,7 +88,7 @@ def test_migration_v2_to_v3(tmp_path: pathlib.Path) -> None:
 def test_downgrade_v3_to_v2_drops_new_tables(tmp_path: pathlib.Path) -> None:
     store = _open_store(tmp_path)
     try:
-        assert store.get_schema_version() == 3
+        assert store.get_schema_version() == CURRENT_SCHEMA_VERSION
         store.downgrade_to(2)
         assert store.get_schema_version() == 2
         assert not store.table_exists("zm_lifecycle")
@@ -102,7 +105,7 @@ def test_reopen_v3_idempotent(tmp_path: pathlib.Path) -> None:
     store.close()
     store2 = _open_store(tmp_path)
     try:
-        assert store2.get_schema_version() == 3
+        assert store2.get_schema_version() == CURRENT_SCHEMA_VERSION
         assert store2.table_exists("zm_lifecycle")
         assert store2.table_exists("zm_provenance")
     finally:
@@ -121,7 +124,8 @@ def test_lifecycle_mirrors_envelope(tmp_path: pathlib.Path) -> None:
         assert lc is not None
         assert lc["current_state"] == "active"
         assert lc["superseded_by"] is None  # reserved for M2.4
-        assert lc["active_key"] is None      # reserved for M2.4
+        # M2.4 sets active_key = trace_id for active events
+        assert lc["active_key"] == "tr-1"
     finally:
         store.close()
 
@@ -292,7 +296,7 @@ def test_rebuild_into_empty_db(tmp_path: pathlib.Path) -> None:
     try:
         rebuild_from_jsonl(empty_store, [jl1, jl2])
         assert count_metadata(empty_store) == 3
-        assert empty_store.get_schema_version() == 3
+        assert empty_store.get_schema_version() == CURRENT_SCHEMA_VERSION
     finally:
         empty_store.close()
 
@@ -320,10 +324,10 @@ def test_rebuild_preserves_migrations_ledger(tmp_path: pathlib.Path) -> None:
     try:
         rebuild_from_jsonl(store, [jl1, jl2])
         # schema version ledger still intact at v3
-        assert store.get_schema_version() == 3
+        assert store.get_schema_version() == CURRENT_SCHEMA_VERSION
         cur = store._conn.cursor()
         versions = [r["version"] for r in cur.execute("SELECT version FROM zm_migrations ORDER BY version").fetchall()]
-        assert versions == [1, 2, 3]
+        assert versions == [1, 2, 3, 4]
     finally:
         store.close()
 
@@ -400,11 +404,8 @@ def test_no_later_m2_tables_or_behavior(tmp_path: pathlib.Path) -> None:
     try:
         tables = {r["name"] for r in store._conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
-        # relations/scopes/fts/artifacts are NOT created in M2.3
-        assert "zm_relations" not in tables
-        assert "zm_scopes" not in tables
+        # zm_relations/zm_scopes/zm_artifacts ARE created by M2.4; only FTS5 (zm_fts) is strictly later
         assert "zm_fts" not in tables
-        assert "zm_artifacts" not in tables
         # module does not expose later-M2 entry points
         import src.storage.ingest as ingest_mod
         assert not hasattr(ingest_mod, "rebuild_relations")

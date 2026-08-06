@@ -16,11 +16,11 @@ Invariants (required rules):
   sanitized record, not a dead-letter store.
 - No LLM or network calls.
 
-This module handles M2.2 (idempotent ingestion) and M2.3 (lifecycle/verification
-projection + rebuild_from_jsonl). It must not be used for relation/scope projection
-(zm_relations/zm_scopes, M2.4), FTS5 indexing (M2.5), retention tombstones (M2.6),
-retrieval, ranking, routing, MCP, Obsidian, or context injection (those are later
-milestones / out of scope).
+This module handles M2.2 (idempotent ingestion), M2.3 (lifecycle/verification projection +
+rebuild_from_jsonl), and M2.4 (relations/scopes/artifact-registry projection + active-key
+enforcement). It must not be used for FTS5 indexing (M2.5), retention tombstones (M2.6),
+retrieval, ranking, routing, MCP, Obsidian, or context injection (those are later milestones /
+out of scope).
 """
 from __future__ import annotations
 
@@ -206,6 +206,122 @@ def _seed_lifecycle_and_provenance(conn, env: dict) -> None:
     )
 
 
+def _earliest_event_id(conn, trace_id: str):
+    """Return the earliest event_id for a trace (by sequence, then event_id), or None."""
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT event_id FROM zm_meta WHERE trace_id=? ORDER BY sequence ASC, event_id ASC LIMIT 1",
+        (trace_id,),
+    )
+    row = cur.fetchone()
+    return row["event_id"] if row is not None else None
+
+
+def _project_relations_scopes(conn, env: dict) -> None:
+    """Project derived relations, scopes, artifacts, and active-key enforcement (M2.4).
+
+    Runs within the same per-line transaction as the zm_meta/lifecycle/provenance inserts for a
+    NEW_EVENT. Derives edges ONLY from envelope-present signals:
+    - parent_trace_id => child_of (to the parent trace's earliest event).
+    - relation_ids entries => derived_from (to an existing event_id, or the earliest event of an
+      existing trace_id); unknown targets are skipped (no invention).
+    - project_id / profile_id (and optional knowledge_space_id) => zm_scopes rows (observed only).
+    - active lifecycle_status => enforce at-most-one active per active_key (=trace_id): the prior
+      active event is marked superseded and a 'supersedes' edge is written (no silent overwrite).
+    - artifact_refs (if present) => zm_artifacts metadata rows (content storage deferred).
+    """
+    event_id = env["event_id"]
+    trace_id = env.get("trace_id")
+    now = _now()
+    # --- relations: child_of from parent_trace_id ---
+    parent = env.get("parent_trace_id")
+    if parent:
+        parent_event = _earliest_event_id(conn, parent)
+        if parent_event is not None and parent_event != event_id:
+            conn.execute(
+                "INSERT INTO zm_relations (from_event_id, to_event_id, relation, verifier, evidence_ref, created_at) "
+                "VALUES (?,?,?,?,?,?) "
+                "ON CONFLICT(from_event_id, to_event_id, relation) DO NOTHING",
+                (event_id, parent_event, "child_of", "deterministic_check", trace_id, now),
+            )
+    # --- relations: derived_from from relation_ids ---
+    for ref in env.get("relation_ids", ()) or ():
+        ref = str(ref)
+        target = None
+        cur = conn.cursor()
+        cur.execute("SELECT event_id FROM zm_meta WHERE event_id=? LIMIT 1", (ref,))
+        r = cur.fetchone()
+        if r is not None:
+            target = r["event_id"]
+        else:
+            target = _earliest_event_id(conn, ref)
+        if target is not None and target != event_id:
+            conn.execute(
+                "INSERT INTO zm_relations (from_event_id, to_event_id, relation, verifier, evidence_ref, created_at) "
+                "VALUES (?,?,?,?,?,?) "
+                "ON CONFLICT(from_event_id, to_event_id, relation) DO NOTHING",
+                (event_id, target, "derived_from", "deterministic_check", trace_id, now),
+            )
+    # --- scopes: observed project/profile/knowledge_space only ---
+    for scope_type, scope_id in (
+        ("project", env.get("project_id")),
+        ("profile", env.get("profile_id")),
+        ("knowledge_space", env.get("knowledge_space_id")),
+    ):
+        if scope_id:
+            conn.execute(
+                "INSERT INTO zm_scopes (scope_type, scope_id, display_name, parent_scope, created_at) "
+                "VALUES (?,?,?,?,?) "
+                "ON CONFLICT(scope_type, scope_id) DO NOTHING",
+                (scope_type, scope_id, None, None, now),
+            )
+    # --- active-key uniqueness + supersession ---
+    if env.get("lifecycle_status") == "active" and trace_id:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT event_id FROM zm_lifecycle WHERE active_key=? AND current_state='active' AND event_id<>?",
+            (trace_id, event_id),
+        )
+        prior = cur.fetchone()
+        if prior is not None:
+            prior_id = prior["event_id"]
+            conn.execute(
+                "UPDATE zm_lifecycle SET current_state='superseded', superseded_by=? WHERE event_id=?",
+                (event_id, prior_id),
+            )
+            conn.execute(
+                "INSERT INTO zm_relations (from_event_id, to_event_id, relation, verifier, evidence_ref, created_at) "
+                "VALUES (?,?,?,?,?,?) "
+                "ON CONFLICT(from_event_id, to_event_id, relation) DO NOTHING",
+                (event_id, prior_id, "supersedes", "deterministic_check", trace_id, now),
+            )
+        conn.execute(
+            "UPDATE zm_lifecycle SET active_key=? WHERE event_id=?",
+            (trace_id, event_id),
+        )
+    elif env.get("lifecycle_status") == "superseded":
+        sup = env.get("superseded_by")
+        if sup:
+            conn.execute(
+                "UPDATE zm_lifecycle SET superseded_by=? WHERE event_id=?",
+                (str(sup), event_id),
+            )
+    # --- artifact metadata registry (authorized references only) ---
+    for art in env.get("artifact_refs", ()) or ():
+        if not isinstance(art, dict):
+            continue
+        aid = art.get("artifact_id")
+        if not aid:
+            continue
+        conn.execute(
+            "INSERT INTO zm_artifacts (artifact_id, content_hash, kind, retention, origin_event_id, stored_path, created_at) "
+            "VALUES (?,?,?,?,?,?,?) "
+            "ON CONFLICT(artifact_id) DO NOTHING",
+            (aid, art.get("content_hash", ""), art.get("kind"), art.get("retention", "persistent"),
+             event_id, None, now),
+        )
+
+
 def _classify_existing(conn, event_id: str, content_hash: str):
     """Return the outcome given current zm_meta state for the incoming record."""
     cur = conn.cursor()
@@ -380,6 +496,7 @@ def _commit_outcome(conn, source_id, line_number, outcome, event_id, content_has
                 row,
             )
             _seed_lifecycle_and_provenance(conn, env)
+            _project_relations_scopes(conn, env)
         if outcome in _COMMITTED_OUTCOMES:
             _insert_log(conn, source_id, line_number, outcome, event_id, content_hash, diagnostic_code)
             # Advance the incremental prefix hash with this committed complete line.
@@ -498,12 +615,32 @@ def scan_sqlite_for_secrets(store, secret_corpus) -> list:
         for token in corpus:
             if token and token in blob:
                 found.append(token)
+    # zm_relations / zm_scopes / zm_artifacts (derived, sanitized-content-free).
+    cur.execute("SELECT from_event_id, to_event_id, relation, evidence_ref FROM zm_relations")
+    for row in cur.fetchall():
+        blob = " ".join("" if row[c] is None else str(row[c]) for c in ("from_event_id", "to_event_id", "relation", "evidence_ref"))
+        for token in corpus:
+            if token and token in blob:
+                found.append(token)
+    cur.execute("SELECT scope_type, scope_id, display_name, parent_scope FROM zm_scopes")
+    for row in cur.fetchall():
+        blob = " ".join("" if row[c] is None else str(row[c]) for c in ("scope_type", "scope_id", "display_name", "parent_scope"))
+        for token in corpus:
+            if token and token in blob:
+                found.append(token)
+    cur.execute("SELECT artifact_id, content_hash, kind, retention, origin_event_id, stored_path FROM zm_artifacts")
+    for row in cur.fetchall():
+        blob = " ".join("" if row[c] is None else str(row[c]) for c in ("artifact_id", "content_hash", "kind", "retention", "origin_event_id", "stored_path"))
+        for token in corpus:
+            if token and token in blob:
+                found.append(token)
     return found
 
 
 # ---- M2.3: lifecycle / provenance projection + rebuild ---------------------
 
-DERIVED_TABLES = ("zm_meta", "zm_lifecycle", "zm_provenance", "zm_ingest_checkpoint", "zm_ingest_log", "zm_migrations")
+DERIVED_TABLES = ("zm_meta", "zm_lifecycle", "zm_provenance", "zm_ingest_checkpoint", "zm_ingest_log",
+                   "zm_relations", "zm_scopes", "zm_artifacts", "zm_migrations")
 
 
 def get_lifecycle(store, event_id: str) -> Optional[dict]:
@@ -596,7 +733,7 @@ def rebuild_from_jsonl(store, jsonl_paths, source_ids=None, synchronous_full: bo
 
 
 def verify_rebuild_parity(store_a, store_b) -> bool:
-    """True if two derived DBs hold identical zm_meta/zm_lifecycle/zm_provenance key sets + states.
+    """True if two derived DBs hold identical key sets + states across all projection tables.
 
     Used by tests to assert rebuild parity vs incremental ingest. ``zm_ingest_checkpoint`` /
     ``zm_ingest_log`` history is intentionally excluded (not part of the parity contract).
@@ -612,8 +749,8 @@ def verify_rebuild_parity(store_a, store_b) -> bool:
             ).fetchall()
         }
         life = {
-            (r["event_id"], r["current_state"])
-            for r in conn.execute("SELECT event_id, current_state FROM zm_lifecycle").fetchall()
+            (r["event_id"], r["current_state"], r["superseded_by"], r["active_key"])
+            for r in conn.execute("SELECT event_id, current_state, superseded_by, active_key FROM zm_lifecycle").fetchall()
         }
         prov = {
             (r["event_id"], r["verification_status"], r["verifier"], r["evidence_ref"])
@@ -621,11 +758,87 @@ def verify_rebuild_parity(store_a, store_b) -> bool:
                 "SELECT event_id, verification_status, verifier, evidence_ref FROM zm_provenance"
             ).fetchall()
         }
-        return meta, life, prov
+        rel = {
+            (r["from_event_id"], r["to_event_id"], r["relation"])
+            for r in conn.execute("SELECT from_event_id, to_event_id, relation FROM zm_relations").fetchall()
+        }
+        scopes = {
+            (r["scope_type"], r["scope_id"])
+            for r in conn.execute("SELECT scope_type, scope_id FROM zm_scopes").fetchall()
+        }
+        arts = {
+            (r["artifact_id"], r["content_hash"], r["kind"], r["retention"])
+            for r in conn.execute("SELECT artifact_id, content_hash, kind, retention FROM zm_artifacts").fetchall()
+        }
+        return meta, life, prov, rel, scopes, arts
 
-    a_meta, a_life, a_prov = snapshot(conn_a)
-    b_meta, b_life, b_prov = snapshot(conn_b)
-    return a_meta == b_meta and a_life == b_life and a_prov == b_prov
+    a_meta, a_life, a_prov, a_rel, a_scopes, a_arts = snapshot(conn_a)
+    b_meta, b_life, b_prov, b_rel, b_scopes, b_arts = snapshot(conn_b)
+    return (
+        a_meta == b_meta and a_life == b_life and a_prov == b_prov
+        and a_rel == b_rel and a_scopes == b_scopes and a_arts == b_arts
+    )
+
+
+def get_relations(store, event_id: str) -> list:
+    """Return all zm_relations edges where from_event_id == event_id (list of dicts)."""
+    cur = store._conn.cursor()
+    cur.execute(
+        "SELECT id, from_event_id, to_event_id, relation, verifier, evidence_ref, created_at "
+        "FROM zm_relations WHERE from_event_id=?",
+        (event_id,),
+    )
+    return [
+        {
+            "id": int(r["id"]),
+            "from_event_id": r["from_event_id"],
+            "to_event_id": r["to_event_id"],
+            "relation": r["relation"],
+            "verifier": r["verifier"],
+            "evidence_ref": r["evidence_ref"],
+            "created_at": r["created_at"],
+        }
+        for r in cur.fetchall()
+    ]
+
+
+def get_scopes(store, scope_type: str) -> list:
+    """Return all scope_ids observed for a given scope_type (list of str)."""
+    cur = store._conn.cursor()
+    cur.execute("SELECT scope_id FROM zm_scopes WHERE scope_type=?", (scope_type,))
+    return [r["scope_id"] for r in cur.fetchall()]
+
+
+def get_artifact(store, artifact_id: str) -> Optional[dict]:
+    """Return the zm_artifacts metadata row for an artifact, or None."""
+    cur = store._conn.cursor()
+    cur.execute(
+        "SELECT artifact_id, content_hash, kind, retention, origin_event_id, stored_path, created_at "
+        "FROM zm_artifacts WHERE artifact_id=?",
+        (artifact_id,),
+    )
+    row = cur.fetchone()
+    if row is None:
+        return None
+    return {
+        "artifact_id": row["artifact_id"],
+        "content_hash": row["content_hash"],
+        "kind": row["kind"],
+        "retention": row["retention"],
+        "origin_event_id": row["origin_event_id"],
+        "stored_path": row["stored_path"],
+        "created_at": row["created_at"],
+    }
+
+
+def list_active_for_key(store, active_key: str) -> list:
+    """Return event_ids currently 'active' for a given active_key (exact-key inspection)."""
+    cur = store._conn.cursor()
+    cur.execute(
+        "SELECT event_id FROM zm_lifecycle WHERE active_key=? AND current_state='active'",
+        (active_key,),
+    )
+    return [r["event_id"] for r in cur.fetchall()]
 
 
 __all__ = [
@@ -637,7 +850,11 @@ __all__ = [
     "get_trace",
     "get_lifecycle",
     "get_provenance",
+    "get_relations",
+    "get_scopes",
+    "get_artifact",
     "list_by_lifecycle_state",
+    "list_active_for_key",
     "count_metadata",
     "get_checkpoint",
     "verify_rebuild_parity",

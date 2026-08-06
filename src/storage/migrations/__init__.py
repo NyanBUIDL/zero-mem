@@ -9,12 +9,14 @@ from __future__ import annotations
 from . import migrate_1
 from . import migrate_2
 from . import migrate_3
+from . import migrate_4
 
 # Deterministic ordering keyed by integer schema version.
 MIGRATIONS: dict[int, object] = {
     1: migrate_1,
     2: migrate_2,
     3: migrate_3,
+    4: migrate_4,
 }
 
 CURRENT_SCHEMA_VERSION: int = max(MIGRATIONS.keys()) if MIGRATIONS else 0

@@ -621,11 +621,10 @@ def test_no_real_hermes_home_writes(tmp_path: pathlib.Path) -> None:
 
 
 def test_no_later_m2_behavior(tmp_path: pathlib.Path) -> None:
-    # Asserts tables/methods strictly beyond M2.3 are absent (relations/scopes/FTS/artifacts,
-    # replay/dead-letter). zm_lifecycle / zm_provenance / rebuild_from_jsonl belong to M2.3.
+    # zm_relations/zm_scopes/zm_artifacts ARE created by M2.4; only FTS5 (zm_fts) is strictly later
     store = _open_store(tmp_path)
     try:
-        for t in ("zm_relations", "zm_scopes", "zm_fts", "zm_artifacts"):
+        for t in ("zm_fts",):
             assert not store.table_exists(t), f"unexpected later-M2 table {t}"
         for meth in ("rebuild_from_jsonl", "replay", "dead_letter"):
             assert not hasattr(store, meth)
