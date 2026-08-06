@@ -93,7 +93,18 @@ m2_increment_5_acceptance: acceptance-m2-increment-5.md
 m2_increment_5_focused: 12
 m2_increment_5_canonical: 283
 m2_increment_5_known_flake: tests/unit/test_hermes_payload_fixtures.py::test_mapping_is_deterministic (pre-existing M1 timing flake; separate maintenance task)
-m2_current_version: 5
+m2_increment_6_status: verified
+m2_increment_6_decision: B (logical deletion only; canonical JSONL immutable)
+m2_increment_6_plan: .hermes/plans/2026-08-06_000000-m2-6-retention-tombstones-deletion-secret-scan-rollback.md
+m2_increment_6_plan_commit: 28030c4
+m2_increment_6_impl_commit: df79e51
+m2_increment_6_tested_commit: df79e51
+m2_increment_6_acceptance: acceptance-m2-increment-6.md
+m2_increment_6_focused: 35
+m2_increment_6_canonical: 318
+m2_increment_6_schema_version: 6
+m2_increment_6_known_flake: tests/unit/test_hermes_payload_fixtures.py::test_mapping_is_deterministic (pre-existing M1 timing flake; separate maintenance task; NOT modified in M2.6)
+m2_current_version: 6
 m1_increment_4_5_scope: isolated non-interference harness; enabled/disabled equivalence; failure isolation; exception preservation; secret scan; temporary HERMES_HOME
 m1_increment_4_1_evidence: acceptance-m1-increment-4-1.md
 m1_increment_4_1_commit: 674b7892a6a921eff2a542937b439750127ee7c1

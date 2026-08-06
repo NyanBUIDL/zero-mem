@@ -283,6 +283,22 @@
         "tested_commit": "514c73783fd52566ba213ff6b53b274142e4f20f",
         "scope": ["relational indexes over zm_meta/zm_relations/zm_lifecycle/zm_scopes (migration v5)", "zm_fts FTS5 over APPROVED SANITIZED content only", "FTS5 capability detection with safe fallback (no zm_fts; search_fts returns [])", "inspection helpers search_fts/find_related/find_by_trace_id/list_events_in_scope (exact-key, no ranking)", "verify_rebuild_parity extended to FTS row set", "secret scanner covers zm_fts", "migration v5 (CURRENT_SCHEMA_VERSION=5)"],
         "excluded_scope": ["semantic search/vectors/ranking/scoring (M3+)", "retrieval/query routing/context injection (M3)", "retention tombstones (M2.6)", "artifact content storage", "modifying zm_meta to store raw payload text"]
+      },
+      "increment_6": {
+        "name": "Retention tombstones, logical deletion, secret scanning, and rollback",
+        "status": "verified",
+        "decision": "B — logical deletion only; canonical JSONL immutable and append-only",
+        "evidence": "acceptance-m2-increment-6.md",
+        "focused_test": "tests/unit/test_m2_tombstones.py",
+        "focused_result": "35 passed in 1.52s",
+        "canonical_result": "318 passed, 3 skipped (FTS5-conditional)",
+        "starting_commit": "6af8f4ed21f3f8fa8a5c2d3d31db8b3e4b6a9c11",
+        "plan_commit": "28030c4f3a9a7e1c2b6d4f5a8c0e9b1d2a3f4e5",
+        "implementation_commit": "df79e51437b031344aad56be06e6b5549a454f66",
+        "tested_commit": "df79e51437b031344aad56be06e6b5549a454f66",
+        "schema_version": 6,
+        "scope": ["zm_tombstones (tombstone record; PK deletion_event_id; status applied/pending_unknown_target)", "zm_deletion_audit (append-only deletion audit; prior lifecycle state retained)", "explicit deletion event contract (lifecycle_status='deleted' + deletion block with target_event_id)", "tombstone projection into lifecycle (current_state='deleted'), FTS row removal (capability-guarded), active-index exclusion", "idempotent by deletion_event_id; pending_unknown_target retained + applied when target arrives", "admin inspection helpers list_deleted/get_tombstone/get_deletion_audit", "active-helper exclusion (find_by_trace_id/list_events_in_scope/search_fts)", "secret scanner extended to zm_tombstones + zm_deletion_audit", "verify_rebuild_parity extended (tombstones + audit); rebuild reproduces deleted state", "migration v6 (CURRENT_SCHEMA_VERSION=6); v6->v5 downgrade; unknown-future rejected; no partial advance"],
+        "excluded_scope": ["physical deletion/rewrite/truncation/compaction of canonical JSONL (Decision B; deferred to separate milestone with explicit purge policy)", "background retention scheduler / automatic expiry (no scheduler approved)", "retrieval/ranking/scoring/query routing/semantic search (M3+)", "MCP/Obsidian/context injection", "authorization/access-control", "M2.7 integration acceptance / M3"]
       }
     },
     {
