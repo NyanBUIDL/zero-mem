@@ -299,6 +299,27 @@
         "schema_version": 6,
         "scope": ["zm_tombstones (tombstone record; PK deletion_event_id; status applied/pending_unknown_target)", "zm_deletion_audit (append-only deletion audit; prior lifecycle state retained)", "explicit deletion event contract (lifecycle_status='deleted' + deletion block with target_event_id)", "tombstone projection into lifecycle (current_state='deleted'), FTS row removal (capability-guarded), active-index exclusion", "idempotent by deletion_event_id; pending_unknown_target retained + applied when target arrives", "admin inspection helpers list_deleted/get_tombstone/get_deletion_audit", "active-helper exclusion (find_by_trace_id/list_events_in_scope/search_fts)", "secret scanner extended to zm_tombstones + zm_deletion_audit", "verify_rebuild_parity extended (tombstones + audit); rebuild reproduces deleted state", "migration v6 (CURRENT_SCHEMA_VERSION=6); v6->v5 downgrade; unknown-future rejected; no partial advance"],
         "excluded_scope": ["physical deletion/rewrite/truncation/compaction of canonical JSONL (Decision B; deferred to separate milestone with explicit purge policy)", "background retention scheduler / automatic expiry (no scheduler approved)", "retrieval/ranking/scoring/query routing/semantic search (M3+)", "MCP/Obsidian/context injection", "authorization/access-control", "M2.7 integration acceptance / M3"]
+      },
+      "increment_7": {
+        "name": "Full M2 integration verification and final acceptance",
+        "status": "verified",
+        "evidence": "acceptance-m2-final.md",
+        "focused_test": "tests/unit/test_m2_integration.py",
+        "focused_result": "16 passed in 2.28s",
+        "all_m2_focused_result": "168 passed, 3 skipped",
+        "canonical_result": "334 passed, 3 skipped",
+        "starting_commit": "96d1e9a5b9d9",
+        "plan_commit": "61faf29260188a4e792f81b5650432d222324d3a",
+        "maintenance_plan_commit": "1d61a051b4656d01da2ec08890808add9591ac0d",
+        "maintenance_fix_commit": "01db76731e18ae369f0546a8e414300baa894a6c",
+        "implementation_commit": "efb0fba6bfdaec83cd4f6b21ba984e47340ee3ee",
+        "tested_commit": "efb0fba6bfdaec83cd4f6b21ba984e47340ee3ee",
+        "isolation_hardening_commit": "d03aa7c2d6f6f8e557fdcec60e91eaa73326435c",
+        "final_evidence_commit": "PENDING",
+        "schema_version": 6,
+        "scope": ["clean rebuild from representative canonical JSONL corpus", "incremental vs rebuild parity (verify_rebuild_parity over all derived surfaces)", "deterministic repeated rebuild", "idempotent repeated ingestion (first-write-wins)", "lifecycle states raw..deleted + supersession via trace_id active-key", "relations (child_of from parent_trace_id, derived_from from relation_ids) + scopes + artifact registry parity", "FTS5 over sanitized content only; deleted excluded; no ranking/semantic behavior", "Decision B logical deletion: append-only tombstones, no physical JSONL mutation", "migration path v1..v6, idempotent reopen, unknown-future rejected, adjacent downgrades incl v6->v5, no partial advance", "crash/resume + consumed-prefix integrity (append tolerated; prefix modification/truncation rejected)", "secret scan across all derived tables; injected secret detected without printing", "JSONL byte-for-byte immutability", "real ~/.hermes isolation (baseline-aware M2-attributable-file check)", "no M3 behavior (no ranking/routing/vectors/injection/MCP/Obsidian)"],
+        "excluded_scope": ["physical deletion/rewrite/truncation/compaction of canonical JSONL (Decision B; deferred)", "background retention scheduler / automatic expiry", "retrieval/ranking/scoring/query routing/semantic search (M3+)", "MCP/Obsidian/context injection", "authorization/access-control"],
+        "note": "M1 intermittent timing flake (test_mapping_is_deterministic) fixed in a SEPARATE maintenance commit (01db767) with its own plan (1d61a05); not part of M2 product implementation. Real-home isolation flakiness hardened to baseline-aware M2-attributable-file checks (d03aa7c)."
       }
     },
     {
