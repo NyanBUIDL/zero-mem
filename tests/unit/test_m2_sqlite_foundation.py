@@ -90,7 +90,7 @@ def test_initial_schema_version(tmp_path: Path) -> None:
         assert db.get_schema_version() == 0
         db.ensure_schema()
         assert db.get_schema_version() == CURRENT_SCHEMA_VERSION
-        assert CURRENT_SCHEMA_VERSION == 4
+        assert CURRENT_SCHEMA_VERSION == 5
     finally:
         db.close()
 
@@ -227,14 +227,14 @@ def test_failed_migration_does_not_advance_schema_version(tmp_path: Path) -> Non
 def test_unknown_future_schema_version_rejected(tmp_path: Path) -> None:
     db = SQLiteStore(_config(tmp_path))
     try:
-        db.ensure_schema()  # creates v1, v2, v3, v4
-        # Simulate a FUTURE version recorded in the ledger (code only knows up to v4).
+        db.ensure_schema()  # creates v1..v5
+        # Simulate a FUTURE version recorded in the ledger (code only knows up to v5).
         db._conn.execute(
-            "INSERT INTO zm_migrations(version, applied_at, note) VALUES (5, 't', 'future')"
+            "INSERT INTO zm_migrations(version, applied_at, note) VALUES (6, 't', 'future')"
         )
         db._conn.commit()
         with pytest.raises(SchemaVersionError):
-            db.ensure_schema()  # must refuse to touch; code only knows v4
+            db.ensure_schema()  # must refuse to touch; code only knows v5
     finally:
         db.close()
 
@@ -242,18 +242,18 @@ def test_unknown_future_schema_version_rejected(tmp_path: Path) -> None:
 def test_unsupported_downgrade_rejected(tmp_path: Path) -> None:
     db = SQLiteStore(_config(tmp_path))
     try:
-        db.ensure_schema()  # v4
+        db.ensure_schema()  # v5
         # target >= current is not a downgrade
         with pytest.raises(SchemaVersionError):
-            db.downgrade_to(4)
-        with pytest.raises(SchemaVersionError):
             db.downgrade_to(5)
+        with pytest.raises(SchemaVersionError):
+            db.downgrade_to(6)
         # negative target
         with pytest.raises(SchemaVersionError):
             db.downgrade_to(-1)
-        # target 3 (< current) IS a supported downgrade and must succeed
-        db.downgrade_to(3)
-        assert db.get_schema_version() == 3
+        # target 4 (< current) IS a supported downgrade and must succeed
+        db.downgrade_to(4)
+        assert db.get_schema_version() == 4
         assert db.table_exists("zm_meta")
     finally:
         db.close()

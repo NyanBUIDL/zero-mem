@@ -17,21 +17,23 @@ Invariants (required rules):
 - No LLM or network calls.
 
 This module handles M2.2 (idempotent ingestion), M2.3 (lifecycle/verification projection +
-rebuild_from_jsonl), and M2.4 (relations/scopes/artifact-registry projection + active-key
-enforcement). It must not be used for FTS5 indexing (M2.5), retention tombstones (M2.6),
-retrieval, ranking, routing, MCP, Obsidian, or context injection (those are later milestones /
-out of scope).
+rebuild_from_jsonl), M2.4 (relations/scopes/artifact-registry projection + active-key
+enforcement), and M2.5 (relational indexes, FTS5 over sanitized content, inspection helpers).
+It must not be used for retention tombstones (M2.6), retrieval, ranking, routing, MCP,
+Obsidian, or context injection (those are later milestones / out of scope).
 """
 from __future__ import annotations
 
 import hashlib
 import json
+import sqlite3
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Optional
 
-from .migrations import CURRENT_SCHEMA_VERSION
+from src.storage.migrations import CURRENT_SCHEMA_VERSION
+from src.storage.migrations import migrate_5 as _migrate_5
 from ..capture.validation import validate_envelope
 
 
@@ -322,6 +324,25 @@ def _project_relations_scopes(conn, env: dict) -> None:
         )
 
 
+def _seed_fts(conn, env: dict) -> None:
+    """Index the APPROVED SANITIZED content in FTS5 (M2.5). No-op when FTS5 unavailable.
+
+    Only the envelope's ``sanitized_content`` (already redacted by M1's fail-closed redactor)
+    is indexed. Raw payloads never reach SQLite (M2.2 secret guarantee). The FTS table is a
+    derived, rebuildable index — not the system of record.
+    """
+    if not _migrate_5.FTS5_AVAILABLE:
+        return
+    content = env.get("sanitized_content")
+    if content is None:
+        return
+    text = content if isinstance(content, str) else json.dumps(content, sort_keys=True, ensure_ascii=False)
+    conn.execute(
+        "INSERT INTO zm_fts (event_id, content) VALUES (?, ?)",
+        (env["event_id"], text),
+    )
+
+
 def _classify_existing(conn, event_id: str, content_hash: str):
     """Return the outcome given current zm_meta state for the incoming record."""
     cur = conn.cursor()
@@ -497,6 +518,7 @@ def _commit_outcome(conn, source_id, line_number, outcome, event_id, content_has
             )
             _seed_lifecycle_and_provenance(conn, env)
             _project_relations_scopes(conn, env)
+            _seed_fts(conn, env)
         if outcome in _COMMITTED_OUTCOMES:
             _insert_log(conn, source_id, line_number, outcome, event_id, content_hash, diagnostic_code)
             # Advance the incremental prefix hash with this committed complete line.
@@ -634,6 +656,17 @@ def scan_sqlite_for_secrets(store, secret_corpus) -> list:
         for token in corpus:
             if token and token in blob:
                 found.append(token)
+    # zm_fts (FTS5 over sanitized content) — must never carry raw secrets
+    if _migrate_5.FTS5_AVAILABLE:
+        try:
+            cur.execute("SELECT event_id, content FROM zm_fts")
+            for row in cur.fetchall():
+                blob = " ".join("" if row[c] is None else str(row[c]) for c in ("event_id", "content"))
+                for token in corpus:
+                    if token and token in blob:
+                        found.append(token)
+        except sqlite3.OperationalError:
+            pass
     return found
 
 
@@ -770,13 +803,23 @@ def verify_rebuild_parity(store_a, store_b) -> bool:
             (r["artifact_id"], r["content_hash"], r["kind"], r["retention"])
             for r in conn.execute("SELECT artifact_id, content_hash, kind, retention FROM zm_artifacts").fetchall()
         }
-        return meta, life, prov, rel, scopes, arts
+        fts = set()
+        if _migrate_5.FTS5_AVAILABLE:
+            try:
+                fts = {
+                    (r["event_id"], r["content"])
+                    for r in conn.execute("SELECT event_id, content FROM zm_fts").fetchall()
+                }
+            except sqlite3.OperationalError:
+                fts = set()
+        return meta, life, prov, rel, scopes, arts, fts
 
-    a_meta, a_life, a_prov, a_rel, a_scopes, a_arts = snapshot(conn_a)
-    b_meta, b_life, b_prov, b_rel, b_scopes, b_arts = snapshot(conn_b)
+    a_meta, a_life, a_prov, a_rel, a_scopes, a_arts, a_fts = snapshot(conn_a)
+    b_meta, b_life, b_prov, b_rel, b_scopes, b_arts, b_fts = snapshot(conn_b)
     return (
         a_meta == b_meta and a_life == b_life and a_prov == b_prov
         and a_rel == b_rel and a_scopes == b_scopes and a_arts == b_arts
+        and a_fts == b_fts
     )
 
 
@@ -841,6 +884,63 @@ def list_active_for_key(store, active_key: str) -> list:
     return [r["event_id"] for r in cur.fetchall()]
 
 
+def search_fts(store, query: str, limit: int = 20) -> list:
+    """Return FTS5 matches over SANITIZED content as [{event_id, snippet}] (no ranking trusted).
+
+    Exact-key M2.5 inspection only: returns candidate event_ids. No relevance score is exposed or
+    used for retrieval/ranking/routing (those are M3+). Returns [] when FTS5 is unavailable.
+    """
+    if not _migrate_5.FTS5_AVAILABLE:
+        return []
+    cur = store._conn.cursor()
+    try:
+        cur.execute(
+            "SELECT event_id, snippet(zm_fts, 1, '[', ']', '...', 8) AS snip "
+            "FROM zm_fts WHERE zm_fts MATCH ? ORDER BY rowid LIMIT ?",
+            (query, limit),
+        )
+    except sqlite3.OperationalError:
+        return []
+    return [{"event_id": r["event_id"], "snippet": r["snip"]} for r in cur.fetchall()]
+
+
+def find_related(store, event_id: str) -> list:
+    """Return event_ids related to event_id via zm_relations (both directions, exact-key)."""
+    cur = store._conn.cursor()
+    out: list = []
+    for r in cur.execute(
+        "SELECT to_event_id AS eid FROM zm_relations WHERE from_event_id=?", (event_id,)
+    ).fetchall():
+        out.append(r["eid"])
+    for r in cur.execute(
+        "SELECT from_event_id AS eid FROM zm_relations WHERE to_event_id=?", (event_id,)
+    ).fetchall():
+        out.append(r["eid"])
+    return out
+
+
+def find_by_trace_id(store, trace_id: str) -> list:
+    """Return zm_meta rows for a trace_id (exact-key inspection)."""
+    cur = store._conn.cursor()
+    cols = ", ".join(ZM_META_COLUMNS)
+    return [
+        {c: row[c] for c in ZM_META_COLUMNS}
+        for row in cur.execute(f"SELECT {cols} FROM zm_meta WHERE trace_id=?", (trace_id,)).fetchall()
+    ]
+
+
+def list_events_in_scope(store, scope_type: str, scope_id: str) -> list:
+    """Return event_ids observed in a scope (project_id/profile_id column; exact-key)."""
+    column = {"project": "project_id", "profile": "profile_id"}.get(scope_type)
+    if column is None:
+        return []
+    cur = store._conn.cursor()
+    return [
+        r["event_id"]
+        for r in cur.execute(f"SELECT event_id FROM zm_meta WHERE {column}=?", (scope_id,)).fetchall()
+    ]
+
+
 __all__ = [
     "IngestionOutcome",
     "IngestionFailure",
@@ -855,6 +955,10 @@ __all__ = [
     "get_artifact",
     "list_by_lifecycle_state",
     "list_active_for_key",
+    "search_fts",
+    "find_related",
+    "find_by_trace_id",
+    "list_events_in_scope",
     "count_metadata",
     "get_checkpoint",
     "verify_rebuild_parity",

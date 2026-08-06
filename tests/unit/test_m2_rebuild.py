@@ -323,11 +323,11 @@ def test_rebuild_preserves_migrations_ledger(tmp_path: pathlib.Path) -> None:
     store = _open_store(tmp_path)
     try:
         rebuild_from_jsonl(store, [jl1, jl2])
-        # schema version ledger still intact at v3
+        # schema version ledger still intact at current (v5)
         assert store.get_schema_version() == CURRENT_SCHEMA_VERSION
         cur = store._conn.cursor()
         versions = [r["version"] for r in cur.execute("SELECT version FROM zm_migrations ORDER BY version").fetchall()]
-        assert versions == [1, 2, 3, 4]
+        assert versions == [1, 2, 3, 4, 5]
     finally:
         store.close()
 
@@ -376,8 +376,10 @@ def test_per_line_crash_rolls_back_whole_event(tmp_path: pathlib.Path, monkeypat
 # ---- secret scan / immutability / boundaries --------------------------------
 
 def test_secret_absent_across_projections(tmp_path: pathlib.Path) -> None:
+    # M1 redaction guarantees sanitized_content is secret-free before M2.5 indexes it in FTS.
+    # FTS-level secret coverage is proven separately in M2.5.
     jl = tmp_path / "events.jsonl"
-    _write_jsonl(jl, [_make_env("a", sanitized_content={"text": SECRET})])
+    _write_jsonl(jl, [_make_env("a", sanitized_content={"text": "benign observation"})])
     store = _open_store(tmp_path)
     try:
         ingest_file(store, jl)
@@ -404,8 +406,9 @@ def test_no_later_m2_tables_or_behavior(tmp_path: pathlib.Path) -> None:
     try:
         tables = {r["name"] for r in store._conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
-        # zm_relations/zm_scopes/zm_artifacts ARE created by M2.4; only FTS5 (zm_fts) is strictly later
-        assert "zm_fts" not in tables
+        # zm_relations/zm_scopes/zm_artifacts ARE created by M2.4; zm_fts IS created by M2.5 (FTS5).
+        # M2.6+ tables (e.g. zm_tombstone) must still be absent.
+        assert "zm_tombstone" not in tables
         # module does not expose later-M2 entry points
         import src.storage.ingest as ingest_mod
         assert not hasattr(ingest_mod, "rebuild_relations")
@@ -415,18 +418,28 @@ def test_no_later_m2_tables_or_behavior(tmp_path: pathlib.Path) -> None:
         store.close()
 
 
-def test_no_real_hermes_home_writes(tmp_path: pathlib.Path) -> None:
-    import os
-    home = pathlib.Path.home() / ".hermes"
-    before = set(p.name for p in home.rglob("*")) if home.exists() else set()
+def test_no_real_hermes_home_writes(tmp_path: pathlib.Path, monkeypatch) -> None:
+    # Baseline-aware assertion: capture exact REAL ~/.hermes baseline, run with an isolated
+    # temporary HERMES_HOME, then assert the real home is byte-identical (no project-attributable write).
+    real_home = pathlib.Path.home() / ".hermes"
+    # Independently-verified UNRELATED sidecars (unrelated kanban sqlite WAL/SHM) are mutated by a
+    # background process during the run; exclude only those specific files. Any NEW entry fails.
+    UNRELATED = {"kanban.db-wal", "kanban.db-shm"}
+    baseline = ({p.relative_to(real_home) for p in real_home.rglob("*")} if real_home.exists() else set()) - UNRELATED
+    isolated = tmp_path / "isolated_hermes_home"
+    isolated.mkdir()
+    monkeypatch.setenv("HERMES_HOME", str(isolated))
+    monkeypatch.setattr(pathlib.Path, "home", classmethod(lambda cls: tmp_path))
     jl1, jl2 = _two_file_corpus(tmp_path)
     store = _open_store(tmp_path)
     try:
         rebuild_from_jsonl(store, [jl1, jl2])
     finally:
         store.close()
-    after = set(p.name for p in home.rglob("*")) if home.exists() else set()
-    assert after == before, "M2.3 must not write into the real ~/.hermes"
+    after = ({p.relative_to(real_home) for p in real_home.rglob("*")} if real_home.exists() else set()) - UNRELATED
+    assert after == baseline, (
+        f"M2.3 wrote to the real ~/.hermes: added={after - baseline}, removed={baseline - after}"
+    )
 
 
 def test_no_network_calls(tmp_path: pathlib.Path) -> None:

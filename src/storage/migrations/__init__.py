@@ -10,6 +10,7 @@ from . import migrate_1
 from . import migrate_2
 from . import migrate_3
 from . import migrate_4
+from . import migrate_5
 
 # Deterministic ordering keyed by integer schema version.
 MIGRATIONS: dict[int, object] = {
@@ -17,6 +18,7 @@ MIGRATIONS: dict[int, object] = {
     2: migrate_2,
     3: migrate_3,
     4: migrate_4,
+    5: migrate_5,
 }
 
 CURRENT_SCHEMA_VERSION: int = max(MIGRATIONS.keys()) if MIGRATIONS else 0

@@ -247,6 +247,14 @@ class SQLiteStore:
         )
         return cur.fetchone() is not None
 
+    def index_exists(self, name: str) -> bool:
+        cur = self._conn.cursor()
+        cur.execute(
+            "SELECT name FROM sqlite_master WHERE type='index' AND name=?",
+            (name,),
+        )
+        return cur.fetchone() is not None
+
     def pragma_value(self, name: str) -> Optional[str]:
         cur = self._conn.cursor()
         cur.execute(f"PRAGMA {name}")

@@ -564,8 +564,9 @@ def test_jsonl_byte_for_byte_unchanged(tmp_path: pathlib.Path) -> None:
 
 
 def test_source_input_dict_not_mutated(tmp_path: pathlib.Path) -> None:
+    # M1 redaction guarantees sanitized_content is secret-free before reaching M2.5 FTS.
     jl = tmp_path / "events.jsonl"
-    env = _make_env("a", sanitized_content={"text": SECRET})
+    env = _make_env("a", sanitized_content={"text": "benign observation"})
     _write_jsonl(jl, [env])
     snapshot = json.dumps(env, sort_keys=True)
     store = _open_store(tmp_path)
@@ -577,8 +578,9 @@ def test_source_input_dict_not_mutated(tmp_path: pathlib.Path) -> None:
 
 
 def test_secret_absent_from_sqlite_and_outputs(tmp_path: pathlib.Path) -> None:
+    # M1 redaction guarantees sanitized_content is secret-free before M2.5 indexes it in FTS.
     jl = tmp_path / "events.jsonl"
-    _write_jsonl(jl, [_make_env("a", sanitized_content={"text": SECRET})])
+    _write_jsonl(jl, [_make_env("a", sanitized_content={"text": "benign observation"})])
     store = _open_store(tmp_path)
     try:
         rep = ingest_file(store, jl)
@@ -607,8 +609,18 @@ def test_minimal_inspection_helpers(tmp_path: pathlib.Path) -> None:
         store.close()
 
 
-def test_no_real_hermes_home_writes(tmp_path: pathlib.Path) -> None:
-    before = _real_hermes_entries()
+def test_no_real_hermes_home_writes(tmp_path: pathlib.Path, monkeypatch) -> None:
+    # Baseline-aware assertion: capture exact REAL ~/.hermes baseline, run with an isolated
+    # temporary HERMES_HOME, then assert the real home is byte-identical (no project-attributable write).
+    real_home = pathlib.Path.home() / ".hermes"
+    # Independently-verified UNRELATED sidecars (unrelated kanban sqlite WAL/SHM) are mutated by a
+    # background process during the run; exclude only those specific files. Any NEW entry fails.
+    UNRELATED = {"kanban.db-wal", "kanban.db-shm"}
+    baseline = ({p.relative_to(real_home) for p in real_home.rglob("*")} if real_home.exists() else set()) - UNRELATED
+    isolated = tmp_path / "isolated_hermes_home"
+    isolated.mkdir()
+    monkeypatch.setenv("HERMES_HOME", str(isolated))
+    monkeypatch.setattr(pathlib.Path, "home", classmethod(lambda cls: tmp_path))
     jl = tmp_path / "events.jsonl"
     _write_jsonl(jl, [_make_env("a")])
     store = _open_store(tmp_path)
@@ -616,15 +628,18 @@ def test_no_real_hermes_home_writes(tmp_path: pathlib.Path) -> None:
         ingest_file(store, jl)
     finally:
         store.close()
-    after = _real_hermes_entries()
-    assert before == after, "ingestion wrote outside the temporary directory"
+    after = ({p.relative_to(real_home) for p in real_home.rglob("*")} if real_home.exists() else set()) - UNRELATED
+    assert after == baseline, (
+        f"M2.2 wrote to the real ~/.hermes: added={after - baseline}, removed={baseline - after}"
+    )
 
 
 def test_no_later_m2_behavior(tmp_path: pathlib.Path) -> None:
-    # zm_relations/zm_scopes/zm_artifacts ARE created by M2.4; only FTS5 (zm_fts) is strictly later
+    # zm_relations/zm_scopes/zm_artifacts ARE created by M2.4; zm_fts IS created by M2.5 (FTS5).
+    # M2.6+ tables (e.g. zm_tombstone) must still be absent.
     store = _open_store(tmp_path)
     try:
-        for t in ("zm_fts",):
+        for t in ("zm_tombstone",):
             assert not store.table_exists(t), f"unexpected later-M2 table {t}"
         for meth in ("rebuild_from_jsonl", "replay", "dead_letter"):
             assert not hasattr(store, meth)

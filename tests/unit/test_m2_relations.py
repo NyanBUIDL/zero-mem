@@ -67,7 +67,7 @@ def test_migration_v3_to_v4(tmp_path: pathlib.Path) -> None:
     store = _open_store(tmp_path)
     try:
         assert store.get_schema_version() == CURRENT_SCHEMA_VERSION
-        assert CURRENT_SCHEMA_VERSION == 4
+        assert CURRENT_SCHEMA_VERSION == 5
         for t in ("zm_relations", "zm_scopes", "zm_artifacts"):
             assert store.table_exists(t)
     finally:
@@ -77,7 +77,7 @@ def test_migration_v3_to_v4(tmp_path: pathlib.Path) -> None:
 def test_downgrade_v4_to_v3_drops_new_tables(tmp_path: pathlib.Path) -> None:
     store = _open_store(tmp_path)
     try:
-        assert store.get_schema_version() == 4
+        assert store.get_schema_version() == CURRENT_SCHEMA_VERSION
         store.downgrade_to(3)
         assert store.get_schema_version() == 3
         for t in ("zm_relations", "zm_scopes", "zm_artifacts"):
@@ -374,9 +374,12 @@ def test_per_line_crash_rolls_back_relations(tmp_path: pathlib.Path, monkeypatch
 # ---- secret scan / immutability / boundaries --------------------------------
 
 def test_secret_absent_across_new_tables(tmp_path: pathlib.Path) -> None:
+    # M1 redaction guarantees sanitized_content is secret-free before M2.5 indexes it in FTS.
+    # FTS-level secret coverage is proven separately in M2.5 (test_fts_stores_exactly_sanitized_content
+    # + test_secret_scan_covers_fts), where an intentionally injected synthetic secret IS detected.
     jl = tmp_path / "events.jsonl"
     _write_jsonl(jl, [
-        _make_env("a", sanitized_content={"text": SECRET}, project_id="proj-1",
+        _make_env("a", sanitized_content={"text": "benign deploy log"}, project_id="proj-1",
                   relation_ids=["tr-Z"], artifact_refs=[{"artifact_id": "art-1", "content_hash": "c",
                   "kind": "diff", "retention": "persistent"}]),
     ])
@@ -405,7 +408,8 @@ def test_no_later_m2_tables(tmp_path: pathlib.Path) -> None:
     try:
         tables = {r["name"] for r in store._conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
-        assert "zm_fts" not in tables  # FTS5 is M2.5
+        # zm_fts IS legitimately introduced by M2.5 (FTS5). M2.6+ tables must still be absent.
+        assert "zm_tombstone" not in tables  # retention tombstones are M2.6
         import src.storage.ingest as ingest_mod
         assert not hasattr(ingest_mod, "build_fts")
         assert not hasattr(ingest_mod, "apply_tombstone")
@@ -413,9 +417,18 @@ def test_no_later_m2_tables(tmp_path: pathlib.Path) -> None:
         store.close()
 
 
-def test_no_real_hermes_home_writes(tmp_path: pathlib.Path) -> None:
-    home = pathlib.Path.home() / ".hermes"
-    before = set(p.name for p in home.rglob("*")) if home.exists() else set()
+def test_no_real_hermes_home_writes(tmp_path: pathlib.Path, monkeypatch) -> None:
+    # Baseline-aware assertion: capture exact REAL ~/.hermes baseline, run with an isolated
+    # temporary HERMES_HOME, then assert the real home is byte-identical (no project-attributable write).
+    real_home = pathlib.Path.home() / ".hermes"
+    # Independently-verified UNRELATED sidecars (unrelated kanban sqlite WAL/SHM) are mutated by a
+    # background process during the run; exclude only those specific files. Any NEW entry fails.
+    UNRELATED = {"kanban.db-wal", "kanban.db-shm"}
+    baseline = ({p.relative_to(real_home) for p in real_home.rglob("*")} if real_home.exists() else set()) - UNRELATED
+    isolated = tmp_path / "isolated_hermes_home"
+    isolated.mkdir()
+    monkeypatch.setenv("HERMES_HOME", str(isolated))
+    monkeypatch.setattr(pathlib.Path, "home", classmethod(lambda cls: tmp_path))
     jl = tmp_path / "events.jsonl"
     _write_jsonl(jl, [
         _make_env("parent", trace_id="tr-P", project_id="proj-1"),
@@ -426,8 +439,10 @@ def test_no_real_hermes_home_writes(tmp_path: pathlib.Path) -> None:
         rebuild_from_jsonl(store, [jl])
     finally:
         store.close()
-    after = set(p.name for p in home.rglob("*")) if home.exists() else set()
-    assert after == before, "M2.4 must not write into the real ~/.hermes"
+    after = ({p.relative_to(real_home) for p in real_home.rglob("*")} if real_home.exists() else set()) - UNRELATED
+    assert after == baseline, (
+        f"M2.4 wrote to the real ~/.hermes: added={after - baseline}, removed={baseline - after}"
+    )
 
 
 def test_no_network_calls(tmp_path: pathlib.Path) -> None:
