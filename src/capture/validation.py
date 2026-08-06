@@ -43,6 +43,7 @@ OPTIONAL_FIELDS = (
     "sanitized_content",
     "sanitized_content_ref",
     "redaction_audit",
+    "deletion",
 )
 
 
@@ -104,3 +105,15 @@ def validate_envelope(envelope: Mapping[str, Any]) -> None:
             raise ValueError("assistant_claim cannot carry verified-state evidence")
         if envelope["lifecycle_status"] == LifecycleStatus.ACTIVE.value:
             raise ValueError("assistant_claim cannot be active")
+    # Deletion block: when present on a deletion event, it must carry an explicit target.
+    # A plain event with lifecycle_status=='deleted' (e.g. already-deleted-at-source) is valid
+    # without a deletion block (Decision B: tombstones are the canonical deletion record, but a
+    # 'deleted' lifecycle state alone is still ingestible). A deletion block on a non-deleted
+    # event is rejected (no invented deletion).
+    deletion = envelope.get("deletion")
+    if deletion is not None:
+        if envelope["lifecycle_status"] != LifecycleStatus.DELETED.value:
+            raise ValueError("deletion block only allowed on lifecycle_status='deleted'")
+        if not isinstance(deletion, Mapping) or not isinstance(deletion.get("target_event_id"), str) \
+                or not deletion.get("target_event_id").strip():
+            raise ValueError("deletion block requires target_event_id")

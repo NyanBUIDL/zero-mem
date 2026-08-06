@@ -67,7 +67,7 @@ def test_migration_v3_to_v4(tmp_path: pathlib.Path) -> None:
     store = _open_store(tmp_path)
     try:
         assert store.get_schema_version() == CURRENT_SCHEMA_VERSION
-        assert CURRENT_SCHEMA_VERSION == 5
+        assert CURRENT_SCHEMA_VERSION >= 5
         for t in ("zm_relations", "zm_scopes", "zm_artifacts"):
             assert store.table_exists(t)
     finally:

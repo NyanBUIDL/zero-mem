@@ -327,7 +327,7 @@ def test_rebuild_preserves_migrations_ledger(tmp_path: pathlib.Path) -> None:
         assert store.get_schema_version() == CURRENT_SCHEMA_VERSION
         cur = store._conn.cursor()
         versions = [r["version"] for r in cur.execute("SELECT version FROM zm_migrations ORDER BY version").fetchall()]
-        assert versions == [1, 2, 3, 4, 5]
+        assert versions == list(range(1, CURRENT_SCHEMA_VERSION + 1))
     finally:
         store.close()
 

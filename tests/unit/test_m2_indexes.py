@@ -64,7 +64,7 @@ def test_migration_v4_to_v5(tmp_path: pathlib.Path) -> None:
     store = _open_store(tmp_path)
     try:
         assert store.get_schema_version() == CURRENT_SCHEMA_VERSION
-        assert CURRENT_SCHEMA_VERSION == 5
+        assert CURRENT_SCHEMA_VERSION >= 5
         for idx in (
             "idx_zm_meta_trace", "idx_zm_meta_lifecycle", "idx_zm_meta_verif",
             "idx_zm_meta_project", "idx_zm_meta_profile", "idx_zm_meta_created",
@@ -79,7 +79,7 @@ def test_migration_v4_to_v5(tmp_path: pathlib.Path) -> None:
 def test_downgrade_v5_to_v4_drops_indexes(tmp_path: pathlib.Path) -> None:
     store = _open_store(tmp_path)
     try:
-        assert store.get_schema_version() == 5
+        assert store.get_schema_version() == CURRENT_SCHEMA_VERSION
         store.downgrade_to(4)
         assert store.get_schema_version() == 4
         for idx in (

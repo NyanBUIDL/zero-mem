@@ -18,9 +18,12 @@ Invariants (required rules):
 
 This module handles M2.2 (idempotent ingestion), M2.3 (lifecycle/verification projection +
 rebuild_from_jsonl), M2.4 (relations/scopes/artifact-registry projection + active-key
-enforcement), and M2.5 (relational indexes, FTS5 over sanitized content, inspection helpers).
-It must not be used for retention tombstones (M2.6), retrieval, ranking, routing, MCP,
-Obsidian, or context injection (those are later milestones / out of scope).
+and M2.5 (relational indexes, FTS5 over sanitized content, inspection helpers). It must
+not be used for physical purge of canonical JSONL (Decision B: logical deletion only; M2.6),
+retrieval, ranking, routing, MCP, Obsidian, or context injection (those are later milestones /
+out of scope). M2.6 adds tombstone-based logical deletion: explicit deletion events project into
+zm_tombstones + zm_deletion_audit + lifecycle/FTS state, deleted records are excluded from active
+helpers, and historical provenance remains auditable via administrative helpers.
 """
 from __future__ import annotations
 
@@ -343,6 +346,120 @@ def _seed_fts(conn, env: dict) -> None:
     )
 
 
+def _apply_tombstone(conn, env: dict) -> None:
+    """Project a deletion event into tombstone + audit + lifecycle/FTS state (M2.6).
+
+    Called within the same per-line transaction as the tombstone's ``NEW_EVENT`` insert. The
+    tombstone envelope's ``deletion`` block supplies (only) explicit data: target_event_id,
+    optional reason_code / approved_scope / verification_status. Nothing is invented.
+
+    - Known target: mark target ``current_state='deleted'``, remove its FTS row (capability-guarded),
+      insert ``zm_tombstones`` (status='applied') + ``zm_deletion_audit`` (prior state retained).
+    - Unknown target: insert ``zm_tombstones`` (status='pending_unknown_target') + audit with a
+      sanitized diagnostic code; retained, never invented. Applied later via ``_apply_pending_tombstones``.
+    """
+    del_block = env.get("deletion") or {}
+    target = del_block.get("target_event_id")
+    now = _now()
+    deletion_id = env["event_id"]
+    target_trace = None
+    prior_state = None
+    cur = conn.cursor()
+    # trace_id lives on zm_meta; current_state on zm_lifecycle.
+    cur.execute("SELECT trace_id FROM zm_meta WHERE event_id=?", (target,))
+    mrow = cur.fetchone()
+    cur.execute("SELECT current_state FROM zm_lifecycle WHERE event_id=?", (target,))
+    lrow = cur.fetchone()
+    exists = mrow is not None and lrow is not None
+    if exists:
+        target_trace = mrow["trace_id"]
+        prior_state = lrow["current_state"]
+    reason = del_block.get("reason_code")
+    scope = del_block.get("approved_scope")
+    scope_blob = json.dumps(scope, sort_keys=True, ensure_ascii=False) if isinstance(scope, (dict, list)) else (scope if isinstance(scope, str) else None)
+    status = "applied" if exists else "pending_unknown_target"
+    diagnostic = "" if exists else "target_not_yet_present"
+    # Tombstone row (PK = deletion_id; idempotent by construction at ingest level).
+    conn.execute(
+        "INSERT INTO zm_tombstones "
+        "(tombstone_id, target_event_id, target_trace_id, reason_code, approved_scope, "
+        " verifier, evidence_ref, deletion_event_id, current_state, status, created_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?) "
+        "ON CONFLICT(tombstone_id) DO UPDATE SET "
+        "status=excluded.status, target_trace_id=excluded.target_trace_id",
+        (deletion_id, target, target_trace, reason, scope_blob, "deterministic_check",
+         env.get("trace_id"), deletion_id, "deleted", status, now),
+    )
+    # Audit row (append-only; prior state kept for provenance).
+    conn.execute(
+        "INSERT INTO zm_deletion_audit "
+        "(tombstone_id, target_event_id, target_trace_id, action, prior_lifecycle_state, "
+        " reason_code, approved_scope, deletion_event_id, verifier, evidence_ref, diagnostic_code, recorded_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        (deletion_id, target, target_trace, "logical_delete", prior_state, reason, scope_blob,
+         deletion_id, "deterministic_check", env.get("trace_id"), diagnostic, now),
+    )
+    if exists:
+        # Transition the target's derived lifecycle state; zm_meta/provenance rows are retained.
+        conn.execute(
+            "UPDATE zm_lifecycle SET current_state='deleted' WHERE event_id=?",
+            (target,),
+        )
+        # Remove the target's FTS row (derived, rebuildable; avoids orphan matches).
+        if _migrate_5.FTS5_AVAILABLE:
+            try:
+                conn.execute("DELETE FROM zm_fts WHERE event_id=?", (target,))
+            except sqlite3.OperationalError:
+                pass
+
+
+def _apply_pending_tombstones(conn, target_event_id: str) -> None:
+    """Apply any 'pending_unknown_target' tombstones now that the target has arrived (M2.6).
+
+    Deterministic and order-dependent: identical between incremental ingest and
+    ``rebuild_from_jsonl`` because both replay JSONL lines in the same file order.
+    """
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT tombstone_id, target_trace_id, reason_code, approved_scope, "
+        "deletion_event_id, evidence_ref FROM zm_tombstones "
+        "WHERE target_event_id=? AND status='pending_unknown_target'",
+        (target_event_id,),
+    )
+    for t in cur.fetchall():
+        tomb_id = t["tombstone_id"]
+        target_trace = t["target_trace_id"]
+        reason = t["reason_code"]
+        scope_blob = t["approved_scope"]
+        del_id = t["deletion_event_id"]
+        # Capture the now-present target's prior lifecycle state for the audit.
+        lf = conn.cursor()
+        lf.execute("SELECT current_state FROM zm_lifecycle WHERE event_id=?", (target_event_id,))
+        lr = lf.fetchone()
+        prior_state = lr["current_state"] if lr is not None else None
+        conn.execute(
+            "UPDATE zm_tombstones SET status='applied', target_trace_id=? WHERE tombstone_id=?",
+            (target_trace, tomb_id),
+        )
+        conn.execute(
+            "INSERT INTO zm_deletion_audit "
+            "(tombstone_id, target_event_id, target_trace_id, action, prior_lifecycle_state, "
+            " reason_code, approved_scope, deletion_event_id, verifier, evidence_ref, diagnostic_code, recorded_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            (tomb_id, target_event_id, target_trace, "logical_delete", prior_state, reason, scope_blob,
+             del_id, "deterministic_check", t["evidence_ref"], "", _now()),
+        )
+        conn.execute(
+            "UPDATE zm_lifecycle SET current_state='deleted' WHERE event_id=?",
+            (target_event_id,),
+        )
+        if _migrate_5.FTS5_AVAILABLE:
+            try:
+                conn.execute("DELETE FROM zm_fts WHERE event_id=?", (target_event_id,))
+            except sqlite3.OperationalError:
+                pass
+
+
 def _classify_existing(conn, event_id: str, content_hash: str):
     """Return the outcome given current zm_meta state for the incoming record."""
     cur = conn.cursor()
@@ -519,6 +636,13 @@ def _commit_outcome(conn, source_id, line_number, outcome, event_id, content_has
             _seed_lifecycle_and_provenance(conn, env)
             _project_relations_scopes(conn, env)
             _seed_fts(conn, env)
+            # If this newly inserted event is itself the target of a previously-pending
+            # tombstone, apply that tombstone now (deterministic, order-dependent).
+            _apply_pending_tombstones(conn, env["event_id"])
+        # A deletion event (lifecycle_status=='deleted' with a deletion block) projects
+        # tombstone + audit + target lifecycle/FTS state within the same transaction.
+        if env is not None and env.get("lifecycle_status") == "deleted" and env.get("deletion"):
+            _apply_tombstone(conn, env)
         if outcome in _COMMITTED_OUTCOMES:
             _insert_log(conn, source_id, line_number, outcome, event_id, content_hash, diagnostic_code)
             # Advance the incremental prefix hash with this committed complete line.
@@ -667,13 +791,34 @@ def scan_sqlite_for_secrets(store, secret_corpus) -> list:
                         found.append(token)
         except sqlite3.OperationalError:
             pass
+    # zm_tombstones (logical-deletion records) — must never carry raw secrets.
+    cur.execute("SELECT tombstone_id, target_event_id, target_trace_id, reason_code, "
+                "approved_scope, evidence_ref, deletion_event_id FROM zm_tombstones")
+    for row in cur.fetchall():
+        blob = " ".join("" if row[c] is None else str(row[c]) for c in
+                        ("tombstone_id", "target_event_id", "target_trace_id", "reason_code",
+                         "approved_scope", "evidence_ref", "deletion_event_id"))
+        for token in corpus:
+            if token and token in blob:
+                found.append(token)
+    # zm_deletion_audit (append-only deletion audit) — must never carry raw secrets.
+    cur.execute("SELECT tombstone_id, target_event_id, target_trace_id, reason_code, "
+                "approved_scope, deletion_event_id, evidence_ref, diagnostic_code FROM zm_deletion_audit")
+    for row in cur.fetchall():
+        blob = " ".join("" if row[c] is None else str(row[c]) for c in
+                        ("tombstone_id", "target_event_id", "target_trace_id", "reason_code",
+                         "approved_scope", "deletion_event_id", "evidence_ref", "diagnostic_code"))
+        for token in corpus:
+            if token and token in blob:
+                found.append(token)
     return found
 
 
 # ---- M2.3: lifecycle / provenance projection + rebuild ---------------------
 
 DERIVED_TABLES = ("zm_meta", "zm_lifecycle", "zm_provenance", "zm_ingest_checkpoint", "zm_ingest_log",
-                   "zm_relations", "zm_scopes", "zm_artifacts", "zm_migrations")
+                   "zm_relations", "zm_scopes", "zm_artifacts", "zm_tombstones", "zm_deletion_audit",
+                   "zm_migrations")
 
 
 def get_lifecycle(store, event_id: str) -> Optional[dict]:
@@ -803,6 +948,14 @@ def verify_rebuild_parity(store_a, store_b) -> bool:
             (r["artifact_id"], r["content_hash"], r["kind"], r["retention"])
             for r in conn.execute("SELECT artifact_id, content_hash, kind, retention FROM zm_artifacts").fetchall()
         }
+        tombs = {
+            (r["tombstone_id"], r["target_event_id"], r["status"])
+            for r in conn.execute("SELECT tombstone_id, target_event_id, status FROM zm_tombstones").fetchall()
+        }
+        audit = {
+            (r["target_event_id"], r["action"])
+            for r in conn.execute("SELECT target_event_id, action FROM zm_deletion_audit").fetchall()
+        }
         fts = set()
         if _migrate_5.FTS5_AVAILABLE:
             try:
@@ -812,14 +965,14 @@ def verify_rebuild_parity(store_a, store_b) -> bool:
                 }
             except sqlite3.OperationalError:
                 fts = set()
-        return meta, life, prov, rel, scopes, arts, fts
+        return meta, life, prov, rel, scopes, arts, tombs, audit, fts
 
-    a_meta, a_life, a_prov, a_rel, a_scopes, a_arts, a_fts = snapshot(conn_a)
-    b_meta, b_life, b_prov, b_rel, b_scopes, b_arts, b_fts = snapshot(conn_b)
+    a_meta, a_life, a_prov, a_rel, a_scopes, a_arts, a_tombs, a_audit, a_fts = snapshot(conn_a)
+    b_meta, b_life, b_prov, b_rel, b_scopes, b_arts, b_tombs, b_audit, b_fts = snapshot(conn_b)
     return (
         a_meta == b_meta and a_life == b_life and a_prov == b_prov
         and a_rel == b_rel and a_scopes == b_scopes and a_arts == b_arts
-        and a_fts == b_fts
+        and a_tombs == b_tombs and a_audit == b_audit and a_fts == b_fts
     )
 
 
@@ -884,6 +1037,90 @@ def list_active_for_key(store, active_key: str) -> list:
     return [r["event_id"] for r in cur.fetchall()]
 
 
+def list_deleted(store, scope_type: Optional[str] = None, scope_id: Optional[str] = None) -> list:
+    """Administrative helper: return event_ids whose derived lifecycle state is 'deleted'.
+
+    This is the only sanctioned route to deleted records from normal inspection. Optionally
+    filtered by an explicitly supplied scope (project_id/profile_id column on zm_meta).
+    """
+    cur = store._conn.cursor()
+    sql = (
+        "SELECT DISTINCT m.event_id FROM zm_meta m "
+        "JOIN zm_lifecycle l ON m.event_id = l.event_id "
+        "WHERE l.current_state='deleted'"
+    )
+    params: list = []
+    if scope_type in ("project", "profile") and scope_id:
+        column = "project_id" if scope_type == "project" else "profile_id"
+        sql += f" AND m.{column}=?"
+        params.append(scope_id)
+    return [r["event_id"] for r in cur.execute(sql, params).fetchall()]
+
+
+def get_tombstone(store, tombstone_id: str) -> Optional[dict]:
+    """Administrative helper: return the zm_tombstones row for a deletion, or None."""
+    cur = store._conn.cursor()
+    cur.execute(
+        "SELECT tombstone_id, target_event_id, target_trace_id, reason_code, approved_scope, "
+        "verifier, evidence_ref, deletion_event_id, current_state, status, created_at "
+        "FROM zm_tombstones WHERE tombstone_id=?",
+        (tombstone_id,),
+    )
+    row = cur.fetchone()
+    if row is None:
+        return None
+    return {
+        "tombstone_id": row["tombstone_id"],
+        "target_event_id": row["target_event_id"],
+        "target_trace_id": row["target_trace_id"],
+        "reason_code": row["reason_code"],
+        "approved_scope": row["approved_scope"],
+        "verifier": row["verifier"],
+        "evidence_ref": row["evidence_ref"],
+        "deletion_event_id": row["deletion_event_id"],
+        "current_state": row["current_state"],
+        "status": row["status"],
+        "created_at": row["created_at"],
+    }
+
+
+def get_deletion_audit(store, target_event_id: Optional[str] = None,
+                       tombstone_id: Optional[str] = None) -> list:
+    """Administrative helper: return zm_deletion_audit rows (by target and/or tombstone)."""
+    cur = store._conn.cursor()
+    clauses = []
+    params: list = []
+    if target_event_id:
+        clauses.append("target_event_id=?")
+        params.append(target_event_id)
+    if tombstone_id:
+        clauses.append("tombstone_id=?")
+        params.append(tombstone_id)
+    where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+    cur.execute(
+        "SELECT audit_id, tombstone_id, target_event_id, target_trace_id, action, "
+        "prior_lifecycle_state, reason_code, approved_scope, deletion_event_id, verifier, "
+        "evidence_ref, diagnostic_code, recorded_at FROM zm_deletion_audit" + where,
+        params,
+    )
+    return [
+        {
+            "audit_id": int(r["audit_id"]),
+            "tombstone_id": r["tombstone_id"],
+            "target_event_id": r["target_event_id"],
+            "target_trace_id": r["target_trace_id"],
+            "action": r["action"],
+            "prior_lifecycle_state": r["prior_lifecycle_state"],
+            "reason_code": r["reason_code"],
+            "approved_scope": r["approved_scope"],
+            "deletion_event_id": r["deletion_event_id"],
+            "verifier": r["verifier"],
+            "evidence_ref": r["evidence_ref"],
+            "diagnostic_code": r["diagnostic_code"],
+            "recorded_at": r["recorded_at"],
+        }
+        for r in cur.fetchall()
+    ]
 def search_fts(store, query: str, limit: int = 20) -> list:
     """Return FTS5 matches over SANITIZED content as [{event_id, snippet}] (no ranking trusted).
 
@@ -920,24 +1157,39 @@ def find_related(store, event_id: str) -> list:
 
 
 def find_by_trace_id(store, trace_id: str) -> list:
-    """Return zm_meta rows for a trace_id (exact-key inspection)."""
+    """Return zm_meta rows for a trace_id (exact-key inspection).
+
+    Deleted records (zm_lifecycle.current_state='deleted') are excluded from this active helper;
+    use list_deleted / get_tombstone / get_deletion_audit to inspect deleted state.
+    """
     cur = store._conn.cursor()
     cols = ", ".join(ZM_META_COLUMNS)
     return [
         {c: row[c] for c in ZM_META_COLUMNS}
-        for row in cur.execute(f"SELECT {cols} FROM zm_meta WHERE trace_id=?", (trace_id,)).fetchall()
+        for row in cur.execute(
+            f"SELECT {cols} FROM zm_meta WHERE trace_id=? "
+            f"AND event_id NOT IN (SELECT event_id FROM zm_lifecycle WHERE current_state='deleted')",
+            (trace_id,),
+        ).fetchall()
     ]
 
 
 def list_events_in_scope(store, scope_type: str, scope_id: str) -> list:
-    """Return event_ids observed in a scope (project_id/profile_id column; exact-key)."""
+    """Return event_ids observed in a scope (project_id/profile_id column; exact-key).
+
+    Deleted records are excluded from this active helper.
+    """
     column = {"project": "project_id", "profile": "profile_id"}.get(scope_type)
     if column is None:
         return []
     cur = store._conn.cursor()
     return [
         r["event_id"]
-        for r in cur.execute(f"SELECT event_id FROM zm_meta WHERE {column}=?", (scope_id,)).fetchall()
+        for r in cur.execute(
+            f"SELECT event_id FROM zm_meta WHERE {column}=? "
+            f"AND event_id NOT IN (SELECT event_id FROM zm_lifecycle WHERE current_state='deleted')",
+            (scope_id,),
+        ).fetchall()
     ]
 
 
@@ -954,7 +1206,9 @@ __all__ = [
     "get_scopes",
     "get_artifact",
     "list_by_lifecycle_state",
-    "list_active_for_key",
+    "list_deleted",
+    "get_tombstone",
+    "get_deletion_audit",
     "search_fts",
     "find_related",
     "find_by_trace_id",
