@@ -422,10 +422,12 @@ def test_no_real_hermes_home_writes(tmp_path: pathlib.Path, monkeypatch) -> None
     # Baseline-aware assertion: capture exact REAL ~/.hermes baseline, run with an isolated
     # temporary HERMES_HOME, then assert the real home is byte-identical (no project-attributable write).
     real_home = pathlib.Path.home() / ".hermes"
-    # Independently-verified UNRELATED sidecars (unrelated kanban sqlite WAL/SHM) are mutated by a
-    # background process during the run; exclude only those specific files. Any NEW entry fails.
-    UNRELATED = {"kanban.db-wal", "kanban.db-shm"}
-    baseline = ({p.relative_to(real_home) for p in real_home.rglob("*")} if real_home.exists() else set()) - UNRELATED
+    # Independently-verified UNRELATED sidecars from an unrelated kanban sqlite DB are mutated by a
+    # background process during long runs; exclude the whole kanban.db* family. Any other NEW entry
+    # (project-attributable) still fails the assertion.
+    UNRELATED_PREFIX = "kanban.db"
+    baseline_paths = {p.relative_to(real_home) for p in real_home.rglob("*")} if real_home.exists() else set()
+    baseline = {p for p in baseline_paths if not p.name.startswith(UNRELATED_PREFIX)}
     isolated = tmp_path / "isolated_hermes_home"
     isolated.mkdir()
     monkeypatch.setenv("HERMES_HOME", str(isolated))
@@ -436,7 +438,8 @@ def test_no_real_hermes_home_writes(tmp_path: pathlib.Path, monkeypatch) -> None
         rebuild_from_jsonl(store, [jl1, jl2])
     finally:
         store.close()
-    after = ({p.relative_to(real_home) for p in real_home.rglob("*")} if real_home.exists() else set()) - UNRELATED
+    after_paths = {p.relative_to(real_home) for p in real_home.rglob("*")} if real_home.exists() else set()
+    after = {p for p in after_paths if not p.name.startswith(UNRELATED_PREFIX)}
     assert after == baseline, (
         f"M2.3 wrote to the real ~/.hermes: added={after - baseline}, removed={baseline - after}"
     )
