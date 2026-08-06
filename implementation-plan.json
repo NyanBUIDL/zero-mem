@@ -241,6 +241,20 @@
         "tested_commit": "c384b0e09a0e6d7203b653a87b33e132dea3abd0",
         "scope": ["read-only JSONL source reader", "validate_envelope reuse", "derived zm_meta projection", "idempotence by event_id and content_hash", "zm_ingest_checkpoint with consumed_prefix_hash", "zm_ingest_log committed sanitized record", "exact outcomes new_event/duplicate_event_id/duplicate_content_hash/event_id_content_conflict/invalid_record/transaction_failed/source_changed", "per-record atomic transaction", "checkpoint advances only after committed outcome", "transaction_failed and crash-before-commit do not advance", "append-safe consumed-prefix integrity (no basename|size|mtime_ns)", "secret scan", "minimal read-only helpers get_trace/count_metadata/get_checkpoint"],
         "excluded_scope": ["lifecycle/provenance/relations/scopes projection", "FTS5 content indexing", "retention tombstones", "retry/backoff", "dead-letter store or replay", "retrieval", "ranking", "query routing", "MCP", "Obsidian", "context injection", "rebuild_from_jsonl (M2.3)", "M2.3 or later"]
+      },
+      "increment_3": {
+        "name": "Lifecycle, verification, supersession, and rebuild projection",
+        "status": "verified",
+        "evidence": "acceptance-m2-increment-3.md",
+        "focused_test": "tests/unit/test_m2_rebuild.py",
+        "focused_result": "22 passed in 0.73s",
+        "canonical_result": "249 passed in 3.12s",
+        "starting_commit": "e5b11c7fb5d28d3e98d3c4ea7b3f0a4d4c0b9a3f",
+        "plan_commit": "c173d501ef9a5a036dc9a472bdf310bdfac81356",
+        "implementation_commit": "b4b9c849a235d1fbfaffad54cdb277c3323ed65b",
+        "tested_commit": "b4b9c849a235d1fbfaffad54cdb277c3323ed65b",
+        "scope": ["zm_lifecycle projection (current_state mirror)", "zm_provenance projection (deterministic_check verifier, evidence_ref=trace_id)", "rebuild_from_jsonl (full derived-layer rebuild, parity with incremental, deterministic)", "idempotent lifecycle/provenance seeding on new_event", "migration v3 (CURRENT_SCHEMA_VERSION=3)", "secret scan across new tables"],
+        "excluded_scope": ["supersession link creation (zm_relations, M2.4)", "active-key uniqueness enforcement (M2.4)", "zm_scopes (M2.4)", "FTS5 content indexing (M2.5)", "retention tombstones (M2.6)", "retrieval", "ranking", "query routing", "MCP", "Obsidian", "context injection"]
       }
     },
     {
