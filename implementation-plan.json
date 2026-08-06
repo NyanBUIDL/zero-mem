@@ -227,6 +227,20 @@
         "tested_commit": "81ffb683950a14de992c872215792f3340ff8df4",
         "scope": ["SQLite connection lifecycle", "WAL/FK/synchronous/busy_timeout pragmas", "zm_meta + zm_migrations only", "deterministic migration registry", "idempotent ensure_schema", "transaction-safe up/down", "downgrade_to", "sanitized errors", "restrictive permissions", "guard against real ~/.hermes path"],
         "excluded_scope": ["JSONL ingestion", "rebuild_from_jsonl", "lifecycle/provenance/relations/scopes projection", "FTS5 content ingestion", "retention tombstones", "retry/backoff", "dead-letter", "retrieval", "ranking", "query routing", "MCP", "Obsidian", "context injection", "M2.2 or later"]
+      },
+      "increment_2": {
+        "name": "Idempotent JSONL metadata ingestion",
+        "status": "verified",
+        "evidence": "acceptance-m2-increment-2.md",
+        "focused_test": "tests/unit/test_m2_ingest.py",
+        "focused_result": "36 passed in 1.14s",
+        "canonical_result": "227 passed in 2.44s",
+        "starting_commit": "f6f010cdb75257bc51ff60cb83ec58092f53af7d",
+        "plan_commit": "5c0a13df0659fd0f03bb2d4be5d354d87edd0e2c",
+        "implementation_commit": "c384b0e09a0e6d7203b653a87b33e132dea3abd0",
+        "tested_commit": "c384b0e09a0e6d7203b653a87b33e132dea3abd0",
+        "scope": ["read-only JSONL source reader", "validate_envelope reuse", "derived zm_meta projection", "idempotence by event_id and content_hash", "zm_ingest_checkpoint with consumed_prefix_hash", "zm_ingest_log committed sanitized record", "exact outcomes new_event/duplicate_event_id/duplicate_content_hash/event_id_content_conflict/invalid_record/transaction_failed/source_changed", "per-record atomic transaction", "checkpoint advances only after committed outcome", "transaction_failed and crash-before-commit do not advance", "append-safe consumed-prefix integrity (no basename|size|mtime_ns)", "secret scan", "minimal read-only helpers get_trace/count_metadata/get_checkpoint"],
+        "excluded_scope": ["lifecycle/provenance/relations/scopes projection", "FTS5 content indexing", "retention tombstones", "retry/backoff", "dead-letter store or replay", "retrieval", "ranking", "query routing", "MCP", "Obsidian", "context injection", "rebuild_from_jsonl (M2.3)", "M2.3 or later"]
       }
     },
     {
