@@ -90,7 +90,7 @@ def test_initial_schema_version(tmp_path: Path) -> None:
         assert db.get_schema_version() == 0
         db.ensure_schema()
         assert db.get_schema_version() == CURRENT_SCHEMA_VERSION
-        assert CURRENT_SCHEMA_VERSION == 1
+        assert CURRENT_SCHEMA_VERSION == 2
     finally:
         db.close()
 
@@ -136,12 +136,12 @@ def test_applying_pending_migrations(tmp_path: Path) -> None:
     try:
         assert db.get_schema_version() == 0
         v = db.ensure_schema()
-        assert v == 1
+        assert v == CURRENT_SCHEMA_VERSION
         assert db.table_exists("zm_meta")
-        # Ledger row present.
+        # Ledger rows present for every applied migration (v1, v2).
         cur = db._conn.cursor()
-        cur.execute("SELECT version FROM zm_migrations")
-        assert [r["version"] for r in cur.fetchall()] == [1]
+        cur.execute("SELECT version FROM zm_migrations ORDER BY version")
+        assert [r["version"] for r in cur.fetchall()] == list(range(1, CURRENT_SCHEMA_VERSION + 1))
     finally:
         db.close()
 
@@ -156,10 +156,10 @@ def test_reopening_up_to_date_database_is_noop(tmp_path: Path) -> None:
     db2 = SQLiteStore(_config(tmp_path))
     try:
         v = db2.ensure_schema()
-        assert v == 1
+        assert v == CURRENT_SCHEMA_VERSION
         cur = db2._conn.cursor()
         cur.execute("SELECT COUNT(*) AS n FROM zm_migrations")
-        assert cur.fetchone()["n"] == 1
+        assert cur.fetchone()["n"] == CURRENT_SCHEMA_VERSION
     finally:
         db2.close()
 
@@ -170,10 +170,10 @@ def test_migration_idempotence(tmp_path: Path) -> None:
         db.ensure_schema()
         db.ensure_schema()  # second call must not duplicate
         db.ensure_schema()
-        assert db.get_schema_version() == 1
+        assert db.get_schema_version() == CURRENT_SCHEMA_VERSION
         cur = db._conn.cursor()
         cur.execute("SELECT COUNT(*) AS n FROM zm_migrations")
-        assert cur.fetchone()["n"] == 1
+        assert cur.fetchone()["n"] == CURRENT_SCHEMA_VERSION
     finally:
         db.close()
 
@@ -227,14 +227,14 @@ def test_failed_migration_does_not_advance_schema_version(tmp_path: Path) -> Non
 def test_unknown_future_schema_version_rejected(tmp_path: Path) -> None:
     db = SQLiteStore(_config(tmp_path))
     try:
-        db.ensure_schema()  # creates v1
-        # Simulate a future version recorded in the ledger.
+        db.ensure_schema()  # creates v1 and v2
+        # Simulate a FUTURE version recorded in the ledger (code only knows up to v2).
         db._conn.execute(
-            "INSERT INTO zm_migrations(version, applied_at, note) VALUES (2, 't', 'future')"
+            "INSERT INTO zm_migrations(version, applied_at, note) VALUES (3, 't', 'future')"
         )
         db._conn.commit()
         with pytest.raises(SchemaVersionError):
-            db.ensure_schema()  # must refuse to touch; code only knows v1
+            db.ensure_schema()  # must refuse to touch; code only knows v2
     finally:
         db.close()
 
@@ -242,15 +242,19 @@ def test_unknown_future_schema_version_rejected(tmp_path: Path) -> None:
 def test_unsupported_downgrade_rejected(tmp_path: Path) -> None:
     db = SQLiteStore(_config(tmp_path))
     try:
-        db.ensure_schema()
+        db.ensure_schema()  # v2
         # target >= current is not a downgrade
         with pytest.raises(SchemaVersionError):
-            db.downgrade_to(1)
-        with pytest.raises(SchemaVersionError):
             db.downgrade_to(2)
+        with pytest.raises(SchemaVersionError):
+            db.downgrade_to(3)
         # negative target
         with pytest.raises(SchemaVersionError):
             db.downgrade_to(-1)
+        # target 1 (< current) IS a supported downgrade and must succeed
+        db.downgrade_to(1)
+        assert db.get_schema_version() == 1
+        assert db.table_exists("zm_meta")
     finally:
         db.close()
 
@@ -259,7 +263,7 @@ def test_supported_downgrade_restores_prior_state(tmp_path: Path) -> None:
     db = SQLiteStore(_config(tmp_path))
     try:
         db.ensure_schema()
-        assert db.get_schema_version() == 1
+        assert db.get_schema_version() == CURRENT_SCHEMA_VERSION
         db.downgrade_to(0)
         assert db.get_schema_version() == 0
         assert not db.table_exists("zm_meta")
@@ -400,6 +404,6 @@ def test_no_network_calls(tmp_path: Path) -> None:
         db = SQLiteStore(_config(tmp_path))
         db.ensure_schema()  # must succeed without any socket use
     try:
-        assert db.get_schema_version() == 1
+        assert db.get_schema_version() == CURRENT_SCHEMA_VERSION
     finally:
         db.close()
