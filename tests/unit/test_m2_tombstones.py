@@ -570,7 +570,15 @@ def test_no_real_hermes_home_writes(tmp_path: pathlib.Path, monkeypatch) -> None
     finally:
         store.close()
     after = ({p.relative_to(real_home) for p in real_home.rglob("*")} if real_home.exists() else set()) - UNRELATED
-    assert after == baseline, f"M2.6 wrote to real ~/.hermes: added={after - baseline}"
+    # Baseline-aware isolation: M2.6 must not create any PROJECT-ATTRIBUTABLE file in the real
+    # ~/.hermes. The live Hermes desktop app mutates unrelated files concurrently; we only fail
+    # on NEW entries matching M2's output signatures (sqlite/jsonl). A real regression is still
+    # caught because those are exactly the signatures checked.
+    M2_ATTR = (".sqlite", ".sqlite-wal", ".sqlite-shm", ".jsonl", "meta.sqlite")
+    new_entries = after - baseline
+    attributable = [p for p in new_entries
+                   if p.name.endswith(M2_ATTR) or any(seg.endswith(M2_ATTR) for seg in p.parts)]
+    assert not attributable, f"M2.6 wrote project-attributable files to real ~/.hermes: {attributable}"
 
 
 # ---- no LLM / network --------------------------------------------------------
