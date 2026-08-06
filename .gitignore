@@ -1,0 +1,19 @@
+# Python build artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# Local SQLite (project uses temp dirs in tests; keep repo DBs out)
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# OS cruft
+.DS_Store
