@@ -503,7 +503,7 @@
           "starting_commit": "d683e29",
           "implementation_commit": "ae7db4f2bf8247933ef445ab699a6ff5f560e585",
           "tested_commit": "ae7db4f2bf8247933ef445ab699a6ff5f560e585",
-          "evidence_commit": "<TBD>",
+          "evidence_commit": "faa00df9a4f5c7ae1350b0fc07e8deae215afdd6",
           "schema_version": 7,
           "sqlite_access": "write/project path (projector); separate from M3 TRUE READ-ONLY; no ensure_schema; no JSONL mutation",
           "model": "explicit typed operation envelope (DecisionOp); projector consumes only explicitly-structured operations; never infers from prose/LLM/timestamp/trace_id",

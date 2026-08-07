@@ -125,12 +125,12 @@ quirk is documented above as an M4.1 characteristic, not an M4.3 defect).
 - starting_commit: d683e29
 - implementation_commit: ae7db4f2bf8247933ef445ab699a6ff5f560e585
 - tested_commit: ae7db4f2bf8247933ef445ab699a6ff5f560e585
-- evidence/state-binding commit: <TBD>
+- evidence/state-binding commit: faa00df9a4f5c7ae1350b0fc07e8deae215afdd6
 - focused M4.3 result: 40 passed
 - combined M4 result: 110 passed
 - compatibility result: 220 passed
 - canonical result: 727 passed, 3 skipped
-- current HEAD after closeout: <TBD>
+- current HEAD after closeout: faa00df9a4f5c7ae1350b0fc07e8deae215afdd6
 - schema version: 7
 - files changed: src/project_memory/contracts.py,
   src/project_memory/projector.py, src/project_memory/__init__.py,
