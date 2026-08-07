@@ -35,6 +35,7 @@ from .contracts import (
     M4Domain,
     CharterOp,
     RequirementOp,
+    DecisionOp,
     M4ProjectionError,
     MissingIdentityError,
     InvalidTransitionError,
@@ -44,6 +45,7 @@ from .contracts import (
 
 CLASSIFY_CHARTER = "charter"
 CLASSIFY_REQUIREMENT = "requirement"
+CLASSIFY_DECISION = "decision"
 CLASSIFY_SKIP = "skip"
 
 
@@ -406,6 +408,196 @@ def _requirement_content_equal(existing: dict, op: RequirementOp) -> bool:
 
 
 # ----------------------------------------------------------------------------
+# Decision Log projection
+# ----------------------------------------------------------------------------
+
+
+def _decision_columns() -> list[str]:
+    # NOTE: the VERIFIED M4.1 v7 schema for zm_decisions has no `created_at`
+    # column; temporal provenance is carried by `effective_at`. We respect the
+    # VERIFIED schema and do not modify migration 7.
+    return [
+        "decision_id", "project_id", "scope", "decision_key", "statement",
+        "rationale_ref", "alternatives", "source_event_id", "lifecycle_status",
+        "state", "supersedes_id", "replaced_by", "effective_at",
+        "linked_requirement_ids", "linked_artifact_ids", "linked_verification_ids",
+        "trace_id", "session_id", "profile_id",
+    ]
+
+
+def _existing_decision(conn: sqlite3.Connection, decision_id: str) -> Optional[dict]:
+    cur = conn.execute(
+        "SELECT * FROM zm_decisions WHERE decision_id=?", (decision_id,)
+    )
+    return cur.fetchone()
+
+
+def project_decision(conn: sqlite3.Connection, op: DecisionOp) -> dict:
+    """Project one Decision operation deterministically and atomically.
+
+    Returns {"op", "decision_id", "action"}; action in
+    {created, transitioned, superseded, deleted, noop, conflict_preserved}.
+
+    Guarantees:
+    - explicit decision_id identity; trace_id never used as identity;
+    - decision_key nullable; NULL-key decisions coexist (no false collision);
+    - lifecycle_status closed enum; generic domain `state` separate;
+    - explicit supersession only (distinct new decision_id; old preserved + linked);
+    - active uniqueness via v7 partial unique index (project_id, scope, key);
+    - conflict preserved: an explicit `conflicted` lifecycle is stored as-is; no
+      winner chosen, no auto-mutation of other records;
+    - transaction safety: supersession/transition commit together or roll back;
+    - idempotence: replaying the same op yields the same state, no duplicates;
+    - no LLM / semantic / timestamp inference; sanitized errors (no raw SQL/secret).
+    """
+    op.validate()
+    created_at = op.created_at or _now()
+    try:
+        _begin(conn)
+        existing = _existing_decision(conn, op.decision_id)
+
+        if op.op == M4Op.CREATE.value:
+            if existing is not None:
+                if _decision_content_equal(existing, op):
+                    _commit(conn)
+                    return {"op": op.op, "decision_id": op.decision_id, "action": "noop"}
+                raise InvalidTransitionError(
+                    "decision_id exists; use op=transition/supersede to change it"
+                )
+            _insert_decision(conn, op, created_at)
+            _commit(conn)
+            return {"op": op.op, "decision_id": op.decision_id, "action": "created"}
+
+        if op.op == M4Op.TRANSITION.value:
+            if existing is None:
+                raise MissingIdentityError(
+                    "cannot transition a decision that does not exist"
+                )
+            if existing["lifecycle_status"] == "deleted" and op.lifecycle_status != "deleted":
+                raise InvalidTransitionError("deleted decision is terminal")
+            # Update current state in place (history lives in canonical JSONL).
+            # A conflict is preserved as-is: we never force other records to
+            # conflicted; we only store the explicit lifecycle the op supplies.
+            conn.execute(
+                "UPDATE zm_decisions SET lifecycle_status=?, state=?, "
+                "decision_key=COALESCE(?, decision_key), scope=COALESCE(?, scope), "
+                "statement=COALESCE(?, statement), rationale_ref=COALESCE(?, rationale_ref), "
+                "alternatives=COALESCE(?, alternatives), effective_at=COALESCE(?, effective_at), "
+                "supersedes_id=COALESCE(?, supersedes_id), replaced_by=COALESCE(?, replaced_by), "
+                "linked_requirement_ids=COALESCE(?, linked_requirement_ids), "
+                "linked_artifact_ids=COALESCE(?, linked_artifact_ids), "
+                "linked_verification_ids=COALESCE(?, linked_verification_ids) "
+                "WHERE decision_id=?",
+                (op.lifecycle_status, op.state, op.decision_key, op.scope, op.statement,
+                 op.rationale_ref, op.alternatives, op.effective_at, op.supersedes_id,
+                 op.replaced_by, op.linked_requirement_ids, op.linked_artifact_ids,
+                 op.linked_verification_ids, op.decision_id),
+            )
+            _commit(conn)
+            return {"op": op.op, "decision_id": op.decision_id, "action": "transitioned"}
+
+        if op.op == M4Op.SUPERSEDE.value:
+            if not op.supersedes_id:
+                raise MissingIdentityError("supersede op requires explicit supersedes_id")
+            prior = _existing_decision(conn, op.supersedes_id)
+            if prior is None:
+                raise MissingIdentityError(
+                    "cannot supersede a decision that does not exist"
+                )
+            if existing is not None:
+                # Already projected this supersession; idempotent no-op.
+                _commit(conn)
+                return {"op": op.op, "decision_id": op.decision_id, "action": "noop"}
+            # Explicit chain link A <- B. To preserve the active-uniqueness
+            # invariant atomically we must NOT have two active rows with the same
+            # (project_id, scope, decision_key) at any committed point. So:
+            #  1) insert B with a non-active lifecycle (avoids dual-active);
+            #  2) mark A superseded + replaced_by=B (FK satisfied, B exists);
+            #  3) promote B to its explicit lifecycle (active).
+            # A is preserved (history retained), never physically deleted.
+            _insert_decision(conn, op, created_at, force_lifecycle="candidate")
+            conn.execute(
+                "UPDATE zm_decisions SET lifecycle_status='superseded', "
+                "replaced_by=? WHERE decision_id=?",
+                (op.decision_id, op.supersedes_id),
+            )
+            conn.execute(
+                "UPDATE zm_decisions SET lifecycle_status=? WHERE decision_id=?",
+                (op.lifecycle_status, op.decision_id),
+            )
+            _commit(conn)
+            return {"op": op.op, "decision_id": op.decision_id, "action": "superseded"}
+
+        if op.op == M4Op.DELETE.value:
+            if existing is None:
+                raise MissingIdentityError(
+                    "cannot delete a decision that does not exist"
+                )
+            conn.execute(
+                "UPDATE zm_decisions SET lifecycle_status='deleted' WHERE decision_id=?",
+                (op.decision_id,),
+            )
+            _commit(conn)
+            return {"op": op.op, "decision_id": op.decision_id, "action": "deleted"}
+
+        raise InvalidTransitionError(f"unsupported decision op: {op.op}")
+    except M4ProjectionError:
+        _rollback(conn)
+        raise
+    except sqlite3.IntegrityError as exc:
+        _rollback(conn)
+        msg = str(exc)
+        # Active-uniqueness violation for a non-NULL (project_id, scope, key):
+        # the existing valid active Decision must remain unchanged; the new op is
+        # rejected with a sanitized conflict outcome (no winner, no overwrite).
+        if "UNIQUE constraint failed" in msg and "zm_decisions" in msg:
+            raise ConflictError(
+                "active decision conflict preserved; existing active decision retained"
+            ) from None
+        if "FOREIGN KEY constraint failed" in msg:
+            raise _sanitize("decision_fk", msg) from None
+        raise _sanitize("decision_integrity", msg) from None
+    except Exception as exc:  # noqa: BLE001
+        _rollback(conn)
+        raise _sanitize("decision_project", str(exc)) from None
+
+
+def _insert_decision(conn: sqlite3.Connection, op: DecisionOp, created_at: str,
+                     force_lifecycle: Optional[str] = None) -> None:
+    cols = _decision_columns()
+    placeholders = ", ".join("?" for _ in cols)
+    eff = op.effective_at or created_at
+    lifecycle = force_lifecycle if force_lifecycle is not None else op.lifecycle_status
+    # column order matches _decision_columns(): ... lifecycle_status, state,
+    # supersedes_id, replaced_by, effective_at, ...
+    sql = f"INSERT INTO zm_decisions ({', '.join(cols)}) VALUES ({placeholders})"
+    values = (
+        op.decision_id, op.project_id, op.scope, op.decision_key, op.statement,
+        op.rationale_ref, op.alternatives, op.source_event_id, lifecycle,
+        op.state, op.supersedes_id, op.replaced_by, eff,
+        op.linked_requirement_ids, op.linked_artifact_ids, op.linked_verification_ids,
+        op.trace_id, op.session_id, op.profile_id,
+    )
+    conn.execute(sql, values)
+
+
+def _decision_content_equal(existing: dict, op: DecisionOp) -> bool:
+    keys = set(existing.keys())
+    # temporal provenance: op.effective_at or op.created_at was folded into the
+    # effective_at column at insert time.
+    op_eff = op.effective_at or op.created_at
+    fields = ["scope", "decision_key", "statement", "rationale_ref", "alternatives",
+              "lifecycle_status", "state", "supersedes_id", "replaced_by",
+              "linked_requirement_ids", "linked_artifact_ids", "linked_verification_ids"]
+    for f in fields:
+        if (existing[f] if f in keys else None) != (getattr(op, f) or None):
+            return False
+    if (existing["effective_at"] if "effective_at" in keys else None) != (op_eff or None):
+        return False
+    return True
+
+
+# ----------------------------------------------------------------------------
 # Event classification (deterministic; no inference / no invention)
 # ----------------------------------------------------------------------------
 
@@ -413,13 +605,12 @@ def _requirement_content_equal(existing: dict, op: RequirementOp) -> bool:
 def classify_event_for_m4(event: dict) -> str:
     """Classify a canonical event for M4 projection.
 
-    Returns CLASSIFY_CHARTER / CLASSIFY_REQUIREMENT / CLASSIFY_SKIP.
-    Projection only occurs when the event carries an EXPLICIT structured M4
-    identity block (m4_domain + m4_op + m4_identity). If it does not, the
-    outcome is CLASSIFY_SKIP (deterministic, no inference, no invention). The
-    projector is only invoked with an explicit typed envelope; generic events
-    (user_statement / assistant_claim / tool_observation / ...) are NOT
-    projected into Charter/Requirement merely by resemblance.
+    Returns CLASSIFY_CHARTER / CLASSIFY_REQUIREMENT / CLASSIFY_DECISION /
+    CLASSIFY_SKIP. Projection only occurs when the event carries an EXPLICIT
+    structured M4 identity block (m4.domain + m4.identity + m4.op). If it does
+    not, the outcome is CLASSIFY_SKIP (deterministic, no inference, no
+    invention). Generic events (user_statement / assistant_claim /
+    tool_observation / ...) are NOT projected into M4 merely by resemblance.
     """
     m4 = event.get("m4") if isinstance(event, dict) else None
     if not isinstance(m4, dict):
@@ -431,14 +622,18 @@ def classify_event_for_m4(event: dict) -> str:
         return CLASSIFY_CHARTER
     if domain == M4Domain.REQUIREMENT.value and identity and op:
         return CLASSIFY_REQUIREMENT
+    if domain == M4Domain.DECISION.value and identity and op:
+        return CLASSIFY_DECISION
     return CLASSIFY_SKIP
 
 
 __all__ = [
     "project_charter",
     "project_requirement",
+    "project_decision",
     "classify_event_for_m4",
     "CLASSIFY_CHARTER",
     "CLASSIFY_REQUIREMENT",
+    "CLASSIFY_DECISION",
     "CLASSIFY_SKIP",
 ]

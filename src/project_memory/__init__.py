@@ -25,13 +25,16 @@ from .contracts import (
     PromotionBlockedError,
     CharterOp,
     RequirementOp,
+    DecisionOp,
 )
 from .projector import (
     project_charter,
     project_requirement,
+    project_decision,
     classify_event_for_m4,
     CLASSIFY_CHARTER,
     CLASSIFY_REQUIREMENT,
+    CLASSIFY_DECISION,
     CLASSIFY_SKIP,
 )
 
@@ -48,10 +51,13 @@ __all__ = [
     "PromotionBlockedError",
     "CharterOp",
     "RequirementOp",
+    "DecisionOp",
     "project_charter",
     "project_requirement",
+    "project_decision",
     "classify_event_for_m4",
     "CLASSIFY_CHARTER",
     "CLASSIFY_REQUIREMENT",
+    "CLASSIFY_DECISION",
     "CLASSIFY_SKIP",
 ]

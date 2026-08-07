@@ -42,6 +42,7 @@ class M4Op(str, Enum):
 class M4Domain(str, Enum):
     CHARTER = "charter"
     REQUIREMENT = "requirement"
+    DECISION = "decision"
 
 
 # ---- Sanitized errors (no raw SQL / payload / secret leakage) ----------------
@@ -193,6 +194,67 @@ class RequirementOp:
         return self
 
 
+@dataclass
+class DecisionOp:
+    """Explicit structured Decision operation. The projector consumes this verbatim.
+
+    decision_id is the explicit stable record identity. trace_id is NEVER used as
+    identity. decision_key is the explicit logical decision domain used for active
+    uniqueness; it is NULL when absent (multiple NULL-key decisions coexist and do
+    not falsely collide). state is the generic domain status (proposed/accepted/
+    rejected/...); lifecycle_status is the closed enum. supersedes_id / replaced_by
+    carry explicit supersession. The projector never infers identity from prose,
+    timestamps, trace_id, embeddings, or LLM output.
+    """
+
+    op: str
+    decision_id: str
+    project_id: str
+    scope: Optional[str] = None
+    decision_key: Optional[str] = None
+    statement: Optional[str] = None
+    rationale_ref: Optional[str] = None
+    alternatives: Optional[str] = None
+    lifecycle_status: str = "candidate"
+    state: Optional[str] = None
+    supersedes_id: Optional[str] = None
+    replaced_by: Optional[str] = None
+    effective_at: Optional[str] = None
+    linked_requirement_ids: Optional[str] = None
+    linked_artifact_ids: Optional[str] = None
+    linked_verification_ids: Optional[str] = None
+    # provenance
+    source_event_id: Optional[str] = None
+    trace_id: Optional[str] = None
+    session_id: Optional[str] = None
+    profile_id: Optional[str] = None
+    created_at: Optional[str] = None
+    derived_from_event_type: Optional[str] = None
+
+    def validate(self) -> "DecisionOp":
+        if self.op not in {o.value for o in M4Op}:
+            raise InvalidTransitionError(f"unknown op: {self.op}")
+        if not (self.decision_id and self.decision_id.strip()):
+            raise MissingIdentityError("decision_id required and explicit")
+        if not (self.project_id and self.project_id.strip()):
+            raise MissingRequiredFieldError("project_id required")
+        if self.lifecycle_status not in LIFECYCLE_ENUM:
+            raise InvalidLifecycleError(
+                f"lifecycle_status must be one of the closed enum; got {self.lifecycle_status}"
+            )
+        # Promotion guard: an assistant_claim-derived op must not set active.
+        if self.derived_from_event_type == "assistant_claim" and self.lifecycle_status == "active":
+            raise PromotionBlockedError(
+                "assistant_claim may not auto-promote a decision to active"
+            )
+        # Self-supersession is invalid (would create a cyclic/self link).
+        if self.op == M4Op.SUPERSEDE.value and self.supersedes_id == self.decision_id:
+            raise InvalidTransitionError("self-supersession rejected")
+        if self.op == M4Op.DELETE.value and self.lifecycle_status != "deleted":
+            self.lifecycle_status = "deleted"
+        return self
+
+
 __all__ = [
     "LIFECYCLE_ENUM",
     "M4Op",
@@ -206,4 +268,5 @@ __all__ = [
     "PromotionBlockedError",
     "CharterOp",
     "RequirementOp",
+    "DecisionOp",
 ]
