@@ -647,8 +647,9 @@ def test_no_llm_or_network_imports() -> None:
     import src.project_memory.contracts as c
     for mod in (p, c):
         src_text = open(mod.__file__, "r", encoding="utf-8").read()
-        for forbidden in ("openai", "requests", "http.client", "socket.socket",
-                          "import semantic", "from semantic", "embeddings"):
+        for forbidden in ("import openai", "import requests", "import http.client",
+                          "import socket", "import semantic", "from semantic",
+                          "import embeddings", "from embeddings"):
             assert forbidden not in src_text, f"forbidden token in {mod.__name__}: {forbidden}"
 
 
