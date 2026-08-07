@@ -19,6 +19,8 @@ INVALID_LIMIT = "invalid_limit"
 INVALID_CURSOR = "invalid_cursor"
 CURSOR_QUERY_MISMATCH = "cursor_query_mismatch"
 CURSOR_LIMIT_MISMATCH = "cursor_limit_mismatch"
+FTS_UNAVAILABLE = "fts_unavailable"
+MALFORMED_FTS_EXPRESSION = "malformed_fts_expression"
 DATABASE_UNAVAILABLE = "database_unavailable"
 SCHEMA_MISMATCH = "schema_mismatch"
 
@@ -105,4 +107,52 @@ class QueryResult:
     items: List[EventView] = field(default_factory=list)
     query: Dict[str, Any] = field(default_factory=dict)
     total: int = 0
+    next_cursor: Optional[str] = None
+
+
+@dataclass
+class SearchHit:
+    """One FTS hit. Deterministic metadata + a sanitized snippet (content_source='fts').
+
+    No raw FTS row, raw payload, secret-bearing text, or filesystem path is exposed.
+    """
+
+    event_id: str
+    trace_id: str
+    event_type: str
+    source: str
+    schema_version: int
+    created_at: str
+    observed_at: str
+    sequence: int
+    session_id: Optional[str]
+    profile_id: Optional[str]
+    project_id: Optional[str]
+    task_id: Optional[str]
+    turn_id: Optional[str]
+    parent_trace_id: Optional[str]
+    lifecycle_status: str
+    verification_status: str
+    confidence: str
+    sensitivity: str
+    retention: str
+    content_hash: str
+    snippet: str
+    content_source: str = "fts"
+
+
+@dataclass
+class SearchResult:
+    """Typed FTS result. ``error`` distinguishes zero-results from FTS-state errors.
+
+    | situation                | results | error                  |
+    |--------------------------|---------|------------------------|
+    | success (>=1 hit)        | hits    | None                   |
+    | success, zero hits       | []      | None                   |
+    | FTS5 unavailable         | []      | "fts_unavailable"      |
+    | malformed FTS expression | []      | "malformed_fts_expression" |
+    """
+
+    results: List[SearchHit] = field(default_factory=list)
+    error: Optional[str] = None
     next_cursor: Optional[str] = None

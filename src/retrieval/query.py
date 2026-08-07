@@ -54,7 +54,7 @@ _RANGE_FILTERS = {
 }
 
 _DELETED_EXCLUSION = (
-    "event_id NOT IN (SELECT event_id FROM zm_lifecycle WHERE current_state='deleted')"
+    "zm_meta.event_id NOT IN (SELECT event_id FROM zm_lifecycle WHERE current_state='deleted')"
 )
 
 

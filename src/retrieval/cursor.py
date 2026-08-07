@@ -38,16 +38,24 @@ MAX_LIMIT = 500
 _DELETED_EXCLUSION_MARKER = {"_deleted_excluded": True}
 
 
-def make_fingerprint(req: QueryRequest) -> str:
-    """SHA-256 of the canonical normalized filter set.
+def make_fingerprint(req: QueryRequest, text: Optional[str] = None) -> str:
+    """SHA-256 of the canonical normalized filter set (+ optional FTS text).
 
-    Normalization: sorted keys, None values excluded, deterministic separators, and a
-    constant deleted-exclusion marker. Equivalent queries → identical fingerprint.
+    Normalization: sorted keys, None values excluded, deterministic separators, a
+    constant deleted-exclusion marker, and the normalized FTS ``text`` when present.
+    Equivalent structured queries (and equivalent text) produce the same ``qf``; different
+    filter sets or different text produce different ``qf`` with practical determinism.
+    No raw SQL, FTS internals, secrets, or paths are included.
     """
     if not isinstance(req, QueryRequest):
         raise QueryError(code="invalid_query", message="not_a_query_request")
     normalized = dict(req.to_dict())
     normalized.update(_DELETED_EXCLUSION_MARKER)
+    if text is not None:
+        if not isinstance(text, str) or not text:
+            raise QueryError(code="invalid_query", message="empty_fts_text")
+        # Normalize the FTS text deterministically: collapse runs of whitespace, strip.
+        normalized["text"] = " ".join(text.split())
     canonical = json.dumps(normalized, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 

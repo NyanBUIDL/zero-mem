@@ -19,11 +19,15 @@ from .models import (
     CURSOR_LIMIT_MISMATCH,
     CURSOR_QUERY_MISMATCH,
     EventView,
+    FTS_UNAVAILABLE,
     INVALID_CURSOR,
     INVALID_LIMIT,
+    MALFORMED_FTS_EXPRESSION,
     QueryError,
     QueryRequest,
     QueryResult,
+    SearchHit,
+    SearchResult,
 )
 from .cursor import (
     DEFAULT_LIMIT,
@@ -42,6 +46,7 @@ from .query import (
     list_session,
     query_events,
 )
+from .search import search_text
 
 __all__ = [
     "ReadonlyStore",
@@ -50,9 +55,13 @@ __all__ = [
     "QueryError",
     "QueryRequest",
     "QueryResult",
+    "SearchHit",
+    "SearchResult",
     "CURSOR_VERSION",
     "DEFAULT_LIMIT",
     "MAX_LIMIT",
+    "FTS_UNAVAILABLE",
+    "MALFORMED_FTS_EXPRESSION",
     "INVALID_CURSOR",
     "INVALID_LIMIT",
     "CURSOR_QUERY_MISMATCH",
@@ -64,6 +73,7 @@ __all__ = [
     "get_event",
     "get_trace",
     "query_events",
+    "search_text",
     "list_session",
     "list_project",
     "list_profile",
