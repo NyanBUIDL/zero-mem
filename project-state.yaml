@@ -84,6 +84,31 @@ m3_increment_2_files:
   - conftest.py
   - tests/__init__.py
   - tests/unit/__init__.py
+m3_increment_3_status: verified
+m3_increment_3_scope: deterministic, sanitized, TRUE READ-ONLY FTS5 search over verified M2.5 zm_fts substrate only (M3.3); no new index/table/migration, no ranking/semantic/M3.4+
+m3_increment_3_plan: .hermes/plans/2026-08-07_000002-m3-read-only-retrieval-query.md
+m3_increment_3_evidence: acceptance-m3.3.md
+m3_increment_3_focused_test: tests/unit/test_m3_fts.py
+m3_increment_3_focused_result: 32 passed
+m3_increment_3_canonical_result: 446 passed, 3 skipped
+m3_increment_3_starting_commit: 05634e1369a6d774b78ac7ab32babb349f449749
+m3_increment_3_implementation_commit: 7882cc94a1626aa506824c91179fcbe7da945ee0
+m3_increment_3_tested_commit: 7882cc94a1626aa506824c91179fcbe7da945ee0
+m3_increment_3_evidence_commit: pending
+m3_increment_3_sqlite_access: true-read-only (file:?mode=ro + PRAGMA query_only=ON)
+m3_increment_3_schema_migration: none
+m3_increment_3_capability: inspects zm_fts in sqlite_master (read-only SELECT), not the mutable FTS5_AVAILABLE global
+m3_increment_3_result_contract: SearchResult{results, error, next_cursor}; fts_unavailable / malformed_fts_expression typed (empty [] never means error)
+m3_increment_3_ordering: created_at ASC, event_id ASC (candidate set via FTS MATCH; no bm25/rowid/relevance)
+m3_increment_3_cursor: reuses M3.2 v1 query-bound cursor; qf binds normalized text + structured filters + limit
+m3_increment_3_deleted_exclusion: derived-state subquery (zm_meta.event_id NOT IN zm_lifecycle deleted); stale FTS rows cannot surface deleted events
+m3_increment_3_files:
+  - src/retrieval/search.py
+  - src/retrieval/models.py
+  - src/retrieval/cursor.py
+  - src/retrieval/query.py
+  - src/retrieval/__init__.py
+  - tests/unit/test_m3_fts.py
 m3_increment_1_sqlite_access: true-read-only (file:?mode=ro + PRAGMA query_only=ON)
 m3_increment_1_schema_migration: none
 m3_increment_1_deleted_exclusion: enforced (Decision B)
