@@ -21,6 +21,8 @@ CURSOR_QUERY_MISMATCH = "cursor_query_mismatch"
 CURSOR_LIMIT_MISMATCH = "cursor_limit_mismatch"
 INVALID_RELATION_TYPE = "invalid_relation_type"
 INVALID_DIRECTION = "invalid_direction"
+INVALID_VERIFICATION_STATUS = "invalid_verification_status"
+INVALID_LIFECYCLE_STATUS = "invalid_lifecycle_status"
 FTS_UNAVAILABLE = "fts_unavailable"
 MALFORMED_FTS_EXPRESSION = "malformed_fts_expression"
 DATABASE_UNAVAILABLE = "database_unavailable"
@@ -215,3 +217,20 @@ class ArtifactResult:
     query: Dict[str, Any] = field(default_factory=dict)
     total: int = 0
     next_cursor: Optional[str] = None
+
+
+@dataclass
+class ProvenanceMeta:
+    """Approved provenance metadata for one event (read from the verified M2 zm_provenance).
+
+    Surfaces only the already-projected verification provenance: ``verifier``,
+    ``evidence_ref``, ``verification_status``, and ``recorded_at``. Stored ``confidence`` is
+    returned as-is by ``EventView``; it is never recomputed or reinterpreted.
+    """
+
+    event_id: str
+    verification_status: str
+    verifier: str
+    evidence_ref: Optional[str]
+    recorded_at: str
+

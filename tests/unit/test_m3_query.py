@@ -564,7 +564,7 @@ def test_readonly_no_mutation(tmp_path: Path) -> None:
 
     rs = r.open_readonly(store.path)
     r.query_events(rs, QueryRequest(project_id="P"))
-    r.query_events(rs, QueryRequest(profile_id="A", verification_status="verified"))
+    r.query_events(rs, QueryRequest(profile_id="A", verification_status="deterministic_verification"))
     r.get_event(rs, "e1")
     r.get_trace(rs, "tr-e1")
     r.list_session(rs, "S1")

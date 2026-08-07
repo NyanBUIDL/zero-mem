@@ -24,6 +24,7 @@ from .models import (
     QueryResult,
     EventView,
 )
+from . import verification as verification_mod
 
 # Reuse the verified M2 column list and the exact-key trace helper (read-only).
 from src.storage.ingest import ZM_META_COLUMNS, find_by_trace_id  # noqa: E402
@@ -79,6 +80,10 @@ def _build_where(req: QueryRequest):
         if field_name == "lifecycle_status" and value == "deleted":
             # Normal path never returns deleted; caller must use M2 admin helpers.
             raise QueryError(code="unsupported_filter", message="deleted_not_allowed_in_normal_query")
+        if field_name == "verification_status":
+            verification_mod.validate_verification_status(value)
+        if field_name == "lifecycle_status":
+            verification_mod.validate_lifecycle_status(value)
         if not isinstance(value, str):
             raise QueryError(code="invalid_query", message=f"non_string_filter:{field_name}")
         column = field_name

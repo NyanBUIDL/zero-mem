@@ -25,6 +25,8 @@ from .models import (
     INVALID_DIRECTION,
     INVALID_LIMIT,
     INVALID_RELATION_TYPE,
+    INVALID_VERIFICATION_STATUS,
+    INVALID_LIFECYCLE_STATUS,
     MALFORMED_FTS_EXPRESSION,
     QueryError,
     QueryRequest,
@@ -35,6 +37,7 @@ from .models import (
     RelatedResult,
     ArtifactRefView,
     ArtifactResult,
+    ProvenanceMeta,
 )
 from .cursor import (
     DEFAULT_LIMIT,
@@ -63,6 +66,15 @@ from .relations import (
     get_artifacts,
     list_knowledge_space,
 )
+from .verification import (
+    get_provenance,
+    list_deleted,
+    get_tombstone,
+    get_deletion_audit,
+    search_filtered,
+    validate_verification_status,
+    validate_lifecycle_status,
+)
 
 __all__ = [
     "ReadonlyStore",
@@ -86,8 +98,11 @@ __all__ = [
     "INVALID_LIMIT",
     "INVALID_DIRECTION",
     "INVALID_RELATION_TYPE",
+    "INVALID_VERIFICATION_STATUS",
+    "INVALID_LIFECYCLE_STATUS",
     "CURSOR_QUERY_MISMATCH",
     "CURSOR_LIMIT_MISMATCH",
+    "ProvenanceMeta",
     "make_fingerprint",
     "make_relation_fingerprint",
     "make_artifact_fingerprint",
@@ -106,4 +121,11 @@ __all__ = [
     "get_children",
     "get_artifacts",
     "list_knowledge_space",
+    "get_provenance",
+    "list_deleted",
+    "get_tombstone",
+    "get_deletion_audit",
+    "search_filtered",
+    "validate_verification_status",
+    "validate_lifecycle_status",
 ]
