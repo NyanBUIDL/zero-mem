@@ -34,7 +34,8 @@ def test_implementation_plan_is_machine_readable_and_gated() -> None:
 
 def test_project_state_is_explicitly_unverified() -> None:
     state = (ROOT / "project-state.yaml").read_text(encoding="utf-8")
-    assert "status: m3_in_progress" in state
+    # M3 is now VERIFIED; the baseline guard reflects the current verified state.
+    assert "status: m3_verified" in state
     assert "current_milestone: M3" in state
     assert "m1_production_code_started: true" in state
     assert "m1_increment_4_6_status: verified" in state

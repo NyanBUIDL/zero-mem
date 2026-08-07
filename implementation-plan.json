@@ -2,10 +2,10 @@
   "schema_version": 1,
   "authority": "Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx",
   "status": "in_progress",
-  "current_milestone_status": "m3_in_progress",
+  "current_milestone_status": "m3_verified",
   "current_milestone_verification": "acceptance-m3.1.md",
-  "next_incomplete_milestone": "M3",
-  "next_milestone_status": "in_progress",
+  "next_incomplete_milestone": "M4",
+  "next_milestone_status": "not_started",
   "scope": "External Zero-Mem sidecar for Hermes Agent; local-first, observation-only before controlled injection",
   "principles": [
     "trace-first and append-only raw provenance",
