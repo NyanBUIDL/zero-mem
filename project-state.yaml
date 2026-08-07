@@ -169,7 +169,7 @@ m3_increment_6_starting_commit: b1496f77ed4f3d5a33727509c4138287b26fbcc2
 m3_increment_6_plan_commit: 510e71ca250d53bc25e6da8c7832b9cf05607653
 m3_increment_6_implementation_commit: 434564d7cfe830220b901bd452e092ec86c85df8
 m3_increment_6_tested_commit: 434564d7cfe830220b901bd452e092ec86c85df8
-m3_increment_6_evidence_commit: pending
+m3_increment_6_evidence_commit: b73f4244191b165f4fd31348ef46f5ae67802c02
 m3_increment_6_sqlite_access: true-read-only (file:?mode=ro + PRAGMA query_only=ON)
 m3_increment_6_schema_migration: none
 m3_increment_6_capability: full M3 surface exercised (structured/pagination/FTS/relation/scope/verification/lifecycle/cross-feature/error-contract); read-only proof; secret safety; determinism; real-home isolation; perf baseline (corpus=200, sqlite=3.53.1, FTS=True; all p95 < 100ms)
