@@ -141,9 +141,9 @@ m3_increment_5_focused_test: tests/unit/test_m3_verification.py
 m3_increment_5_focused_result: 56 passed
 m3_increment_5_canonical_result: 539 passed, 3 skipped
 m3_increment_5_starting_commit: 42fd4b702e2bc1561b48db8c2e0c899c4cc78202
-m3_increment_5_implementation_commit: pending
-m3_increment_5_tested_commit: pending
-m3_increment_5_evidence_commit: pending
+m3_increment_5_implementation_commit: 408a8d77dc55170c90c74902b789d0468082d392
+m3_increment_5_tested_commit: 408a8d77dc55170c90c74902b789d0468082d392
+m3_increment_5_evidence_commit: 63f03923c32270b0bb60eca01468bcd55c6269be
 m3_increment_5_sqlite_access: true-read-only (file:?mode=ro + PRAGMA query_only=ON)
 m3_increment_5_schema_migration: none
 m3_increment_5_capability: exact verification/lifecycle filters; claim-not-fact (assistant_claim never promoted); provenance enrichment (verifier/evidence_ref/verification_status/recorded_at); admin deleted passthrough (list_deleted/get_tombstone/get_deletion_audit); FTS composition (search_filtered); relation results preserve verification/lifecycle metadata; supersession/conflict read-only
