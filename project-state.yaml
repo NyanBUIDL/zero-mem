@@ -69,7 +69,7 @@ m3_increment_2_canonical_result: 414 passed, 3 skipped
 m3_increment_2_starting_commit: e6c75635bcb0af6ecc22d1bebaf489abc6426b73
 m3_increment_2_implementation_commit: f3e09e8b17963e8ab6c64725bcc615d51d768477
 m3_increment_2_tested_commit: f3e09e8b17963e8ab6c64725bcc615d51d768477
-m3_increment_2_evidence_commit: pending
+m3_increment_2_evidence_commit: df9a7a1585590a9ee85ae071234369c61612119b
 m3_increment_2_sqlite_access: true-read-only (file:?mode=ro + PRAGMA query_only=ON)
 m3_increment_2_schema_migration: none
 m3_increment_2_ordering: created_at ASC, event_id ASC (keyset pagination, no rowid)
