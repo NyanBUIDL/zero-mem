@@ -130,12 +130,12 @@ generic→SKIP / structured→STATE; schema v7. Result: **23/23 ALL PASS**.
 - starting_commit: ac08ad15e2d61d1ff4d7af3cb0a9155a5f98d853
 - implementation_commit: 6e2f19e6b1453a5dc373d0737350148478a627c7
 - tested_commit: 6e2f19e6b1453a5dc373d0737350148478a627c7
-- evidence/state-binding commit: <TBD>
+- evidence/state-binding commit: b848a34003d823ab0f2733d098bc372b895af453
 - focused M4.4 result: 35 passed
 - combined M4 result: 145 passed
 - compatibility result: 220 passed
 - canonical result: 762 passed, 3 skipped
-- current HEAD after closeout: <TBD>
+- current HEAD after closeout: b848a34003d823ab0f2733d098bc372b895af453
 - schema version: 7
 - files changed: src/project_memory/contracts.py,
   src/project_memory/projector.py, src/project_memory/__init__.py,
