@@ -117,9 +117,9 @@ m3_increment_4_focused_test: tests/unit/test_m3_relations.py
 m3_increment_4_focused_result: 37 passed
 m3_increment_4_canonical_result: 483 passed, 3 skipped
 m3_increment_4_starting_commit: 81032031a4dcdbdc792463fc93a473c02a96a0e7
-m3_increment_4_implementation_commit: pending
-m3_increment_4_tested_commit: pending
-m3_increment_4_evidence_commit: pending
+m3_increment_4_implementation_commit: a014a067f2c783eb28d48e80f7fffb985b6183b4
+m3_increment_4_tested_commit: a014a067f2c783eb28d48e80f7fffb985b6183b4
+m3_increment_4_evidence_commit: 2bc6bdcbac583821fe6d579e3cf1d16427786120
 m3_increment_4_sqlite_access: true-read-only (file:?mode=ro + PRAGMA query_only=ON)
 m3_increment_4_schema_migration: none
 m3_increment_4_capability: explicit stored edges only (child_of/derived_from/supersedes); direction outgoing/incoming/both; deleted targets excluded; artifact safe reference artifact:<id> (no stored_path); knowledge_space has no event linkage so list_knowledge_space returns []
