@@ -124,12 +124,12 @@ never print secret values. No secret-bearing payload reaches errors/logs.
 - starting_commit: 80f7337
 - implementation_commit: 57915ed8c7b63c4efa219b7ef1638ee76a8061bd
 - tested_commit: 57915ed8c7b63c4efa219b7ef1638ee76a8061bd
-- evidence/state-binding commit: <TBD>
+- evidence/state-binding commit: cd0fa5cd8a1ef49615b3f8451242cf38f1008bc1
 - focused M4.2 result: 38 passed
 - combined M4 (M4.1+M4.2) result: 70 passed
 - compatibility result: 220 passed
 - canonical result: 687 passed, 3 skipped
-- current HEAD after closeout: <TBD>
+- current HEAD after closeout: cd0fa5cd8a1ef49615b3f8451242cf38f1008bc1
 - schema version: 7
 - files changed: src/project_memory/__init__.py, src/project_memory/contracts.py,
   src/project_memory/projector.py, tests/unit/test_m4_projector.py
