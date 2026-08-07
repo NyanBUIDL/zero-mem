@@ -2,6 +2,10 @@ schema_version: 1
 project: hermes-external-zero-mem
 status: m3_verified
 m3_status: verified
+m4_status: in_progress
+m4_current_increment: increment_1
+m4_increment_1_status: verified
+m4_increment_1_name: "Project-memory contracts and schema/migration v7"
 m1_increment_4_1_status: verified
 m1_increment_4_2_status: verified
 m1_increment_4_3_status: verified
@@ -302,7 +306,7 @@ m1_increment_4_1_capture_rate_formula: successfully_accounted_logical_events / e
 authority: Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx
 master_spec_source_note: The requested .md path is absent; the workspace contains the DOCX with extracted text.
 current_milestone: M3
-next_incomplete_milestone: M3
+next_incomplete_milestone: M4
 next_milestone_status: in_progress
 m1_current_increment: increment_4_3_redaction_capture_adapter
 m1_increment_3_status: verified
@@ -358,6 +362,13 @@ verification:
   increment_1_evidence_chain_commit: f159633a5079b8f67440835391b84a9510c75353
   increment_1_evidence_rerun_required: false
   increment_1_evidence_rerun_reason: "post-tested-commit changes are documentation/planning/state records only"
+  m4_increment_1_focused_result: "32 passed"
+  m4_increment_1_canonical_result: "649 passed, 3 skipped"
+  m4_increment_1_schema_version: 7
+  m4_increment_1_migration: "v6 -> v7 (migrate_7); v7 -> v6 downgrade verified"
+  m4_increment_1_six_tables: "zm_project_charters, zm_requirements, zm_decisions, zm_project_state, zm_verifications, zm_project_artifacts"
+  m4_increment_1_key_semantics: "decision_key/state_key explicit-only; NO trace_id fallback; NULL preserved; active uniqueness only where key non-NULL"
+  m4_increment_1_lifecycle: "closed enum CHECK (raw/observed/candidate/confirmed/active/superseded/conflicted/archived/deleted); domain state in separate generic column"
   evidence_path: acceptance-m0-verification.md
   sanitized: true
 artifacts:
