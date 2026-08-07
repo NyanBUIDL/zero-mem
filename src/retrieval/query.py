@@ -15,7 +15,9 @@ from __future__ import annotations
 from typing import List, Optional
 
 from .db import ReadonlyStore
+from . import cursor as cursor_mod
 from .models import (
+    INVALID_LIMIT,
     INVALID_TIME_RANGE,
     QueryError,
     QueryRequest,
@@ -120,13 +122,24 @@ def _row_to_view(row) -> EventView:
     )
 
 
-def _select(store: ReadonlyStore, req: QueryRequest) -> List[EventView]:
+def _select(
+    store: ReadonlyStore,
+    req: QueryRequest,
+    limit: int = cursor_mod.MAX_LIMIT,
+    keyset: Optional[tuple] = None,
+) -> List[EventView]:
     where, params = _build_where(req)
+    if keyset is not None:
+        # Deterministic keyset pagination (no OFFSET, no rowid). Lexicographic tuple
+        # comparison over the stable sort key (created_at, event_id).
+        where += " AND (created_at, event_id) > (?, ?)"
+        params.extend([keyset[0], keyset[1]])
     cols = ", ".join(ZM_META_COLUMNS)
     sql = (
         f"SELECT {cols} FROM zm_meta WHERE {where} "
-        f"ORDER BY created_at ASC, event_id ASC"
+        f"ORDER BY created_at ASC, event_id ASC LIMIT ?"
     )
+    params.append(limit)
     try:
         rows = store.conn.execute(sql, params).fetchall()
     except Exception as exc:  # pragma: no cover - defensive
@@ -134,12 +147,75 @@ def _select(store: ReadonlyStore, req: QueryRequest) -> List[EventView]:
     return [_row_to_view(r) for r in rows]
 
 
-def query_events(store: ReadonlyStore, req: QueryRequest) -> QueryResult:
-    """Deterministic AND query over structured M3.1 filters. Read-only."""
+def _validate_limit(limit: Optional[int]) -> int:
+    """Validate and normalize the page limit. None -> default. Invalid -> invalid_limit.
+
+    No silent clamping: zero/negative/above-max/non-integer are rejected.
+    """
+    if limit is None:
+        return cursor_mod.DEFAULT_LIMIT
+    if isinstance(limit, bool) or not isinstance(limit, int):
+        raise QueryError(code=INVALID_LIMIT, message="non_integer_limit")
+    if limit <= 0:
+        raise QueryError(code=INVALID_LIMIT, message="non_positive_limit")
+    if limit > cursor_mod.MAX_LIMIT:
+        raise QueryError(code=INVALID_LIMIT, message="above_max_limit")
+    return limit
+
+
+def query_events(
+    store: ReadonlyStore,
+    req: QueryRequest,
+    limit: Optional[int] = None,
+    cursor: Optional[str] = None,
+    include_total: bool = False,
+) -> QueryResult:
+    """Deterministic, paginated AND query over structured M3.1 filters. Read-only.
+
+    - ``limit``: validated (default 50, max 500). Invalid values raise ``invalid_limit``.
+    - ``cursor``: versioned, query-bound keyset cursor. Reuse with a different query or
+      limit raises ``cursor_query_mismatch`` / ``cursor_limit_mismatch``; malformed or
+      unsupported cursors raise ``invalid_cursor``.
+    - Deleted records remain excluded (Decision B); page boundaries never surface them.
+    - ``next_cursor`` is None when fewer than ``limit`` rows remain (end of results).
+    - ``include_total`` (optional read-only COUNT) is accepted for completeness but not
+      forced; M3.2 keeps results metadata-light.
+    """
     if not isinstance(req, QueryRequest):
         raise QueryError(code="invalid_query", message="not_a_query_request")
-    items = _select(store, req)
-    return QueryResult(items=items, query=req.to_dict(), total=len(items))
+    effective_limit = _validate_limit(limit)
+    qf = cursor_mod.make_fingerprint(req)
+
+    keyset: Optional[tuple] = None
+    if cursor is not None:
+        data = cursor_mod.validate_cursor_binding(cursor, qf, effective_limit)
+        keyset = (data["sort"][0], data["sort"][1])
+
+    items = _select(store, req, limit=effective_limit, keyset=keyset)
+
+    next_cursor: Optional[str] = None
+    if len(items) >= effective_limit:
+        last = items[effective_limit - 1]
+        next_cursor = cursor_mod.encode_cursor(
+            qf, last.created_at, last.event_id, effective_limit
+        )
+
+    total = len(items)
+    if include_total:
+        # Optional read-only COUNT for this filter set (not forced per page).
+        where, params = _build_where(req)
+        total = int(
+            store.conn.execute(
+                f"SELECT COUNT(*) AS n FROM zm_meta WHERE {where}", params
+            ).fetchone()["n"]
+        )
+
+    return QueryResult(
+        items=items,
+        query=req.to_dict(),
+        total=total,
+        next_cursor=next_cursor,
+    )
 
 
 def get_event(store: ReadonlyStore, event_id: str) -> Optional[EventView]:

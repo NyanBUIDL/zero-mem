@@ -16,6 +16,9 @@ INVALID_QUERY = "invalid_query"
 UNSUPPORTED_FILTER = "unsupported_filter"
 INVALID_TIME_RANGE = "invalid_time_range"
 INVALID_LIMIT = "invalid_limit"
+INVALID_CURSOR = "invalid_cursor"
+CURSOR_QUERY_MISMATCH = "cursor_query_mismatch"
+CURSOR_LIMIT_MISMATCH = "cursor_limit_mismatch"
 DATABASE_UNAVAILABLE = "database_unavailable"
 SCHEMA_MISMATCH = "schema_mismatch"
 
@@ -93,8 +96,13 @@ class EventView:
 
 @dataclass
 class QueryResult:
-    """Typed result. ``items`` is deterministically ordered; ``query`` is echoed."""
+    """Typed result. ``items`` is deterministically ordered; ``query`` is echoed.
+
+    M3.2 adds ``next_cursor`` (None at end-of-results). ``total`` is the page length
+    (M3.2 does not force a full COUNT scan unless ``include_total`` is added later).
+    """
 
     items: List[EventView] = field(default_factory=list)
     query: Dict[str, Any] = field(default_factory=dict)
     total: int = 0
+    next_cursor: Optional[str] = None

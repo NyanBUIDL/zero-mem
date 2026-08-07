@@ -1,6 +1,7 @@
 """M3 — deterministic, read-only retrieval/query layer over the verified M2 substrate.
 
-M3.1 scope: query contract + structured read-only filters only.
+M3.1 + M3.2 scope: query contract, structured read-only filters, and deterministic
+versioned-query-bound pagination. No FTS/relations/ranking (later increments).
 
 This package is strictly read-only:
 - it opens SQLite through an explicitly read-only connection (`db.open_readonly`),
@@ -14,8 +15,33 @@ See `.hermes/plans/2026-08-07_000002-m3-read-only-retrieval-query.md`.
 from __future__ import annotations
 
 from .db import ReadonlyStore, open_readonly
-from .models import EventView, QueryError, QueryRequest, QueryResult
-from .query import get_event, get_trace, list_profile, list_project, list_session, query_events
+from .models import (
+    CURSOR_LIMIT_MISMATCH,
+    CURSOR_QUERY_MISMATCH,
+    EventView,
+    INVALID_CURSOR,
+    INVALID_LIMIT,
+    QueryError,
+    QueryRequest,
+    QueryResult,
+)
+from .cursor import (
+    DEFAULT_LIMIT,
+    MAX_LIMIT,
+    CURSOR_VERSION,
+    decode_cursor,
+    encode_cursor,
+    make_fingerprint,
+    validate_cursor_binding,
+)
+from .query import (
+    get_event,
+    get_trace,
+    list_profile,
+    list_project,
+    list_session,
+    query_events,
+)
 
 __all__ = [
     "ReadonlyStore",
@@ -24,6 +50,17 @@ __all__ = [
     "QueryError",
     "QueryRequest",
     "QueryResult",
+    "CURSOR_VERSION",
+    "DEFAULT_LIMIT",
+    "MAX_LIMIT",
+    "INVALID_CURSOR",
+    "INVALID_LIMIT",
+    "CURSOR_QUERY_MISMATCH",
+    "CURSOR_LIMIT_MISMATCH",
+    "make_fingerprint",
+    "encode_cursor",
+    "decode_cursor",
+    "validate_cursor_binding",
     "get_event",
     "get_trace",
     "query_events",
