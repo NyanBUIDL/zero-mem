@@ -60,6 +60,38 @@ def make_fingerprint(req: QueryRequest, text: Optional[str] = None) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def make_artifact_fingerprint(origin_event_id: str) -> str:
+    """SHA-256 of the canonical normalized artifact-reference query (origin_event_id)."""
+    if not isinstance(origin_event_id, str) or not origin_event_id:
+        raise QueryError(code="invalid_query", message="non_string_event_id")
+    normalized = {"kind": "artifact", "origin_event_id": origin_event_id}
+    canonical = json.dumps(normalized, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def make_relation_fingerprint(event_id: str, direction: Optional[str], relation_type: Optional[str]) -> str:
+    """SHA-256 of the canonical normalized relation query (event_id + direction + relation_type).
+
+    Equivalent relation queries → identical fingerprint; different event/direction/type → different.
+    No raw SQL, secrets, or paths are included.
+    """
+    if not isinstance(event_id, str) or not event_id:
+        raise QueryError(code="invalid_query", message="non_string_event_id")
+    direction = direction or "both"
+    if direction not in ("outgoing", "incoming", "both"):
+        raise QueryError(code="invalid_direction", message=direction)
+    normalized = {
+        "kind": "related",
+        "event_id": event_id,
+        "direction": direction,
+        "relation_type": relation_type or "",
+    }
+    canonical = json.dumps(normalized, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    canonical = json.dumps(normalized, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def encode_cursor(qf: str, created_at: str, event_id: str, limit: int) -> str:
     """Encode a versioned, query-bound cursor. Safe fields only."""
     payload = {

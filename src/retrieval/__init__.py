@@ -1,7 +1,8 @@
 """M3 — deterministic, read-only retrieval/query layer over the verified M2 substrate.
 
-M3.1 + M3.2 scope: query contract, structured read-only filters, and deterministic
-versioned-query-bound pagination. No FTS/relations/ranking (later increments).
+M3.1 + M3.2 + M3.3 + M3.4 scope: query contract, structured read-only filters, deterministic
+versioned-query-bound pagination, TRUE READ-ONLY FTS5 search, and relation/scope/artifact read
+queries. No ranking/semantic/M3.5+/M4.
 
 This package is strictly read-only:
 - it opens SQLite through an explicitly read-only connection (`db.open_readonly`),
@@ -21,13 +22,19 @@ from .models import (
     EventView,
     FTS_UNAVAILABLE,
     INVALID_CURSOR,
+    INVALID_DIRECTION,
     INVALID_LIMIT,
+    INVALID_RELATION_TYPE,
     MALFORMED_FTS_EXPRESSION,
     QueryError,
     QueryRequest,
     QueryResult,
     SearchHit,
     SearchResult,
+    RelatedView,
+    RelatedResult,
+    ArtifactRefView,
+    ArtifactResult,
 )
 from .cursor import (
     DEFAULT_LIMIT,
@@ -36,6 +43,8 @@ from .cursor import (
     decode_cursor,
     encode_cursor,
     make_fingerprint,
+    make_relation_fingerprint,
+    make_artifact_fingerprint,
     validate_cursor_binding,
 )
 from .query import (
@@ -47,6 +56,13 @@ from .query import (
     query_events,
 )
 from .search import search_text
+from .relations import (
+    get_related,
+    get_parent,
+    get_children,
+    get_artifacts,
+    list_knowledge_space,
+)
 
 __all__ = [
     "ReadonlyStore",
@@ -57,6 +73,10 @@ __all__ = [
     "QueryResult",
     "SearchHit",
     "SearchResult",
+    "RelatedView",
+    "RelatedResult",
+    "ArtifactRefView",
+    "ArtifactResult",
     "CURSOR_VERSION",
     "DEFAULT_LIMIT",
     "MAX_LIMIT",
@@ -64,9 +84,13 @@ __all__ = [
     "MALFORMED_FTS_EXPRESSION",
     "INVALID_CURSOR",
     "INVALID_LIMIT",
+    "INVALID_DIRECTION",
+    "INVALID_RELATION_TYPE",
     "CURSOR_QUERY_MISMATCH",
     "CURSOR_LIMIT_MISMATCH",
     "make_fingerprint",
+    "make_relation_fingerprint",
+    "make_artifact_fingerprint",
     "encode_cursor",
     "decode_cursor",
     "validate_cursor_binding",
@@ -77,4 +101,9 @@ __all__ = [
     "list_session",
     "list_project",
     "list_profile",
+    "get_related",
+    "get_parent",
+    "get_children",
+    "get_artifacts",
+    "list_knowledge_space",
 ]

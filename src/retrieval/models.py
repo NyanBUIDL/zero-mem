@@ -19,6 +19,8 @@ INVALID_LIMIT = "invalid_limit"
 INVALID_CURSOR = "invalid_cursor"
 CURSOR_QUERY_MISMATCH = "cursor_query_mismatch"
 CURSOR_LIMIT_MISMATCH = "cursor_limit_mismatch"
+INVALID_RELATION_TYPE = "invalid_relation_type"
+INVALID_DIRECTION = "invalid_direction"
 FTS_UNAVAILABLE = "fts_unavailable"
 MALFORMED_FTS_EXPRESSION = "malformed_fts_expression"
 DATABASE_UNAVAILABLE = "database_unavailable"
@@ -155,4 +157,61 @@ class SearchResult:
 
     results: List[SearchHit] = field(default_factory=list)
     error: Optional[str] = None
+    next_cursor: Optional[str] = None
+
+
+@dataclass
+class RelatedView:
+    """One explicit stored relation edge resolved to its (non-deleted) target event.
+
+    Carries the relation metadata (type, verifier, evidence_ref, created_at) plus the
+    direction relative to the queried event, and the target ``EventView``. ``target_event_id``
+    is the opposite end of the edge from the queried event. No inferred/transitive edges.
+    """
+
+    relation: str
+    direction: str  # 'outgoing' | 'incoming'
+    from_event_id: str
+    to_event_id: str
+    verifier: str
+    evidence_ref: Optional[str]
+    created_at: str
+    target_event_id: str
+    target: EventView
+
+
+@dataclass
+class RelatedResult:
+    """Typed relation-result wrapper (reuses M3.2 pagination/cursor)."""
+
+    items: List[RelatedView] = field(default_factory=list)
+    query: Dict[str, Any] = field(default_factory=dict)
+    total: int = 0
+    next_cursor: Optional[str] = None
+
+
+@dataclass
+class ArtifactRefView:
+    """Approved artifact-reference metadata only.
+
+    ``stored_path`` (an internal filesystem pointer) is intentionally NOT exposed; ``reference``
+    is the safe form (``artifact:<artifact_id>``). No artifact content is read or fetched.
+    """
+
+    artifact_id: str
+    content_hash: str
+    kind: Optional[str]
+    retention: str
+    origin_event_id: Optional[str]
+    reference: str
+    created_at: str
+
+
+@dataclass
+class ArtifactResult:
+    """Typed artifact-reference wrapper (reuses M3.2 pagination/cursor)."""
+
+    items: List[ArtifactRefView] = field(default_factory=list)
+    query: Dict[str, Any] = field(default_factory=dict)
+    total: int = 0
     next_cursor: Optional[str] = None
