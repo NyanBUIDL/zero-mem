@@ -818,6 +818,8 @@ def scan_sqlite_for_secrets(store, secret_corpus) -> list:
 
 DERIVED_TABLES = ("zm_meta", "zm_lifecycle", "zm_provenance", "zm_ingest_checkpoint", "zm_ingest_log",
                    "zm_relations", "zm_scopes", "zm_artifacts", "zm_tombstones", "zm_deletion_audit",
+                   "zm_project_charters", "zm_requirements", "zm_decisions",
+                   "zm_project_state", "zm_verifications", "zm_project_artifacts",
                    "zm_migrations")
 
 
