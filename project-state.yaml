@@ -94,7 +94,7 @@ m3_increment_3_canonical_result: 446 passed, 3 skipped
 m3_increment_3_starting_commit: 05634e1369a6d774b78ac7ab32babb349f449749
 m3_increment_3_implementation_commit: 7882cc94a1626aa506824c91179fcbe7da945ee0
 m3_increment_3_tested_commit: 7882cc94a1626aa506824c91179fcbe7da945ee0
-m3_increment_3_evidence_commit: pending
+m3_increment_3_evidence_commit: 7a6174b55c576e3cb4368aac248feb9f4b055e32
 m3_increment_3_sqlite_access: true-read-only (file:?mode=ro + PRAGMA query_only=ON)
 m3_increment_3_schema_migration: none
 m3_increment_3_capability: inspects zm_fts in sqlite_master (read-only SELECT), not the mutable FTS5_AVAILABLE global

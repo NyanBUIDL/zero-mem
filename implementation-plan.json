@@ -376,7 +376,7 @@
           "starting_commit": "05634e1369a6d774b78ac7ab32babb349f449749",
           "implementation_commit": "7882cc94a1626aa506824c91179fcbe7da945ee0",
           "tested_commit": "7882cc94a1626aa506824c91179fcbe7da945ee0",
-          "evidence_commit": "pending",
+          "evidence_commit": "7a6174b55c576e3cb4368aac248feb9f4b055e32",
           "schema_version": 6,
           "sqlite_access": "true-read-only (file:?mode=ro + PRAGMA query_only=ON)",
           "schema_migration": "none",
