@@ -467,6 +467,27 @@
           "schema_migration": "v6 -> v7 (migrate_7.up) / v7 -> v6 (migrate_7.down)",
           "scope": ["six derived tables: zm_project_charters, zm_requirements, zm_decisions, zm_project_state, zm_verifications, zm_project_artifacts (reuses M2 zm_artifacts)", "lifecycle_status CHECK constrained to closed enum raw/observed/candidate/confirmed/active/superseded/conflicted/archived/deleted", "generic domain state column separate from lifecycle_status (proposed/accepted/satisfied/blocked/rejected allowed there only)", "decision_key/state_key explicit-only; NO trace_id/active_key fallback; NULL preserved; no uniqueness when NULL", "active uniqueness via partial unique indexes (WHERE lifecycle_status='active' AND key IS NOT NULL)", "self-referential supersession FKs (supersedes/replaced_by) without breaking historical records", "v7 -> v6 downgrade removes only M4-derived schema; M0-M3 tables/JSONL/artifacts untouched", "rebuild_from_jsonl DERIVED_TABLES extended to include the six M4 tables", "no M4.2 projection logic, no M5 authorization, no LLM/network, no real ~/.hermes writes"],
           "excluded_scope": ["charter update/reducer", "requirement transition", "decision acceptance", "state reduction", "verification promotion", "conflict resolution", "projection/business logic (M4.2+)", "authorization/access control (M5)", "context injection (M7)", "LLM/semantic-key derivation"]
+        },
+        "increment_2": {
+          "name": "Project Charter and Requirement Registry projection",
+          "status": "verified",
+          "plan": ".hermes/plans/2026-08-07_000004-m4-project-memory-plan.md",
+          "plan_commit": "6ee6510",
+          "evidence": "acceptance-m4.2.md",
+          "focused_test": "tests/unit/test_m4_projector.py",
+          "focused_result": "38 passed",
+          "combined_result": "70 passed (M4.1 32 + M4.2 38)",
+          "compat_result": "220 passed (M2/M3 lifecycle + read-only)",
+          "canonical_result": "687 passed, 3 skipped",
+          "starting_commit": "80f7337",
+          "implementation_commit": "57915ed8c7b63c4efa219b7ef1638ee76a8061bd",
+          "tested_commit": "57915ed8c7b63c4efa219b7ef1638ee76a8061bd",
+          "evidence_commit": "<TBD>",
+          "schema_version": 7,
+          "sqlite_access": "write/project path (projector); separate from M3 TRUE READ-ONLY; no ensure_schema; no JSONL mutation",
+          "model": "explicit typed operation envelope (CharterOp/RequirementOp); projector consumes only explicitly-structured operations; never infers from prose/LLM/timestamp/trace_id",
+          "scope": ["project_charter(conn, op) create/update/supersede/transition/delete", "project_requirement(conn, op) create/transition/supersede/delete", "classify_event_for_m4(event) deterministic SKIP when no explicit structured M4 identity block", "idempotent: repeated same op -> no duplicate row/version/link", "active Charter uniqueness via v7 partial unique index (one active per project); active selection by lifecycle_status, never MAX(created_at)", "explicit supersession only (distinct ids preserved; prior marked superseded, link retained)", "assistant_claim-derived op cannot set lifecycle_status=active (promotion guard)", "requirement_id explicit; trace_id never used as identity; missing identity not invented", "lifecycle_status closed enum; domain state in separate generic column; no hidden promotion", "terminal deleted state cannot be left", "conflicts preserved (existing retained, no winner, no overwrite)", "transactional atomicity; rollback on error; sanitized errors (no raw SQL/payload/secret)", "provenance retained (source_event_id, trace_id, session_id, project_id, profile_id, created_at)", "schema remains v7 (no migration v8); JSONL canonical and untouched; no real ~/.hermes writes; no LLM/network"],
+          "excluded_scope": ["Decision Log projection (M4.3)", "Current Project State reducer (M4.4)", "Verification projector (M4.5)", "Artifact Registry behavior (M4.6)", "M4 read API layer (M4.6)", "M4.7 rebuild API", "M5 authorization/profile policy", "LLM/semantic-key derivation", "invention of charter/requirement event types not present in canonical envelope"]
         }
       }
     },
