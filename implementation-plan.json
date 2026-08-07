@@ -418,6 +418,25 @@
           "schema_migration": "none",
           "scope": ["exact verification_status/lifecycle_status filters using real enum vocabularies from src/capture/event_types.py (none/direct_tool_output/user_confirmation/deterministic_verification/approval; raw/observed/candidate/confirmed/active/superseded/conflicted/archived/deleted)", "claim-not-fact: assistant_claim/user_statement/inference/tool_observation/verified_state surfaced as event_type labels only; unverified assistant_claim never promoted; verification/lifecycle state never alters ordering", "provenance enrichment via get_provenance (verifier/evidence_ref/verification_status/recorded_at) read-only over zm_provenance", "admin deleted-inspection passthrough: list_deleted/get_tombstone/get_deletion_audit (Decision B; normal path excludes deleted)", "FTS composition: search_filtered applies verification/lifecycle filters to FTS candidates; deterministic ordering; no ranking", "relation results preserve verification/lifecycle metadata (M3.4 target EventView)", "supersession/conflict returned verbatim; no replacement/no winner/no LLM", "reuses M3.2 cursor (binds text+verification+lifecycle)"],
           "excluded_scope": ["truth inference", "automatic fact promotion", "conflict resolution", "automatic supersession", "trust scoring", "relevance/recency/confidence ranking", "vector/semantic search", "LLM query rewriting", "automatic memory selection", "context injection", "authorization/access control", "M4 project state", "Requirement Registry/Decision Log mutation", "MCP", "Obsidian", "schema migration", "M3.6 integration/final-acceptance behavior"]
+        },
+        "increment_6": {
+          "name": "Integration, performance & final acceptance",
+          "status": "verified",
+          "plan": ".hermes/plans/2026-08-07_000003-m3.6-integration-final-acceptance.md",
+          "evidence": "acceptance-m3-final.md",
+          "focused_test": "tests/unit/test_m3_integration.py",
+          "focused_result": "78 passed",
+          "canonical_result": "617 passed, 3 skipped",
+          "starting_commit": "b1496f77ed4f3d5a33727509c4138287b26fbcc2",
+          "plan_commit": "510e71ca250d53bc25e6da8c7832b9cf05607653",
+          "implementation_commit": "434564d7cfe830220b901bd452e092ec86c85df8",
+          "tested_commit": "434564d7cfe830220b901bd452e092ec86c85df8",
+          "evidence_commit": "pending",
+          "schema_version": 6,
+          "sqlite_access": "true-read-only (file:?mode=ro + PRAGMA query_only=ON)",
+          "schema_migration": "none",
+          "scope": ["final integration battery over one representative synthetic corpus (multi project/profile/session, all event types, all verification & lifecycle statuses, identical timestamps for tie-break, relations, parent/child traces, knowledge-space + project/profile/session scopes, artifact references, sanitized FTS content, deletion via verified M2.6 path, synthetic secret)", "structured/pagination/FTS/relation/scope/verification-lifecycle/cross-feature/error-contract exercised end-to-end", "TRUE READ-ONLY proof: sqlite_master hash + derived-table counts + zm_meta content hash + JSONL sha256 + DB size unchanged before/after full query battery; no ensure_schema/migration called", "secret safety: secret absent from all result/snippet/relation/scope/artifact/verification/error/cursor surfaces", "JSONL immutability (sha256 unchanged); real ~/.hermes isolation", "performance baseline (corpus=200, sqlite=3.53.1, FTS=True; all p95 < 100ms; no cache added)", "no M4 behavior"],
+          "excluded_scope": ["new schema", "new product features", "M4 project state", "Requirement Registry/Decision Log mutation", "MCP", "Obsidian", "LLM/network", "context injection", "authorization/access control"]
         }
       }
     },
