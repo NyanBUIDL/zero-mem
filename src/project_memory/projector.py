@@ -46,6 +46,7 @@ from .contracts import (
 CLASSIFY_CHARTER = "charter"
 CLASSIFY_REQUIREMENT = "requirement"
 CLASSIFY_DECISION = "decision"
+CLASSIFY_STATE = "state"
 CLASSIFY_SKIP = "skip"
 
 
@@ -598,6 +599,179 @@ def _decision_content_equal(existing: dict, op: DecisionOp) -> bool:
 
 
 # ----------------------------------------------------------------------------
+# Current Project State projector (M4.4)
+# ----------------------------------------------------------------------------
+
+
+def _state_columns() -> list[str]:
+    return [
+        "project_id", "scope", "state_key", "state_value", "state_ref",
+        "lifecycle_status", "verification_status", "effective_at",
+        "supersedes", "source_event_id", "trace_id", "session_id", "profile_id",
+    ]
+
+
+def _insert_state(conn: sqlite3.Connection, op: StateOp, created_at: str,
+                  force_lifecycle: Optional[str] = None) -> int:
+    cols = _state_columns()
+    placeholders = ", ".join("?" for _ in cols)
+    eff = op.effective_at or created_at
+    lifecycle = force_lifecycle if force_lifecycle is not None else op.lifecycle_status
+    sql = f"INSERT INTO zm_project_state ({', '.join(cols)}) VALUES ({placeholders})"
+    values = (
+        op.project_id, op.scope, op.state_key, op.state_value, op.state_ref,
+        lifecycle, op.verification_status, eff, op.supersedes,
+        op.source_event_id, op.trace_id, op.session_id, op.profile_id,
+    )
+    cur = conn.execute(sql, values)
+    return int(cur.lastrowid)
+
+
+def _active_state(conn: sqlite3.Connection, project_id: str, scope, state_key) -> Optional[dict]:
+    # The current value is the ACTIVE row (lifecycle_status='active'), never the
+    # newest by timestamp. NULL state_key / NULL scope are matched as NULL (the
+    # partial unique index treats them as distinct, so this is the same key space).
+    cur = conn.execute(
+        "SELECT * FROM zm_project_state "
+        "WHERE project_id=? AND scope IS ? AND state_key IS ? AND lifecycle_status='active'",
+        (project_id, scope, state_key),
+    )
+    return cur.fetchone()
+
+
+def _state_content_equal(existing: dict, op: StateOp) -> bool:
+    keys = set(existing.keys())
+    # Equality is on LOGICAL content only (key/scope/value/ref/lifecycle/
+    # verification_status). effective_at is temporal provenance; a re-projection
+    # that omits created_at must still be recognized as idempotent, so it is not
+    # part of the equality check.
+    fields = ["scope", "state_key", "state_value", "state_ref",
+              "lifecycle_status", "verification_status"]
+    for f in fields:
+        if (existing[f] if f in keys else None) != (getattr(op, f) or None):
+            return False
+    return True
+
+
+def project_state(conn: sqlite3.Connection, op: StateOp) -> dict:
+    """Project one explicit Current Project State operation.
+
+    Refuses to invent a state_key; trace_id is never used as state_key. Active
+    value selected by lifecycle_status (not timestamp). Update/supersede inserts a
+    new row and marks the prior active row 'superseded' (history preserved in the
+    derived table and in canonical JSONL). Repeated identical content is idempotent
+    (no duplicate row). The v7 partial unique index guards against two active rows
+    for the same non-NULL (project_id, scope, state_key); such a conflict is
+    surfaced as a sanitized ConflictError with the existing valid row retained.
+    """
+    op.validate()
+    created_at = op.created_at or _now()
+    try:
+        _begin(conn)
+        existing_active = _active_state(conn, op.project_id, op.scope, op.state_key)
+
+        if op.op == M4Op.CREATE.value:
+            if existing_active is not None and _state_content_equal(existing_active, op):
+                # Idempotent: same logical state already active; no new row.
+                _commit(conn)
+                return {"op": op.op, "state_key": op.state_key, "action": "noop"}
+            # Conflict only when the new op would itself be a second ACTIVE row for
+            # a non-NULL key (the partial unique index guards this). A non-active
+            # new op (e.g. explicitly 'conflicted') is allowed to coexist; NULL-key
+            # rows never collide (SQLite treats NULL keys as distinct).
+            if (op.lifecycle_status == "active" and op.state_key is not None
+                    and existing_active is not None):
+                raise ConflictError(
+                    "active project-state conflict preserved; existing active state retained"
+                )
+            row_id = _insert_state(conn, op, created_at)
+            _commit(conn)
+            return {"op": op.op, "state_key": op.state_key, "action": "created", "id": row_id}
+
+        if op.op == M4Op.UPDATE.value:
+            if existing_active is not None and _state_content_equal(existing_active, op):
+                _commit(conn)
+                return {"op": op.op, "state_key": op.state_key, "action": "noop"}
+            # Explicit update supersedes the prior active row (retire-then-insert
+            # keeps the partial unique index from ever seeing two active rows). For
+            # NULL-key states there is no uniqueness, so just insert.
+            if existing_active is not None and op.state_key is not None:
+                conn.execute(
+                    "UPDATE zm_project_state SET lifecycle_status='superseded' WHERE id=?",
+                    (existing_active["id"],),
+                )
+            row_id = _insert_state(conn, op, created_at)
+            _commit(conn)
+            return {"op": op.op, "state_key": op.state_key, "action": "created", "id": row_id}
+
+        if op.op == M4Op.SUPERSEDE.value:
+            # Explicit supersession of a prior active state for the same key.
+            if op.state_key is None:
+                raise MissingIdentityError("state supersession requires an explicit state_key")
+            if existing_active is None:
+                raise MissingIdentityError("cannot supersede a state that does not exist")
+            if _state_content_equal(existing_active, op):
+                _commit(conn)
+                return {"op": op.op, "state_key": op.state_key, "action": "noop"}
+            # Mark prior active superseded; insert the new (possibly active) row
+            # referencing it. If the new row is active and the prior was active,
+            # retire-then-insert keeps the unique invariant (no dual-active).
+            conn.execute(
+                "UPDATE zm_project_state SET lifecycle_status='superseded' WHERE id=?",
+                (existing_active["id"],),
+            )
+            op.supersedes = f"state:{existing_active['id']}"
+            row_id = _insert_state(conn, op, created_at)
+            _commit(conn)
+            return {"op": op.op, "state_key": op.state_key, "action": "superseded", "id": row_id}
+
+        if op.op == M4Op.TRANSITION.value:
+            if existing_active is None:
+                raise MissingIdentityError("cannot transition a state that does not exist")
+            conn.execute(
+                "UPDATE zm_project_state SET lifecycle_status=?, verification_status=?, "
+                "state_value=COALESCE(?, state_value), state_ref=COALESCE(?, state_ref), "
+                "effective_at=COALESCE(?, effective_at), supersedes=COALESCE(?, supersedes) "
+                "WHERE id=?",
+                (op.lifecycle_status, op.verification_status, op.state_value, op.state_ref,
+                 op.effective_at, op.supersedes, existing_active["id"]),
+            )
+            _commit(conn)
+            return {"op": op.op, "state_key": op.state_key, "action": "transitioned",
+                    "id": existing_active["id"]}
+
+        if op.op == M4Op.DELETE.value:
+            if existing_active is None:
+                raise MissingIdentityError("cannot delete a state that does not exist")
+            conn.execute(
+                "UPDATE zm_project_state SET lifecycle_status='deleted' WHERE id=?",
+                (existing_active["id"],),
+            )
+            _commit(conn)
+            return {"op": op.op, "state_key": op.state_key, "action": "deleted",
+                    "id": existing_active["id"]}
+
+        raise InvalidTransitionError(f"unsupported state op: {op.op}")
+    except M4ProjectionError:
+        _rollback(conn)
+        raise
+    except sqlite3.IntegrityError as exc:
+        _rollback(conn)
+        msg = str(exc)
+        # Active-uniqueness violation for a non-NULL (project_id, scope, state_key):
+        # the existing valid active state must remain unchanged; the new op is
+        # rejected with a sanitized conflict outcome (no winner, no overwrite).
+        if "UNIQUE constraint failed" in msg and "zm_project_state" in msg:
+            raise ConflictError(
+                "active project-state conflict preserved; existing active state retained"
+            ) from None
+        raise _sanitize("state_integrity", msg) from None
+    except Exception as exc:  # noqa: BLE001
+        _rollback(conn)
+        raise _sanitize("state_project", str(exc)) from None
+
+
+# ----------------------------------------------------------------------------
 # Event classification (deterministic; no inference / no invention)
 # ----------------------------------------------------------------------------
 
@@ -606,9 +780,9 @@ def classify_event_for_m4(event: dict) -> str:
     """Classify a canonical event for M4 projection.
 
     Returns CLASSIFY_CHARTER / CLASSIFY_REQUIREMENT / CLASSIFY_DECISION /
-    CLASSIFY_SKIP. Projection only occurs when the event carries an EXPLICIT
-    structured M4 identity block (m4.domain + m4.identity + m4.op). If it does
-    not, the outcome is CLASSIFY_SKIP (deterministic, no inference, no
+    CLASSIFY_STATE / CLASSIFY_SKIP. Projection only occurs when the event carries
+    an EXPLICIT structured M4 identity block (m4.domain + m4.identity + m4.op). If
+    it does not, the outcome is CLASSIFY_SKIP (deterministic, no inference, no
     invention). Generic events (user_statement / assistant_claim /
     tool_observation / ...) are NOT projected into M4 merely by resemblance.
     """
@@ -624,6 +798,9 @@ def classify_event_for_m4(event: dict) -> str:
         return CLASSIFY_REQUIREMENT
     if domain == M4Domain.DECISION.value and identity and op:
         return CLASSIFY_DECISION
+    if domain == M4Domain.STATE.value and op:
+        # state identity is the key, not a single id; op is required
+        return CLASSIFY_STATE
     return CLASSIFY_SKIP
 
 
@@ -631,9 +808,11 @@ __all__ = [
     "project_charter",
     "project_requirement",
     "project_decision",
+    "project_state",
     "classify_event_for_m4",
     "CLASSIFY_CHARTER",
     "CLASSIFY_REQUIREMENT",
     "CLASSIFY_DECISION",
+    "CLASSIFY_STATE",
     "CLASSIFY_SKIP",
 ]

@@ -43,6 +43,7 @@ class M4Domain(str, Enum):
     CHARTER = "charter"
     REQUIREMENT = "requirement"
     DECISION = "decision"
+    STATE = "state"
 
 
 # ---- Sanitized errors (no raw SQL / payload / secret leakage) ----------------
@@ -255,6 +256,63 @@ class DecisionOp:
         return self
 
 
+@dataclass
+class StateOp:
+    """Explicit structured Current Project State operation. The projector consumes this verbatim.
+
+    state_key is the explicit logical slot; it is NULL when absent (record
+    preserved, no uniqueness, surfaced as missing-key). scope defaults to
+    'project:<project_id>' only when state_key is present. state_value /
+    state_ref are sanitized references, not free-text blobs. lifecycle_status is
+    the closed enum; 'active' marks the current value. Active selected by
+    lifecycle_status, never by timestamp. trace_id is NEVER used as state_key.
+    """
+
+    op: str
+    project_id: str
+    state_key: Optional[str] = None
+    scope: Optional[str] = None
+    state_value: Optional[str] = None
+    state_ref: Optional[str] = None
+    lifecycle_status: str = "active"
+    verification_status: str = "none"
+    effective_at: Optional[str] = None
+    supersedes: Optional[str] = None
+    source_event_id: Optional[str] = None
+    trace_id: Optional[str] = None
+    session_id: Optional[str] = None
+    profile_id: Optional[str] = None
+    created_at: Optional[str] = None
+    derived_from_event_type: Optional[str] = None
+
+    def validate(self) -> "StateOp":
+        if self.op not in {o.value for o in M4Op}:
+            raise InvalidTransitionError(f"unknown op: {self.op}")
+        if not (self.project_id and self.project_id.strip()):
+            raise MissingRequiredFieldError("project_id required")
+        if self.state_key is not None and not self.state_key.strip():
+            # treat empty key as absent (NULL)
+            self.state_key = None
+        if self.state_key is None and self.op == M4Op.SUPERSEDE.value:
+            # supersession requires an explicit logical key to link prior state
+            raise MissingIdentityError("state supersession requires an explicit state_key")
+        if self.lifecycle_status not in LIFECYCLE_ENUM:
+            raise InvalidLifecycleError(
+                f"lifecycle_status must be one of the closed enum; got {self.lifecycle_status}"
+            )
+        # Promotion guard: an assistant_claim-derived op must not set active.
+        if self.derived_from_event_type == "assistant_claim" and self.lifecycle_status == "active":
+            raise PromotionBlockedError(
+                "assistant_claim may not auto-promote project state to active"
+            )
+        # Scope default: project:<project_id> when a state_key is present.
+        if self.scope is None and self.state_key is not None:
+            self.scope = f"project:{self.project_id}"
+        if self.op == M4Op.DELETE.value and self.lifecycle_status != "deleted":
+            self.lifecycle_status = "deleted"
+        return self
+
+
 __all__ = [
     "LIFECYCLE_ENUM",
     "M4Op",
@@ -269,4 +327,5 @@ __all__ = [
     "CharterOp",
     "RequirementOp",
     "DecisionOp",
+    "StateOp",
 ]
