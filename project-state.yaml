@@ -133,6 +133,31 @@ m3_increment_4_files:
   - src/retrieval/cursor.py
   - src/retrieval/__init__.py
   - tests/unit/test_m3_relations.py
+m3_increment_5_status: verified
+m3_increment_5_scope: deterministic, sanitized, TRUE READ-ONLY verification/lifecycle-aware retrieval over verified M2 substrate; exact verification_status/lifecycle_status filters (real enum vocabularies from src/capture/event_types.py, no invented statuses), provenance enrichment, admin deleted-inspection passthrough, FTS composition with verification/lifecycle filters; no ranking/scoring/LLM/truth-inference
+m3_increment_5_plan: .hermes/plans/2026-08-07_000002-m3-read-only-retrieval-query.md
+m3_increment_5_evidence: acceptance-m3.5.md
+m3_increment_5_focused_test: tests/unit/test_m3_verification.py
+m3_increment_5_focused_result: 56 passed
+m3_increment_5_canonical_result: 539 passed, 3 skipped
+m3_increment_5_starting_commit: 42fd4b702e2bc1561b48db8c2e0c899c4cc78202
+m3_increment_5_implementation_commit: pending
+m3_increment_5_tested_commit: pending
+m3_increment_5_evidence_commit: pending
+m3_increment_5_sqlite_access: true-read-only (file:?mode=ro + PRAGMA query_only=ON)
+m3_increment_5_schema_migration: none
+m3_increment_5_capability: exact verification/lifecycle filters; claim-not-fact (assistant_claim never promoted); provenance enrichment (verifier/evidence_ref/verification_status/recorded_at); admin deleted passthrough (list_deleted/get_tombstone/get_deletion_audit); FTS composition (search_filtered); relation results preserve verification/lifecycle metadata; supersession/conflict read-only
+m3_increment_5_result_contract: QueryResult/SearchResult (unchanged); ProvenanceMeta{event_id, verification_status, verifier, evidence_ref, recorded_at}
+m3_increment_5_ordering: created_at ASC, event_id ASC (unchanged; verification/lifecycle state never alters order)
+m3_increment_5_cursor: reuses M3.2 v1 query-bound cursor; fingerprint binds text + verification + lifecycle (search_filtered) / structured filters (query_events)
+m3_increment_5_deleted_exclusion: default excludes deleted (Decision B); admin path only via M2 helpers
+m3_increment_5_files:
+  - src/retrieval/verification.py
+  - src/retrieval/models.py
+  - src/retrieval/query.py
+  - src/retrieval/__init__.py
+  - tests/unit/test_m3_verification.py
+  - tests/unit/test_m3_query.py
 m3_increment_1_sqlite_access: true-read-only (file:?mode=ro + PRAGMA query_only=ON)
 m3_increment_1_schema_migration: none
 m3_increment_1_deleted_exclusion: enforced (Decision B)

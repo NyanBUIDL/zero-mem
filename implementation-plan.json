@@ -400,6 +400,24 @@
           "schema_migration": "none",
           "scope": ["explicit stored edges only (child_of/derived_from/supersedes); direction outgoing/incoming/both", "depth=1, no graph traversal", "get_related/get_parent/get_children/get_artifacts/list_knowledge_space", "deleted targets excluded via derived-state subquery", "artifact safe reference artifact:<id> (no stored_path / path leak)", "knowledge_space has no event linkage in schema -> list_knowledge_space returns [] (no inference/global fallback)", "reuses M3.2 deterministic pagination + versioned query-bound cursor (fingerprint binds event_id+direction+relation_type / origin_event_id)", "before/after read-only proof covers zm_relations/zm_scopes/zm_artifacts row counts + JSONL sha256", "no authorization/access-control (caller-supplied scope filters only)", "no M3.5 trust policy / M4 behavior"],
           "excluded_scope": ["relation writes", "relation inference", "graph traversal beyond depth=1", "authorization/access control", "permission inheritance", "cross-profile/project auto-expansion", "M3.5 trust/verification policy", "ranking/scoring", "semantic/vector search", "LLM query rewriting", "context injection", "M4 project-memory", "MCP", "Obsidian", "schema migration"]
+        },
+        "increment_5": {
+          "name": "Verification and lifecycle-aware retrieval",
+          "status": "verified",
+          "plan": ".hermes/plans/2026-08-07_000002-m3-read-only-retrieval-query.md",
+          "evidence": "acceptance-m3.5.md",
+          "focused_test": "tests/unit/test_m3_verification.py",
+          "focused_result": "56 passed",
+          "canonical_result": "539 passed, 3 skipped",
+          "starting_commit": "42fd4b702e2bc1561b48db8c2e0c899c4cc78202",
+          "implementation_commit": "pending",
+          "tested_commit": "pending",
+          "evidence_commit": "pending",
+          "schema_version": 6,
+          "sqlite_access": "true-read-only (file:?mode=ro + PRAGMA query_only=ON)",
+          "schema_migration": "none",
+          "scope": ["exact verification_status/lifecycle_status filters using real enum vocabularies from src/capture/event_types.py (none/direct_tool_output/user_confirmation/deterministic_verification/approval; raw/observed/candidate/confirmed/active/superseded/conflicted/archived/deleted)", "claim-not-fact: assistant_claim/user_statement/inference/tool_observation/verified_state surfaced as event_type labels only; unverified assistant_claim never promoted; verification/lifecycle state never alters ordering", "provenance enrichment via get_provenance (verifier/evidence_ref/verification_status/recorded_at) read-only over zm_provenance", "admin deleted-inspection passthrough: list_deleted/get_tombstone/get_deletion_audit (Decision B; normal path excludes deleted)", "FTS composition: search_filtered applies verification/lifecycle filters to FTS candidates; deterministic ordering; no ranking", "relation results preserve verification/lifecycle metadata (M3.4 target EventView)", "supersession/conflict returned verbatim; no replacement/no winner/no LLM", "reuses M3.2 cursor (binds text+verification+lifecycle)"],
+          "excluded_scope": ["truth inference", "automatic fact promotion", "conflict resolution", "automatic supersession", "trust scoring", "relevance/recency/confidence ranking", "vector/semantic search", "LLM query rewriting", "automatic memory selection", "context injection", "authorization/access control", "M4 project state", "Requirement Registry/Decision Log mutation", "MCP", "Obsidian", "schema migration", "M3.6 integration/final-acceptance behavior"]
         }
       }
     },
