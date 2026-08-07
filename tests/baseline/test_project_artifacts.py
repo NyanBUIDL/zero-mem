@@ -23,7 +23,8 @@ def test_master_spec_and_derived_agents_exist() -> None:
 def test_implementation_plan_is_machine_readable_and_gated() -> None:
     plan = json.loads((ROOT / "implementation-plan.json").read_text(encoding="utf-8"))
     assert plan["status"] == "in_progress"
-    assert plan["current_milestone_status"] == "m3_in_progress"
+    # M3 is now VERIFIED; the baseline guard reflects the current verified state.
+    assert plan["current_milestone_status"] == "m3_verified"
     assert plan["milestones"][0]["verification"]["status"] == "fully_verified"
     assert [milestone["id"] for milestone in plan["milestones"]] == [
         f"M{i}" for i in range(11)
