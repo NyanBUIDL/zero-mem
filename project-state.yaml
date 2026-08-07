@@ -58,7 +58,7 @@ m3_increment_1_starting_commit: 539b5ff
 m3_increment_1_plan_commit: 46be195
 m3_increment_1_implementation_commit: aa74f56
 m3_increment_1_tested_commit: aa74f56
-m3_increment_1_evidence_commit: pending
+m3_increment_1_evidence_commit: 223c276a91a48e723616564e20baf1c233f95b84
 m3_increment_1_sqlite_access: true-read-only (file:?mode=ro + PRAGMA query_only=ON)
 m3_increment_1_schema_migration: none
 m3_increment_1_deleted_exclusion: enforced (Decision B)
