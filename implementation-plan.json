@@ -619,7 +619,7 @@
       "increment_6": {
         "name": "Retention tombstones, logical deletion, secret scanning, and rollback",
         "status": "verified",
-        "decision": "B — logical deletion only; canonical JSONL immutable and append-only",
+        "decision": "B \u2014 logical deletion only; canonical JSONL immutable and append-only",
         "evidence": "acceptance-m2-increment-6.md",
         "focused_test": "tests/unit/test_m2_tombstones.py",
         "focused_result": "35 passed in 1.52s",
@@ -1246,8 +1246,43 @@
             "LLM/semantic-key derivation",
             "modification of VERIFIED migrate_7 / migration v8"
           ]
+        },
+        "increment_7": {
+          "name": "Rebuild, performance, and final M4 acceptance",
+          "status": "partial",
+          "impl_commit": "30683b1ac52da1ebff9ffe138af3d5f96e6e88e4",
+          "focused_test": "tests/unit/test_m4_rebuild.py",
+          "focused_result": "17 passed",
+          "combined_m4_result": "243 passed",
+          "ad_hoc_result": "19/19 PASS",
+          "canonical_result": "859 passed, 3 skipped, 1 failed (environmental real-home flake)",
+          "blocker": "external Hermes sidecar (desktop = runtime host) mutates real ~/.hermes during run; cannot be safely stopped -> final 0-failed gate not met",
+          "evidence": "acceptance-m4.7.md",
+          "performance_evidence": "acceptance-m4.7-performance.md",
+          "scope": [
+            "rebuild_project_memory + rebuild_all_project_memory entrypoints",
+            "event_to_op converter (m4 block -> typed Op)",
+            "deterministic, idempotent, parity-equivalent rebuild (incremental==rebuild)",
+            "idempotent charter update fix (real defect)",
+            "performance baseline recorded",
+            "secret safety / JSONL immutability / TRUE READ-ONLY regression"
+          ],
+          "excluded_scope": [
+            "M5 authorization/profile policy",
+            "context injection",
+            "automatic memory selection",
+            "LLM ranking",
+            "semantic/vector search",
+            "Obsidian sync",
+            "MCP integration",
+            "autonomous conflict resolution",
+            "automatic requirement/decision generation",
+            "new migration v8"
+          ],
+          "remaining_to_verify": "isolate/stop external Hermes sidecar, re-run full canonical suite (0 failed), then mark M4.7 + M4 VERIFIED and commit final state-binding"
         }
-      }
+      },
+      "current_increment": "increment_7"
     },
     {
       "id": "M5",
