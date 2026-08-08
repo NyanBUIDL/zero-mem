@@ -36,8 +36,11 @@ from .contracts import (
     CharterOp,
     RequirementOp,
     DecisionOp,
+    VerificationOp,
+    ArtifactOp,
     M4ProjectionError,
     MissingIdentityError,
+    MissingRequiredFieldError,
     InvalidTransitionError,
     ConflictError,
 )
@@ -47,6 +50,8 @@ CLASSIFY_CHARTER = "charter"
 CLASSIFY_REQUIREMENT = "requirement"
 CLASSIFY_DECISION = "decision"
 CLASSIFY_STATE = "state"
+CLASSIFY_VERIFICATION = "verification"
+CLASSIFY_PROJECT_ARTIFACT = "artifact"
 CLASSIFY_SKIP = "skip"
 
 
@@ -772,6 +777,190 @@ def project_state(conn: sqlite3.Connection, op: StateOp) -> dict:
 
 
 # ----------------------------------------------------------------------------
+# Verification Records projector (M4.5)
+# ----------------------------------------------------------------------------
+
+
+def _verification_columns() -> list[str]:
+    return [
+        "verification_id", "subject_type", "subject_id", "project_id", "method",
+        "command_ref", "observed_result", "tested_commit", "source_event_id",
+        "timestamp", "verification_status", "artifact_references",
+    ]
+
+
+def _verification_content_equal(existing: dict, op: VerificationOp) -> bool:
+    # Identity equality is on verification_id; logical content is the rest.
+    # timestamp/created_at are temporal provenance and are intentionally excluded
+    # from the equality check so a re-projection that omits them is still idempotent.
+    fields = ["subject_type", "subject_id", "project_id", "method", "command_ref",
+              "observed_result", "tested_commit", "source_event_id",
+              "verification_status", "artifact_references"]
+    keys = set(existing.keys())
+    for f in fields:
+        if (existing[f] if f in keys else None) != (getattr(op, f) or None):
+            return False
+    return True
+
+
+def project_verification(conn: sqlite3.Connection, op: VerificationOp) -> dict:
+    """Project one explicit Verification Record (M4.5).
+
+    - verification_id is the explicit stable identity (trace_id never used).
+    - Inserts/updates the single row for verification_id (idempotent on identical
+      content; a changed re-projection updates in place, preserving identity).
+    - Does NOT mutate the referenced subject (requirement/decision/state/charter/
+      artifact). Verification is first-class evidence, separate from the subject.
+    - Contradictory verifications (different verification_id, same subject) are
+      both preserved; no winner is chosen; no timestamp truth; no LLM.
+    - Transaction-safe; raw SQLite errors never escape (sanitized).
+    """
+    try:
+        op.validate()
+        _begin(conn)
+        existing = conn.execute(
+            "SELECT * FROM zm_verifications WHERE verification_id=?",
+            (op.verification_id,),
+        ).fetchone()
+        ts = op.timestamp or op.created_at or _now()
+        if existing is not None and _verification_content_equal(existing, op):
+            _commit(conn)
+            return {"action": "noop", "verification_id": op.verification_id}
+        if existing is not None:
+            ts = op.timestamp or op.created_at or (existing["timestamp"] if "timestamp" in existing.keys() else None) or _now()
+            conn.execute(
+                "UPDATE zm_verifications SET subject_type=?, subject_id=?, project_id=?, "
+                "method=?, command_ref=?, observed_result=?, tested_commit=?, "
+                "source_event_id=?, timestamp=?, verification_status=?, "
+                "artifact_references=? "
+                "WHERE verification_id=?",
+                (op.subject_type, op.subject_id, op.project_id, op.method,
+                 op.command_ref, op.observed_result, op.tested_commit,
+                 op.source_event_id, ts, op.verification_status,
+                 op.artifact_references, op.verification_id),
+            )
+            _commit(conn)
+            return {"action": "updated", "verification_id": op.verification_id}
+        conn.execute(
+            "INSERT INTO zm_verifications "
+            "(verification_id, subject_type, subject_id, project_id, method, command_ref, "
+            "observed_result, tested_commit, source_event_id, timestamp, verification_status, "
+            "artifact_references) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            (op.verification_id, op.subject_type, op.subject_id, op.project_id, op.method,
+             op.command_ref, op.observed_result, op.tested_commit, op.source_event_id,
+             ts, op.verification_status, op.artifact_references),
+        )
+        _commit(conn)
+        return {"action": "created", "verification_id": op.verification_id}
+    except (MissingIdentityError, MissingRequiredFieldError, InvalidTransitionError):
+        _rollback(conn)
+        raise
+    except sqlite3.IntegrityError as exc:
+        _rollback(conn)
+        msg = str(exc)
+        if "verification" in msg.lower() or "unique" in msg.lower():
+            raise _sanitize("verification_integrity", msg) from None
+        raise _sanitize("verification_integrity", msg) from None
+    except Exception as exc:  # noqa: BLE001
+        _rollback(conn)
+        raise _sanitize("verification_project", str(exc)) from None
+
+
+# ----------------------------------------------------------------------------
+# Project Artifact linkage projector (M4.5)
+# ----------------------------------------------------------------------------
+
+
+def _artifact_columns() -> list[str]:
+    return [
+        "artifact_id", "project_id", "artifact_type", "version", "safe_reference",
+        "source_event_id", "created_at", "verification_status",
+        "linked_requirement_ids", "linked_decision_ids", "linked_state_keys",
+    ]
+
+
+def _artifact_content_equal(existing: dict, op: ArtifactOp) -> bool:
+    fields = ["artifact_type", "version", "safe_reference", "source_event_id",
+              "verification_status", "linked_requirement_ids", "linked_decision_ids",
+              "linked_state_keys"]
+    keys = set(existing.keys())
+    for f in fields:
+        if (existing[f] if f in keys else None) != (getattr(op, f) or None):
+            return False
+    return True
+
+
+def project_artifact(conn: sqlite3.Connection, op: ArtifactOp) -> dict:
+    """Project one explicit project-artifact linkage (M4.5).
+
+    - artifact_id must already exist in the M2 zm_artifacts substrate (FK). A
+      missing substrate artifact causes a sanitized rollback (no fake M2 artifact,
+      no partial linkage).
+    - PK is (artifact_id, project_id); idempotent on identical content.
+    - Does NOT duplicate artifact content; only metadata/linkage is stored.
+    - linked_requirement_ids / linked_decision_ids / linked_state_keys are explicit
+      only (never inferred from filename/content/trace_id/temporal adjacency).
+    - safe_reference is the only stored pointer and must be a safe relative ref.
+    - Transaction-safe; raw SQLite errors never escape (sanitized).
+    """
+    try:
+        op.validate()
+        _begin(conn)
+        # Enforce the FK to zm_artifacts (SQLiteStore does not enable it by default).
+        # Set inside the transaction so it coexists with the explicit BEGIN/COMMIT.
+        conn.execute("PRAGMA foreign_keys=ON")
+        existing = conn.execute(
+            "SELECT * FROM zm_project_artifacts WHERE artifact_id=? AND project_id=?",
+            (op.artifact_id, op.project_id),
+        ).fetchone()
+        created_at = op.created_at or _now()
+        if existing is not None and _artifact_content_equal(existing, op):
+            _commit(conn)
+            return {"action": "noop", "artifact_id": op.artifact_id, "project_id": op.project_id}
+        if existing is not None:
+            conn.execute(
+                "UPDATE zm_project_artifacts SET artifact_type=?, version=?, safe_reference=?, "
+                "source_event_id=?, created_at=?, verification_status=?, "
+                "linked_requirement_ids=?, linked_decision_ids=?, linked_state_keys=? "
+                "WHERE artifact_id=? AND project_id=?",
+                (op.artifact_type, op.version, op.safe_reference, op.source_event_id,
+                 created_at, op.verification_status, op.linked_requirement_ids,
+                 op.linked_decision_ids, op.linked_state_keys, op.artifact_id, op.project_id),
+            )
+            _commit(conn)
+            return {"action": "updated", "artifact_id": op.artifact_id, "project_id": op.project_id}
+        conn.execute(
+            "INSERT INTO zm_project_artifacts "
+            "(artifact_id, project_id, artifact_type, version, safe_reference, source_event_id, "
+            "created_at, verification_status, linked_requirement_ids, linked_decision_ids, "
+            "linked_state_keys) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (op.artifact_id, op.project_id, op.artifact_type, op.version, op.safe_reference,
+             op.source_event_id, created_at, op.verification_status, op.linked_requirement_ids,
+             op.linked_decision_ids, op.linked_state_keys),
+        )
+        _commit(conn)
+        return {"action": "created", "artifact_id": op.artifact_id, "project_id": op.project_id}
+    except (MissingIdentityError, MissingRequiredFieldError, InvalidTransitionError):
+        _rollback(conn)
+        raise
+    except sqlite3.IntegrityError as exc:
+        _rollback(conn)
+        msg = str(exc)
+        # FK to zm_artifacts.artifact_id -> missing substrate artifact.
+        if "foreign key" in msg.lower() or "zm_artifacts" in msg.lower():
+            raise MissingIdentityError(
+                "project-artifact link requires an existing M2 artifact_id; "
+                "no fake artifact created"
+            ) from None
+        raise _sanitize("artifact_integrity", msg) from None
+    except Exception as exc:  # noqa: BLE001
+        _rollback(conn)
+        raise _sanitize("artifact_project", str(exc)) from None
+
+
+# ----------------------------------------------------------------------------
 # Event classification (deterministic; no inference / no invention)
 # ----------------------------------------------------------------------------
 
@@ -780,9 +969,10 @@ def classify_event_for_m4(event: dict) -> str:
     """Classify a canonical event for M4 projection.
 
     Returns CLASSIFY_CHARTER / CLASSIFY_REQUIREMENT / CLASSIFY_DECISION /
-    CLASSIFY_STATE / CLASSIFY_SKIP. Projection only occurs when the event carries
-    an EXPLICIT structured M4 identity block (m4.domain + m4.identity + m4.op). If
-    it does not, the outcome is CLASSIFY_SKIP (deterministic, no inference, no
+    CLASSIFY_STATE / CLASSIFY_VERIFICATION / CLASSIFY_PROJECT_ARTIFACT /
+    CLASSIFY_SKIP. Projection only occurs when the event carries an EXPLICIT
+    structured M4 identity block (m4.domain + m4.identity + m4.op). If it does
+    not, the outcome is CLASSIFY_SKIP (deterministic, no inference, no
     invention). Generic events (user_statement / assistant_claim /
     tool_observation / ...) are NOT projected into M4 merely by resemblance.
     """
@@ -799,8 +989,11 @@ def classify_event_for_m4(event: dict) -> str:
     if domain == M4Domain.DECISION.value and identity and op:
         return CLASSIFY_DECISION
     if domain == M4Domain.STATE.value and op:
-        # state identity is the key, not a single id; op is required
         return CLASSIFY_STATE
+    if domain == M4Domain.VERIFICATION.value and identity and op:
+        return CLASSIFY_VERIFICATION
+    if domain == M4Domain.ARTIFACT.value and identity and op:
+        return CLASSIFY_PROJECT_ARTIFACT
     return CLASSIFY_SKIP
 
 
@@ -809,10 +1002,14 @@ __all__ = [
     "project_requirement",
     "project_decision",
     "project_state",
+    "project_verification",
+    "project_artifact",
     "classify_event_for_m4",
     "CLASSIFY_CHARTER",
     "CLASSIFY_REQUIREMENT",
     "CLASSIFY_DECISION",
     "CLASSIFY_STATE",
+    "CLASSIFY_VERIFICATION",
+    "CLASSIFY_PROJECT_ARTIFACT",
     "CLASSIFY_SKIP",
 ]

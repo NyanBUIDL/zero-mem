@@ -44,6 +44,8 @@ class M4Domain(str, Enum):
     REQUIREMENT = "requirement"
     DECISION = "decision"
     STATE = "state"
+    VERIFICATION = "verification"
+    ARTIFACT = "artifact"
 
 
 # ---- Sanitized errors (no raw SQL / payload / secret leakage) ----------------
@@ -313,10 +315,180 @@ class StateOp:
         return self
 
 
+# Verification / project-artifact constants (M4.5) ------------------------------
+#
+# subject_type vocabulary is the CLOSED, approved set from the corrected M4 plan
+# (line 216): requirement | decision | state | artifact | task | implementation |
+# milestone. The master spec draft mentioned `project_state`, but the corrected
+# plan uses `state`; the plan is authoritative, so `state` is accepted and
+# `project_state` is rejected (not in vocabulary). M4.5 must not manufacture new
+# subject types.
+VERIFICATION_SUBJECT_TYPES: tuple[str, ...] = (
+    "requirement", "decision", "state", "artifact",
+    "task", "implementation", "milestone",
+)
+
+# Reuse the approved verification-status model (src/capture/event_types.
+# VerificationStatus). M4.5 introduces NO new verification enum. No `verified` /
+# `unverified` / `disputed` / `conflict` values exist in the approved model;
+# contradictory verifications are preserved as distinct rows with their explicit
+# status (never auto-marked `conflict`).
+VERIFICATION_STATUS_ENUM: tuple[str, ...] = (
+    "none", "direct_tool_output", "user_confirmation",
+    "deterministic_verification", "approval",
+)
+
+# Patterns that indicate an UNRESTRICTED / unsafe reference. M4.5 stores only
+# safe references (e.g. relative "reports/x.md"), never raw command output,
+# stack traces, arbitrary absolute paths, or secret-bearing payloads.
+_UNSAFE_REF_MARKERS = (
+    "/home/", "/tmp/", "/var/", "C:\\Users", "c:/users",
+    "file://", "Traceback", "stack trace", "traceback",
+)
+
+
+def is_safe_reference(value: Optional[str]) -> bool:
+    """Return True iff value is safe to store as a reference.
+
+    A value is UNSAFE if it is None (allowed -> returns True, meaning "no ref"),
+    empty, or contains unrestricted-path / secret-bearing / raw-output markers.
+    Multi-line blobs and absolute/relative-traversal paths are rejected (raw
+    transcripts and local filesystem pointers are not references).
+    """
+    if value is None:
+        return True
+    s = value.strip()
+    if not s:
+        return True
+    if "\n" in s or "\r" in s:
+        # raw multi-line output (command transcript / stack trace) is not a ref
+        return False
+    low = s.lower()
+    if s.startswith("/") or ".." in s.split("/") or ".." in s.split("\\"):
+        # absolute path or parent-traversal is never a safe reference
+        return False
+    return not any(marker in low for marker in _UNSAFE_REF_MARKERS)
+
+
+@dataclass
+class VerificationOp:
+    """Explicit structured Verification Record operation. The projector consumes
+    this verbatim.
+
+    verification_id is the explicit stable record identity; trace_id is NEVER
+    used as identity. subject_type is the approved closed vocabulary; subject_id
+    is explicit. verification_status reuses the approved VerificationStatus model
+    (separate from lifecycle_status, which does NOT exist on this table). The
+    projector does NOT auto-promote an unrelated claim/subject: inserting a
+    verification records only the verification relationship + status as the
+    canonical evidence states. It never mutates the referenced subject.
+    """
+
+    op: str
+    verification_id: str
+    project_id: str
+    subject_type: Optional[str] = None
+    subject_id: Optional[str] = None
+    method: Optional[str] = None
+    command_ref: Optional[str] = None
+    observed_result: Optional[str] = None
+    tested_commit: Optional[str] = None
+    source_event_id: Optional[str] = None
+    timestamp: Optional[str] = None
+    verification_status: str = "none"
+    artifact_references: Optional[str] = None
+    # provenance
+    trace_id: Optional[str] = None
+    session_id: Optional[str] = None
+    profile_id: Optional[str] = None
+    created_at: Optional[str] = None
+    derived_from_event_type: Optional[str] = None
+
+    def validate(self) -> "VerificationOp":
+        if self.op not in {o.value for o in M4Op}:
+            raise InvalidTransitionError(f"unknown op: {self.op}")
+        if not (self.verification_id and self.verification_id.strip()):
+            raise MissingIdentityError("verification_id required and explicit; trace_id is not an identity")
+        if not (self.project_id and self.project_id.strip()):
+            raise MissingRequiredFieldError("project_id required")
+        if self.subject_type is not None and self.subject_type not in VERIFICATION_SUBJECT_TYPES:
+            raise MissingRequiredFieldError(
+                f"subject_type must be one of {VERIFICATION_SUBJECT_TYPES}; got {self.subject_type}"
+            )
+        if self.verification_status not in VERIFICATION_STATUS_ENUM:
+            raise MissingRequiredFieldError(
+                f"verification_status must be one of {VERIFICATION_STATUS_ENUM}; got {self.verification_status}"
+            )
+        # Safe references only: command_ref / observed_result / artifact_references
+        # must be sanitized references, never raw output, absolute paths, or secrets.
+        for field_name in ("command_ref", "observed_result", "artifact_references"):
+            val = getattr(self, field_name)
+            if val is not None and not is_safe_reference(val):
+                raise MissingRequiredFieldError(
+                    f"{field_name} is not a safe reference (raw output / absolute path / secret rejected)"
+                )
+        # Verification does NOT auto-promote a subject; derived_from_event_type is
+        # provenance only and must not change behavior here. No promotion guard
+        # needed because verification_status is separate from lifecycle_status.
+        return self
+
+
+@dataclass
+class ArtifactOp:
+    """Explicit structured Project Artifact linkage operation. The projector
+    consumes this verbatim.
+
+    artifact_id is the explicit stable identity and MUST already exist in the M2
+    zm_artifacts substrate (FK). M4.5 does NOT create a fake M2 artifact and does
+    NOT duplicate artifact content. safe_reference is the only stored pointer and
+    must be a safe (relative) reference. linked_requirement_ids / linked_decision_ids
+    / linked_state_keys are explicit reference columns only (comma/colon-separated,
+    never inferred from filenames/content/trace_id).
+    """
+
+    op: str
+    artifact_id: str
+    project_id: str
+    artifact_type: Optional[str] = None
+    version: Optional[str] = None
+    safe_reference: Optional[str] = None
+    source_event_id: Optional[str] = None
+    verification_status: str = "none"
+    linked_requirement_ids: Optional[str] = None
+    linked_decision_ids: Optional[str] = None
+    linked_state_keys: Optional[str] = None
+    # provenance
+    trace_id: Optional[str] = None
+    session_id: Optional[str] = None
+    profile_id: Optional[str] = None
+    created_at: Optional[str] = None
+    derived_from_event_type: Optional[str] = None
+
+    def validate(self) -> "ArtifactOp":
+        if self.op not in {o.value for o in M4Op}:
+            raise InvalidTransitionError(f"unknown op: {self.op}")
+        if not (self.artifact_id and self.artifact_id.strip()):
+            raise MissingIdentityError("artifact_id required and explicit; filenames/trace_id are not identity")
+        if not (self.project_id and self.project_id.strip()):
+            raise MissingRequiredFieldError("project_id required")
+        if self.verification_status not in VERIFICATION_STATUS_ENUM:
+            raise MissingRequiredFieldError(
+                f"verification_status must be one of {VERIFICATION_STATUS_ENUM}; got {self.verification_status}"
+            )
+        if self.safe_reference is not None and not is_safe_reference(self.safe_reference):
+            raise MissingRequiredFieldError(
+                "safe_reference is not a safe reference (absolute path / traversal / secret rejected)"
+            )
+        return self
+
+
 __all__ = [
     "LIFECYCLE_ENUM",
     "M4Op",
     "M4Domain",
+    "VERIFICATION_SUBJECT_TYPES",
+    "VERIFICATION_STATUS_ENUM",
+    "is_safe_reference",
     "M4ProjectionError",
     "MissingIdentityError",
     "MissingRequiredFieldError",
@@ -328,4 +500,6 @@ __all__ = [
     "RequirementOp",
     "DecisionOp",
     "StateOp",
+    "VerificationOp",
+    "ArtifactOp",
 ]
