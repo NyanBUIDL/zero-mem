@@ -23,8 +23,8 @@ def test_master_spec_and_derived_agents_exist() -> None:
 def test_implementation_plan_is_machine_readable_and_gated() -> None:
     plan = json.loads((ROOT / "implementation-plan.json").read_text(encoding="utf-8"))
     assert plan["status"] == "in_progress"
-    # M5 is now VERIFIED (all increments M5.1-M5.6 complete); M6 is next, not started.
-    assert plan["current_milestone_status"] == "verified"
+    # M5 is VERIFIED; M6.1 is VERIFIED and M6 is now IN PROGRESS (M6.2 next).
+    assert plan["current_milestone_status"] == "m6_in_progress"
     assert plan["milestones"][0]["verification"]["status"] == "fully_verified"
     assert [milestone["id"] for milestone in plan["milestones"]] == [
         f"M{i}" for i in range(11)
@@ -35,9 +35,9 @@ def test_implementation_plan_is_machine_readable_and_gated() -> None:
 
 def test_project_state_is_explicitly_unverified() -> None:
     state = (ROOT / "project-state.yaml").read_text(encoding="utf-8")
-    # M5 is now VERIFIED (all increments M5.1-M5.6 complete); the baseline guard reflects the current verified state.
+    # M5 is VERIFIED; M6 is now the current milestone (M6.1 VERIFIED, M6 in progress).
     assert "status: verified" in state
-    assert "current_milestone: M5" in state
+    assert "current_milestone: M6" in state
     assert "m1_production_code_started: true" in state
     assert "m1_increment_4_6_status: verified" in state
     assert "m1_status: verified" in state
