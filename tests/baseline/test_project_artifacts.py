@@ -24,7 +24,7 @@ def test_implementation_plan_is_machine_readable_and_gated() -> None:
     plan = json.loads((ROOT / "implementation-plan.json").read_text(encoding="utf-8"))
     assert plan["status"] == "in_progress"
     # M3 is now VERIFIED; the baseline guard reflects the current verified state.
-    assert plan["current_milestone_status"] == "m3_verified"
+    assert plan["current_milestone_status"] == "m4_verified"
     assert plan["milestones"][0]["verification"]["status"] == "fully_verified"
     assert [milestone["id"] for milestone in plan["milestones"]] == [
         f"M{i}" for i in range(11)
@@ -35,9 +35,9 @@ def test_implementation_plan_is_machine_readable_and_gated() -> None:
 
 def test_project_state_is_explicitly_unverified() -> None:
     state = (ROOT / "project-state.yaml").read_text(encoding="utf-8")
-    # M3 is now VERIFIED; the baseline guard reflects the current verified state.
-    assert "status: m3_verified" in state
-    assert "current_milestone: M3" in state
+    # M4 is now VERIFIED; the baseline guard reflects the current verified state.
+    assert "status: m4_verified" in state
+    assert "current_milestone: M4" in state
     assert "m1_production_code_started: true" in state
     assert "m1_increment_4_6_status: verified" in state
     assert "m1_status: verified" in state

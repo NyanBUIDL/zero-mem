@@ -325,9 +325,9 @@ m1_increment_4_1_processing_order: copy-normalize-structurally-redact-map-resolv
 m1_increment_4_1_capture_rate_formula: successfully_accounted_logical_events / expected_supported_logical_events * 100
 authority: Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx
 master_spec_source_note: The requested .md path is absent; the workspace contains the DOCX with extracted text.
-current_milestone: M3
-next_incomplete_milestone: M4
-next_milestone_status: in_progress
+current_milestone: M4
+next_incomplete_milestone: M5
+next_milestone_status: pending
 m1_current_increment: increment_4_3_redaction_capture_adapter
 m1_increment_3_status: verified
 m1_increment_3_evidence: acceptance-m1-increment-3.md

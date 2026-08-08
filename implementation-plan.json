@@ -2,7 +2,7 @@
   "schema_version": 1,
   "authority": "Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx",
   "status": "in_progress",
-  "current_milestone_status": "m3_verified",
+  "current_milestone_status": "m4_verified",
   "current_milestone_verification": "acceptance-m3.1.md",
   "next_incomplete_milestone": "M5",
   "next_milestone_status": "not_started",
