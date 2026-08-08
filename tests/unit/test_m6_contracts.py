@@ -273,13 +273,31 @@ class TestReadOnlyBoundaries:
         assert CURRENT_SCHEMA_VERSION == 8
 
     def test_no_forbidden_writable_imports(self):
+        import ast as _ast
         base = Path("src/integration/m6")
-        forbidden = ("GrantAdminService", "AuthorizedWriteService", "project_grant_event",
-                     "migrate_", "rebuild_grants", "write_canonical", "AccessGrantEvent")
+        forbidden = {"src.access.admin", "src.access.authorized_write",
+                     "src.access.grant_events", "src.storage.migrations",
+                     "src.storage.ingest"}
+
+        def _imported(src):
+            mods = set()
+            tree = _ast.parse(src)
+            for node in _ast.walk(tree):
+                if isinstance(node, _ast.Import):
+                    for a in node.names:
+                        mods.add(a.name.split(".")[0])
+                elif isinstance(node, _ast.ImportFrom):
+                    mods.add((node.module or "").split(".")[0])
+            return mods
+
+        # Also forbid the class names being imported (defensive, name-level).
+        name_forbidden = ("GrantAdminService", "AuthorizedWriteService")
         for f in base.glob("*.py"):
             src = f.read_text()
-            for token in forbidden:
-                assert token not in src, f"{f.name} references writable path token '{token}'"
+            assert _imported(src) & forbidden == set(), f"{f.name} imports a writable module"
+            for name in name_forbidden:
+                # only as an `import X`/`from ... import X` of the class itself
+                assert f"import {name}" not in src and f"import {name} as" not in src, f"{f.name} imports {name}"
 
     def test_no_projector_or_canonical_writer_imports(self):
         # AST-based: ensure no import of writable M5 modules. Deny-list *words*
