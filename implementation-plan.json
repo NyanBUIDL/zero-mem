@@ -546,7 +546,7 @@
           "starting_commit": "0478e7c39a4dcf97a1832a234eeef141664eee27",
           "implementation_commit": "1b9ddabdef42e81be0bd60df56ca2e171b98241c",
           "tested_commit": "1b9ddabdef42e81be0bd60df56ca2e171b98241c",
-          "evidence_commit": "<TBD>",
+          "evidence_commit": "0feaeec21a48bacbc39221d28b27e694f53991cb",
           "schema_version": 7,
           "sqlite_access": "write/project path (projector); separate from M3 TRUE READ-ONLY; no ensure_schema; no JSONL mutation",
           "model": "explicit typed operation envelopes (VerificationOp / ArtifactOp); projector consumes only explicitly-structured operations; never infers verification/identity/subject from prose/LLM/timestamp/trace_id; verification_id/artifact_id explicit; trace_id never used as identity",

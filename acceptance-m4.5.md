@@ -142,13 +142,13 @@ committed canonical suite.
 - starting_commit: 0478e7c39a4dcf97a1832a234eeef141664eee27
 - implementation_commit: 1b9ddabdef42e81be0bd60df56ca2e171b98241c
 - tested_commit: 1b9ddabdef42e81be0bd60df56ca2e171b98241c
-- evidence/state-binding commit: <TBD>
+- evidence/state-binding commit: 0feaeec21a48bacbc39221d28b27e694f53991cb
 - focused M4.5 result: 49 passed
 - combined M4 result: 194 passed
 - M2 compatibility result: 168 passed, 3 skipped
 - M3 compatibility result: 283 passed
 - canonical result: 811 passed, 3 skipped
-- current HEAD after closeout: <TBD>
+- current HEAD after closeout: 0feaeec21a48bacbc39221d28b27e694f53991cb
 - schema version: 7
 - files changed: src/project_memory/contracts.py, src/project_memory/projector.py,
   src/project_memory/__init__.py, tests/unit/test_m4_verification_artifact.py
