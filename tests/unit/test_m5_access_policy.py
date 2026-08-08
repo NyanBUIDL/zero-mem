@@ -378,14 +378,15 @@ def test_decision_id_does_not_affect_semantics():
 # ---------------------------------------------------------------------------
 # Architecture boundaries
 # ---------------------------------------------------------------------------
-def test_schema_remains_v7():
-    assert CURRENT_SCHEMA_VERSION == 7
+def test_schema_is_v8():
+    # M5.4 advances the schema to v8 (derived grant/audit tables).
+    assert CURRENT_SCHEMA_VERSION == 8
 
 
-def test_no_migration_8_present():
+def test_migration_8_present():
     import importlib.util
     spec = importlib.util.find_spec("src.storage.migrations.migrate_8")
-    assert spec is None
+    assert spec is not None
 
 
 def test_no_grants_tables_in_policy():

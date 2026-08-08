@@ -39,7 +39,7 @@ def _config(p: Path) -> SQLiteStoreConfig:
 def _open(p: Path) -> SQLiteStore:
     store = SQLiteStore(_config(p))
     store.ensure_schema()
-    assert store.get_schema_version() == 7
+    assert store.get_schema_version() == 8
     return store
 
 
@@ -484,11 +484,11 @@ def test_decision_no_raw_sqlite_error_leakage(tmp_path: Path) -> None:
         store.close()
 
 
-def test_decision_schema_remains_v7(tmp_path: Path) -> None:
+def test_decision_schema_remains_v8(tmp_path: Path) -> None:
     store = _open(tmp_path)
     try:
         project_decision(store._conn, _dec())
-        assert store.get_schema_version() == 7
+        assert store.get_schema_version() == 8
     finally:
         store.close()
 
@@ -500,7 +500,7 @@ def test_decision_m3_readonly_untouched(tmp_path: Path) -> None:
         project_decision(store._conn, _dec())
         rs = open_readonly(store.path)
         try:
-            assert rs.get_schema_version() == 7
+            assert rs.get_schema_version() == 8
         finally:
             rs.close()
     finally:

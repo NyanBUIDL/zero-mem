@@ -184,20 +184,53 @@ def _scope_allows(scope: AllowedScope, requester: Optional[str],
 class AuthorizedReadService:
     """Gates M3/M4 reads behind the M5.1/M5.3 policy. Store is used read-only."""
 
-    def __init__(self, store, requesting_profile_id: Optional[str]) -> None:
+    def __init__(self, store, requesting_profile_id: Optional[str],
+                 grant_conn=None) -> None:
         self._store = store
         self._requester = requesting_profile_id
+        # Optional writable/derived connection to zm_access_grants. When supplied,
+        # persistent READ grants are resolved from canonical state (M5.4) and feed
+        # the existing M5.3 compose_effective_scope path WITHOUT redesign. The
+        # resolved grants are VALIDATED from their own fields (no caller trust).
+        self._grant_conn = grant_conn
 
     # -- policy gate --------------------------------------------------------
+    def _resolve_persistent_grants(self, request: AccessRequest,
+                                   grants: Optional[List[AuthorizedReadGrant]]) -> Optional[List[AuthorizedReadGrant]]:
+        """Resolve persistent READ grants from the derived projection (M5.4 -> M5.3).
+
+        If the caller already supplied explicit in-memory grants, those win (M5.3
+        contract preserved). Otherwise, when a grant connection is available, resolve
+        authorizing READ grants for this requester via the deterministic resolver.
+        """
+        if grants is not None:
+            return grants
+        if self._grant_conn is None:
+            return None
+        from .resolver import resolve_read_grants
+        ttype = None
+        tid = None
+        if request.target_profile_ids and len(request.target_profile_ids) == 1:
+            ttype, tid = "profile", request.target_profile_ids[0]
+        elif request.project_ids and len(request.project_ids) == 1:
+            ttype, tid = "project", request.project_ids[0]
+        elif request.knowledge_space_ids and len(request.knowledge_space_ids) == 1:
+            ttype, tid = "knowledge_space", request.knowledge_space_ids[0]
+        return resolve_read_grants(
+            self._grant_conn, self._requester,
+            target_type=ttype, target_id=tid,
+            resource_type=request.resource_type)
+
     def _gate(self, request: AccessRequest,
               grants: Optional[List[AuthorizedReadGrant]] = None) -> EffectiveReadScope:
-        """M5.1 base policy, composed with explicit READ grants (M5.3).
+        """M5.1 base policy, composed with explicit READ grants (M5.3 / M5.4).
 
-        When grants are supplied, cross-profile READ targets may become authorized
-        via compose_effective_scope (the pre-authorized contract). No caller
-        self-authorization: grants are validated from their own fields only.
+        Grants may be supplied explicitly (M5.3 in-memory contract) OR resolved from
+        persistent canonical state (M5.4). No caller self-authorization: grants are
+        validated from their own fields only.
         """
-        return compose_effective_scope(request, grants)
+        resolved = self._resolve_persistent_grants(request, grants)
+        return compose_effective_scope(request, resolved)
 
     def _denied(self, eff: EffectiveReadScope) -> AuthorizedResult:
         return AuthorizedResult(allowed=False, denied=True,

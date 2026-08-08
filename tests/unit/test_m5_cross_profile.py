@@ -729,10 +729,20 @@ def test_true_read_only_preserved(tmp_path: Path):
         store.close()
 
 
-def test_no_persistent_grant_table():
-    # M5.3 must not introduce zm_access_grants / zm_policy_audit.
+def test_persistent_grant_table_present_in_v8():
+    # M5.4 introduces zm_access_grants / zm_policy_audit (schema v8).
     from src.storage.migrations import CURRENT_SCHEMA_VERSION
-    assert CURRENT_SCHEMA_VERSION == 7
+    assert CURRENT_SCHEMA_VERSION == 8
+    from src.storage.migrations.migrate_8 import up as m8_up
+    import sqlite3
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    m8_up(conn, "t")
+    conn.commit()
+    names = {r["name"] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    assert "zm_access_grants" in names
+    assert "zm_policy_audit" in names
 
 
 def test_grant_validity_not_fooled_by_flag(tmp_path: Path):

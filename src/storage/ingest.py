@@ -820,6 +820,7 @@ DERIVED_TABLES = ("zm_meta", "zm_lifecycle", "zm_provenance", "zm_ingest_checkpo
                    "zm_relations", "zm_scopes", "zm_artifacts", "zm_tombstones", "zm_deletion_audit",
                    "zm_project_charters", "zm_requirements", "zm_decisions",
                    "zm_project_state", "zm_verifications", "zm_project_artifacts",
+                   "zm_access_grants", "zm_policy_audit",
                    "zm_migrations")
 
 

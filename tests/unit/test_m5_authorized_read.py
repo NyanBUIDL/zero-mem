@@ -567,21 +567,35 @@ def _ro_path(tmp_path: Path) -> Path:
     return tmp_path / "m4.sqlite"
 
 
-def test_schema_remains_v7(tmp_path: Path):
+def test_schema_is_v8(tmp_path: Path):
     store = _build_full_store(tmp_path)
     try:
-        assert store.get_schema_version() == CURRENT_SCHEMA_VERSION == 7
+        # M5.4 introduces schema v8 (zm_access_grants + zm_policy_audit).
+        assert store.get_schema_version() == CURRENT_SCHEMA_VERSION == 8
     finally:
         store.close()
 
 
-def test_no_migration_or_audit_tables_created(tmp_path: Path):
+def test_grant_tables_present_and_read_only(tmp_path: Path):
     store = _build_full_store(tmp_path)
     try:
         names = {r["name"] for r in store.conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
-        assert "zm_access_grants" not in names
-        assert "zm_policy_audit" not in names
+        # M5.4 grant/audit derived tables now exist.
+        assert "zm_access_grants" in names
+        assert "zm_policy_audit" in names
+        # The M5.2 facade must remain TRUE READ-ONLY with respect to the memory store
+        # being queried: a READ does not mutate the grant/audit tables.
+        svc = AuthorizedReadService(store, "PR1", grant_conn=store._conn)
+        req = AccessRequest(operation="READ", requesting_profile_id="PR1",
+                            target_profile_ids=["PR1"])
+        before = store.conn.execute(
+            "SELECT COUNT(*) FROM zm_access_grants").fetchone()[0]
+        res = svc.query_events(req)
+        after = store.conn.execute(
+            "SELECT COUNT(*) FROM zm_access_grants").fetchone()[0]
+        assert before == after
+        assert res is not None
     finally:
         store.close()
 

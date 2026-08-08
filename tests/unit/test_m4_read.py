@@ -96,10 +96,10 @@ def test_open_readonly_mode_and_query_only(tmp_path: Path) -> None:
     _seed(store)
     rs = open_readonly(store.path)
     assert isinstance(rs, ReadonlyStore)
-    assert rs.get_schema_version() == CURRENT_SCHEMA_VERSION == 7
+    assert rs.get_schema_version() == CURRENT_SCHEMA_VERSION == 8
     assert is_query_only(rs) is True  # query_only=ON
     # No migration/ projector invoked: schema version is 7, unchanged.
-    assert rs.get_schema_version() == 7
+    assert rs.get_schema_version() == 8
     rs.close()
     store.close()
 

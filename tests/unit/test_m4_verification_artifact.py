@@ -638,11 +638,11 @@ def test_incremental_equals_replay_artifact(tmp_path: Path) -> None:
 # Cross-cutting
 # ----------------------------------------------------------------------------
 
-def test_schema_remains_v7(tmp_path: Path) -> None:
+def test_schema_remains_v8(tmp_path: Path) -> None:
     store = _open(tmp_path)
     try:
         from src.storage.migrations import CURRENT_SCHEMA_VERSION
-        assert store.get_schema_version() == CURRENT_SCHEMA_VERSION == 7
+        assert store.get_schema_version() == CURRENT_SCHEMA_VERSION == 8
     finally:
         store.close()
 
