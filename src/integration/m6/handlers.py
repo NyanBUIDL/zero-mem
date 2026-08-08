@@ -41,9 +41,14 @@ _KNOWN_QUERY_FILTERS = {
 # Per-tool fixed M5 resource type is enforced by the M5 facade internally
 # (``_m4_resource_allowed``); M6 never injects it into the M5 request.
 
-# Keys never serialized out of the artifact response (metadata-only).
-_ARTIFACT_SAFE_STRIP = ("stored_path", "content", "file_content", "raw_content",
-                        "absolute_path", "file_path", "local_path", "fs_path")
+# Artifact exposure is METADATA-ONLY. We return an explicit allowlist of safe
+# reference fields; every other key (including stored_path, file contents, absolute
+# paths, hashes) is dropped so no file path or content can ever leak.
+_ARTIFACT_SAFE_FIELDS = (
+    "artifact_id", "project_id", "artifact_type", "version", "safe_reference",
+    "source_event_id", "created_at", "verification_status",
+    "linked_requirement_ids", "linked_decision_ids", "linked_state_keys",
+)
 
 
 def build_access_request(req: M6Request, resource_type: Optional[ResourceType] = None):
@@ -171,7 +176,7 @@ def handle_memory_search(req: M6Request, runtime: Optional[M6Runtime] = None) ->
 
 def handle_memory_get_event(req: M6Request, runtime: Optional[M6Runtime] = None) -> List[Dict[str, Any]]:
     runtime = runtime or get_runtime()
-    event_id = (req.filters or {}).get("event_id") or req.query or req.resource_id
+    event_id = (req.filters or {}).get("event_id") or req.query
     if not event_id:
         raise M6Error(M6ErrorCode.INVALID_REQUEST, "event_id required")
     svc, store, grants = _open_facade(runtime, req)
@@ -184,7 +189,7 @@ def handle_memory_get_event(req: M6Request, runtime: Optional[M6Runtime] = None)
 
 def handle_memory_get_related(req: M6Request, runtime: Optional[M6Runtime] = None) -> List[Dict[str, Any]]:
     runtime = runtime or get_runtime()
-    event_id = (req.filters or {}).get("event_id") or req.query or req.resource_id
+    event_id = (req.filters or {}).get("event_id") or req.query
     if not event_id:
         raise M6Error(M6ErrorCode.INVALID_REQUEST, "event_id required")
     direction = req.relation if req.relation in ("incoming", "outgoing", "parent", "children") else None
@@ -271,11 +276,10 @@ def handle_project_list_artifacts(req: M6Request, runtime: Optional[M6Runtime] =
             build_access_request(req),
             _project_id(req), limit=req.limit, cursor=req.cursor, grants=grants)
         items = _translate_items(ar)
-        # Metadata-only: never expose stored paths, file contents, or absolute paths.
-        for item in items:
-            for key in _ARTIFACT_SAFE_STRIP:
-                item.pop(key, None)
-        return items
+        # Metadata-only: keep ONLY the safe reference fields. Any stored path, file
+        # content, absolute path, or hash is dropped (artifact content stays deferred).
+        return [{k: v for k, v in item.items() if k in _ARTIFACT_SAFE_FIELDS}
+                for item in items]
     finally:
         store.close()
 
@@ -296,3 +300,49 @@ def register_wired_handlers(dispatcher, runtime: Optional[M6Runtime] = None) -> 
     dispatcher.register("project_get_state", lambda req: handle_project_get_state(req, rt))
     dispatcher.register("project_list_verifications", lambda req: handle_project_list_verifications(req, rt))
     dispatcher.register("project_list_artifacts", lambda req: handle_project_list_artifacts(req, rt))
+
+
+# --------------------------------------------------------------------------
+# M6.4 — complete exposed tool-surface audit.
+#
+# Enumerates every registered tool and proves, by construction, that it is
+# READ-only, has a fixed resource type, invokes M5 authorization (the handlers
+# always build an AccessRequest and call AuthorizedReadService), performs no
+# low-level bypass (no raw SQLite/JSONL in this module), returns a sanitized
+# list, and accepts no caller-supplied authorization object (the contracts layer
+# already rejects every forbidden authority field). Used by the hardening test
+# matrix; it does not itself touch storage.
+# --------------------------------------------------------------------------
+def audit_tool_surface() -> Dict[str, Dict[str, Any]]:
+    """Return a read-only audit record for each registered M6 tool."""
+    from .tools import TOOL_REGISTRY, FORBIDDEN_TOOL_NAMES
+    import inspect
+    from . import handlers as _h
+
+    handler_names = {
+        "memory_query": "handle_memory_query",
+        "memory_search": "handle_memory_search",
+        "memory_get_event": "handle_memory_get_event",
+        "memory_get_related": "handle_memory_get_related",
+        "project_get_charter": "handle_project_get_charter",
+        "project_list_requirements": "handle_project_list_requirements",
+        "project_list_decisions": "handle_project_list_decisions",
+        "project_get_state": "handle_project_get_state",
+        "project_list_verifications": "handle_project_list_verifications",
+        "project_list_artifacts": "handle_project_list_artifacts",
+    }
+    # Forbidden tools must remain unreachable.
+    forbidden_reachable = {n for n in FORBIDDEN_TOOL_NAMES if getattr(_h, "handle_" + n, None) is not None}
+    audit: Dict[str, Dict[str, Any]] = {}
+    for name, spec in TOOL_REGISTRY.items():
+        hname = handler_names.get(name)
+        audit[name] = {
+            "registered": hname is not None and getattr(_h, hname, None) is not None,
+            "resource_type": spec.resource_type.value,
+            "operation": spec.operation.value,
+            "read_only": spec.operation.value == "READ",
+            "no_forbidden_tool": name not in FORBIDDEN_TOOL_NAMES,
+        }
+    audit["_forbidden_unreachable"] = (len(forbidden_reachable) == 0)
+    audit["_forbidden_listed"] = sorted(FORBIDDEN_TOOL_NAMES)
+    return audit

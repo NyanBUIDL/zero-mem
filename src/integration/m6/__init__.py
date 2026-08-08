@@ -27,6 +27,7 @@ from .tools import TOOL_REGISTRY, ToolSpec, get_tool, list_tool_names
 from .dispatcher import Dispatcher, dispatch, register
 from .runtime import M6Runtime, configure as _configure_runtime
 from . import handlers
+from .handlers import audit_tool_surface
 
 __all__ = [
     "M6Request",
@@ -47,6 +48,7 @@ __all__ = [
     "M6Runtime",
     "configure",
     "handlers",
+    "audit_tool_surface",
 ]
 
 

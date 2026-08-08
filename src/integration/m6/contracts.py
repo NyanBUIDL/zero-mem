@@ -41,10 +41,17 @@ class ResponseStatus(str, enum.Enum):
 
 # Fields that must NEVER be accepted as caller-supplied authority. If present,
 # the request is rejected at the contract layer and never reaches policy.
+# Fields that must NEVER be accepted as caller-supplied authority. If present,
+# the request is rejected at the contract layer and never reaches policy. This is
+# the complete M6.4 caller-privilege-injection matrix: no payload field may
+# confer identity, scope, grant, or bypass authority.
 FORBIDDEN_AUTHORITY_FIELDS = frozenset({
-    "admin", "is_admin", "trusted", "grant_admin", "grant", "verified",
-    "cross_profile_allowed", "bypass_policy", "raw_sql", "authorization",
-    "grant_object", "authorized_read_grant", "grant_rows",
+    "admin", "is_admin", "trusted", "grant_admin", "grant", "grant_valid",
+    "grant_rows", "verified", "authorized", "allowed_scope", "effective_scope",
+    "bypass_policy", "cross_profile_allowed", "raw_sql", "sql", "database",
+    "jsonl_path", "authorization", "authorized_read_grant", "grant_object",
+    "requesting_authority", "session_authority", "policy_override",
+    "assume_identity", "identity", "auth", "token", "credential",
 })
 
 # Fields that map to explicit, non-inferred identity/scope transport.
@@ -59,6 +66,10 @@ _KNOWN_FIELDS = frozenset({
 MAX_LIMIT = 500
 MAX_SEARCH_LENGTH = 4000
 MAX_PAYLOAD_FIELDS = 64
+MAX_LIST_ITEMS = 64          # per id-list field (profiles/projects/spaces)
+MAX_CURSOR_LENGTH = 4096     # opaque cursor bound
+MAX_QUERY_LENGTH = 4000      # structured query bound
+_ALLOWED_RELATIONS = frozenset({"incoming", "outgoing", "parent", "children"})
 
 
 class ContractError(ValueError):
@@ -157,6 +168,8 @@ def _as_str_list(value: Any, field_name: str) -> Optional[List[str]]:
         return None
     if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
         raise ContractError(f"{field_name} must be a list of strings")
+    if len(value) > MAX_LIST_ITEMS:
+        raise ContractError(f"{field_name} exceeds {MAX_LIST_ITEMS} items")
     # de-duplicate + order for determinism; never infer.
     return list(dict.fromkeys(value))
 
@@ -215,16 +228,27 @@ def validate_request(raw: Dict[str, Any]) -> M6Request:
             raise ContractError("search_text invalid or too long")
 
     query = raw.get("query")
-    if query is not None and not isinstance(query, str):
-        raise ContractError("query must be a string")
+    if query is not None:
+        if not isinstance(query, str) or len(query) > MAX_QUERY_LENGTH:
+            raise ContractError("query must be a string within bounds")
+
+    relation = raw.get("relation")
+    if relation is not None:
+        if not isinstance(relation, str) or relation not in _ALLOWED_RELATIONS:
+            raise ContractError("relation must be one of: " + ", ".join(sorted(_ALLOWED_RELATIONS)))
+
+    include_global = raw.get("include_global")
+    if include_global is not None and include_global not in (True, False):
+        raise ContractError("include_global must be a boolean")
 
     relation = raw.get("relation")
     if relation is not None and not isinstance(relation, str):
         raise ContractError("relation must be a string")
 
     cursor = raw.get("cursor")
-    if cursor is not None and not isinstance(cursor, str):
-        raise ContractError("cursor must be a string")
+    if cursor is not None:
+        if not isinstance(cursor, str) or len(cursor) > MAX_CURSOR_LENGTH:
+            raise ContractError("cursor must be a string within bounds")
 
     if raw.get("isolated_mode") not in (None, True, False):
         raise ContractError("isolated_mode must be a boolean")
@@ -238,6 +262,13 @@ def validate_request(raw: Dict[str, Any]) -> M6Request:
     session_id = raw.get("session_id")
     if session_id is not None and not isinstance(session_id, str):
         raise ContractError("session_id must be a string")
+
+    rpid = raw.get("requesting_profile_id")
+    if rpid is not None and not isinstance(rpid, str):
+        raise ContractError("requesting_profile_id must be a string")
+    tpid = raw.get("target_profile_ids")
+    if tpid is not None and not isinstance(tpid, (list, str)):
+        raise ContractError("target_profile_ids must be a list of strings")
 
     return M6Request(
         tool=tool,
