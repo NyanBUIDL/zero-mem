@@ -1,9 +1,7 @@
-"""M5.1 — Profile/project/knowledge-space access policy (contracts + base rules).
+"""M5.1/M5.2 — Profile/project/knowledge-space access policy.
 
-This package is contracts-only for M5.1: typed ``AccessRequest`` / ``AllowedScope``
-/ ``AccessDecision`` plus a deterministic ``evaluate`` implementing the base
-precedence. It does NOT integrate with M3/M4 retrieval, does NOT implement
-persistent grants, does NOT create schema v8, and does NOT write audit events.
+Contracts + base rules (M5.1) and the authorized-read facade over M3/M4 (M5.2).
+No grants, no schema v8, no audit persistence, no WRITE integration.
 """
 
 from .contracts import (
@@ -11,8 +9,10 @@ from .contracts import (
     AccessRequest, AllowedScope, AccessDecision,
 )
 from .policy import evaluate
+from .authorized_read import AuthorizedReadService, AuthorizedResult
 
 __all__ = [
     "READ", "WRITE", "Operation", "ReasonCode",
     "AccessRequest", "AllowedScope", "AccessDecision", "evaluate",
+    "AuthorizedReadService", "AuthorizedResult",
 ]
