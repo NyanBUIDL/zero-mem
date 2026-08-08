@@ -1,6 +1,6 @@
 # M5 — Profile, project, knowledge-space access policy and isolation
 
-**Plan status:** DRAFT — READY FOR APPROVAL (not yet implemented)
+**Plan status:** APPROVED — READY FOR IMPLEMENTATION (grant-admin authority resolved via trusted control plane; M5.4 may proceed)
 **Authority:** `Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx` (master spec); `AGENTS.md`, `IDEA.md`, `ARCHITECTURE.md` (derived).
 **Reconciled starting state:** M0–M4 all VERIFIED; HEAD `9153372`; schema v7; working tree clean; next incomplete milestone = M5; M5 not started; final canonical 860 passed, 3 skipped, 0 failed.
 **Deliverable:** This plan only. No product code, tests, `project-state.yaml`, `implementation-plan.json`, or M0–M4 evidence are modified by this document.
@@ -364,6 +364,116 @@ nothing — replay of canonical grant events reproduces it.
 
 ---
 
+### 11.6 Grant-administration authority — trusted control plane (M5.4 plan correction)
+
+Grant administration is a **distinct trusted control-plane operation**, separated
+from ordinary memory READ/WRITE policy. The authority to create / revoke /
+supersede canonical `access_grant` events is NOT derived from any ordinary
+memory permission.
+
+**Two separate entry surfaces (conceptual):**
+
+- **NORMAL POLICY SURFACE** (`AccessRequest`): READ / WRITE authorization only.
+  It **cannot** administer grants. A normal `AccessRequest` is structurally unable
+  to reach the grant-admin path.
+- **TRUSTED GRANT-ADMIN SURFACE**: a trusted local/operator control-plane
+  entrypoint. It validates a structured `GrantAdminRequest`, appends the canonical
+  `access_grant` event, and updates the derived projection. This surface is NOT
+  reachable by passing fields inside a normal `AccessRequest`.
+
+**No bootstrap grant recursion.** M5 does NOT introduce:
+
+- a `grant_admin` role;
+- a `grant_admin` access grant;
+- any recursive "grant allowing creation of grants";
+- profile-owner / project-owner inference for grant authority.
+
+Grant administration uses a trusted control-plane boundary, not another grant
+type. This avoids the bootstrap question of who grants the first
+grant-administration grant.
+
+**These caller-controlled inputs MUST NOT confer authority** (no privilege
+escalation):
+
+- `is_admin=true`
+- `trusted=true`
+- `grant_admin=true`
+- `allow_grant_creation=true`
+- `verified=true`
+
+or any equivalent caller-controlled boolean. Authority comes from *entering
+through the trusted control-plane API boundary*, never from request-payload
+claims.
+
+**`GrantAdminRequest` contract (separate typed request for the trusted path):**
+
+```
+GrantAdminRequest:
+  action:           CREATE | REVOKE | SUPERSEDE
+  grant_id:         str                      # stable explicit identity
+  subject_profile:  str
+  operation:        "READ" | "WRITE"
+  target_type:      "profile" | "project" | "knowledge_space" | "global"
+  target_id:        str
+  resource_types:   list[str] | None
+  verification_ref: str | None               # required for WRITE CREATE
+  supersedes:       str | None               # required for SUPERSEDE
+  provenance / source event fields
+```
+
+No caller-controlled `trusted` / `admin` boolean is part of the contract.
+
+**Authority rules:**
+
+- **CREATE** (trusted control plane only): may append a canonical structured
+  `access_grant` event only after contract validation, stable explicit `grant_id`,
+  valid operation, valid target, valid resource types, lifecycle/domain-state
+  validation, and (for WRITE) the §11.3 verification predicate. Grant creation does
+  NOT require the target subject to already possess grant-administration authority
+  — the trust comes from the control-plane entrypoint.
+- **REVOKE** (trusted control plane only): only the grant-admin entrypoint may
+  create a canonical revoke event. Normal READ/WRITE requests cannot revoke grants.
+  Revocation remains `state = "revoked"`, never `lifecycle_status = "revoked"`.
+  Canonical history is preserved (no physical deletion).
+- **SUPERSEDE** (trusted control plane only): requires an existing source grant,
+  an explicit replacement, no self-supersession, and no invalid cycle; the
+  projection update is atomic. Normal resource WRITE permission cannot supersede
+  grants.
+
+**No privilege inheritance from WRITE.** A valid WRITE grant does NOT imply
+grant-administration authority. A same-profile WRITE does NOT imply it. Project
+ownership/membership does NOT imply it. Cross-profile permissions do NOT imply it.
+
+**Authentication boundary (trust-boundary assumption).** M5 does NOT implement
+authentication. Therefore M5 does NOT cryptographically prove the human/operator
+identity. The contract is: the hosting/control-plane layer decides *who* may
+invoke the trusted grant-administration entrypoint; M5 guarantees that ordinary
+agent policy paths cannot reach that entrypoint. Recorded explicitly as a
+trust-boundary assumption. Future authentication/identity hardening may strengthen
+this boundary without changing grant semantics.
+
+**Canonical authority.** The trusted control-plane operation appends a canonical
+JSONL `access_grant` event; SQLite remains only the derived `zm_access_grants`
+projection. Control-plane configuration and SQLite are NOT canonical.
+
+**Audit.** A trusted grant-administration action should produce safe audit
+provenance per the §15 audit plan (canonical `policy_decision` event where
+applicable). Do not log secrets, raw payloads, or unrestricted paths. Do not
+require every ordinary memory READ to mutate its read store.
+
+**Required security properties (must be guaranteed by the corrected plan):**
+
+1. normal `AccessRequest` cannot create a grant;
+2. normal `AccessRequest` cannot revoke a grant;
+3. normal `AccessRequest` cannot supersede a grant;
+4. same-profile WRITE cannot administer grants;
+5. a valid WRITE grant cannot administer grants;
+6. a cross-profile WRITE grant cannot administer grants;
+7. a caller-controlled admin/trusted boolean cannot escalate privileges;
+8. relations cannot confer grant-admin authority;
+9. project membership cannot confer grant-admin authority;
+10. the trusted control-plane path is separate from the normal policy path.
+
 ## 12. Write-time canonical behavior
 
 - Unauthorized write → **deny before canonical mutation**. No successful domain event appended.
@@ -616,3 +726,52 @@ All 18 required M5 plan decisions (§"Required M5 plan decisions" in directive) 
 ## 21. State/commit protocol (for future implementation)
 
 plan → review → plan commit → smallest increment → focused tests → compatibility tests → canonical suite → acceptance evidence → state binding → clean commit → next increment. Do not combine unverified M5 increments. Final M5 acceptance requires 0 failed canonical suite; do not weaken environmental-isolation tests.
+
+## 22. Grant-administration authority decision (M5.4 plan correction — APPROVED)
+
+This section records the approved architecture decision that resolves the M5.4
+plan gap "authority to create canonical access_grant events is undefined".
+
+**Decision.** Canonical `access_grant` administration (create / revoke /
+supersede) is a trusted control-plane operation, separated from ordinary
+`AccessRequest` READ/WRITE policy. Only an explicit trusted local/operator
+control-plane entrypoint may perform those operations. Ordinary agent/user
+`AccessRequest` flows can NEVER reach them. The authority predicate is:
+
+> authority(grant_admin_action) == True  IFF  the call enters through the
+> trusted control-plane `GrantAdminRequest` boundary (validated contract).
+> Otherwise authority == False, regardless of any caller-supplied claim.
+
+No `grant_admin` role, no `grant_admin` access grant, no recursive grant-permitting
+grant, and no profile/project-owner inference. This prevents bootstrap recursion.
+
+**Trust-boundary assumption (explicit).** M5 does not implement authentication.
+The hosting/control-plane layer is responsible for deciding *who* may invoke the
+trusted grant-admin entrypoint. M5 guarantees ordinary agent policy paths cannot
+reach it. Future auth/identity hardening strengthens the boundary without changing
+grant semantics.
+
+**Schema impact.** No new table beyond the already-approved v8
+(`zm_access_grants`, `zm_policy_audit`). No admin table, role table, or bootstrap
+grant table. Schema target remains **v8**.
+
+**Acceptance tests to add to the M5.4 matrix (plan level):**
+
+- normal caller CREATE grant -> denied/unreachable;
+- normal caller REVOKE grant -> denied/unreachable;
+- normal caller SUPERSEDE grant -> denied/unreachable;
+- WRITE-authorized caller still cannot CREATE grant;
+- WRITE-authorized caller still cannot REVOKE grant;
+- WRITE-authorized caller still cannot SUPERSEDE grant;
+- `is_admin=true` cannot escalate;
+- `trusted=true` cannot escalate;
+- trusted `GrantAdminRequest` CREATE succeeds;
+- trusted `GrantAdminRequest` REVOKE succeeds;
+- trusted `GrantAdminRequest` SUPERSEDE succeeds;
+- malformed trusted request fails before canonical append;
+- failed grant-admin operation leaves no partial canonical/derived state;
+- canonical event projection remains deterministic;
+- grant history remains append-only.
+
+Plan status updated: **APPROVED — READY FOR M5.4 IMPLEMENTATION** (grant-admin
+gap resolved via trusted control-plane authority).
