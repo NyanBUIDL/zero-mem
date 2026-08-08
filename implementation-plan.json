@@ -3,7 +3,7 @@
   "authority": "Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx",
   "status": "in_progress",
   "current_milestone_status": "m6_in_progress",
-  "current_milestone_verification": "acceptance-m6.1.md",
+  "current_milestone_verification": "verified",
   "next_incomplete_milestone": "M6.2",
   "next_milestone_status": "not_started",
   "scope": "External Zero-Mem sidecar for Hermes Agent; local-first, observation-only before controlled injection",
@@ -1510,7 +1510,7 @@
         "no deep Hermes-core modification"
       ],
       "status": "in_progress",
-      "current_increment": "increment_1",
+      "current_increment": "M6.2",
       "increment_1": {
         "name": "Integration contracts and read-only transport/tool surface",
         "status": "verified",
@@ -1548,6 +1548,18 @@
           "ad_hoc_result": "21/21 PASS",
           "schema_version": 8,
           "evidence": "acceptance-m6.1.md"
+        },
+        {
+          "id": "M6.2",
+          "title": "M3 authorized memory read tools",
+          "status": "verified",
+          "evidence": "acceptance-m6.2.md",
+          "tools": [
+            "memory_query",
+            "memory_search",
+            "memory_get_event",
+            "memory_get_related"
+          ]
         }
       ]
     },
@@ -1685,5 +1697,8 @@
       "resolution_needed": "Select the third profile after general-assistant and developer"
     }
   ],
-  "approval_gate": "No milestone implementation, system-wide installation, destructive operation, full corpus ingestion, automatic injection, or deep Hermes-core change before user approval and resolution/acceptance of open questions."
+  "approval_gate": "No milestone implementation, system-wide installation, destructive operation, full corpus ingestion, automatic injection, or deep Hermes-core change before user approval and resolution/acceptance of open questions.",
+  "verified_milestones": [
+    "M6.1"
+  ]
 }
