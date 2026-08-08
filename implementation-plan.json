@@ -530,6 +530,28 @@
           "model": "explicit typed operation envelope (StateOp); projector consumes only explicitly-structured operations; never infers from prose/LLM/timestamp/trace_id; state_key explicit; scope defaults to project:<id> when state_key present",
           "scope": ["project_state(conn, op) create/update/supersede/transition/delete", "state_key explicit logical slot; trace_id never used as state_key; NULL-key record preserved, no uniqueness", "scope defaults to project:<project_id> only when state_key present", "active value selected by lifecycle_status, never timestamp", "update/supersede inserts a new row and marks prior active row 'superseded' (history preserved)", "bare create on an existing active key with differing content -> sanitized ConflictError (existing retained, no silent overwrite); update/supersede explicitly retire prior", "active uniqueness via v7 partial unique index (one active per project/scope/non-NULL state_key); multiple active NULL-key allowed", "explicit conflicted (non-active) row coexists with active (no winner); both sources + provenance retained; no auto-mutation of other records", "idempotence content-based (logical fields only, ignores timestamp); re-projection omitting created_at still noop", "assistant_claim-derived op cannot set lifecycle_status=active (promotion guard)", "lifecycle_status closed enum; no hidden promotion", "transactional atomicity; rollback on error; sanitized errors (no raw SQL/payload/secret)", "provenance retained (source_event_id, trace_id, session_id, project_id, profile_id, effective_at)", "schema remains v7 (no migration v8); JSONL canonical and untouched; no real ~/.hermes writes; no LLM/network"],
           "excluded_scope": ["Verification projector (M4.5)", "Artifact Registry behavior (M4.6)", "M4 read API layer (M4.6)", "M4.7 rebuild API", "M5 authorization/profile policy", "LLM/semantic-key derivation", "invention of state event types not present in canonical envelope", "modification of VERIFIED migrate_7 / migration v8"]
+        },
+        "increment_5": {
+          "name": "Verification Records + Project Artifact integration",
+          "status": "verified",
+          "plan": ".hermes/plans/2026-08-07_000004-m4-project-memory-plan.md",
+          "plan_commit": "6ee6510",
+          "evidence": "acceptance-m4.5.md",
+          "focused_test": "tests/unit/test_m4_verification_artifact.py",
+          "focused_result": "49 passed",
+          "combined_result": "194 passed (M4.1 32 + M4.2 38 + M4.3 40 + M4.4 35 + M4.5 49)",
+          "m2_compat_result": "168 passed, 3 skipped",
+          "m3_compat_result": "283 passed",
+          "canonical_result": "811 passed, 3 skipped",
+          "starting_commit": "0478e7c39a4dcf97a1832a234eeef141664eee27",
+          "implementation_commit": "1b9ddabdef42e81be0bd60df56ca2e171b98241c",
+          "tested_commit": "1b9ddabdef42e81be0bd60df56ca2e171b98241c",
+          "evidence_commit": "<TBD>",
+          "schema_version": 7,
+          "sqlite_access": "write/project path (projector); separate from M3 TRUE READ-ONLY; no ensure_schema; no JSONL mutation",
+          "model": "explicit typed operation envelopes (VerificationOp / ArtifactOp); projector consumes only explicitly-structured operations; never infers verification/identity/subject from prose/LLM/timestamp/trace_id; verification_id/artifact_id explicit; trace_id never used as identity",
+          "scope": ["project_verification(conn, op) create/idempotent update", "verification_id explicit stable identity; trace_id never used as identity; missing identity not invented", "subject_type closed vocabulary (requirement/decision/state/artifact/task/implementation/milestone); project_state rejected; subject never inferred", "verification_status reuses approved VerificationStatus enum (NO new enum); separate from lifecycle_status (no such column on zm_verifications)", "verification does NOT mutate the referenced requirement/decision/state/charter/artifact; no auto-promotion of unrelated claims", "contradictory verifications both preserved; no winner; no timestamp truth; no LLM", "safe references only (command_ref/observed_result/artifact_references); raw output/absolute path/secret rejected", "project_artifact(conn, op) link to existing M2 zm_artifacts (FK enforced)", "missing M2 artifact rolls back (no fake artifact, no partial link)", "metadata/linkage only (NO content duplication); explicit linked_requirement/decision/state keys only", "safe_reference enforced (absolute path/traversal/secret rejected)", "idempotent (repeated same event = noop); atomic transaction; sanitized errors", "classify_event_for_m4 gains VERIFICATION + PROJECT_ARTIFACT; generic -> SKIP", "schema remains v7 (no migration v8); JSONL canonical and untouched; no real ~/.hermes writes; no LLM/network"],
+          "excluded_scope": ["Artifact Registry behavior (M4.6)", "M4 read API layer (M4.6)", "M4.7 rebuild API", "M5 authorization/profile policy", "LLM/semantic-key derivation", "invention of verification/artifact event types not present in canonical envelope", "modification of VERIFIED migrate_7 / migration v8"]
         }
       }
     },
