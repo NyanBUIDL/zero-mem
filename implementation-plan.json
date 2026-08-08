@@ -3,8 +3,8 @@
   "authority": "Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx",
   "status": "in_progress",
   "current_milestone_status": "m5_in_progress",
-  "current_milestone_verification": "acceptance-m5.4.md",
-  "next_incomplete_milestone": "M5.5",
+  "current_milestone_verification": "acceptance-m5.5.md",
+  "next_incomplete_milestone": "M5.6",
   "next_milestone_status": "not_started",
   "scope": "External Zero-Mem sidecar for Hermes Agent; local-first, observation-only before controlled injection",
   "principles": [
@@ -1304,10 +1304,10 @@
         "priority and privacy tests pass",
         "cross-profile writes denied without authorization"
       ],
-      "status": "m5_4_verified",
+      "status": "m5_5_verified",
       "plan": ".hermes/plans/2026-08-08_000001-m5-access-policy-plan.md",
       "plan_commit": "4d68316894e04b3db0fc433d627ed98b595232b9",
-      "current_increment": "increment_3",
+      "current_increment": "increment_5",
       "increment_1": {
         "name": "Policy contracts and authoritative access matrix",
         "status": "verified",
@@ -1387,8 +1387,74 @@
           "ad_hoc_result": "23/23 PASS",
           "schema_version": 8,
           "evidence": "acceptance-m5.4.md"
+        },
+        {
+          "id": "M5.5",
+          "name": "Authorization integration and linked-resource boundary hardening",
+          "status": "verified",
+          "start_commit": "4a1b6c5e7d3a2f1c0b9a8d7e6f5c4b3a2d1e0f9",
+          "impl_commit": "a0919140af4dabb9cafa4d551be315af0846d3c7",
+          "tested_commit": "a0919140af4dabb9cafa4d551be315af0846d3c7",
+          "focused_result": "35 passed",
+          "combined_m5_result": "228 passed (M5.1 50 + M5.2 35 + M5.3 38 + M5.4 70 + M5.5 35)",
+          "canonical_result": "1088 passed, 3 skipped, 0 failed (clean isolated HOME)",
+          "ad_hoc_result": "23/23 PASS",
+          "schema_version": 8,
+          "evidence": "acceptance-m5.5.md"
         }
-      ]
+      ],
+      "increment_4": {
+        "name": "WRITE authorization, persistent access grants, migration v8",
+        "status": "verified",
+        "evidence": "acceptance-m5.4.md",
+        "focused_test": "tests/unit/test_m5_grants.py",
+        "focused_result": "70 passed",
+        "combined_result": "193 passed (M5.1 50 + M5.2 35 + M5.3 38 + M5.4 70)",
+        "canonical_result": "1053 passed, 3 skipped, 0 failed (clean isolated HOME)",
+        "ad_hoc_result": "23/23 PASS",
+        "schema_version": 8,
+        "plan_correction_commit": "e4f559cfe9d21edb9d81eb3e3c4025ad24df4ae7",
+        "start_commit": "4a1b6c5e7d3a2f1c0b9a8d7e6f5c4b3a2d1e0f9",
+        "implementation_commit": "9cbdeda97a5d6b222fcbbd5113bde7b672505a9c",
+        "tested_commit": "9cbdeda97a5d6b222fcbbd5113bde7b672505a9c",
+        "scope": "Trusted control-plane GrantAdminService (CREATE/REVOKE/SUPERSEDE) + deterministic grant resolver (zm_access_grants) feeding M5.3 compose_effective_scope; authorization-before-mutation WRITE (authorize_then_write); zm_policy_audit projector (DENY/grant-using only).",
+        "boundaries": "NO grant_admin role/grant; NO caller-controlled authority flags; NO bootstrap recursion; SQLite zm_access_grants DERIVED (rebuildable); JSONL canonical append-only; NO LLM/network; revocation via state='revoked' (never lifecycle_status).",
+        "files": [
+          "src/storage/migrations/migrate_8.py",
+          "src/storage/migrations/__init__.py",
+          "src/access/grant_events.py",
+          "src/access/admin.py",
+          "src/access/resolver.py",
+          "src/access/authorized_write.py",
+          "src/access/authorized_read.py",
+          "src/access/contracts.py",
+          "src/access/audit.py",
+          "src/storage/ingest.py",
+          "tests/unit/test_m5_grants.py"
+        ]
+      },
+      "increment_5": {
+        "name": "Authorization integration and linked-resource boundary hardening",
+        "status": "verified",
+        "evidence": "acceptance-m5.5.md",
+        "focused_test": "tests/unit/test_m5_linked.py",
+        "focused_result": "35 passed",
+        "combined_result": "228 passed (M5.1 50 + M5.2 35 + M5.3 38 + M5.4 70 + M5.5 35)",
+        "canonical_result": "1088 passed, 3 skipped, 0 failed (clean isolated HOME)",
+        "ad_hoc_result": "23/23 PASS",
+        "schema_version": 8,
+        "start_commit": "4a1b6c5e7d3a2f1c0b9a8d7e6f5c4b3a2d1e0f9",
+        "implementation_commit": "a0919140af4dabb9cafa4d551be315af0846d3c7",
+        "tested_commit": "a0919140af4dabb9cafa4d551be315af0846d3c7",
+        "scope": "M5.5 linked-resource authorization boundary: every linked lookup (relation traversal, parent/child, source_event, supersession, verification/artifact links) independently scope-checked; AUTHORIZED SOURCE does NOT imply AUTHORIZED TARGET; linked WRITE requires independent exact WRITE authorization; GrantAdminService remains unreachable from normal policy path.",
+        "boundaries": "NO M5.6 (final rebuild); NO M6; schema remains v8 (no migration v9); NO redesign of M3/M4; NO canonical JSONL mutation; TRUE READ-ONLY preserved (mode=ro + query_only); synthetic secrets never leak; fail-closed on out-of-scope linked targets.",
+        "files": [
+          "src/access/linked.py",
+          "src/access/authorized_read.py",
+          "src/access/authorized_write.py",
+          "tests/unit/test_m5_linked.py"
+        ]
+      }
     },
     {
       "id": "M6",
