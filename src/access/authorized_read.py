@@ -281,15 +281,16 @@ class AuthorizedReadService:
             return self._denied(decision)
         scope = decision.normalized_scope
         from src.retrieval.models import QueryRequest
-        # SQL-level restriction: when scoped, pin to the requester; under global the
-        # SQL is broader but the defensive post-validation below keeps only
-        # NULL-profile (global/default) and requester-owned hits.
-        if scope.allowed_profile_ids and not scope.global_read_allowed:
+        # SQL-level restriction: pin to the explicit allowed profile(s) when present
+        # (secure + allows the authorized same-profile search to succeed); under
+        # global with no explicit profile, the SQL is broader but the defensive
+        # post-validation keeps only NULL-profile (global/default) and requester hits.
+        if scope.allowed_profile_ids:
             eff_profile = scope.allowed_profile_ids[0]
         elif self._requester is not None and not scope.global_read_allowed:
             eff_profile = self._requester
         else:
-            eff_profile = profile_filter  # global: rely on post-validation
+            eff_profile = profile_filter  # global + no explicit profile: rely on post-validation
         eff_project = project_filter if project_filter is not None else (
             request.project_ids[0] if request.project_ids else None)
         req = QueryRequest(
