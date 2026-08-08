@@ -304,13 +304,14 @@ def test_unbound_global_read_includes_global(tmp_path: Path):
 # Knowledge space (M5.2 keeps spaces explicit; facade does not broaden)
 # ---------------------------------------------------------------------------
 def test_knowledge_space_does_not_expand_profile():
-    # scope translation must not infer profiles from spaces; a space-only scope maps
-    # to own-profile (fail closed), never cross-profile.
+    # scope translation must not infer profiles from spaces; a space-only scope must
+    # NOT expand to any cross-profile id (fail closed on profile inference).
     scope = AllowedScope(operation="READ", allowed_knowledge_space_ids=["K"])
     clause, params = _profile_predicate(scope, requester="PR1")
-    # own profile only, no cross-profile id
+    # Space membership alone carries no profile predicate; crucially it must never
+    # infer/expand to a cross-profile id such as PR2.
     assert "PR2" not in params
-    assert "PR1" in params or clause == "(zm_meta.profile_id = ? OR zm_meta.profile_id IS NULL)"
+    assert clause is None
 
 
 def test_profile_does_not_expand_spaces():

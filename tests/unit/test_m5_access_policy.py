@@ -278,11 +278,15 @@ def test_isolated_mode_blocks_project_expansion():
 
 
 def test_isolated_mode_blocks_knowledge_space_expansion():
+    # M5.3 authoritative isolated-mode semantics: a knowledge space selected under
+    # isolation WITHOUT an explicit profile scope cannot be resolved to authorized
+    # profiles, so it is a scope escape (fail closed). This is the corrected
+    # behavior; the test name reflects the intent (expansion is blocked).
     d = evaluate(_req(operation=READ, requesting_profile_id="A",
                       knowledge_space_ids=["K"], isolated_mode=True))
-    assert d.allow is True  # explicit local space, no global
-    assert "K" in d.normalized_scope.allowed_knowledge_space_ids
-    assert d.normalized_scope.global_read_allowed is False
+    assert d.allow is False
+    assert d.reason_code == "DENY_ISOLATED_SCOPE_ESCAPE"
+    assert "K" in d.denied_scopes
 
 
 # ---------------------------------------------------------------------------

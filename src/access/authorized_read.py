@@ -1,24 +1,35 @@
-"""M5.2 — authorized-read facade over the VERIFIED M3/M4 read surfaces.
+"""M5.2/M5.3 — authorized-read facade over the VERIFIED M3/M4 read surfaces.
 
-This module integrates the M5.1 policy boundary with existing read-only retrieval.
-It does NOT implement grants, schema v8, audit persistence, or WRITE authorization.
+Integrates the M5.1 policy boundary and M5.3 explicit cross-profile READ
+composition with existing read-only retrieval. It does NOT implement grants,
+schema v8, audit persistence, or WRITE authorization.
 
 Flow (authorization-before-retrieval):
     AccessRequest
-      -> M5.1 evaluate()        -> AccessDecision
-      -> ALLOW: translate AllowedScope -> restrictive query filters
-                 -> invoke LOW-LEVEL M3/M4 read API (store stays read-only)
-                 -> DEFENSIVE post-validation: drop any record outside AllowedScope
+      -> compose_effective_scope()  -> EffectiveReadScope
+      -> ALLOW: decompose into restrictive per-scope queries (base + per grant)
+                -> invoke LOW-LEVEL M3/M4 read API (store stays read-only)
+                -> DEFENSIVE post-validation: drop any record outside any scope
       -> DENY:  return typed denial WITHOUT invoking any low-level query
 
 The low-level backend is invoked only on ALLOW. Reads are TRUE READ-ONLY
 (mode=ro + query_only); the facade never opens a writer/projector, never runs a
 migration, never appends canonical events.
 
-Global/default representation: in this substrate, a "global/default" record is one
-with a NULL profile_id (unowned/default space). Global read for a bound caller
-combines the requester's OWN profile with NULL-profile records. It NEVER exposes
-another profile's records (cross-profile stays denied; see _scope_allows).
+Global/default representation: a "global/default" record is one with a NULL
+profile_id (unowned/default space). Global read for a bound caller combines the
+requester's OWN profile with NULL-profile records; it NEVER exposes another
+profile's records unless an explicit grant authorizes that profile/project.
+
+Decomposition: an EffectiveReadScope is a ``base`` AllowedScope (profile+project
+AND-restrictive, per M5.1) plus zero or more per-grant atomic scopes. Each grant
+scope is independently restrictive:
+  - profile grant  -> profile_id IN (target)
+  - project grant  -> project_id IN (target), profile UNRESTRICTED (a project read
+                      grant authorizes reading that project across profiles)
+  - space grant     -> knowledge_space IN (target)
+Results from each restrictive query are merged and de-duplicated; post-validation
+guarantees no record outside any authorized scope survives.
 """
 
 from __future__ import annotations
@@ -29,13 +40,18 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from .contracts import (
     AccessDecision, AccessRequest, AllowedScope, READ, ReasonCode,
 )
+from .grants import AuthorizedReadGrant, EffectiveReadScope, compose_effective_scope
 from .policy import evaluate
 
 from src.retrieval.models import QueryError
-from src.retrieval.query import query_events, get_event, get_trace, _build_where, _row_to_view
+from src.retrieval.query import query_events, get_event, get_trace, _build_where, _row_to_view, _validate_limit
 from src.retrieval.search import search_text
+from src.retrieval.cursor import make_fingerprint, encode_cursor, validate_cursor_binding, DEFAULT_LIMIT, MAX_LIMIT
 from src.storage.ingest import ZM_META_COLUMNS
 from src.project_memory import reader as m4
+
+
+_validate_limit_safe = _validate_limit
 
 
 # ---------------------------------------------------------------------------
@@ -56,7 +72,7 @@ class AuthorizedResult:
     items: List[Any] = field(default_factory=list)
     query: Dict[str, Any] = field(default_factory=dict)
     error: Optional[str] = None          # sanitized downstream error (distinct from DENY)
-    decision: Optional[AccessDecision] = None
+    decision: Optional[Any] = None
     next_cursor: Optional[str] = None
 
     @property
@@ -81,10 +97,11 @@ def _profile_predicate(scope: AllowedScope,
       never another profile)
     - unbound + global: 'zm_meta.profile_id IS NULL' only
     - implicit local (no global, no explicit profile): own profile only
-    - fail-closed fallback: '1=0'
+    - project/space-only grant scope: None (profile UNRESTRICTED; project/space
+      clause enforces the boundary)
 
-    Returns (clause_or_None, params). None means the low-level API already
-    enforces scope via profile_id equality; the clause is AND-ed otherwise.
+    Returns (clause_or_None, params). None means no profile restriction is applied
+    (caller relies on the project/space clause).
     """
     profiles = list(scope.allowed_profile_ids)
     if scope.global_read_allowed:
@@ -94,14 +111,19 @@ def _profile_predicate(scope: AllowedScope,
                 ph = ",".join("?" * len(combined))
                 return (f"(zm_meta.profile_id IN ({ph}) OR zm_meta.profile_id IS NULL)", combined)
             return ("(zm_meta.profile_id = ? OR zm_meta.profile_id IS NULL)", [requester])
-        # unbound + global => global/default (NULL profile) only
         return ("zm_meta.profile_id IS NULL", [])
     if profiles:
         ph = ",".join("?" * len(profiles))
         return (f"zm_meta.profile_id IN ({ph})", profiles)
+    # Project/space grant scope: profile is intentionally unrestricted; the
+    # project/space clause (below) enforces the authorized boundary.
+    if scope.allowed_project_ids or scope.allowed_knowledge_space_ids:
+        return (None, [])
+    # Implicit-local base scope (no explicit profile, no grant): restrict to the
+    # requester's own profile only (M5.2 semantics restored).
     if requester is not None:
         return ("zm_meta.profile_id = ?", [requester])
-    return ("1=0", [])
+    return (None, [])
 
 
 def _project_predicate(scope: AllowedScope) -> Tuple[Optional[str], List[str]]:
@@ -113,30 +135,46 @@ def _project_predicate(scope: AllowedScope) -> Tuple[Optional[str], List[str]]:
 
 def _scope_allows(scope: AllowedScope, requester: Optional[str],
                   profile_id: Optional[str], project_id: Optional[str]) -> bool:
-    """Defensive post-validation: is (profile_id, project_id) inside AllowedScope?
+    """Defensive post-validation: is (profile_id, project_id) inside this scope?
 
-    The requesting profile always owns its own data (implicit-local / global both
-    include the requester's profile). Global read additionally permits NULL-profile
-    (unowned/default) records. Cross-profile records are ALWAYS denied.
+    - global read permits NULL-profile (unowned/default) records.
+    - profile-grant / base scope: profile membership is REQUIRED (and project, when
+      scoped, is AND-restrictive). A same-profile request for project P must NOT
+      expose another profile's rows in P.
+    - project/space grant scope (no profile restriction): project/space membership
+      alone authorizes the row across profiles (a project read grant authorizes
+      reading that project regardless of which profile owns the row).
+    - cross-profile rows without an explicit grant => DENIED.
     """
+    # Project/space grant scopes are profile-unrestricted; the project/space clause
+    # enforces the boundary. For base / profile-grant / implicit-local scopes, fold
+    # the requester into the allowed set so the requester's OWN data is authorized.
+    is_grant_scope = bool(scope.allowed_project_ids) or bool(scope.allowed_knowledge_space_ids)
     allowed_profiles = set(scope.allowed_profile_ids)
-    if requester is not None:
+    if not is_grant_scope and requester is not None:
         allowed_profiles.add(requester)
-    if scope.global_read_allowed:
+    profile_restricted = (bool(allowed_profiles) or scope.global_read_allowed)
+
+    if scope.global_read_allowed and profile_id is None:
         proj_ok = (project_id in scope.allowed_project_ids) if scope.allowed_project_ids else True
-        if profile_id is None:
-            return proj_ok                       # global/default unowned record
-        if profile_id in allowed_profiles:
-            return proj_ok                       # requester's own profile
-        return False                            # cross-profile: DENIED even under global
-    if profile_id is None:
-        return False
-    if profile_id not in allowed_profiles:
-        return False
-    if scope.allowed_project_ids:
-        if project_id is None or project_id not in scope.allowed_project_ids:
+        return proj_ok
+
+    if profile_restricted:
+        # Profile membership required; project, when scoped, is AND-restrictive.
+        if profile_id not in allowed_profiles:
             return False
-    return True
+        if scope.allowed_project_ids:
+            return project_id in scope.allowed_project_ids
+        return True
+
+    # Grant scope with no profile restriction (project/space grant): membership suffices.
+    if scope.allowed_project_ids and project_id in scope.allowed_project_ids:
+        return True
+    if scope.allowed_knowledge_space_ids:
+        # knowledge-space is not a zm_meta column in this substrate; a space grant
+        # cannot be validated against row data, so it is non-authorizing here.
+        return False
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -144,40 +182,59 @@ def _scope_allows(scope: AllowedScope, requester: Optional[str],
 # ---------------------------------------------------------------------------
 
 class AuthorizedReadService:
-    """Gates M3/M4 reads behind the M5.1 policy. Store is used read-only."""
+    """Gates M3/M4 reads behind the M5.1/M5.3 policy. Store is used read-only."""
 
     def __init__(self, store, requesting_profile_id: Optional[str]) -> None:
         self._store = store
         self._requester = requesting_profile_id
 
     # -- policy gate --------------------------------------------------------
-    def _gate(self, request: AccessRequest) -> AccessDecision:
-        return evaluate(request)
+    def _gate(self, request: AccessRequest,
+              grants: Optional[List[AuthorizedReadGrant]] = None) -> EffectiveReadScope:
+        """M5.1 base policy, composed with explicit READ grants (M5.3).
 
-    def _denied(self, decision: AccessDecision) -> AuthorizedResult:
+        When grants are supplied, cross-profile READ targets may become authorized
+        via compose_effective_scope (the pre-authorized contract). No caller
+        self-authorization: grants are validated from their own fields only.
+        """
+        return compose_effective_scope(request, grants)
+
+    def _denied(self, eff: EffectiveReadScope) -> AuthorizedResult:
         return AuthorizedResult(allowed=False, denied=True,
-                                reason_code=decision.reason_code, decision=decision)
+                                reason_code=eff.reason_code, decision=eff)
 
-    def _downstream(self, decision: AccessDecision, error: str) -> AuthorizedResult:
-        return AuthorizedResult(allowed=True, denied=False, reason_code=decision.reason_code,
-                               error=error, decision=decision)
+    def _downstream(self, eff: EffectiveReadScope, error: str) -> AuthorizedResult:
+        return AuthorizedResult(allowed=True, denied=False, reason_code=eff.reason_code,
+                               error=error, decision=eff)
 
-    def _boundary_violation(self, decision: AccessDecision) -> AuthorizedResult:
+    def _boundary_violation(self, eff: EffectiveReadScope) -> AuthorizedResult:
         return AuthorizedResult(allowed=False, denied=True,
                                 reason_code=ReasonCode.DENY_ISOLATED_SCOPE_ESCAPE.value,
-                                decision=decision)
+                                decision=eff)
+
+    # -- scope decomposition ----------------------------------------------
+    def _ordered_scopes(self, eff: EffectiveReadScope) -> List[AllowedScope]:
+        """Stable, deduplicated list of scopes to query (base first, then grants)."""
+        import json
+        scopes: List[AllowedScope] = [eff.base]
+        seen = {json.dumps(eff.base.as_dict(), sort_keys=True)}
+        for g in eff.grant_scopes:
+            d = json.dumps(g.as_dict(), sort_keys=True)
+            if d not in seen:
+                seen.add(d)
+                scopes.append(g)
+        return scopes
 
     # -- M3 structured ------------------------------------------------------
     def _select_m3(self, scope: AllowedScope, limit: Optional[int],
-                   profile_filter: Optional[str] = None,
                    project_filter: Optional[str] = None,
                    session_filter: Optional[str] = None,
                    verification_filter: Optional[str] = None,
                    lifecycle_filter: Optional[str] = None,
                    created_at_after: Optional[str] = None,
-                   created_at_before: Optional[str] = None) -> List[Any]:
+                   created_at_before: Optional[str] = None,
+                   keyset: Optional[tuple] = None) -> List[Any]:
         from src.retrieval.models import QueryRequest
-        from src.retrieval.query import _validate_limit, cursor_mod
         extra = QueryRequest(
             project_id=project_filter,
             session_id=session_filter,
@@ -188,14 +245,30 @@ class AuthorizedReadService:
         )
         where, params = _build_where(extra)
         p_clause, p_params = _profile_predicate(scope, self._requester)
+        j_clause, j_params = _project_predicate(scope)
+        clauses = []
         if p_clause:
-            where = where + " AND " + p_clause
+            clauses.append("(" + p_clause + ")")
             params = params + p_params
-        eff_limit = _validate_limit(limit)
+        if j_clause:
+            clauses.append("(" + j_clause + ")")
+            params = params + j_params
+        if clauses:
+            where = where + " AND " + " AND ".join(clauses)
+        else:
+            # Neither profile nor project restriction (should not happen for valid
+            # scopes) -> fail closed.
+            where = where + " AND 1=0"
+        if keyset is not None:
+            where += " AND (created_at, event_id) > (?, ?)"
+            params.extend([keyset[0], keyset[1]])
+        eff_limit = _validate_limit(limit) if limit is not None else -1
         cols = ",".join(ZM_META_COLUMNS)
         sql = (f"SELECT {cols} FROM zm_meta WHERE {where} "
-               f"ORDER BY created_at ASC, event_id ASC LIMIT ?")
-        params.append(eff_limit)
+               f"ORDER BY created_at ASC, event_id ASC")
+        if eff_limit >= 0:
+            sql += " LIMIT ?"
+            params.append(eff_limit)
         rows = self._store.conn.execute(sql, params).fetchall()
         return [_row_to_view(r) for r in rows]
 
@@ -208,65 +281,117 @@ class AuthorizedReadService:
                      created_at_after: Optional[str] = None,
                      created_at_before: Optional[str] = None,
                      limit: Optional[int] = None,
-                     cursor: Optional[str] = None) -> AuthorizedResult:
-        decision = self._gate(request)
-        if not decision.allow:
-            return self._denied(decision)
-        scope = decision.normalized_scope
+                     cursor: Optional[str] = None,
+                     grants: Optional[List[AuthorizedReadGrant]] = None) -> AuthorizedResult:
+        eff = self._gate(request, grants)
+        if not eff.allow:
+            return self._denied(eff)
+        # Scope-bound cursor fingerprint: reuse under a different EffectiveReadScope
+        # (e.g. authorized scope changed) is a mismatch.
+        from src.retrieval.models import QueryRequest as _QR
+        fp_request = _QR(
+            profile_id=project_filter,
+            session_id=session_filter,
+            verification_status=verification_filter,
+            lifecycle_status=lifecycle_filter,
+        )
+        eff_text = "|".join([
+            f"req={self._requester or ''}",
+            f"iso={eff.base.isolated}",
+            f"glob={eff.base.global_read_allowed}",
+            f"p={','.join(sorted(eff.base.allowed_profile_ids))}",
+            f"pj={','.join(sorted(eff.base.allowed_project_ids))}",
+            f"ks={','.join(sorted(eff.base.allowed_knowledge_space_ids))}",
+            f"grants={','.join(sorted(eff.grant_refs))}",
+        ])
+        fp = make_fingerprint(fp_request, text=eff_text)
+        keyset = None
+        if cursor is not None:
+            data = validate_cursor_binding(cursor, fp, _validate_limit_safe(limit))
+            keyset = (data["sort"][0], data["sort"][1])
         proj = project_filter if project_filter is not None else (
             request.project_ids[0] if request.project_ids else None)
         try:
-            rows = self._select_m3(scope, limit, profile_filter=profile_filter,
-                                   project_filter=proj,
-                                   session_filter=session_filter,
-                                   verification_filter=verification_filter,
-                                   lifecycle_filter=lifecycle_filter,
-                                   created_at_after=created_at_after,
-                                   created_at_before=created_at_before)
+            seen_ids: set = set()
+            merged: List[Any] = []
+            for scope in self._ordered_scopes(eff):
+                rows = self._select_m3(scope, None, project_filter=proj,
+                                       session_filter=session_filter,
+                                       verification_filter=verification_filter,
+                                       lifecycle_filter=lifecycle_filter,
+                                       created_at_after=created_at_after,
+                                       created_at_before=created_at_before)
+                for v in rows:
+                    if v.event_id in seen_ids:
+                        continue
+                    if not _scope_allows(scope, self._requester, v.profile_id, v.project_id):
+                        return self._boundary_violation(eff)
+                    seen_ids.add(v.event_id)
+                    merged.append(v)
+            # Deterministic global ordering across composed scopes.
+            merged.sort(key=lambda v: (v.created_at, v.event_id))
+            # Keyset pagination over the merged, de-duplicated, sorted result set.
+            if keyset is not None:
+                merged = [v for v in merged
+                          if (v.created_at, v.event_id) > keyset]
+            if limit is None or not isinstance(limit, int) or limit <= 0:
+                eff_limit = DEFAULT_LIMIT
+            elif limit > MAX_LIMIT:
+                eff_limit = MAX_LIMIT
+            else:
+                eff_limit = limit
+            items = merged[:eff_limit]
         except QueryError as exc:
-            return self._downstream(decision, exc.code)
-        items = [v for v in rows
-                 if _scope_allows(scope, self._requester, v.profile_id, v.project_id)]
-        if len(items) != len(rows):
-            return self._boundary_violation(decision)
-        return AuthorizedResult(allowed=True, denied=False, reason_code=decision.reason_code,
-                                items=items, query=scope.as_dict(), decision=decision)
+            return self._downstream(eff, exc.code)
+        next_cursor = None
+        if len(merged) > eff_limit:
+            last = items[-1]
+            next_cursor = encode_cursor(fp, last.created_at, last.event_id,
+                                        eff_limit)
+        return AuthorizedResult(allowed=True, denied=False, reason_code=eff.reason_code,
+                                items=items, query=eff.base.as_dict(),
+                                next_cursor=next_cursor, decision=eff)
 
-    def get_event(self, request: AccessRequest, event_id: str) -> AuthorizedResult:
-        decision = self._gate(request)
-        if not decision.allow:
-            return self._denied(decision)
-        scope = decision.normalized_scope
+    def get_event(self, request: AccessRequest, event_id: str,
+                  grants: Optional[List[AuthorizedReadGrant]] = None) -> AuthorizedResult:
+        eff = self._gate(request, grants)
+        if not eff.allow:
+            return self._denied(eff)
         try:
             view = get_event(self._store, event_id)
         except QueryError as exc:
-            return self._downstream(decision, exc.code)
+            return self._downstream(eff, exc.code)
         if view is None:
             return AuthorizedResult(allowed=True, denied=False,
-                                    reason_code=decision.reason_code,
-                                    items=[], decision=decision)
-        if not _scope_allows(scope, self._requester, view.profile_id, view.project_id):
-            return self._boundary_violation(decision)
-        return AuthorizedResult(allowed=True, denied=False,
-                                reason_code=decision.reason_code,
-                                items=[view], decision=decision)
+                                    reason_code=eff.reason_code, decision=eff)
+        for scope in self._ordered_scopes(eff):
+            if _scope_allows(scope, self._requester, view.profile_id, view.project_id):
+                return AuthorizedResult(allowed=True, denied=False,
+                                        reason_code=eff.reason_code,
+                                        items=[view], decision=eff)
+        return self._boundary_violation(eff)
 
-    def get_trace(self, request: AccessRequest, trace_id: str) -> AuthorizedResult:
-        decision = self._gate(request)
-        if not decision.allow:
-            return self._denied(decision)
-        scope = decision.normalized_scope
+    def get_trace(self, request: AccessRequest, trace_id: str,
+                  grants: Optional[List[AuthorizedReadGrant]] = None) -> AuthorizedResult:
+        eff = self._gate(request, grants)
+        if not eff.allow:
+            return self._denied(eff)
         try:
             views = get_trace(self._store, trace_id)
         except QueryError as exc:
-            return self._downstream(decision, exc.code)
-        items = [v for v in views
-                 if _scope_allows(scope, self._requester, v.profile_id, v.project_id)]
-        if len(items) != len(views):
-            return self._boundary_violation(decision)
-        return AuthorizedResult(allowed=True, denied=False,
-                                reason_code=decision.reason_code,
-                                items=items, decision=decision)
+            return self._downstream(eff, exc.code)
+        items = []
+        for v in views:
+            ok = False
+            for scope in self._ordered_scopes(eff):
+                if _scope_allows(scope, self._requester, v.profile_id, v.project_id):
+                    ok = True
+                    break
+            if not ok:
+                return self._boundary_violation(eff)
+            items.append(v)
+        return AuthorizedResult(allowed=True, denied=False, reason_code=eff.reason_code,
+                                items=items, decision=eff)
 
     # -- M3 FTS -------------------------------------------------------------
     def search_text(self, request: AccessRequest, text: str,
@@ -275,92 +400,116 @@ class AuthorizedReadService:
                     session_filter: Optional[str] = None,
                     verification_filter: Optional[str] = None,
                     limit: Optional[int] = None,
-                    cursor: Optional[str] = None) -> AuthorizedResult:
-        decision = self._gate(request)
-        if not decision.allow:
-            return self._denied(decision)
-        scope = decision.normalized_scope
+                    cursor: Optional[str] = None,
+                    grants: Optional[List[AuthorizedReadGrant]] = None) -> AuthorizedResult:
+        eff = self._gate(request, grants)
+        if not eff.allow:
+            return self._denied(eff)
         from src.retrieval.models import QueryRequest
-        # SQL-level restriction: pin to the explicit allowed profile(s) when present
-        # (secure + allows the authorized same-profile search to succeed); under
-        # global with no explicit profile, the SQL is broader but the defensive
-        # post-validation keeps only NULL-profile (global/default) and requester hits.
-        if scope.allowed_profile_ids:
-            eff_profile = scope.allowed_profile_ids[0]
-        elif self._requester is not None and not scope.global_read_allowed:
-            eff_profile = self._requester
-        else:
-            eff_profile = profile_filter  # global + no explicit profile: rely on post-validation
-        eff_project = project_filter if project_filter is not None else (
-            request.project_ids[0] if request.project_ids else None)
-        req = QueryRequest(
-            profile_id=eff_profile,
-            project_id=eff_project,
-            session_id=session_filter,
-            verification_status=verification_filter,
-        )
         try:
-            res = search_text(self._store, text, req=req, limit=limit, cursor=cursor)
+            seen_ids: set = set()
+            items: List[Any] = []
+            for scope in self._ordered_scopes(eff):
+                eff_profile = scope.allowed_profile_ids[0] if scope.allowed_profile_ids else (
+                    self._requester if (self._requester is not None and not scope.global_read_allowed) else profile_filter)
+                eff_project = project_filter if project_filter is not None else (
+                    request.project_ids[0] if request.project_ids else None)
+                req = QueryRequest(
+                    profile_id=eff_profile,
+                    project_id=eff_project,
+                    session_id=session_filter,
+                    verification_status=verification_filter,
+                )
+                res = search_text(self._store, text, req=req, limit=limit, cursor=cursor)
+                if res.error is not None:
+                    return AuthorizedResult(allowed=True, denied=False,
+                                            reason_code=eff.reason_code,
+                                            error=res.error, decision=eff)
+                for h in res.results:
+                    if h.event_id in seen_ids:
+                        continue
+                    if not _scope_allows(scope, self._requester, h.profile_id, h.project_id):
+                        return self._boundary_violation(eff)
+                    seen_ids.add(h.event_id)
+                    items.append(h)
         except QueryError as exc:
-            return self._downstream(decision, exc.code)
-        if res.error is not None:
-            return AuthorizedResult(allowed=True, denied=False,
-                                   reason_code=decision.reason_code,
-                                   error=res.error, decision=decision)
-        items = [h for h in res.results
-                 if _scope_allows(scope, self._requester, h.profile_id, h.project_id)]
-        if len(items) != len(res.results):
-            return self._boundary_violation(decision)
-        return AuthorizedResult(allowed=True, denied=False, reason_code=decision.reason_code,
-                                items=items, next_cursor=res.next_cursor, decision=decision)
+            return self._downstream(eff, exc.code)
+        return AuthorizedResult(allowed=True, denied=False, reason_code=eff.reason_code,
+                                items=items, next_cursor=None, decision=eff)
 
     # -- M4 (project-memory) ------------------------------------------------
-    def _m4_project_scope_ok(self, decision: AccessDecision, project_id: Optional[str]) -> bool:
+    def _m4_project_scope_ok(self, eff: EffectiveReadScope, project_id: str) -> bool:
         """M4 reads are project-scoped; the project must be explicitly authorized.
 
-        Global read has no well-defined 'global project' in M4, so cross-project
-        reads stay DENIED unless the project is in allowed_project_ids.
+        Cross-profile requests produce an EMPTY base scope (the base policy denies
+        cross-profile), so authorized projects come from grant scopes. Union the
+        base and grant-scope project ids.
         """
-        scope = decision.normalized_scope
         if project_id is None:
             return False
-        return project_id in scope.allowed_project_ids
+        allowed_projects = set(eff.base.allowed_project_ids)
+        for g in eff.grant_scopes:
+            allowed_projects.update(g.allowed_project_ids)
+        return project_id in allowed_projects
+
+    _M4_RESOURCE_TYPE = {
+        "m4_requirements": "requirement",
+        "m4_decisions": "decision",
+        "m4_current_state": "state",
+        "m4_verifications": "verification",
+        "m4_artifacts": "artifact",
+        "m4_charter": "charter",
+    }
+
+    def _m4_resource_allowed(self, eff: EffectiveReadScope, project_id: str,
+                             resource_type: str) -> bool:
+        """Enforce per-project grant resource-type restriction (plan §11.3)."""
+        rt = eff.grant_resource_types.get(project_id)
+        if rt is None:
+            return True
+        return resource_type in rt
 
     def m4_charter(self, request: AccessRequest, project_id: str,
                    charter_id: Optional[str] = None,
-                   include_source_event: bool = False) -> AuthorizedResult:
-        decision = self._gate(request)
-        if not decision.allow:
-            return self._denied(decision)
-        if not self._m4_project_scope_ok(decision, project_id):
-            return self._boundary_violation(decision)
+                   include_source_event: bool = False,
+                   grants: Optional[List[AuthorizedReadGrant]] = None) -> AuthorizedResult:
+        eff = self._gate(request, grants)
+        if not eff.allow:
+            return self._denied(eff)
+        if not self._m4_project_scope_ok(eff, project_id):
+            return self._boundary_violation(eff)
+        if not self._m4_resource_allowed(eff, project_id, "charter"):
+            return self._denied(eff)
         try:
             view = m4.get_project_charter(self._store, project_id, charter_id=charter_id,
                                           include_source_event=include_source_event)
         except QueryError as exc:
-            return self._downstream(decision, exc.code)
+            return self._downstream(eff, exc.code)
         if view is None:
             return AuthorizedResult(allowed=True, denied=False,
-                                    reason_code=decision.reason_code, decision=decision)
-        if not _scope_allows(decision.normalized_scope, self._requester,
-                             view.profile_id, view.project_id):
-            return self._boundary_violation(decision)
-        return AuthorizedResult(allowed=True, denied=False,
-                                reason_code=decision.reason_code,
-                                items=[view], decision=decision)
+                                    reason_code=eff.reason_code, decision=eff)
+        for scope in self._ordered_scopes(eff):
+            if _scope_allows(scope, self._requester, view.profile_id, view.project_id):
+                return AuthorizedResult(allowed=True, denied=False,
+                                        reason_code=eff.reason_code,
+                                        items=[view], decision=eff)
+        return self._boundary_violation(eff)
 
     def _m4_list(self, request: AccessRequest, project_id: str,
-                 low_level_fn: Callable[[], Any]) -> AuthorizedResult:
-        decision = self._gate(request)
-        if not decision.allow:
-            return self._denied(decision)
-        if not self._m4_project_scope_ok(decision, project_id):
-            return self._boundary_violation(decision)
+                 low_level_fn: Callable[[], Any],
+                 resource_type: Optional[str] = None,
+                 grants: Optional[List[AuthorizedReadGrant]] = None) -> AuthorizedResult:
+        eff = self._gate(request, grants)
+        if not eff.allow:
+            return self._denied(eff)
+        if not self._m4_project_scope_ok(eff, project_id):
+            return self._boundary_violation(eff)
+        if resource_type is not None and not self._m4_resource_allowed(eff, project_id, resource_type):
+            return self._denied(eff)
         try:
             res = low_level_fn()
         except QueryError as exc:
-            return self._downstream(decision, exc.code)
-        # get_current_project_state returns a plain list; list_* return ProjectMemoryResult.
+            return self._downstream(eff, exc.code)
         if hasattr(res, "items"):
             source_items = res.items
             query = res.query
@@ -369,48 +518,64 @@ class AuthorizedReadService:
             source_items = res
             query = {}
             next_cursor = None
-        allowed = [v for v in source_items
-                   if _scope_allows(decision.normalized_scope, self._requester,
-                                   getattr(v, "profile_id", None),
-                                   getattr(v, "project_id", None))]
-        if len(allowed) != len(source_items):
-            return self._boundary_violation(decision)
+        allowed = []
+        for v in source_items:
+            ok = False
+            for scope in self._ordered_scopes(eff):
+                if _scope_allows(scope, self._requester,
+                                getattr(v, "profile_id", None),
+                                getattr(v, "project_id", None)):
+                    ok = True
+                    break
+            if not ok:
+                return self._boundary_violation(eff)
+            allowed.append(v)
         return AuthorizedResult(allowed=True, denied=False,
-                                reason_code=decision.reason_code,
+                                reason_code=eff.reason_code,
                                 items=allowed, query=query,
-                                next_cursor=next_cursor, decision=decision)
+                                next_cursor=next_cursor, decision=eff)
 
     def m4_requirements(self, request: AccessRequest, project_id: str,
                         limit: Optional[int] = None,
-                        cursor: Optional[str] = None) -> AuthorizedResult:
+                        cursor: Optional[str] = None,
+                        grants: Optional[List[AuthorizedReadGrant]] = None) -> AuthorizedResult:
         return self._m4_list(request, project_id,
                              lambda: m4.list_requirements(self._store, project_id,
-                                                          limit=limit, cursor=cursor))
+                                                          limit=limit, cursor=cursor),
+                             resource_type="requirement", grants=grants)
 
     def m4_decisions(self, request: AccessRequest, project_id: str,
                      limit: Optional[int] = None,
-                     cursor: Optional[str] = None) -> AuthorizedResult:
+                     cursor: Optional[str] = None,
+                     grants: Optional[List[AuthorizedReadGrant]] = None) -> AuthorizedResult:
         return self._m4_list(request, project_id,
                              lambda: m4.list_decisions(self._store, project_id,
-                                                       limit=limit, cursor=cursor))
+                                                       limit=limit, cursor=cursor),
+                             resource_type="decision", grants=grants)
 
-    def m4_current_state(self, request: AccessRequest, project_id: str) -> AuthorizedResult:
+    def m4_current_state(self, request: AccessRequest, project_id: str,
+                          grants: Optional[List[AuthorizedReadGrant]] = None) -> AuthorizedResult:
         return self._m4_list(request, project_id,
-                             lambda: m4.get_current_project_state(self._store, project_id))
+                             lambda: m4.get_current_project_state(self._store, project_id),
+                             resource_type="state", grants=grants)
 
     def m4_verifications(self, request: AccessRequest, project_id: str,
                          limit: Optional[int] = None,
-                         cursor: Optional[str] = None) -> AuthorizedResult:
+                         cursor: Optional[str] = None,
+                         grants: Optional[List[AuthorizedReadGrant]] = None) -> AuthorizedResult:
         return self._m4_list(request, project_id,
                              lambda: m4.list_verifications(self._store, project_id,
-                                                          limit=limit, cursor=cursor))
+                                                          limit=limit, cursor=cursor),
+                             resource_type="verification", grants=grants)
 
     def m4_artifacts(self, request: AccessRequest, project_id: str,
                      limit: Optional[int] = None,
-                     cursor: Optional[str] = None) -> AuthorizedResult:
+                     cursor: Optional[str] = None,
+                     grants: Optional[List[AuthorizedReadGrant]] = None) -> AuthorizedResult:
         return self._m4_list(request, project_id,
                              lambda: m4.list_project_artifacts(self._store, project_id,
-                                                              limit=limit, cursor=cursor))
+                                                              limit=limit, cursor=cursor),
+                             resource_type="artifact", grants=grants)
 
 
 __all__ = ["AuthorizedReadService", "AuthorizedResult",

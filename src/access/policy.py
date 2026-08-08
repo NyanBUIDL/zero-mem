@@ -109,6 +109,12 @@ def evaluate(request: AccessRequest) -> AccessDecision:
         if not target_profiles and not projects and not spaces:
             return _deny(ReasonCode.DENY_ISOLATED_SCOPE_ESCAPE, op,
                          denied=["global", "implicit"])
+        # A knowledge space (or project) selected under isolation without an
+        # explicit profile scope cannot be resolved to authorized profiles; that
+        # is an implicit expansion -> scope escape.
+        if spaces and not (target_profiles or projects):
+            return _deny(ReasonCode.DENY_ISOLATED_SCOPE_ESCAPE, op,
+                         denied=list(spaces))
         global_allowed = False  # isolation removes implicit global
     else:
         global_allowed = bool(req.include_global)
