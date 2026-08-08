@@ -21,26 +21,94 @@
     {
       "id": "M0",
       "name": "Policy and architecture",
-      "spec_sections": ["3", "4", "5", "6", "7", "8", "9", "14", "16.1", "16.2", "18.1", "21"],
-      "deliverables": ["ARCHITECTURE.md", "versioned schemas and policies", "benchmark plan", "runbooks", "project state"],
-      "acceptance": ["architecture decisions recorded", "taxonomy/provenance/lifecycle/sensitivity/retention defined", "benchmark scenarios defined", "no full corpus ingestion"],
+      "spec_sections": [
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "14",
+        "16.1",
+        "16.2",
+        "18.1",
+        "21"
+      ],
+      "deliverables": [
+        "ARCHITECTURE.md",
+        "versioned schemas and policies",
+        "benchmark plan",
+        "runbooks",
+        "project state"
+      ],
+      "acceptance": [
+        "architecture decisions recorded",
+        "taxonomy/provenance/lifecycle/sensitivity/retention defined",
+        "benchmark scenarios defined",
+        "no full corpus ingestion"
+      ],
       "verification": {
         "status": "fully_verified",
         "evidence": "acceptance-m0-verification.md",
         "verifier": "scripts/verify_m0_acceptance.py",
-        "passed": ["M0-A", "M0-B", "M0-C", "M0-D", "M0-E"],
+        "passed": [
+          "M0-A",
+          "M0-B",
+          "M0-C",
+          "M0-D",
+          "M0-E"
+        ],
         "not_run": []
       }
     },
     {
       "id": "M1",
       "name": "Observation-only capture sidecar",
-      "spec_sections": ["10", "14.2", "17.1", "17.2", "18"],
-      "deliverables": ["event adapter", "redaction boundary", "schema validation", "versioned append-only JSONL raw trace source of record", "stable append/contains/dead-letter interface", "retry/dead-letter path"],
-      "supported_event_classes": ["session_lifecycle", "pre_tool_call", "post_tool_call", "llm_api_lifecycle", "subagent_lifecycle", "verified_task_or_kanban_lifecycle"],
-      "deferred_event_classes": ["file_operations", "skill_usage", "generic_task_transitions"],
-      "acceptance": [">=99% capture for declared supported hook classes", "correct order/timestamps", "secret corpus absent from raw/dead-letter/audit/log/exception/temp outputs; SQLite/index scan deferred to M2", "redaction audit without original secret", "observer non-interference: no prompt/message/tool/context/action mutation and capture failure cannot change Hermes control flow"],
-      "binding_decision_ids": ["ADR-M1-001", "ADR-M1-002", "ADR-M1-003", "ADR-M1-004", "ADR-M1-005", "ADR-M1-006", "ADR-M1-007"],
+      "spec_sections": [
+        "10",
+        "14.2",
+        "17.1",
+        "17.2",
+        "18"
+      ],
+      "deliverables": [
+        "event adapter",
+        "redaction boundary",
+        "schema validation",
+        "versioned append-only JSONL raw trace source of record",
+        "stable append/contains/dead-letter interface",
+        "retry/dead-letter path"
+      ],
+      "supported_event_classes": [
+        "session_lifecycle",
+        "pre_tool_call",
+        "post_tool_call",
+        "llm_api_lifecycle",
+        "subagent_lifecycle",
+        "verified_task_or_kanban_lifecycle"
+      ],
+      "deferred_event_classes": [
+        "file_operations",
+        "skill_usage",
+        "generic_task_transitions"
+      ],
+      "acceptance": [
+        ">=99% capture for declared supported hook classes",
+        "correct order/timestamps",
+        "secret corpus absent from raw/dead-letter/audit/log/exception/temp outputs; SQLite/index scan deferred to M2",
+        "redaction audit without original secret",
+        "observer non-interference: no prompt/message/tool/context/action mutation and capture failure cannot change Hermes control flow"
+      ],
+      "binding_decision_ids": [
+        "ADR-M1-001",
+        "ADR-M1-002",
+        "ADR-M1-003",
+        "ADR-M1-004",
+        "ADR-M1-005",
+        "ADR-M1-006",
+        "ADR-M1-007"
+      ],
       "plan_status": "approved",
       "increment_1": {
         "name": "Freeze M1 event contract",
@@ -54,8 +122,23 @@
         "evidence_chain_commit": "f159633a5079b8f67440835391b84a9510c75353",
         "rerun_required": false,
         "rerun_reason": "post-tested-commit changes are documentation/planning/state records only",
-        "production_scope": ["event types", "normalized envelope", "deterministic validation", "serialization/deserialization", "supported/deferred registry"],
-        "excluded_scope": ["Hermes integration", "redaction execution", "JSONL persistence", "retry", "dead-letter", "deduplication", "retrieval", "injection"]
+        "production_scope": [
+          "event types",
+          "normalized envelope",
+          "deterministic validation",
+          "serialization/deserialization",
+          "supported/deferred registry"
+        ],
+        "excluded_scope": [
+          "Hermes integration",
+          "redaction execution",
+          "JSONL persistence",
+          "retry",
+          "dead-letter",
+          "deduplication",
+          "retrieval",
+          "injection"
+        ]
       },
       "increment_2": {
         "name": "Redaction boundary",
@@ -72,7 +155,19 @@
         "final_evidence_review_head": "0559d8b389f00dab899365afa2b4606f5e3322be",
         "rerun_required": false,
         "rerun_reason": "post-test changes are documentation, plan, evidence, and project-state records only",
-        "excluded_scope": ["JSONL persistence", "retry", "dead-letter", "deduplication", "Hermes integration", "capture-rate harness", "retrieval", "SQLite", "MCP", "Obsidian", "prompt/context injection"]
+        "excluded_scope": [
+          "JSONL persistence",
+          "retry",
+          "dead-letter",
+          "deduplication",
+          "Hermes integration",
+          "capture-rate harness",
+          "retrieval",
+          "SQLite",
+          "MCP",
+          "Obsidian",
+          "prompt/context injection"
+        ]
       },
       "increment_3": {
         "name": "Capture boundary and deduplication",
@@ -88,15 +183,33 @@
         "product_code_test_state": "17ca41e5e9c6f91dfe45fbcbbddcf0205a8e2118",
         "rerun_required": false,
         "rerun_reason": "intervening changes are documentation/state/acceptance evidence only",
-        "excluded_scope": ["retry", "dead-letter", "Hermes hooks", "retrieval", "SQLite", "MCP", "Obsidian", "prompt/context injection"]
+        "excluded_scope": [
+          "retry",
+          "dead-letter",
+          "Hermes hooks",
+          "retrieval",
+          "SQLite",
+          "MCP",
+          "Obsidian",
+          "prompt/context injection"
+        ]
       },
       "increment_4": {
         "name": "Verified Hermes hook integration",
-        "status": "in_progress",
+        "status": "verified",
         "plan": ".hermes/plans/2026-08-05_000000-m1-increment-4-hermes-hook-integration.md",
         "implementation_started": true,
         "clarifications_recorded": true,
-        "processing_order": ["copy", "structural_normalization", "redact_or_reject", "map_event_type", "resolve_explicit_identity_correlation", "hash_sanitized_content", "construct_validate_envelope", "append_capture_store"],
+        "processing_order": [
+          "copy",
+          "structural_normalization",
+          "redact_or_reject",
+          "map_event_type",
+          "resolve_explicit_identity_correlation",
+          "hash_sanitized_content",
+          "construct_validate_envelope",
+          "append_capture_store"
+        ],
         "capture_rate_formula": "successfully_accounted_logical_events / expected_supported_logical_events * 100",
         "increment_4_1": {
           "name": "Bridge configuration and registry",
@@ -108,12 +221,33 @@
           "implementation_started": true,
           "commit": "674b7892a6a921eff2a542937b439750127ee7c1",
           "tested_commit": "bba02890fadbdc0fee3b264fb3106854d5f45f5e",
-          "focused_result": "13 passed in 0.02s",
-          "canonical_result": "53 passed in 0.08s",
           "rerun_required": true,
           "rerun_reason": "baseline state assertion changed after prior canonical evidence",
-          "scope": ["BridgeConfig", "disabled-by-default", "explicit identity", "safe capture_root", "temporary hermes_home", "supported/conditional/deferred registries", "sanitized aggregate metrics"],
-          "excluded_scope": ["real hook registration", "callback execution", "payload mapping", "redaction invocation", "capture append", "runtime integration", "capture-rate harness", "retry", "dead-letter", "SQLite", "retrieval", "MCP", "Obsidian", "prompt/context injection"]
+          "scope": [
+            "BridgeConfig",
+            "disabled-by-default",
+            "explicit identity",
+            "safe capture_root",
+            "temporary hermes_home",
+            "supported/conditional/deferred registries",
+            "sanitized aggregate metrics"
+          ],
+          "excluded_scope": [
+            "real hook registration",
+            "callback execution",
+            "payload mapping",
+            "redaction invocation",
+            "capture append",
+            "runtime integration",
+            "capture-rate harness",
+            "retry",
+            "dead-letter",
+            "SQLite",
+            "retrieval",
+            "MCP",
+            "Obsidian",
+            "prompt/context injection"
+          ]
         },
         "increment_4_2": {
           "name": "Pure payload mapping",
@@ -137,18 +271,33 @@
           "plan": ".hermes/plans/2026-08-05_000000-m1-increment-4-3-redaction-capture-adapter.md",
           "evidence": "acceptance-m1-increment-4-3.md",
           "focused_test": "tests/unit/test_hermes_capture_adapter.py",
-          "focused_result": "14 passed in 0.04s",
-          "canonical_result": "109 passed in 0.13s",
+          "focused_result": "14 passed in 0.06s",
+          "canonical_result": "109 passed in 0.11s",
           "implementation_started": true,
           "commit": "bd216ebaadfe6c663694c3ac90be0e8ffb2921cd",
           "evidence_final_commit": "5318c5444cc540691aa03cab43066fbb7e0b0d90",
           "tested_commit": "fd8efe7b3c9c3cb1fd1ad8bf60279d122d093b82",
-          "focused_result": "14 passed in 0.06s",
-          "canonical_result": "109 passed in 0.11s",
           "rerun_required": true,
           "patch_incident": "failed patch against tests/unit/test_hermes_capture_adapter.py; hunk not found; file already added in implementation commit; no source change; no product impact",
-          "scope": ["sanitized mapping input", "Increment 2 redaction", "Increment 1 envelope/validation", "Increment 3 append/duplicate adapter", "sanitized failures"],
-          "excluded_scope": ["real hook registration", "runtime integration", "retry", "dead-letter", "capture-rate harness", "SQLite", "retrieval", "MCP", "Obsidian", "prompt/context injection"]
+          "scope": [
+            "sanitized mapping input",
+            "Increment 2 redaction",
+            "Increment 1 envelope/validation",
+            "Increment 3 append/duplicate adapter",
+            "sanitized failures"
+          ],
+          "excluded_scope": [
+            "real hook registration",
+            "runtime integration",
+            "retry",
+            "dead-letter",
+            "capture-rate harness",
+            "SQLite",
+            "retrieval",
+            "MCP",
+            "Obsidian",
+            "prompt/context injection"
+          ]
         },
         "increment_4_4": {
           "name": "Verified hook registration",
@@ -163,8 +312,26 @@
           "evidence_final_commit": "5db1db32de3954e3d32e49ae31ab26d5f2f8a450",
           "tested_commit": "735f7600ba15de0b02c1ec620e456093f04193c1",
           "ad_hoc_result": "PASS; exit_code=0; cleaned=True; corrected verifier; first attempt was a verifier defect",
-          "scope": ["project-local registration adapter", "verified hook set", "idempotent registration", "neutral callbacks", "failure isolation"],
-          "excluded_scope": ["conditional hooks", "deferred hooks", "runtime Hermes integration", "retry", "dead-letter", "capture-rate harness", "SQLite", "retrieval", "MCP", "Obsidian", "prompt/context injection"]
+          "scope": [
+            "project-local registration adapter",
+            "verified hook set",
+            "idempotent registration",
+            "neutral callbacks",
+            "failure isolation"
+          ],
+          "excluded_scope": [
+            "conditional hooks",
+            "deferred hooks",
+            "runtime Hermes integration",
+            "retry",
+            "dead-letter",
+            "capture-rate harness",
+            "SQLite",
+            "retrieval",
+            "MCP",
+            "Obsidian",
+            "prompt/context injection"
+          ]
         },
         "increment_4_5": {
           "name": "Non-interference integration",
@@ -177,8 +344,28 @@
           "implementation_started": true,
           "preflight_correction": "legacy top-level status field updated from m1_increment_4_3_verified to m1_increment_4_4_verified; no product-code change",
           "commit": "50713c6f73cd82bf3e19caa7a4bf9bc8493223b8",
-          "scope": ["isolated non-interference harness", "enabled/disabled equivalence", "failure isolation", "exception preservation", "secret scan", "temporary HERMES_HOME"],
-          "excluded_scope": ["capture-rate benchmark (4.6)", "conditional hooks", "subagent hooks", "on_session_reset", "retry", "dead-letter", "SQLite", "retrieval", "MCP", "Obsidian", "prompt/context injection", "installed Hermes source changes"]
+          "scope": [
+            "isolated non-interference harness",
+            "enabled/disabled equivalence",
+            "failure isolation",
+            "exception preservation",
+            "secret scan",
+            "temporary HERMES_HOME"
+          ],
+          "excluded_scope": [
+            "capture-rate benchmark (4.6)",
+            "conditional hooks",
+            "subagent hooks",
+            "on_session_reset",
+            "retry",
+            "dead-letter",
+            "SQLite",
+            "retrieval",
+            "MCP",
+            "Obsidian",
+            "prompt/context injection",
+            "installed Hermes source changes"
+          ]
         },
         "increment_4_6": {
           "name": "Capture-rate benchmark and final M1 acceptance",
@@ -195,22 +382,60 @@
           "accepted_duplicates": 2,
           "failed_captures": 0,
           "capture_rate": 100.0,
-          "scope": ["controlled capture-rate benchmark over 8 supported hooks", "conditional/deferred excluded", "final M1 acceptance"],
-          "excluded_scope": ["conditional hooks (8)", "deferred hooks (10)", "retry", "dead-letter", "SQLite", "retrieval", "MCP", "Obsidian", "prompt/context injection", "installed Hermes source changes"]
+          "scope": [
+            "controlled capture-rate benchmark over 8 supported hooks",
+            "conditional/deferred excluded",
+            "final M1 acceptance"
+          ],
+          "excluded_scope": [
+            "conditional hooks (8)",
+            "deferred hooks (10)",
+            "retry",
+            "dead-letter",
+            "SQLite",
+            "retrieval",
+            "MCP",
+            "Obsidian",
+            "prompt/context injection",
+            "installed Hermes source changes"
+          ]
         },
-        "status": "verified",
         "m1_final_evidence": "acceptance-m1-final.md",
         "m1_canonical_result": "166 passed in 0.25s",
         "m1_capture_rate": 100.0,
-        "excluded_scope": ["retry", "dead-letter", "SQLite", "retrieval", "MCP", "Obsidian", "prompt/context injection"]
+        "excluded_scope": [
+          "retry",
+          "dead-letter",
+          "SQLite",
+          "retrieval",
+          "MCP",
+          "Obsidian",
+          "prompt/context injection"
+        ]
       }
     },
     {
       "id": "M2",
       "name": "SQLite metadata, state, relations, and indexes",
-      "spec_sections": ["9", "14.3", "14.4", "16.3"],
-      "deliverables": ["SQLite WAL/FTS5 schema", "JSONL per session/day", "versioned artifacts", "migrations", "backup/restore runbook"],
-      "acceptance": ["metadata rebuildable", "raw append-first", "delete/tombstone workflow tested", "migration rollback documented"],
+      "spec_sections": [
+        "9",
+        "14.3",
+        "14.4",
+        "16.3"
+      ],
+      "deliverables": [
+        "SQLite WAL/FTS5 schema",
+        "JSONL per session/day",
+        "versioned artifacts",
+        "migrations",
+        "backup/restore runbook"
+      ],
+      "acceptance": [
+        "metadata rebuildable",
+        "raw append-first",
+        "delete/tombstone workflow tested",
+        "migration rollback documented"
+      ],
       "status": "in_progress",
       "plan": ".hermes/plans/2026-08-05_000000-m2-sqlite-metadata-state-relations-indexes.md",
       "plan_commit": "dac2f91930fff6b2f1164e3df2b9108802e29d9b",
@@ -225,8 +450,34 @@
         "plan_commit": "dac2f91930fff6b2f1164e3df2b9108802e29d9b",
         "implementation_commit": "81ffb683950a14de992c872215792f3340ff8df4",
         "tested_commit": "81ffb683950a14de992c872215792f3340ff8df4",
-        "scope": ["SQLite connection lifecycle", "WAL/FK/synchronous/busy_timeout pragmas", "zm_meta + zm_migrations only", "deterministic migration registry", "idempotent ensure_schema", "transaction-safe up/down", "downgrade_to", "sanitized errors", "restrictive permissions", "guard against real ~/.hermes path"],
-        "excluded_scope": ["JSONL ingestion", "rebuild_from_jsonl", "lifecycle/provenance/relations/scopes projection", "FTS5 content ingestion", "retention tombstones", "retry/backoff", "dead-letter", "retrieval", "ranking", "query routing", "MCP", "Obsidian", "context injection", "M2.2 or later"]
+        "scope": [
+          "SQLite connection lifecycle",
+          "WAL/FK/synchronous/busy_timeout pragmas",
+          "zm_meta + zm_migrations only",
+          "deterministic migration registry",
+          "idempotent ensure_schema",
+          "transaction-safe up/down",
+          "downgrade_to",
+          "sanitized errors",
+          "restrictive permissions",
+          "guard against real ~/.hermes path"
+        ],
+        "excluded_scope": [
+          "JSONL ingestion",
+          "rebuild_from_jsonl",
+          "lifecycle/provenance/relations/scopes projection",
+          "FTS5 content ingestion",
+          "retention tombstones",
+          "retry/backoff",
+          "dead-letter",
+          "retrieval",
+          "ranking",
+          "query routing",
+          "MCP",
+          "Obsidian",
+          "context injection",
+          "M2.2 or later"
+        ]
       },
       "increment_2": {
         "name": "Idempotent JSONL metadata ingestion",
@@ -239,8 +490,36 @@
         "plan_commit": "5c0a13df0659fd0f03bb2d4be5d354d87edd0e2c",
         "implementation_commit": "c384b0e09a0e6d7203b653a87b33e132dea3abd0",
         "tested_commit": "c384b0e09a0e6d7203b653a87b33e132dea3abd0",
-        "scope": ["read-only JSONL source reader", "validate_envelope reuse", "derived zm_meta projection", "idempotence by event_id and content_hash", "zm_ingest_checkpoint with consumed_prefix_hash", "zm_ingest_log committed sanitized record", "exact outcomes new_event/duplicate_event_id/duplicate_content_hash/event_id_content_conflict/invalid_record/transaction_failed/source_changed", "per-record atomic transaction", "checkpoint advances only after committed outcome", "transaction_failed and crash-before-commit do not advance", "append-safe consumed-prefix integrity (no basename|size|mtime_ns)", "secret scan", "minimal read-only helpers get_trace/count_metadata/get_checkpoint"],
-        "excluded_scope": ["lifecycle/provenance/relations/scopes projection", "FTS5 content indexing", "retention tombstones", "retry/backoff", "dead-letter store or replay", "retrieval", "ranking", "query routing", "MCP", "Obsidian", "context injection", "rebuild_from_jsonl (M2.3)", "M2.3 or later"]
+        "scope": [
+          "read-only JSONL source reader",
+          "validate_envelope reuse",
+          "derived zm_meta projection",
+          "idempotence by event_id and content_hash",
+          "zm_ingest_checkpoint with consumed_prefix_hash",
+          "zm_ingest_log committed sanitized record",
+          "exact outcomes new_event/duplicate_event_id/duplicate_content_hash/event_id_content_conflict/invalid_record/transaction_failed/source_changed",
+          "per-record atomic transaction",
+          "checkpoint advances only after committed outcome",
+          "transaction_failed and crash-before-commit do not advance",
+          "append-safe consumed-prefix integrity (no basename|size|mtime_ns)",
+          "secret scan",
+          "minimal read-only helpers get_trace/count_metadata/get_checkpoint"
+        ],
+        "excluded_scope": [
+          "lifecycle/provenance/relations/scopes projection",
+          "FTS5 content indexing",
+          "retention tombstones",
+          "retry/backoff",
+          "dead-letter store or replay",
+          "retrieval",
+          "ranking",
+          "query routing",
+          "MCP",
+          "Obsidian",
+          "context injection",
+          "rebuild_from_jsonl (M2.3)",
+          "M2.3 or later"
+        ]
       },
       "increment_3": {
         "name": "Lifecycle, verification, supersession, and rebuild projection",
@@ -253,8 +532,27 @@
         "plan_commit": "c173d501ef9a5a036dc9a472bdf310bdfac81356",
         "implementation_commit": "b4b9c849a235d1fbfaffad54cdb277c3323ed65b",
         "tested_commit": "b4b9c849a235d1fbfaffad54cdb277c3323ed65b",
-        "scope": ["zm_lifecycle projection (current_state mirror)", "zm_provenance projection (deterministic_check verifier, evidence_ref=trace_id)", "rebuild_from_jsonl (full derived-layer rebuild, parity with incremental, deterministic)", "idempotent lifecycle/provenance seeding on new_event", "migration v3 (CURRENT_SCHEMA_VERSION=3)", "secret scan across new tables"],
-        "excluded_scope": ["supersession link creation (zm_relations, M2.4)", "active-key uniqueness enforcement (M2.4)", "zm_scopes (M2.4)", "FTS5 content indexing (M2.5)", "retention tombstones (M2.6)", "retrieval", "ranking", "query routing", "MCP", "Obsidian", "context injection"]
+        "scope": [
+          "zm_lifecycle projection (current_state mirror)",
+          "zm_provenance projection (deterministic_check verifier, evidence_ref=trace_id)",
+          "rebuild_from_jsonl (full derived-layer rebuild, parity with incremental, deterministic)",
+          "idempotent lifecycle/provenance seeding on new_event",
+          "migration v3 (CURRENT_SCHEMA_VERSION=3)",
+          "secret scan across new tables"
+        ],
+        "excluded_scope": [
+          "supersession link creation (zm_relations, M2.4)",
+          "active-key uniqueness enforcement (M2.4)",
+          "zm_scopes (M2.4)",
+          "FTS5 content indexing (M2.5)",
+          "retention tombstones (M2.6)",
+          "retrieval",
+          "ranking",
+          "query routing",
+          "MCP",
+          "Obsidian",
+          "context injection"
+        ]
       },
       "increment_4": {
         "name": "Relations and project/profile/knowledge-space mappings",
@@ -267,8 +565,28 @@
         "plan_commit": "6c4acadb254c3ee13eb23570770789727134cb6c",
         "implementation_commit": "ca31d521a74860e731671c2759289cd959253e79",
         "tested_commit": "ca31d521a74860e731671c2759289cd959253e79",
-        "scope": ["zm_relations (child_of from parent_trace_id, derived_from from relation_ids, supersedes from active-key enforcement)", "zm_scopes (project/profile/knowledge_space observed only, no inference)", "zm_artifacts registry (populated only from explicit artifact_refs, stored_path NULL deferred)", "active-key uniqueness enforcement (trace_id key; prior active marked superseded, supersedes edge, no silent overwrite)", "relation provenance (verifier=deterministic_check, evidence_ref=trace_id)", "migration v4 (CURRENT_SCHEMA_VERSION=4)", "rebuild_from_jsonl re-derives relations/scopes/artifacts; verify_rebuild_parity extended", "secret scan across new tables"],
-        "excluded_scope": ["FTS5 content indexing (M2.5)", "retention tombstones (M2.6)", "authorization/access-control across profiles (M5)", "retrieval", "ranking", "query routing", "MCP", "Obsidian", "context injection", "artifact content storage"]
+        "scope": [
+          "zm_relations (child_of from parent_trace_id, derived_from from relation_ids, supersedes from active-key enforcement)",
+          "zm_scopes (project/profile/knowledge_space observed only, no inference)",
+          "zm_artifacts registry (populated only from explicit artifact_refs, stored_path NULL deferred)",
+          "active-key uniqueness enforcement (trace_id key; prior active marked superseded, supersedes edge, no silent overwrite)",
+          "relation provenance (verifier=deterministic_check, evidence_ref=trace_id)",
+          "migration v4 (CURRENT_SCHEMA_VERSION=4)",
+          "rebuild_from_jsonl re-derives relations/scopes/artifacts; verify_rebuild_parity extended",
+          "secret scan across new tables"
+        ],
+        "excluded_scope": [
+          "FTS5 content indexing (M2.5)",
+          "retention tombstones (M2.6)",
+          "authorization/access-control across profiles (M5)",
+          "retrieval",
+          "ranking",
+          "query routing",
+          "MCP",
+          "Obsidian",
+          "context injection",
+          "artifact content storage"
+        ]
       },
       "increment_5": {
         "name": "Relational indexes, FTS5, and minimal inspection helpers",
@@ -281,8 +599,22 @@
         "plan_commit": "51d042e39d4db37aad360830cf8e07c03b91ae50",
         "implementation_commit": "514c73783fd52566ba213ff6b53b274142e4f20f",
         "tested_commit": "514c73783fd52566ba213ff6b53b274142e4f20f",
-        "scope": ["relational indexes over zm_meta/zm_relations/zm_lifecycle/zm_scopes (migration v5)", "zm_fts FTS5 over APPROVED SANITIZED content only", "FTS5 capability detection with safe fallback (no zm_fts; search_fts returns [])", "inspection helpers search_fts/find_related/find_by_trace_id/list_events_in_scope (exact-key, no ranking)", "verify_rebuild_parity extended to FTS row set", "secret scanner covers zm_fts", "migration v5 (CURRENT_SCHEMA_VERSION=5)"],
-        "excluded_scope": ["semantic search/vectors/ranking/scoring (M3+)", "retrieval/query routing/context injection (M3)", "retention tombstones (M2.6)", "artifact content storage", "modifying zm_meta to store raw payload text"]
+        "scope": [
+          "relational indexes over zm_meta/zm_relations/zm_lifecycle/zm_scopes (migration v5)",
+          "zm_fts FTS5 over APPROVED SANITIZED content only",
+          "FTS5 capability detection with safe fallback (no zm_fts; search_fts returns [])",
+          "inspection helpers search_fts/find_related/find_by_trace_id/list_events_in_scope (exact-key, no ranking)",
+          "verify_rebuild_parity extended to FTS row set",
+          "secret scanner covers zm_fts",
+          "migration v5 (CURRENT_SCHEMA_VERSION=5)"
+        ],
+        "excluded_scope": [
+          "semantic search/vectors/ranking/scoring (M3+)",
+          "retrieval/query routing/context injection (M3)",
+          "retention tombstones (M2.6)",
+          "artifact content storage",
+          "modifying zm_meta to store raw payload text"
+        ]
       },
       "increment_6": {
         "name": "Retention tombstones, logical deletion, secret scanning, and rollback",
@@ -297,8 +629,26 @@
         "implementation_commit": "df79e51437b031344aad56be06e6b5549a454f66",
         "tested_commit": "df79e51437b031344aad56be06e6b5549a454f66",
         "schema_version": 6,
-        "scope": ["zm_tombstones (tombstone record; PK deletion_event_id; status applied/pending_unknown_target)", "zm_deletion_audit (append-only deletion audit; prior lifecycle state retained)", "explicit deletion event contract (lifecycle_status='deleted' + deletion block with target_event_id)", "tombstone projection into lifecycle (current_state='deleted'), FTS row removal (capability-guarded), active-index exclusion", "idempotent by deletion_event_id; pending_unknown_target retained + applied when target arrives", "admin inspection helpers list_deleted/get_tombstone/get_deletion_audit", "active-helper exclusion (find_by_trace_id/list_events_in_scope/search_fts)", "secret scanner extended to zm_tombstones + zm_deletion_audit", "verify_rebuild_parity extended (tombstones + audit); rebuild reproduces deleted state", "migration v6 (CURRENT_SCHEMA_VERSION=6); v6->v5 downgrade; unknown-future rejected; no partial advance"],
-        "excluded_scope": ["physical deletion/rewrite/truncation/compaction of canonical JSONL (Decision B; deferred to separate milestone with explicit purge policy)", "background retention scheduler / automatic expiry (no scheduler approved)", "retrieval/ranking/scoring/query routing/semantic search (M3+)", "MCP/Obsidian/context injection", "authorization/access-control", "M2.7 integration acceptance / M3"]
+        "scope": [
+          "zm_tombstones (tombstone record; PK deletion_event_id; status applied/pending_unknown_target)",
+          "zm_deletion_audit (append-only deletion audit; prior lifecycle state retained)",
+          "explicit deletion event contract (lifecycle_status='deleted' + deletion block with target_event_id)",
+          "tombstone projection into lifecycle (current_state='deleted'), FTS row removal (capability-guarded), active-index exclusion",
+          "idempotent by deletion_event_id; pending_unknown_target retained + applied when target arrives",
+          "admin inspection helpers list_deleted/get_tombstone/get_deletion_audit",
+          "active-helper exclusion (find_by_trace_id/list_events_in_scope/search_fts)",
+          "secret scanner extended to zm_tombstones + zm_deletion_audit",
+          "verify_rebuild_parity extended (tombstones + audit); rebuild reproduces deleted state",
+          "migration v6 (CURRENT_SCHEMA_VERSION=6); v6->v5 downgrade; unknown-future rejected; no partial advance"
+        ],
+        "excluded_scope": [
+          "physical deletion/rewrite/truncation/compaction of canonical JSONL (Decision B; deferred to separate milestone with explicit purge policy)",
+          "background retention scheduler / automatic expiry (no scheduler approved)",
+          "retrieval/ranking/scoring/query routing/semantic search (M3+)",
+          "MCP/Obsidian/context injection",
+          "authorization/access-control",
+          "M2.7 integration acceptance / M3"
+        ]
       },
       "increment_7": {
         "name": "Full M2 integration verification and final acceptance",
@@ -317,17 +667,53 @@
         "isolation_hardening_commit": "d03aa7c2d6f6f8e557fdcec60e91eaa73326435c",
         "final_evidence_commit": "c97357e95820a510c05a0e777f0d450f19594d51",
         "schema_version": 6,
-        "scope": ["clean rebuild from representative canonical JSONL corpus", "incremental vs rebuild parity (verify_rebuild_parity over all derived surfaces)", "deterministic repeated rebuild", "idempotent repeated ingestion (first-write-wins)", "lifecycle states raw..deleted + supersession via trace_id active-key", "relations (child_of from parent_trace_id, derived_from from relation_ids) + scopes + artifact registry parity", "FTS5 over sanitized content only; deleted excluded; no ranking/semantic behavior", "Decision B logical deletion: append-only tombstones, no physical JSONL mutation", "migration path v1..v6, idempotent reopen, unknown-future rejected, adjacent downgrades incl v6->v5, no partial advance", "crash/resume + consumed-prefix integrity (append tolerated; prefix modification/truncation rejected)", "secret scan across all derived tables; injected secret detected without printing", "JSONL byte-for-byte immutability", "real ~/.hermes isolation (baseline-aware M2-attributable-file check)", "no M3 behavior (no ranking/routing/vectors/injection/MCP/Obsidian)"],
-        "excluded_scope": ["physical deletion/rewrite/truncation/compaction of canonical JSONL (Decision B; deferred)", "background retention scheduler / automatic expiry", "retrieval/ranking/scoring/query routing/semantic search (M3+)", "MCP/Obsidian/context injection", "authorization/access-control"],
+        "scope": [
+          "clean rebuild from representative canonical JSONL corpus",
+          "incremental vs rebuild parity (verify_rebuild_parity over all derived surfaces)",
+          "deterministic repeated rebuild",
+          "idempotent repeated ingestion (first-write-wins)",
+          "lifecycle states raw..deleted + supersession via trace_id active-key",
+          "relations (child_of from parent_trace_id, derived_from from relation_ids) + scopes + artifact registry parity",
+          "FTS5 over sanitized content only; deleted excluded; no ranking/semantic behavior",
+          "Decision B logical deletion: append-only tombstones, no physical JSONL mutation",
+          "migration path v1..v6, idempotent reopen, unknown-future rejected, adjacent downgrades incl v6->v5, no partial advance",
+          "crash/resume + consumed-prefix integrity (append tolerated; prefix modification/truncation rejected)",
+          "secret scan across all derived tables; injected secret detected without printing",
+          "JSONL byte-for-byte immutability",
+          "real ~/.hermes isolation (baseline-aware M2-attributable-file check)",
+          "no M3 behavior (no ranking/routing/vectors/injection/MCP/Obsidian)"
+        ],
+        "excluded_scope": [
+          "physical deletion/rewrite/truncation/compaction of canonical JSONL (Decision B; deferred)",
+          "background retention scheduler / automatic expiry",
+          "retrieval/ranking/scoring/query routing/semantic search (M3+)",
+          "MCP/Obsidian/context injection",
+          "authorization/access-control"
+        ],
         "note": "M1 intermittent timing flake (test_mapping_is_deterministic) fixed in a SEPARATE maintenance commit (01db767) with its own plan (1d61a05); not part of M2 product implementation. Real-home isolation flakiness hardened to baseline-aware M2-attributable-file checks (d03aa7c)."
       }
     },
     {
       "id": "M3",
       "name": "Read-only retrieval",
-      "spec_sections": ["11", "13.2", "17.1", "17.2"],
-      "deliverables": ["FTS search", "get_trace", "task/decision queries", "provenance response envelope"],
-      "acceptance": ["gold evidence top-k", "100% evidence provenance fields", "p95 target initially <2s local", "structured errors"],
+      "spec_sections": [
+        "11",
+        "13.2",
+        "17.1",
+        "17.2"
+      ],
+      "deliverables": [
+        "FTS search",
+        "get_trace",
+        "task/decision queries",
+        "provenance response envelope"
+      ],
+      "acceptance": [
+        "gold evidence top-k",
+        "100% evidence provenance fields",
+        "p95 target initially <2s local",
+        "structured errors"
+      ],
       "increments": {
         "increment_1": {
           "name": "Query contract and structured read-only filters",
@@ -344,8 +730,29 @@
           "schema_version": 6,
           "sqlite_access": "true-read-only (file:?mode=ro + PRAGMA query_only=ON)",
           "schema_migration": "none",
-          "scope": ["QueryRequest/QueryResult/EventView models", "true read-only open_readonly (no ensure_schema/migration/SQLiteStore reuse)", "get_event/get_trace/query_events/list_session/list_project/list_profile", "deterministic AND filters over verified zm_meta columns", "deleted exclusion by default (Decision B)", "deterministic ordering (created_at ASC, event_id ASC)", "metadata-only result (content_source=metadata_only; sanitized_content not returned)", "fixed sanitized error codes (invalid_query/unsupported_filter/invalid_time_range/database_unavailable/schema_mismatch)", "before/after read-only proof (sqlite_master hash, row counts, content hash, JSONL sha256)"],
-          "excluded_scope": ["pagination/cursor (M3.2)", "FTS search (M3.3)", "relation/scope traversal (M3.4)", "lifecycle-aware policy beyond deleted exclusion (M3.5)", "ranking/scoring", "semantic/vector search", "LLM query rewriting", "context injection", "authorization/access control", "M4 project-memory write/routing"]
+          "scope": [
+            "QueryRequest/QueryResult/EventView models",
+            "true read-only open_readonly (no ensure_schema/migration/SQLiteStore reuse)",
+            "get_event/get_trace/query_events/list_session/list_project/list_profile",
+            "deterministic AND filters over verified zm_meta columns",
+            "deleted exclusion by default (Decision B)",
+            "deterministic ordering (created_at ASC, event_id ASC)",
+            "metadata-only result (content_source=metadata_only; sanitized_content not returned)",
+            "fixed sanitized error codes (invalid_query/unsupported_filter/invalid_time_range/database_unavailable/schema_mismatch)",
+            "before/after read-only proof (sqlite_master hash, row counts, content hash, JSONL sha256)"
+          ],
+          "excluded_scope": [
+            "pagination/cursor (M3.2)",
+            "FTS search (M3.3)",
+            "relation/scope traversal (M3.4)",
+            "lifecycle-aware policy beyond deleted exclusion (M3.5)",
+            "ranking/scoring",
+            "semantic/vector search",
+            "LLM query rewriting",
+            "context injection",
+            "authorization/access control",
+            "M4 project-memory write/routing"
+          ]
         },
         "increment_2": {
           "name": "Deterministic pagination and ordering",
@@ -362,8 +769,27 @@
           "schema_version": 6,
           "sqlite_access": "true-read-only (file:?mode=ro + PRAGMA query_only=ON)",
           "schema_migration": "none",
-          "scope": ["versioned query-bound cursor (v1, qf=SHA-256 normalized filters, base64url safe fields)", "limit default 50 / max 500, invalid -> invalid_limit (no clamp)", "keyset pagination (created_at, event_id) > (...) no rowid/OFFSET", "deterministic ordering created_at ASC, event_id ASC", "cursor validation invalid_cursor/cursor_query_mismatch/cursor_limit_mismatch", "deleted exclusion preserved across page boundaries", "before/after read-only proof (sqlite_master hash, row counts, content hash, JSONL sha256)", "no LLM/network, no real ~/.hermes writes"],
-          "excluded_scope": ["FTS search (M3.3)", "relation/scope traversal (M3.4)", "lifecycle-aware policy beyond deleted exclusion (M3.5)", "relevance/recency ranking", "semantic/vector search", "LLM query rewriting", "context injection", "authorization/access control", "M4 project-memory write/routing"]
+          "scope": [
+            "versioned query-bound cursor (v1, qf=SHA-256 normalized filters, base64url safe fields)",
+            "limit default 50 / max 500, invalid -> invalid_limit (no clamp)",
+            "keyset pagination (created_at, event_id) > (...) no rowid/OFFSET",
+            "deterministic ordering created_at ASC, event_id ASC",
+            "cursor validation invalid_cursor/cursor_query_mismatch/cursor_limit_mismatch",
+            "deleted exclusion preserved across page boundaries",
+            "before/after read-only proof (sqlite_master hash, row counts, content hash, JSONL sha256)",
+            "no LLM/network, no real ~/.hermes writes"
+          ],
+          "excluded_scope": [
+            "FTS search (M3.3)",
+            "relation/scope traversal (M3.4)",
+            "lifecycle-aware policy beyond deleted exclusion (M3.5)",
+            "relevance/recency ranking",
+            "semantic/vector search",
+            "LLM query rewriting",
+            "context injection",
+            "authorization/access control",
+            "M4 project-memory write/routing"
+          ]
         },
         "increment_3": {
           "name": "FTS read-only search",
@@ -380,8 +806,30 @@
           "schema_version": 6,
           "sqlite_access": "true-read-only (file:?mode=ro + PRAGMA query_only=ON)",
           "schema_migration": "none",
-          "scope": ["reuse verified M2.5 zm_fts substrate (sanitized content only); no new index/table/migration", "capability detected by inspecting sqlite_master for zm_fts (read-only SELECT), not the mutable FTS5_AVAILABLE global", "parameterized zm_fts MATCH ? (FTS5 syntax passthrough)", "typed result SearchResult{results,error,next_cursor}: fts_unavailable / malformed_fts_expression (empty [] never means error)", "deterministic ordering created_at ASC, event_id ASC (candidate set via FTS; no bm25/rowid/relevance)", "deleted exclusion via derived-state subquery (zm_meta.event_id NOT IN zm_lifecycle deleted)", "snapshot over M2.5 sanitized content only", "reuses M3.2 pagination + versioned query-bound cursor (qf binds text+filters+limit)", "before/after read-only proof covers zm_fts content hash + JSONL sha256", "secret-safety: cursor/snippet/error contain no raw secret; scan covers zm_fts"],
-          "excluded_scope": ["relation/scope traversal (M3.4)", "lifecycle-aware policy beyond deleted exclusion (M3.5)", "relevance/recency ranking", "bm25 ordering", "semantic/vector search", "embeddings", "LLM query rewriting", "context injection", "authorization/access control", "M4 project-memory write/routing"]
+          "scope": [
+            "reuse verified M2.5 zm_fts substrate (sanitized content only); no new index/table/migration",
+            "capability detected by inspecting sqlite_master for zm_fts (read-only SELECT), not the mutable FTS5_AVAILABLE global",
+            "parameterized zm_fts MATCH ? (FTS5 syntax passthrough)",
+            "typed result SearchResult{results,error,next_cursor}: fts_unavailable / malformed_fts_expression (empty [] never means error)",
+            "deterministic ordering created_at ASC, event_id ASC (candidate set via FTS; no bm25/rowid/relevance)",
+            "deleted exclusion via derived-state subquery (zm_meta.event_id NOT IN zm_lifecycle deleted)",
+            "snapshot over M2.5 sanitized content only",
+            "reuses M3.2 pagination + versioned query-bound cursor (qf binds text+filters+limit)",
+            "before/after read-only proof covers zm_fts content hash + JSONL sha256",
+            "secret-safety: cursor/snippet/error contain no raw secret; scan covers zm_fts"
+          ],
+          "excluded_scope": [
+            "relation/scope traversal (M3.4)",
+            "lifecycle-aware policy beyond deleted exclusion (M3.5)",
+            "relevance/recency ranking",
+            "bm25 ordering",
+            "semantic/vector search",
+            "embeddings",
+            "LLM query rewriting",
+            "context injection",
+            "authorization/access control",
+            "M4 project-memory write/routing"
+          ]
         },
         "increment_4": {
           "name": "Relation and scope read queries",
@@ -398,8 +846,35 @@
           "schema_version": 6,
           "sqlite_access": "true-read-only (file:?mode=ro + PRAGMA query_only=ON)",
           "schema_migration": "none",
-          "scope": ["explicit stored edges only (child_of/derived_from/supersedes); direction outgoing/incoming/both", "depth=1, no graph traversal", "get_related/get_parent/get_children/get_artifacts/list_knowledge_space", "deleted targets excluded via derived-state subquery", "artifact safe reference artifact:<id> (no stored_path / path leak)", "knowledge_space has no event linkage in schema -> list_knowledge_space returns [] (no inference/global fallback)", "reuses M3.2 deterministic pagination + versioned query-bound cursor (fingerprint binds event_id+direction+relation_type / origin_event_id)", "before/after read-only proof covers zm_relations/zm_scopes/zm_artifacts row counts + JSONL sha256", "no authorization/access-control (caller-supplied scope filters only)", "no M3.5 trust policy / M4 behavior"],
-          "excluded_scope": ["relation writes", "relation inference", "graph traversal beyond depth=1", "authorization/access control", "permission inheritance", "cross-profile/project auto-expansion", "M3.5 trust/verification policy", "ranking/scoring", "semantic/vector search", "LLM query rewriting", "context injection", "M4 project-memory", "MCP", "Obsidian", "schema migration"]
+          "scope": [
+            "explicit stored edges only (child_of/derived_from/supersedes); direction outgoing/incoming/both",
+            "depth=1, no graph traversal",
+            "get_related/get_parent/get_children/get_artifacts/list_knowledge_space",
+            "deleted targets excluded via derived-state subquery",
+            "artifact safe reference artifact:<id> (no stored_path / path leak)",
+            "knowledge_space has no event linkage in schema -> list_knowledge_space returns [] (no inference/global fallback)",
+            "reuses M3.2 deterministic pagination + versioned query-bound cursor (fingerprint binds event_id+direction+relation_type / origin_event_id)",
+            "before/after read-only proof covers zm_relations/zm_scopes/zm_artifacts row counts + JSONL sha256",
+            "no authorization/access-control (caller-supplied scope filters only)",
+            "no M3.5 trust policy / M4 behavior"
+          ],
+          "excluded_scope": [
+            "relation writes",
+            "relation inference",
+            "graph traversal beyond depth=1",
+            "authorization/access control",
+            "permission inheritance",
+            "cross-profile/project auto-expansion",
+            "M3.5 trust/verification policy",
+            "ranking/scoring",
+            "semantic/vector search",
+            "LLM query rewriting",
+            "context injection",
+            "M4 project-memory",
+            "MCP",
+            "Obsidian",
+            "schema migration"
+          ]
         },
         "increment_5": {
           "name": "Verification and lifecycle-aware retrieval",
@@ -416,8 +891,35 @@
           "schema_version": 6,
           "sqlite_access": "true-read-only (file:?mode=ro + PRAGMA query_only=ON)",
           "schema_migration": "none",
-          "scope": ["exact verification_status/lifecycle_status filters using real enum vocabularies from src/capture/event_types.py (none/direct_tool_output/user_confirmation/deterministic_verification/approval; raw/observed/candidate/confirmed/active/superseded/conflicted/archived/deleted)", "claim-not-fact: assistant_claim/user_statement/inference/tool_observation/verified_state surfaced as event_type labels only; unverified assistant_claim never promoted; verification/lifecycle state never alters ordering", "provenance enrichment via get_provenance (verifier/evidence_ref/verification_status/recorded_at) read-only over zm_provenance", "admin deleted-inspection passthrough: list_deleted/get_tombstone/get_deletion_audit (Decision B; normal path excludes deleted)", "FTS composition: search_filtered applies verification/lifecycle filters to FTS candidates; deterministic ordering; no ranking", "relation results preserve verification/lifecycle metadata (M3.4 target EventView)", "supersession/conflict returned verbatim; no replacement/no winner/no LLM", "reuses M3.2 cursor (binds text+verification+lifecycle)"],
-          "excluded_scope": ["truth inference", "automatic fact promotion", "conflict resolution", "automatic supersession", "trust scoring", "relevance/recency/confidence ranking", "vector/semantic search", "LLM query rewriting", "automatic memory selection", "context injection", "authorization/access control", "M4 project state", "Requirement Registry/Decision Log mutation", "MCP", "Obsidian", "schema migration", "M3.6 integration/final-acceptance behavior"]
+          "scope": [
+            "exact verification_status/lifecycle_status filters using real enum vocabularies from src/capture/event_types.py (none/direct_tool_output/user_confirmation/deterministic_verification/approval; raw/observed/candidate/confirmed/active/superseded/conflicted/archived/deleted)",
+            "claim-not-fact: assistant_claim/user_statement/inference/tool_observation/verified_state surfaced as event_type labels only; unverified assistant_claim never promoted; verification/lifecycle state never alters ordering",
+            "provenance enrichment via get_provenance (verifier/evidence_ref/verification_status/recorded_at) read-only over zm_provenance",
+            "admin deleted-inspection passthrough: list_deleted/get_tombstone/get_deletion_audit (Decision B; normal path excludes deleted)",
+            "FTS composition: search_filtered applies verification/lifecycle filters to FTS candidates; deterministic ordering; no ranking",
+            "relation results preserve verification/lifecycle metadata (M3.4 target EventView)",
+            "supersession/conflict returned verbatim; no replacement/no winner/no LLM",
+            "reuses M3.2 cursor (binds text+verification+lifecycle)"
+          ],
+          "excluded_scope": [
+            "truth inference",
+            "automatic fact promotion",
+            "conflict resolution",
+            "automatic supersession",
+            "trust scoring",
+            "relevance/recency/confidence ranking",
+            "vector/semantic search",
+            "LLM query rewriting",
+            "automatic memory selection",
+            "context injection",
+            "authorization/access control",
+            "M4 project state",
+            "Requirement Registry/Decision Log mutation",
+            "MCP",
+            "Obsidian",
+            "schema migration",
+            "M3.6 integration/final-acceptance behavior"
+          ]
         },
         "increment_6": {
           "name": "Integration, performance & final acceptance",
@@ -435,16 +937,47 @@
           "schema_version": 6,
           "sqlite_access": "true-read-only (file:?mode=ro + PRAGMA query_only=ON)",
           "schema_migration": "none",
-          "scope": ["final integration battery over one representative synthetic corpus (multi project/profile/session, all event types, all verification & lifecycle statuses, identical timestamps for tie-break, relations, parent/child traces, knowledge-space + project/profile/session scopes, artifact references, sanitized FTS content, deletion via verified M2.6 path, synthetic secret)", "structured/pagination/FTS/relation/scope/verification-lifecycle/cross-feature/error-contract exercised end-to-end", "TRUE READ-ONLY proof: sqlite_master hash + derived-table counts + zm_meta content hash + JSONL sha256 + DB size unchanged before/after full query battery; no ensure_schema/migration called", "secret safety: secret absent from all result/snippet/relation/scope/artifact/verification/error/cursor surfaces", "JSONL immutability (sha256 unchanged); real ~/.hermes isolation", "performance baseline (corpus=200, sqlite=3.53.1, FTS=True; all p95 < 100ms; no cache added)", "no M4 behavior"],
-          "excluded_scope": ["new schema", "new product features", "M4 project state", "Requirement Registry/Decision Log mutation", "MCP", "Obsidian", "LLM/network", "context injection", "authorization/access control"]
+          "scope": [
+            "final integration battery over one representative synthetic corpus (multi project/profile/session, all event types, all verification & lifecycle statuses, identical timestamps for tie-break, relations, parent/child traces, knowledge-space + project/profile/session scopes, artifact references, sanitized FTS content, deletion via verified M2.6 path, synthetic secret)",
+            "structured/pagination/FTS/relation/scope/verification-lifecycle/cross-feature/error-contract exercised end-to-end",
+            "TRUE READ-ONLY proof: sqlite_master hash + derived-table counts + zm_meta content hash + JSONL sha256 + DB size unchanged before/after full query battery; no ensure_schema/migration called",
+            "secret safety: secret absent from all result/snippet/relation/scope/artifact/verification/error/cursor surfaces",
+            "JSONL immutability (sha256 unchanged); real ~/.hermes isolation",
+            "performance baseline (corpus=200, sqlite=3.53.1, FTS=True; all p95 < 100ms; no cache added)",
+            "no M4 behavior"
+          ],
+          "excluded_scope": [
+            "new schema",
+            "new product features",
+            "M4 project state",
+            "Requirement Registry/Decision Log mutation",
+            "MCP",
+            "Obsidian",
+            "LLM/network",
+            "context injection",
+            "authorization/access control"
+          ]
         }
       }
     },
     {
       "id": "M4",
       "name": "Project-memory layer (deterministic, derived)",
-      "spec_sections": ["7.1", "7.2", "7.3", "9.2"],
-      "deliverables": ["zm_project_charters", "zm_requirements", "zm_decisions", "zm_project_state", "zm_verifications", "zm_project_artifacts", "schema migration v7"],
+      "spec_sections": [
+        "7.1",
+        "7.2",
+        "7.3",
+        "9.2"
+      ],
+      "deliverables": [
+        "zm_project_charters",
+        "zm_requirements",
+        "zm_decisions",
+        "zm_project_state",
+        "zm_verifications",
+        "zm_project_artifacts",
+        "schema migration v7"
+      ],
       "plan": ".hermes/plans/2026-08-07_000004-m4-project-memory-plan.md",
       "plan_commit": "6ee6510",
       "status": "in_progress",
@@ -465,8 +998,29 @@
           "schema_version": 7,
           "sqlite_access": "read-write migration (derived, disposable, rebuildable); no JSONL mutation",
           "schema_migration": "v6 -> v7 (migrate_7.up) / v7 -> v6 (migrate_7.down)",
-          "scope": ["six derived tables: zm_project_charters, zm_requirements, zm_decisions, zm_project_state, zm_verifications, zm_project_artifacts (reuses M2 zm_artifacts)", "lifecycle_status CHECK constrained to closed enum raw/observed/candidate/confirmed/active/superseded/conflicted/archived/deleted", "generic domain state column separate from lifecycle_status (proposed/accepted/satisfied/blocked/rejected allowed there only)", "decision_key/state_key explicit-only; NO trace_id/active_key fallback; NULL preserved; no uniqueness when NULL", "active uniqueness via partial unique indexes (WHERE lifecycle_status='active' AND key IS NOT NULL)", "self-referential supersession FKs (supersedes/replaced_by) without breaking historical records", "v7 -> v6 downgrade removes only M4-derived schema; M0-M3 tables/JSONL/artifacts untouched", "rebuild_from_jsonl DERIVED_TABLES extended to include the six M4 tables", "no M4.2 projection logic, no M5 authorization, no LLM/network, no real ~/.hermes writes"],
-          "excluded_scope": ["charter update/reducer", "requirement transition", "decision acceptance", "state reduction", "verification promotion", "conflict resolution", "projection/business logic (M4.2+)", "authorization/access control (M5)", "context injection (M7)", "LLM/semantic-key derivation"]
+          "scope": [
+            "six derived tables: zm_project_charters, zm_requirements, zm_decisions, zm_project_state, zm_verifications, zm_project_artifacts (reuses M2 zm_artifacts)",
+            "lifecycle_status CHECK constrained to closed enum raw/observed/candidate/confirmed/active/superseded/conflicted/archived/deleted",
+            "generic domain state column separate from lifecycle_status (proposed/accepted/satisfied/blocked/rejected allowed there only)",
+            "decision_key/state_key explicit-only; NO trace_id/active_key fallback; NULL preserved; no uniqueness when NULL",
+            "active uniqueness via partial unique indexes (WHERE lifecycle_status='active' AND key IS NOT NULL)",
+            "self-referential supersession FKs (supersedes/replaced_by) without breaking historical records",
+            "v7 -> v6 downgrade removes only M4-derived schema; M0-M3 tables/JSONL/artifacts untouched",
+            "rebuild_from_jsonl DERIVED_TABLES extended to include the six M4 tables",
+            "no M4.2 projection logic, no M5 authorization, no LLM/network, no real ~/.hermes writes"
+          ],
+          "excluded_scope": [
+            "charter update/reducer",
+            "requirement transition",
+            "decision acceptance",
+            "state reduction",
+            "verification promotion",
+            "conflict resolution",
+            "projection/business logic (M4.2+)",
+            "authorization/access control (M5)",
+            "context injection (M7)",
+            "LLM/semantic-key derivation"
+          ]
         },
         "increment_2": {
           "name": "Project Charter and Requirement Registry projection",
@@ -486,8 +1040,33 @@
           "schema_version": 7,
           "sqlite_access": "write/project path (projector); separate from M3 TRUE READ-ONLY; no ensure_schema; no JSONL mutation",
           "model": "explicit typed operation envelope (CharterOp/RequirementOp); projector consumes only explicitly-structured operations; never infers from prose/LLM/timestamp/trace_id",
-          "scope": ["project_charter(conn, op) create/update/supersede/transition/delete", "project_requirement(conn, op) create/transition/supersede/delete", "classify_event_for_m4(event) deterministic SKIP when no explicit structured M4 identity block", "idempotent: repeated same op -> no duplicate row/version/link", "active Charter uniqueness via v7 partial unique index (one active per project); active selection by lifecycle_status, never MAX(created_at)", "explicit supersession only (distinct ids preserved; prior marked superseded, link retained)", "assistant_claim-derived op cannot set lifecycle_status=active (promotion guard)", "requirement_id explicit; trace_id never used as identity; missing identity not invented", "lifecycle_status closed enum; domain state in separate generic column; no hidden promotion", "terminal deleted state cannot be left", "conflicts preserved (existing retained, no winner, no overwrite)", "transactional atomicity; rollback on error; sanitized errors (no raw SQL/payload/secret)", "provenance retained (source_event_id, trace_id, session_id, project_id, profile_id, created_at)", "schema remains v7 (no migration v8); JSONL canonical and untouched; no real ~/.hermes writes; no LLM/network"],
-          "excluded_scope": ["Decision Log projection (M4.3)", "Current Project State reducer (M4.4)", "Verification projector (M4.5)", "Artifact Registry behavior (M4.6)", "M4 read API layer (M4.6)", "M4.7 rebuild API", "M5 authorization/profile policy", "LLM/semantic-key derivation", "invention of charter/requirement event types not present in canonical envelope"]
+          "scope": [
+            "project_charter(conn, op) create/update/supersede/transition/delete",
+            "project_requirement(conn, op) create/transition/supersede/delete",
+            "classify_event_for_m4(event) deterministic SKIP when no explicit structured M4 identity block",
+            "idempotent: repeated same op -> no duplicate row/version/link",
+            "active Charter uniqueness via v7 partial unique index (one active per project); active selection by lifecycle_status, never MAX(created_at)",
+            "explicit supersession only (distinct ids preserved; prior marked superseded, link retained)",
+            "assistant_claim-derived op cannot set lifecycle_status=active (promotion guard)",
+            "requirement_id explicit; trace_id never used as identity; missing identity not invented",
+            "lifecycle_status closed enum; domain state in separate generic column; no hidden promotion",
+            "terminal deleted state cannot be left",
+            "conflicts preserved (existing retained, no winner, no overwrite)",
+            "transactional atomicity; rollback on error; sanitized errors (no raw SQL/payload/secret)",
+            "provenance retained (source_event_id, trace_id, session_id, project_id, profile_id, created_at)",
+            "schema remains v7 (no migration v8); JSONL canonical and untouched; no real ~/.hermes writes; no LLM/network"
+          ],
+          "excluded_scope": [
+            "Decision Log projection (M4.3)",
+            "Current Project State reducer (M4.4)",
+            "Verification projector (M4.5)",
+            "Artifact Registry behavior (M4.6)",
+            "M4 read API layer (M4.6)",
+            "M4.7 rebuild API",
+            "M5 authorization/profile policy",
+            "LLM/semantic-key derivation",
+            "invention of charter/requirement event types not present in canonical envelope"
+          ]
         },
         "increment_3": {
           "name": "Decision Log projection",
@@ -507,8 +1086,34 @@
           "schema_version": 7,
           "sqlite_access": "write/project path (projector); separate from M3 TRUE READ-ONLY; no ensure_schema; no JSONL mutation",
           "model": "explicit typed operation envelope (DecisionOp); projector consumes only explicitly-structured operations; never infers from prose/LLM/timestamp/trace_id",
-          "scope": ["project_decision(conn, op) create/transition/supersede/delete", "decision_id explicit stable identity; trace_id never used as identity or decision_key", "decision_key nullable; NULL-key decisions coexist and do not falsely collide", "classify_event_for_m4 gains DECISION domain; generic events -> SKIP", "idempotent: repeated same op -> no duplicate row/link", "active uniqueness via v7 partial unique index (one active per project/scope/non-NULL decision_key)", "explicit supersession only: chains A<-B<-C preserved (distinct decision_ids, no flattening); self-supersession rejected; missing target rolls back", "atomic active transition: prior marked superseded BEFORE new promoted (never dual-active)", "conflict preserved: explicit 'conflicted' lifecycle retained; both sources + provenance retained; no winner; no auto-mutation of other records", "assistant_claim-derived op cannot set lifecycle_status=active (promotion guard)", "lifecycle_status closed enum; domain state in separate generic column; no hidden promotion", "transactional atomicity; rollback on error; sanitized errors (no raw SQL/payload/secret)", "provenance retained (source_event_id, trace_id, session_id, project_id, profile_id, effective_at)", "schema remains v7 (no migration v8; VERIFIED zm_decisions has no created_at column -> temporal provenance via effective_at); JSONL canonical and untouched; no real ~/.hermes writes; no LLM/network", "replay determinism: incremental == replay; repeated replay deterministic"],
-          "excluded_scope": ["Current Project State reducer (M4.4)", "Verification projector (M4.5)", "Artifact Registry behavior (M4.6)", "M4 read API layer (M4.6)", "M4.7 rebuild API", "M5 authorization/profile policy", "LLM/semantic-key derivation", "invention of decision event types not present in canonical envelope", "modification of VERIFIED migrate_7 / migration v8"]
+          "scope": [
+            "project_decision(conn, op) create/transition/supersede/delete",
+            "decision_id explicit stable identity; trace_id never used as identity or decision_key",
+            "decision_key nullable; NULL-key decisions coexist and do not falsely collide",
+            "classify_event_for_m4 gains DECISION domain; generic events -> SKIP",
+            "idempotent: repeated same op -> no duplicate row/link",
+            "active uniqueness via v7 partial unique index (one active per project/scope/non-NULL decision_key)",
+            "explicit supersession only: chains A<-B<-C preserved (distinct decision_ids, no flattening); self-supersession rejected; missing target rolls back",
+            "atomic active transition: prior marked superseded BEFORE new promoted (never dual-active)",
+            "conflict preserved: explicit 'conflicted' lifecycle retained; both sources + provenance retained; no winner; no auto-mutation of other records",
+            "assistant_claim-derived op cannot set lifecycle_status=active (promotion guard)",
+            "lifecycle_status closed enum; domain state in separate generic column; no hidden promotion",
+            "transactional atomicity; rollback on error; sanitized errors (no raw SQL/payload/secret)",
+            "provenance retained (source_event_id, trace_id, session_id, project_id, profile_id, effective_at)",
+            "schema remains v7 (no migration v8; VERIFIED zm_decisions has no created_at column -> temporal provenance via effective_at); JSONL canonical and untouched; no real ~/.hermes writes; no LLM/network",
+            "replay determinism: incremental == replay; repeated replay deterministic"
+          ],
+          "excluded_scope": [
+            "Current Project State reducer (M4.4)",
+            "Verification projector (M4.5)",
+            "Artifact Registry behavior (M4.6)",
+            "M4 read API layer (M4.6)",
+            "M4.7 rebuild API",
+            "M5 authorization/profile policy",
+            "LLM/semantic-key derivation",
+            "invention of decision event types not present in canonical envelope",
+            "modification of VERIFIED migrate_7 / migration v8"
+          ]
         },
         "increment_4": {
           "name": "Current Project State reducer",
@@ -528,8 +1133,32 @@
           "schema_version": 7,
           "sqlite_access": "write/project path (projector); separate from M3 TRUE READ-ONLY; no ensure_schema; no JSONL mutation",
           "model": "explicit typed operation envelope (StateOp); projector consumes only explicitly-structured operations; never infers from prose/LLM/timestamp/trace_id; state_key explicit; scope defaults to project:<id> when state_key present",
-          "scope": ["project_state(conn, op) create/update/supersede/transition/delete", "state_key explicit logical slot; trace_id never used as state_key; NULL-key record preserved, no uniqueness", "scope defaults to project:<project_id> only when state_key present", "active value selected by lifecycle_status, never timestamp", "update/supersede inserts a new row and marks prior active row 'superseded' (history preserved)", "bare create on an existing active key with differing content -> sanitized ConflictError (existing retained, no silent overwrite); update/supersede explicitly retire prior", "active uniqueness via v7 partial unique index (one active per project/scope/non-NULL state_key); multiple active NULL-key allowed", "explicit conflicted (non-active) row coexists with active (no winner); both sources + provenance retained; no auto-mutation of other records", "idempotence content-based (logical fields only, ignores timestamp); re-projection omitting created_at still noop", "assistant_claim-derived op cannot set lifecycle_status=active (promotion guard)", "lifecycle_status closed enum; no hidden promotion", "transactional atomicity; rollback on error; sanitized errors (no raw SQL/payload/secret)", "provenance retained (source_event_id, trace_id, session_id, project_id, profile_id, effective_at)", "schema remains v7 (no migration v8); JSONL canonical and untouched; no real ~/.hermes writes; no LLM/network"],
-          "excluded_scope": ["Verification projector (M4.5)", "Artifact Registry behavior (M4.6)", "M4 read API layer (M4.6)", "M4.7 rebuild API", "M5 authorization/profile policy", "LLM/semantic-key derivation", "invention of state event types not present in canonical envelope", "modification of VERIFIED migrate_7 / migration v8"]
+          "scope": [
+            "project_state(conn, op) create/update/supersede/transition/delete",
+            "state_key explicit logical slot; trace_id never used as state_key; NULL-key record preserved, no uniqueness",
+            "scope defaults to project:<project_id> only when state_key present",
+            "active value selected by lifecycle_status, never timestamp",
+            "update/supersede inserts a new row and marks prior active row 'superseded' (history preserved)",
+            "bare create on an existing active key with differing content -> sanitized ConflictError (existing retained, no silent overwrite); update/supersede explicitly retire prior",
+            "active uniqueness via v7 partial unique index (one active per project/scope/non-NULL state_key); multiple active NULL-key allowed",
+            "explicit conflicted (non-active) row coexists with active (no winner); both sources + provenance retained; no auto-mutation of other records",
+            "idempotence content-based (logical fields only, ignores timestamp); re-projection omitting created_at still noop",
+            "assistant_claim-derived op cannot set lifecycle_status=active (promotion guard)",
+            "lifecycle_status closed enum; no hidden promotion",
+            "transactional atomicity; rollback on error; sanitized errors (no raw SQL/payload/secret)",
+            "provenance retained (source_event_id, trace_id, session_id, project_id, profile_id, effective_at)",
+            "schema remains v7 (no migration v8); JSONL canonical and untouched; no real ~/.hermes writes; no LLM/network"
+          ],
+          "excluded_scope": [
+            "Verification projector (M4.5)",
+            "Artifact Registry behavior (M4.6)",
+            "M4 read API layer (M4.6)",
+            "M4.7 rebuild API",
+            "M5 authorization/profile policy",
+            "LLM/semantic-key derivation",
+            "invention of state event types not present in canonical envelope",
+            "modification of VERIFIED migrate_7 / migration v8"
+          ]
         },
         "increment_5": {
           "name": "Verification Records + Project Artifact integration",
@@ -550,52 +1179,200 @@
           "schema_version": 7,
           "sqlite_access": "write/project path (projector); separate from M3 TRUE READ-ONLY; no ensure_schema; no JSONL mutation",
           "model": "explicit typed operation envelopes (VerificationOp / ArtifactOp); projector consumes only explicitly-structured operations; never infers verification/identity/subject from prose/LLM/timestamp/trace_id; verification_id/artifact_id explicit; trace_id never used as identity",
-          "scope": ["project_verification(conn, op) create/idempotent update", "verification_id explicit stable identity; trace_id never used as identity; missing identity not invented", "subject_type closed vocabulary (requirement/decision/state/artifact/task/implementation/milestone); project_state rejected; subject never inferred", "verification_status reuses approved VerificationStatus enum (NO new enum); separate from lifecycle_status (no such column on zm_verifications)", "verification does NOT mutate the referenced requirement/decision/state/charter/artifact; no auto-promotion of unrelated claims", "contradictory verifications both preserved; no winner; no timestamp truth; no LLM", "safe references only (command_ref/observed_result/artifact_references); raw output/absolute path/secret rejected", "project_artifact(conn, op) link to existing M2 zm_artifacts (FK enforced)", "missing M2 artifact rolls back (no fake artifact, no partial link)", "metadata/linkage only (NO content duplication); explicit linked_requirement/decision/state keys only", "safe_reference enforced (absolute path/traversal/secret rejected)", "idempotent (repeated same event = noop); atomic transaction; sanitized errors", "classify_event_for_m4 gains VERIFICATION + PROJECT_ARTIFACT; generic -> SKIP", "schema remains v7 (no migration v8); JSONL canonical and untouched; no real ~/.hermes writes; no LLM/network"],
-          "excluded_scope": ["Artifact Registry behavior (M4.6)", "M4 read API layer (M4.6)", "M4.7 rebuild API", "M5 authorization/profile policy", "LLM/semantic-key derivation", "invention of verification/artifact event types not present in canonical envelope", "modification of VERIFIED migrate_7 / migration v8"]
+          "scope": [
+            "project_verification(conn, op) create/idempotent update",
+            "verification_id explicit stable identity; trace_id never used as identity; missing identity not invented",
+            "subject_type closed vocabulary (requirement/decision/state/artifact/task/implementation/milestone); project_state rejected; subject never inferred",
+            "verification_status reuses approved VerificationStatus enum (NO new enum); separate from lifecycle_status (no such column on zm_verifications)",
+            "verification does NOT mutate the referenced requirement/decision/state/charter/artifact; no auto-promotion of unrelated claims",
+            "contradictory verifications both preserved; no winner; no timestamp truth; no LLM",
+            "safe references only (command_ref/observed_result/artifact_references); raw output/absolute path/secret rejected",
+            "project_artifact(conn, op) link to existing M2 zm_artifacts (FK enforced)",
+            "missing M2 artifact rolls back (no fake artifact, no partial link)",
+            "metadata/linkage only (NO content duplication); explicit linked_requirement/decision/state keys only",
+            "safe_reference enforced (absolute path/traversal/secret rejected)",
+            "idempotent (repeated same event = noop); atomic transaction; sanitized errors",
+            "classify_event_for_m4 gains VERIFICATION + PROJECT_ARTIFACT; generic -> SKIP",
+            "schema remains v7 (no migration v8); JSONL canonical and untouched; no real ~/.hermes writes; no LLM/network"
+          ],
+          "excluded_scope": [
+            "Artifact Registry behavior (M4.6)",
+            "M4 read API layer (M4.6)",
+            "M4.7 rebuild API",
+            "M5 authorization/profile policy",
+            "LLM/semantic-key derivation",
+            "invention of verification/artifact event types not present in canonical envelope",
+            "modification of VERIFIED migrate_7 / migration v8"
+          ]
+        },
+        "increment_6": {
+          "name": "Project-memory read APIs and M3 composition",
+          "status": "verified",
+          "plan": ".hermes/plans/2026-08-07_000004-m4-project-memory-plan.md",
+          "plan_commit": "6ee6510",
+          "evidence": "acceptance-m4.6.md",
+          "focused_test": "tests/unit/test_m4_read.py",
+          "focused_result": "32 passed",
+          "combined_result": "226 passed (M4.1 32 + M4.2 38 + M4.3 40 + M4.4 35 + M4.5 49 + M4.6 32)",
+          "m2_compat_result": "131 passed, 3 skipped",
+          "m3_compat_result": "283 passed",
+          "canonical_result": "842 passed, 3 skipped",
+          "starting_commit": "1342a9e4bdbda44e0231c1220afe2817cf16c487",
+          "implementation_commit": "bd13beb3324febb4becc93bbe9b11d9fd784fb3c",
+          "tested_commit": "bd13beb3324febb4becc93bbe9b11d9fd784fb3c",
+          "evidence_commit": "PENDING_EVIDENCE",
+          "schema_version": 7,
+          "sqlite_access": "TRUE READ-ONLY (M3 ReadonlyStore: file:?mode=ro + PRAGMA query_only=ON); no projector/migration import; no ensure_schema; no JSONL mutation",
+          "model": "TRUE READ-ONLY query APIs over M4 v7 derived tables; typed views; keyset pagination via M3 cursor (v1 query-bound, limit-bound); M3 source-event composition (include_source_event, missing->None); sanitized QueryError codes reused; no promotion/supersession-inference/conflict-resolution",
+          "scope": [
+            "get_project_charter/list_project_charters (active by stored lifecycle_status='active'; deleted excluded; history on include_history)",
+            "get_requirement/list_requirements (state + lifecycle filters; candidate/proposed returned as stored; no inference/promotion)",
+            "get_decision/list_decisions/get_active_decision (explicit non-NULL decision_key required for active; NULL key -> invalid_query; conflicted Decisions preserved, no winner)",
+            "get_current_project_state/get_state_value (explicit non-NULL state_key; NULL key not a logical slot; no trace_id fallback; no mutation)",
+            "get_verification/list_verifications (subject_type/subject_id/verification_status filters; contradictory records both preserved; subjects NOT promoted)",
+            "list_project_artifacts (joins M2 zm_artifacts for safe metadata only: kind/content_hash/retention; no stored_path/content; safe_reference enforced)",
+            "keyset pagination on stored stable sort columns; cursor_query_mismatch/cursor_limit_mismatch; AND-filter semantics; zero matches -> [] + error=None",
+            "lifecycle_status kept distinct from domain state in every view; supersession read from stored fields only",
+            "M3 composition: source_event_id exposed; include_source_event resolves via M3 read-only get_event; missing -> None; no recursive expansion",
+            "schema v7 opens mode=ro+query_only; v6 not silently upgraded (no migration); future schema rejected (schema_mismatch)",
+            "secret safety: synthetic secret only in M2 stored_path; project-memory results never expose it; safe references only",
+            "no LLM/network; no M4.7 rebuild; no M5 authorization; JSONL canonical and untouched"
+          ],
+          "excluded_scope": [
+            "M4.7 rebuild API / final M4 acceptance harness",
+            "M5 authorization/profile policy / isolated-mode access control / cross-profile access policy",
+            "projector invocations / mutations / lifecycle transitions / verification promotion / artifact mutation",
+            "migration during read / ensure_schema write mode",
+            "LLM/semantic-key derivation",
+            "modification of VERIFIED migrate_7 / migration v8"
+          ]
         }
       }
     },
     {
       "id": "M5",
       "name": "Profile and access policy",
-      "spec_sections": ["8", "11.2", "14.4", "17"],
-      "deliverables": ["general-assistant plus initial profiles", "profile-first/global/explicit_union/isolated/source_restricted", "write authorization policy"],
-      "acceptance": ["isolation has no scope leak", "explicit union combines only named spaces", "priority and privacy tests pass", "cross-profile writes denied without authorization"]
+      "spec_sections": [
+        "8",
+        "11.2",
+        "14.4",
+        "17"
+      ],
+      "deliverables": [
+        "general-assistant plus initial profiles",
+        "profile-first/global/explicit_union/isolated/source_restricted",
+        "write authorization policy"
+      ],
+      "acceptance": [
+        "isolation has no scope leak",
+        "explicit union combines only named spaces",
+        "priority and privacy tests pass",
+        "cross-profile writes denied without authorization"
+      ]
     },
     {
       "id": "M6",
       "name": "MCP/Hermes read-only integration",
-      "spec_sections": ["5", "13"],
-      "deliverables": ["zero_mem.search", "zero_mem.get_trace", "zero_mem.get_task_state", "zero_mem.get_decisions", "structured errors"],
-      "acceptance": ["Hermes can call read-only memory", "native memory remains minimal", "no deep Hermes-core modification"]
+      "spec_sections": [
+        "5",
+        "13"
+      ],
+      "deliverables": [
+        "zero_mem.search",
+        "zero_mem.get_trace",
+        "zero_mem.get_task_state",
+        "zero_mem.get_decisions",
+        "structured errors"
+      ],
+      "acceptance": [
+        "Hermes can call read-only memory",
+        "native memory remains minimal",
+        "no deep Hermes-core modification"
+      ]
     },
     {
       "id": "M7",
       "name": "Controlled injection",
-      "spec_sections": ["11.3", "11.4", "15.2", "Appendix E"],
-      "deliverables": ["confidence/sensitivity gate", "5 primary + 3 supporting budget", "conflict set", "kill switch"],
-      "acceptance": ["no wrong-scope injection", "insufficient/conflict states explicit", "redaction/isolation/stale-state/latency/token gates pass"]
+      "spec_sections": [
+        "11.3",
+        "11.4",
+        "15.2",
+        "Appendix E"
+      ],
+      "deliverables": [
+        "confidence/sensitivity gate",
+        "5 primary + 3 supporting budget",
+        "conflict set",
+        "kill switch"
+      ],
+      "acceptance": [
+        "no wrong-scope injection",
+        "insufficient/conflict states explicit",
+        "redaction/isolation/stale-state/latency/token gates pass"
+      ]
     },
     {
       "id": "M8",
       "name": "Graph, temporal hierarchy, calibration",
-      "spec_sections": ["6", "7", "9.3", "11.2", "11.3"],
-      "deliverables": ["entities/links", "temporal validity", "closure/neighbor expansion", "deterministic conflict calibration"],
-      "acceptance": ["multi-hop and temporal benchmark improves without provenance loss", "conflicts never silently overwrite"]
+      "spec_sections": [
+        "6",
+        "7",
+        "9.3",
+        "11.2",
+        "11.3"
+      ],
+      "deliverables": [
+        "entities/links",
+        "temporal validity",
+        "closure/neighbor expansion",
+        "deterministic conflict calibration"
+      ],
+      "acceptance": [
+        "multi-hop and temporal benchmark improves without provenance loss",
+        "conflicts never silently overwrite"
+      ]
     },
     {
       "id": "M9",
       "name": "Obsidian projection",
-      "spec_sections": ["12", "14", "17.3"],
-      "deliverables": ["single Vault namespace", "idempotent projection", "review/change queue", "required operational pages"],
-      "acceptance": ["100% generated notes required metadata", "rebuildable", "no raw overwrite/secrets/duplicate loops", "scope modes benchmarked"]
+      "spec_sections": [
+        "12",
+        "14",
+        "17.3"
+      ],
+      "deliverables": [
+        "single Vault namespace",
+        "idempotent projection",
+        "review/change queue",
+        "required operational pages"
+      ],
+      "acceptance": [
+        "100% generated notes required metadata",
+        "rebuildable",
+        "no raw overwrite/secrets/duplicate loops",
+        "scope modes benchmarked"
+      ]
     },
     {
       "id": "M10",
       "name": "Corpus expansion and operations",
-      "spec_sections": ["10.3", "14", "18.1", "19", "20"],
-      "deliverables": ["sample then larger corpus ingestion", "daily/weekly/monthly runbooks", "release benchmark/security gates"],
-      "acceptance": ["batch QA passes", "backup restore and index rebuild verified", "profile/knowledge additions follow documented process"]
+      "spec_sections": [
+        "10.3",
+        "14",
+        "18.1",
+        "19",
+        "20"
+      ],
+      "deliverables": [
+        "sample then larger corpus ingestion",
+        "daily/weekly/monthly runbooks",
+        "release benchmark/security gates"
+      ],
+      "acceptance": [
+        "batch QA passes",
+        "backup restore and index rebuild verified",
+        "profile/knowledge additions follow documented process"
+      ]
     }
   ],
   "baseline": {
