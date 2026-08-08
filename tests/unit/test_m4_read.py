@@ -48,7 +48,7 @@ def _seed(store: SQLiteStore) -> None:
         name="Charter", goal="g", lifecycle_status="active", state="confirmed",
         source_event_id="E0", created_at="2026-08-01T00:00:00Z"))
     project_charter(store._conn, CharterOp(op="update", charter_id="C1", project_id="P",
-        name="Charter", goal="g", lifecycle_status="active", state="confirmed",
+        name="Charter v2", goal="g v2", lifecycle_status="active", state="confirmed",
         supersedes="C1", source_event_id="E0", created_at="2026-07-01T00:00:00Z"))
     # Requirement: active + candidate.
     project_requirement(store._conn, RequirementOp(op="create", requirement_id="R1", project_id="P",
@@ -153,7 +153,7 @@ def test_active_charter_selected_by_lifecycle(tmp_path: Path) -> None:
     c = get_project_charter(rs, "P")
     assert c is not None
     assert c.lifecycle_status == "active"
-    assert c.name == "Charter"  # not the superseded v1 (name 'Charter v1')
+    assert c.name == "Charter v2"  # the active v2 (correctly selected by lifecycle)
     assert c.state == "confirmed"  # separate from lifecycle
     rs.close(); store.close()
 

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -567,4 +568,8 @@ def test_no_llm_or_network_calls_in_fts(monkeypatch):
         monkeypatch.setattr(openai, "ChatCompletion", _blocked)
     except Exception:
         pass
+    finally:
+        # Do not leak openai into sys.modules; other tests assert a clean
+        # module global (e.g. test_no_llm_dependency_imported).
+        sys.modules.pop("openai", None)
     assert not called, "unexpected network/LLM call during FTS"

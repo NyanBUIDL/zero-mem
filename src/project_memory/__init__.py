@@ -84,6 +84,12 @@ from .reader import (  # noqa: F401
     open_readonly,
     ReadonlyStore,
 )
+from .rebuild import (  # noqa: F401
+    M4_TABLES,
+    event_to_op,
+    rebuild_project_memory,
+    rebuild_all_project_memory,
+)
 
 __all__ = [
     "LIFECYCLE_ENUM",
@@ -144,4 +150,9 @@ __all__ = [
     "is_query_only",
     "open_readonly",
     "ReadonlyStore",
+    # M4.7 rebuild
+    "M4_TABLES",
+    "event_to_op",
+    "rebuild_project_memory",
+    "rebuild_all_project_memory",
 ]

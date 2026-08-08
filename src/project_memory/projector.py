@@ -174,6 +174,12 @@ def project_charter(conn: sqlite3.Connection, op: CharterOp) -> dict:
                 return {"op": op.op, "charter_id": op.charter_id,
                         "version": new_version, "action": "versioned"}
             # UPDATE in place
+            if _charter_content_equal(existing, op):
+                # Idempotent replay: the current row already reflects this exact
+                # content, so do not bump the version (keeps rebuild deterministic).
+                _commit(conn)
+                return {"op": op.op, "charter_id": op.charter_id,
+                        "version": existing["version"], "action": "noop"}
             new_version = (existing["version"] or 0) + 1
             conn.execute(
                 "UPDATE zm_project_charters SET version=?, name=?, goal=?, scope=?, "
