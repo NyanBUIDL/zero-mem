@@ -4,7 +4,7 @@
   "status": "in_progress",
   "current_milestone_status": "m5_in_progress",
   "current_milestone_verification": "acceptance-m3.1.md",
-  "next_incomplete_milestone": "M5.2",
+  "next_incomplete_milestone": "M5.3",
   "next_milestone_status": "not_started",
   "scope": "External Zero-Mem sidecar for Hermes Agent; local-first, observation-only before controlled injection",
   "principles": [
@@ -1326,6 +1326,29 @@
           "src/access/contracts.py",
           "src/access/policy.py",
           "tests/unit/test_m5_access_policy.py"
+        ]
+      },
+      "current_increment": "increment_2",
+      "increment_2": {
+        "name": "Profile/project/knowledge-space read authorization integration",
+        "status": "verified",
+        "evidence": "acceptance-m5.2.md",
+        "focused_test": "tests/unit/test_m5_authorized_read.py",
+        "focused_result": "35 passed in 0.24s",
+        "combined_result": "85 passed (M5.1 50 + M5.2 35)",
+        "canonical_result": "945 passed, 3 skipped, 0 failed",
+        "ad_hoc_result": "18/18 PASS",
+        "schema_version": 7,
+        "start_commit": "076c7e7a69fd02f0fa1376f4e14bd5c3e6ec6849",
+        "implementation_commit": "92eb70b083b5c7e6b0aeae0a3a3ade1609ec7111",
+        "fts_fix_commit": "dfdacf2ea1bce24cfb6def91a3cd1eb33ea64e7f",
+        "tested_commit": "dfdacf2ea1bce24cfb6def91a3cd1eb33ea64e7f",
+        "scope": "AuthorizedReadService facade integrating M5.1 policy with M3 (structured/FTS/get_event/get_trace) and M4 (charter/requirements/decisions/state/verifications/artifacts); authorization-before-query; restrictive profile/project predicates; defensive post-validation; no grants, no migration v8, no audit writes, no WRITE",
+        "boundaries": "NO persistent grants; NO migration v8; NO audit persistence; NO WRITE integration; NO M5.3 explicit cross-profile grants; NO M6; TRUE READ-ONLY preserved; global read = requester profile + NULL-profile default only",
+        "files": [
+          "src/access/authorized_read.py",
+          "src/access/__init__.py",
+          "tests/unit/test_m5_authorized_read.py"
         ]
       }
     },
