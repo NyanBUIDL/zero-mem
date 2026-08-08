@@ -4,6 +4,7 @@ status: verified
 m3_status: verified
 m4_status: verified
 m5_status: verified
+m6_status: in_progress
 m4_current_increment: increment_7
 m4_increment_1_status: verified
 m4_increment_1_name: "Project-memory contracts and schema/migration v7"
@@ -120,6 +121,8 @@ m5_increment_4_files:
 m5_increment_4_evidence: acceptance-m5.4.md
 m5_increment_5_evidence: acceptance-m5.5.md
 m5_increment_6_evidence: acceptance-m5.6.md
+m6_increment_1_status: verified
+m6_increment_1_evidence: acceptance-m6.1.md
 m1_increment_4_1_status: verified
 m1_increment_4_2_status: verified
 m1_increment_4_3_status: verified
@@ -419,7 +422,7 @@ m1_increment_4_1_processing_order: copy-normalize-structurally-redact-map-resolv
 m1_increment_4_1_capture_rate_formula: successfully_accounted_logical_events / expected_supported_logical_events * 100
 authority: Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx
 master_spec_source_note: The requested .md path is absent; the workspace contains the DOCX with extracted text.
-current_milestone: M5
+current_milestone: M6
 next_incomplete_milestone: M5.3
 next_milestone_status: pending
 m1_current_increment: increment_4_3_redaction_capture_adapter

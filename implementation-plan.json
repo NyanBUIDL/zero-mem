@@ -2,9 +2,9 @@
   "schema_version": 1,
   "authority": "Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx",
   "status": "in_progress",
-  "current_milestone_status": "verified",
-  "current_milestone_verification": "acceptance-m5.6.md",
-  "next_incomplete_milestone": "M6",
+  "current_milestone_status": "m6_in_progress",
+  "current_milestone_verification": "acceptance-m6.1.md",
+  "next_incomplete_milestone": "M6.2",
   "next_milestone_status": "not_started",
   "scope": "External Zero-Mem sidecar for Hermes Agent; local-first, observation-only before controlled injection",
   "principles": [
@@ -1508,6 +1508,47 @@
         "Hermes can call read-only memory",
         "native memory remains minimal",
         "no deep Hermes-core modification"
+      ],
+      "status": "in_progress",
+      "current_increment": "increment_1",
+      "increment_1": {
+        "name": "Integration contracts and read-only transport/tool surface",
+        "status": "verified",
+        "evidence": "acceptance-m6.1.md",
+        "focused_test": "tests/unit/test_m6_contracts.py",
+        "focused_result": "69 passed",
+        "canonical_result": "1173 passed, 3 skipped, 0 failed (clean isolated HOME)",
+        "ad_hoc_result": "21/21 PASS",
+        "schema_version": 8,
+        "start_commit": "30ef4858270ab64f041eb7b82846d5c1f28e5354",
+        "plan_commit": "4cd0643f15cad7b3ee634c217550bb9e1c3b26f6",
+        "impl_commit": "40eb1af506d88e3520229094eac8a6ee9ab13ac6",
+        "tested_commit": "40eb1af506d88e3520229094eac8a6ee9ab13ac6",
+        "scope": "Typed request/response contracts, allowlisted READ tool registry with fixed resource types, transport-independent dispatcher (returns CAPABILITY_UNAVAILABLE until M6.2/M6.3 wire handlers), thin MCP wrapper. READ-ONLY by construction (no writable import). Identity explicit/non-inferred. No SQL/JSONL/write/grant-admin tools. Zero LLM/network.",
+        "boundaries": "NO schema v9; NO M3/M4 execution (M6.2/M6.3); NO M7; NO GrantAdminService/WRITE exposure; JSONL/SQLite untouched; M5 semantics unchanged.",
+        "files": [
+          "src/integration/m6/contracts.py",
+          "src/integration/m6/errors.py",
+          "src/integration/m6/tools.py",
+          "src/integration/m6/dispatcher.py",
+          "src/integration/m6/mcp_wrapper.py",
+          "tests/unit/test_m6_contracts.py"
+        ]
+      },
+      "increments": [
+        {
+          "id": "M6.1",
+          "name": "Integration contracts and read-only transport/tool surface",
+          "status": "verified",
+          "plan_commit": "4cd0643f15cad7b3ee634c217550bb9e1c3b26f6",
+          "impl_commit": "40eb1af506d88e3520229094eac8a6ee9ab13ac6",
+          "tested_commit": "40eb1af506d88e3520229094eac8a6ee9ab13ac6",
+          "focused_result": "69 passed",
+          "canonical_result": "1173 passed, 3 skipped, 0 failed (clean isolated HOME)",
+          "ad_hoc_result": "21/21 PASS",
+          "schema_version": 8,
+          "evidence": "acceptance-m6.1.md"
+        }
       ]
     },
     {
