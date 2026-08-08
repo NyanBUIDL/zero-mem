@@ -1220,7 +1220,7 @@
           "starting_commit": "1342a9e4bdbda44e0231c1220afe2817cf16c487",
           "implementation_commit": "bd13beb3324febb4becc93bbe9b11d9fd784fb3c",
           "tested_commit": "bd13beb3324febb4becc93bbe9b11d9fd784fb3c",
-          "evidence_commit": "PENDING_EVIDENCE",
+          "evidence_commit": "ef0e8cbb1dd7255fb96a1da929a6b2ab3686f65e",
           "schema_version": 7,
           "sqlite_access": "TRUE READ-ONLY (M3 ReadonlyStore: file:?mode=ro + PRAGMA query_only=ON); no projector/migration import; no ensure_schema; no JSONL mutation",
           "model": "TRUE READ-ONLY query APIs over M4 v7 derived tables; typed views; keyset pagination via M3 cursor (v1 query-bound, limit-bound); M3 source-event composition (include_source_event, missing->None); sanitized QueryError codes reused; no promotion/supersession-inference/conflict-resolution",
