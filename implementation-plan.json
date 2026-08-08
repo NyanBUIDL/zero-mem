@@ -4,7 +4,7 @@
   "status": "in_progress",
   "current_milestone_status": "m3_verified",
   "current_milestone_verification": "acceptance-m3.1.md",
-  "next_incomplete_milestone": "M4",
+  "next_incomplete_milestone": "M5",
   "next_milestone_status": "not_started",
   "scope": "External Zero-Mem sidecar for Hermes Agent; local-first, observation-only before controlled injection",
   "principles": [
@@ -980,7 +980,7 @@
       ],
       "plan": ".hermes/plans/2026-08-07_000004-m4-project-memory-plan.md",
       "plan_commit": "6ee6510",
-      "status": "in_progress",
+      "status": "verified",
       "increments": {
         "increment_1": {
           "name": "Project-memory contracts and schema/migration v7",
@@ -1249,14 +1249,14 @@
         },
         "increment_7": {
           "name": "Rebuild, performance, and final M4 acceptance",
-          "status": "partial",
+          "status": "verified",
           "impl_commit": "30683b1ac52da1ebff9ffe138af3d5f96e6e88e4",
           "focused_test": "tests/unit/test_m4_rebuild.py",
           "focused_result": "17 passed",
           "combined_m4_result": "243 passed",
           "ad_hoc_result": "19/19 PASS",
-          "canonical_result": "859 passed, 3 skipped, 1 failed (environmental real-home flake)",
-          "blocker": "external Hermes sidecar (desktop = runtime host) mutates real ~/.hermes during run; cannot be safely stopped -> final 0-failed gate not met",
+          "canonical_result": "860 passed, 3 skipped, 0 failed (clean isolated environment; real-home flake confirmed external)",
+          "blocker": "none; resolved via clean isolated HOME (no related sidecar)",
           "evidence": "acceptance-m4.7.md",
           "performance_evidence": "acceptance-m4.7-performance.md",
           "scope": [
@@ -1303,7 +1303,8 @@
         "explicit union combines only named spaces",
         "priority and privacy tests pass",
         "cross-profile writes denied without authorization"
-      ]
+      ],
+      "status": "pending"
     },
     {
       "id": "M6",

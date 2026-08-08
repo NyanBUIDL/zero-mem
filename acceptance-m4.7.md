@@ -5,15 +5,11 @@ Approved M4 plan: `.hermes/plans/2026-08-07_000004-m4-project-memory-plan.md`
 Prior increments: M4.1–M4.6 VERIFIED (commits on record); M4.6 impl `bd13beb`,
 state/evidence `ef0e8cbb` / `e184e81`.
 
-## STATUS: M4.7 — PARTIAL
+## STATUS: M4.7 — VERIFIED
 
-All M4.7 product gates pass. The FINAL canonical 0-failed hard gate is NOT met
-because the external Hermes sidecar writes to real `~/.hermes` during the run,
-causing the environmental real-home isolation flake (`test_no_real_hermes_home_writes`).
-The sidecar is the Hermes desktop application, which is this agent's own runtime
-host; it cannot be safely stopped without ending the session, so the directive's
-isolation step (stop/isolate the sidecar) cannot be performed. Per the directive's
-escape clause, M4.7 remains PARTIAL and M4 is NOT marked VERIFIED.
+All M4.7 product gates pass AND the FINAL canonical 0-failed hard gate is met
+in a clean isolated test environment (see "Clean-environment final canonical run").
+M4 is VERIFIED. M5 is the next incomplete milestone and has not been started.
 
 ## Implementation committed
 
@@ -138,6 +134,49 @@ M4 VERIFIED."
   READ-ONLY retrieval, and M3 composition all hold after rebuild.
 - No LLM/network calls are made by the rebuild path (guarded test).
 - Schema remains v7; no migration v8; no M5 code introduced.
+
+## Clean-environment final canonical run (FINAL GATE SATISFIED)
+
+The final 0-failed hard gate could not be satisfied inside the desktop host
+because the Hermes desktop sidecar mutates the real `/home/brian-nguyen/.hermes`
+during the run, breaking `test_no_real_hermes_home_writes` (baseline/after compare
+against the process's real HOME). The sidecar could not be safely stopped (the
+desktop app is this session's runtime host).
+
+Isolation approach used (directive approach 3 — clean isolated test environment
+with its own real HOME, no related sidecar):
+- A clean isolated HOME directory `/home/brian-nguyen/zt-m4test-home` was created;
+  it is empty and contains no `.hermes`, and no Hermes sidecar resolves or writes
+  to it.
+- The canonical suite was executed with `HOME`, `XDG_CONFIG_HOME`, and
+  `XDG_CACHE_HOME` pointed at that isolated directory, so the test process's actual
+  home (per `Path.home()` / `expanduser('~')`) was the clean dir. The desktop
+  sidecar continues to mutate only the real `/home/brian-nguyen/.hermes`, which the
+  test process no longer observes.
+- Same committed repo HEAD `d8b9700`; same test source (byte-identical); no test
+  modification; no deselection; no added skip/xfail; schema expectation remains v7.
+
+Environment equivalence evidence (clean run):
+- commit SHA: `d8b97001ceb490bc823347d7a757eddaa0f25fae`
+- Python version: 3.11.15
+- SQLite version: 3.53.1
+- pytest version: 9.1.1
+- runtime/dependency identifier: repo `.venv` (pytest 9.1.1 + stdlib only; no
+  third-party product deps)
+- HOME used by the isolated test process: `/home/brian-nguyen/zt-m4test-home`
+- confirmation: no unrelated Hermes sidecar running against that HOME (the active
+  sidecar writes only to `/home/brian-nguyen/.hermes`, a distinct path)
+
+Final canonical result (clean environment, no deselection):
+- **860 passed, 3 skipped, 0 failed**
+- `test_no_real_hermes_home_writes` (both `test_m2_ingest.py` and
+  `test_m2_relations.py` variants): PASS in the clean environment.
+- The 3 skips are pre-existing capability-dependent skips (e.g. FTS5-unavailable),
+  recorded and legitimate.
+
+This confirms the earlier desktop-host failures were the documented external
+real-home environmental flake: the identical committed code passes where no
+unrelated sidecar mutates the test process's home.
 
 ## No M5 implementation
 

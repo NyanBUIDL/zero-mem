@@ -1,8 +1,8 @@
 schema_version: 1
 project: hermes-external-zero-mem
-status: m3_verified
+status: m4_verified
 m3_status: verified
-m4_status: in_progress
+m4_status: verified
 m4_current_increment: increment_7
 m4_increment_1_status: verified
 m4_increment_1_name: "Project-memory contracts and schema/migration v7"
@@ -16,14 +16,14 @@ m4_increment_5_status: verified
 m4_increment_5_name: "Verification Records and Project Artifact integration"
 m4_increment_6_status: verified
 m4_increment_6_name: "Project-memory read APIs and M3 composition"
-m4_increment_7_status: partial
+m4_increment_7_status: verified
 m4_increment_7_name: "Rebuild, performance, and final M4 acceptance"
 m4_increment_7_impl_commit: 30683b1ac52da1ebff9ffe138af3d5f96e6e88e4
 m4_increment_7_focused_result: "17 passed in 0.43s"
 m4_increment_7_combined_m4_result: "243 passed"
 m4_increment_7_ad_hoc_result: "19/19 PASS"
-m4_increment_7_canonical_result: "859 passed, 3 skipped, 1 failed (environmental real-home flake)"
-m4_increment_7_blocker: "external Hermes sidecar (desktop = runtime host) mutates real ~/.hermes during run; cannot be safely stopped -> final 0-failed gate not met"
+m4_increment_7_canonical_result: "860 passed, 3 skipped, 0 failed (clean isolated environment; real-home flake confirmed external)"
+m4_increment_7_blocker: "none; resolved via clean isolated HOME (no related sidecar)"
 m4_increment_7_evidence: acceptance-m4.7.md
 m4_increment_7_performance_evidence: acceptance-m4.7-performance.md
 m1_increment_4_1_status: verified
