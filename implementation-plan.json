@@ -1510,7 +1510,7 @@
         "no deep Hermes-core modification"
       ],
       "status": "in_progress",
-      "current_increment": "M6.4",
+      "current_increment": "M6.5",
       "increment_1": {
         "name": "Integration contracts and read-only transport/tool surface",
         "status": "verified",
@@ -1533,6 +1533,26 @@
           "src/integration/m6/dispatcher.py",
           "src/integration/m6/mcp_wrapper.py",
           "tests/unit/test_m6_contracts.py"
+        ]
+      },
+      "increment_5": {
+        "name": "Hermes adapter / registration + failure isolation",
+        "status": "verified",
+        "evidence": "acceptance-m6.5.md",
+        "focused_test": "tests/unit/test_m6_hermes_adapter.py",
+        "focused_result": "59 passed",
+        "combined_m6_result": "301 passed",
+        "canonical_result": "1405 passed, 3 skipped, 0 failed (clean isolated HOME)",
+        "ad_hoc_result": "46/46 PASS",
+        "schema_version": 8,
+        "start_commit": "9020d39",
+        "impl_commit": "fc1ea9b6e024228a9b2ff3ee803731f50ad2c56a",
+        "tested_commit": "fc1ea9b6e024228a9b2ff3ee803731f50ad2c56a",
+        "scope": "Thin external Hermes READ-tool adapter reusing M6.1-M6.4 transport (tool_schemas -> handle_call -> Dispatcher -> M5 -> M3/M4 TRUE READ-ONLY). Registers the 10 approved read tools via the project-local plugin-context surface. No Hermes-core modification. Adapter forwards/serializes only: no SQL/JSONL/policy/grant/M3/M4/LLM/network logic.",
+        "boundaries": "NO schema v9; NO M3/M4/M5 execution logic in adapter; NO M7; NO GrantAdminService/WRITE exposure; JSONL/SQLite untouched by adapter; master ON/OFF switch deferred to M7; NO automatic context injection; NO ranking/vector/embedding.",
+        "files": [
+          "src/integration/hermes_read_adapter.py",
+          "tests/unit/test_m6_hermes_adapter.py"
         ]
       },
       "increments": [

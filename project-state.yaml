@@ -129,6 +129,13 @@ m6_increment_3_status: verified
 m6_increment_3_evidence: acceptance-m6.3.md
 m6_increment_4_status: verified
 m6_increment_4_evidence: acceptance-m6.4.md
+m6_increment_5_status: verified
+m6_increment_5_evidence: acceptance-m6.5.md
+m6_increment_5_impl_commit: fc1ea9b6e024228a9b2ff3ee803731f50ad2c56a
+m6_increment_5_focused_result: "59 passed"
+m6_increment_5_combined_m6_result: "301 passed"
+m6_increment_5_canonical_result: "1405 passed, 3 skipped, 0 failed (clean isolated HOME)"
+m6_increment_5_ad_hoc_result: "46/46 PASS"
 m1_increment_4_1_status: verified
 m1_increment_4_2_status: verified
 m1_increment_4_3_status: verified
