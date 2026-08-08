@@ -3,8 +3,8 @@
   "authority": "Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx",
   "status": "in_progress",
   "current_milestone_status": "m5_in_progress",
-  "current_milestone_verification": "acceptance-m3.1.md",
-  "next_incomplete_milestone": "M5.3",
+  "current_milestone_verification": "acceptance-m5.4.md",
+  "next_incomplete_milestone": "M5.5",
   "next_milestone_status": "not_started",
   "scope": "External Zero-Mem sidecar for Hermes Agent; local-first, observation-only before controlled injection",
   "principles": [
@@ -619,7 +619,7 @@
       "increment_6": {
         "name": "Retention tombstones, logical deletion, secret scanning, and rollback",
         "status": "verified",
-        "decision": "B \u2014 logical deletion only; canonical JSONL immutable and append-only",
+        "decision": "B — logical deletion only; canonical JSONL immutable and append-only",
         "evidence": "acceptance-m2-increment-6.md",
         "focused_test": "tests/unit/test_m2_tombstones.py",
         "focused_result": "35 passed in 1.52s",
@@ -1304,7 +1304,7 @@
         "priority and privacy tests pass",
         "cross-profile writes denied without authorization"
       ],
-      "status": "in_progress",
+      "status": "m5_4_verified",
       "plan": ".hermes/plans/2026-08-08_000001-m5-access-policy-plan.md",
       "plan_commit": "4d68316894e04b3db0fc433d627ed98b595232b9",
       "current_increment": "increment_3",
@@ -1372,7 +1372,23 @@
           "src/access/policy.py",
           "tests/unit/test_m5_cross_profile.py"
         ]
-      }
+      },
+      "increments": [
+        {
+          "id": "M5.4",
+          "name": "WRITE authorization, persistent access grants, migration v8",
+          "status": "verified",
+          "plan_correction_commit": "e4f559cfe9d21edb9d81eb3e3c4025ad24df4ae7",
+          "impl_commit": "9cbdeda97a5d6b222fcbbd5113bde7b672505a9c",
+          "tested_commit": "9cbdeda97a5d6b222fcbbd5113bde7b672505a9c",
+          "focused_result": "70 passed",
+          "combined_m5_result": "193 passed (M5.1 50 + M5.2 35 + M5.3 38 + M5.4 70)",
+          "canonical_result": "1053 passed, 3 skipped, 0 failed (clean isolated HOME)",
+          "ad_hoc_result": "23/23 PASS",
+          "schema_version": 8,
+          "evidence": "acceptance-m5.4.md"
+        }
+      ]
     },
     {
       "id": "M6",

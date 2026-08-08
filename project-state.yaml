@@ -27,7 +27,7 @@ m4_increment_7_canonical_result: "860 passed, 3 skipped, 0 failed (clean isolate
 m4_increment_7_blocker: "none; resolved via clean isolated HOME (no related sidecar)"
 m4_increment_7_evidence: acceptance-m4.7.md
 m4_increment_7_performance_evidence: acceptance-m4.7-performance.md
-m5_current_increment: increment_3
+m5_current_increment: increment_4
 m5_increment_1_status: verified
 m5_increment_1_name: "Policy contracts and authoritative access matrix"
 m5_increment_1_plan: .hermes/plans/2026-08-08_000001-m5-access-policy-plan.md
@@ -90,6 +90,34 @@ m5_increment_3_files:
   - src/access/policy.py
   - tests/unit/test_m5_cross_profile.py
 m5_increment_3_evidence: acceptance-m5.3.md
+m5_increment_4_status: verified
+m5_increment_4_name: "WRITE authorization, persistent access grants, migration v8"
+m5_increment_4_plan: .hermes/plans/2026-08-08_000001-m5-access-policy-plan.md
+m5_increment_4_plan_correction_commit: e4f559cfe9d21edb9d81eb3e3c4025ad24df4ae7
+m5_increment_4_start_commit: e5263bb
+m5_increment_4_impl_commit: 9cbdeda97a5d6b222fcbbd5113bde7b672505a9c
+m5_increment_4_tested_commit: 9cbdeda97a5d6b222fcbbd5113bde7b672505a9c
+m5_increment_4_focused_test: tests/unit/test_m5_grants.py
+m5_increment_4_focused_result: "70 passed"
+m5_increment_4_combined_result: "193 passed (M5.1 50 + M5.2 35 + M5.3 38 + M5.4 70)"
+m5_increment_4_canonical_result: "1053 passed, 3 skipped, 0 failed (clean isolated HOME)"
+m5_increment_4_ad_hoc_result: "23/23 PASS"
+m5_increment_4_schema_version: 8
+m5_increment_4_scope: "Migration v8 (zm_access_grants + zm_policy_audit); canonical append-only access_grant JSONL events; trusted GrantAdminRequest control-plane (CREATE/REVOKE/SUPERSEDE) separated from normal AccessRequest READ/WRITE surface; deterministic resolver (zm_access_grants -> validated AuthorizedReadGrant / WRITE grant) with M4 read-only verification predicate; persistent READ grants feed M5.3 compose_effective_scope unchanged; WRITE authorization + authorization-before-mutation."
+m5_increment_4_boundaries: "NO M5.5 (full linked-resource bypass matrix); NO M5.6 (final rebuild); NO M6; no grant_admin role/grant (no bootstrap recursion); caller-controlled flags (is_admin/trusted/grant_admin/verified/allow_grant_creation) confer NO authority; authority derives from entering the trusted control-plane boundary only; SQLite zm_access_grants is DERIVED (rebuildable from canonical events); JSONL canonical and append-only; no LLM/network; revocation via state='revoked' never lifecycle_status='revoked'."
+m5_increment_4_files:
+  - src/access/grant_events.py
+  - src/access/admin.py
+  - src/access/resolver.py
+  - src/access/authorized_write.py
+  - src/access/audit.py
+  - src/access/authorized_read.py
+  - src/access/contracts.py
+  - src/storage/migrations/migrate_8.py
+  - src/storage/migrations/__init__.py
+  - src/storage/ingest.py
+  - tests/unit/test_m5_grants.py
+m5_increment_4_evidence: acceptance-m5.4.md
 m1_increment_4_1_status: verified
 m1_increment_4_2_status: verified
 m1_increment_4_3_status: verified
@@ -535,6 +563,10 @@ artifacts:
   acceptance_m4_6: acceptance-m4.6.md
   acceptance_m4_7: acceptance-m4.7.md
   acceptance_m4_7_performance: acceptance-m4.7-performance.md
+  acceptance_m5_1: acceptance-m5.1.md
+  acceptance_m5_2: acceptance-m5.2.md
+  acceptance_m5_3: acceptance-m5.3.md
+  acceptance_m5_4: acceptance-m5.4.md
   m1_acceptance_criteria: acceptance-m1-criteria.md
   m1_plan: .hermes/plans/2026-08-05_000000-m1-observation-only-sidecar.md
   m1_increment_1_evidence: acceptance-m1-increment-1.md
