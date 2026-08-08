@@ -1,29 +1,34 @@
-"""M6.2 — M3 authorized memory read tool handlers.
+"""M6.2 + M6.3 — M3 memory read handlers and M4 project-memory read handlers.
 
-Wires the approved M3-oriented M6 tools (memory_query, memory_search,
-memory_get_event, memory_get_related) through the verified M5 AuthorizedReadService.
+Both sets of handlers wire the approved M6 read tools through the verified M5
+AuthorizedReadService. M5 decides identity/scope/grants/resource-types/linked
+boundaries; M4 owns project-memory semantics; M6 only validates, translates,
+invokes the approved facade method, sanitizes, and serializes.
 
-Design contract:
-* A handler receives a validated M6Request and returns a **sanitized list of safe
-  item dicts** (never raw M5/M3 view objects, sqlite rows, SQL, paths, or grant
-  rows). Denials / downstream errors are signalled by raising M6Error, which the
-  dispatcher maps to the sanitized envelope.
-* The dispatcher (M6.1) owns envelope construction; handlers never return an
-  M6Response.
+Design contract (every handler):
+* receives a validated M6Request, returns a **sanitized list of safe item dicts**
+  (never raw M5/M4 view objects, sqlite rows, SQL, paths, grant rows, or file
+  contents);
+* raises M6Error for deny / downstream-error / invalid-input, which the dispatcher
+  maps to the single sanitized envelope;
+* opens the store TRUE READ-ONLY (mode=ro + query_only) plus a separate read-only
+  grant connection; resolves current M5 READ grants per request (no cross-request
+  caching);
+* never imports GrantAdminService / AuthorizedWriteService / migrations / ingest;
+  performs 0 LLM / 0 external network calls.
 
-This module is transport/integration only. It builds an M5 AccessRequest from the
-validated M6 request (explicit identity), resolves current M5 READ grants
-(read-only), invokes the M5 facade (which enforces policy + M5.5 linked
-boundaries), and sanitizes the view objects. It performs 0 LLM/network calls and
-never opens raw SQLite for queries, never reads JSONL, never touches
-GrantAdminService/AuthorizedWriteService.
+Resource-type mapping is tool-fixed: each handler FORCES the resource type the
+committed M6 contract assigns, so a caller-supplied ``resource_type`` cannot
+broaden access (charter, requirement, decision, project_state, verification,
+artifact are bound to their tools).
 """
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any, Dict, List, Optional
 
-from .contracts import M6Request
+from .contracts import M6Request, ResourceType
 from .errors import M6Error, M6ErrorCode
 from .runtime import M6Runtime, get_runtime
 
@@ -33,9 +38,25 @@ _KNOWN_QUERY_FILTERS = {
     "created_at_after", "created_at_before",
 }
 
+# Per-tool fixed M5 resource type is enforced by the M5 facade internally
+# (``_m4_resource_allowed``); M6 never injects it into the M5 request.
 
-def build_access_request(req: M6Request):
+# Keys never serialized out of the artifact response (metadata-only).
+_ARTIFACT_SAFE_STRIP = ("stored_path", "content", "file_content", "raw_content",
+                        "absolute_path", "file_path", "local_path", "fs_path")
+
+
+def build_access_request(req: M6Request, resource_type: Optional[ResourceType] = None):
+    """Build the M5 AccessRequest.
+
+    For M4 project-memory tools the fixed per-tool resource type is enforced by the
+    M5 facade internally (``_m4_resource_allowed``); we deliberately do NOT inject a
+    caller-supplied or tool-fixed resource_type into the M5 request for M4 calls,
+    because that would pollute the M5 effective-scope computation. The caller's
+    ``resource_type`` (if any) is never used to broaden access.
+    """
     from src.access.contracts import AccessRequest
+    rt = req.resource_type.value if (resource_type is None and req.resource_type) else None
     return AccessRequest(
         operation="READ",
         requesting_profile_id=req.requesting_profile_id,  # explicit; may be None
@@ -44,7 +65,7 @@ def build_access_request(req: M6Request):
         knowledge_space_ids=req.knowledge_space_ids,
         include_global=req.include_global,
         isolated_mode=req.isolated_mode,
-        resource_type=req.resource_type.value if req.resource_type else None,
+        resource_type=rt,
     )
 
 
@@ -77,7 +98,7 @@ def _scalar(w: Any):
 
 
 def _safe_view(v: Any) -> Dict[str, Any]:
-    """Convert an M3/M5 view object into a JSON-safe dict (no internal refs)."""
+    """Convert an M3/M4/M5 view object into a JSON-safe dict (no internal refs)."""
     if isinstance(v, dict):
         return {k: _scalar(w) for k, w in v.items()}
     if hasattr(v, "__dict__"):
@@ -109,6 +130,21 @@ def _query_filters(req: M6Request) -> Dict[str, Any]:
     return out
 
 
+def _project_id(req: M6Request) -> str:
+    pid = None
+    if req.project_ids:
+        pid = req.project_ids[0]
+    if pid is None and req.filters:
+        pid = req.filters.get("project_id")
+    if not pid:
+        raise M6Error(M6ErrorCode.INVALID_REQUEST,
+                      "project_id required for project_memory tools")
+    return pid
+
+
+# --------------------------------------------------------------------------
+# M6.2 — M3 memory read handlers
+# --------------------------------------------------------------------------
 def handle_memory_query(req: M6Request, runtime: Optional[M6Runtime] = None) -> List[Dict[str, Any]]:
     runtime = runtime or get_runtime()
     svc, store, grants = _open_facade(runtime, req)
@@ -161,10 +197,102 @@ def handle_memory_get_related(req: M6Request, runtime: Optional[M6Runtime] = Non
         store.close()
 
 
-def register_m3_handlers(dispatcher, runtime: Optional[M6Runtime] = None) -> None:
-    """Register the approved M3-oriented handlers on a Dispatcher."""
+# --------------------------------------------------------------------------
+# M6.3 — M4 project-memory read handlers (resource type forced per tool)
+# --------------------------------------------------------------------------
+def handle_project_get_charter(req: M6Request, runtime: Optional[M6Runtime] = None) -> List[Dict[str, Any]]:
+    runtime = runtime or get_runtime()
+    svc, store, grants = _open_facade(runtime, req)
+    try:
+        ar = svc.m4_charter(
+            build_access_request(req),
+            _project_id(req),
+            charter_id=(req.filters or {}).get("charter_id"),
+            include_source_event=req.include_source_event,
+            grants=grants)
+        return _translate_items(ar)
+    finally:
+        store.close()
+
+
+def handle_project_list_requirements(req: M6Request, runtime: Optional[M6Runtime] = None) -> List[Dict[str, Any]]:
+    runtime = runtime or get_runtime()
+    svc, store, grants = _open_facade(runtime, req)
+    try:
+        ar = svc.m4_requirements(
+            build_access_request(req),
+            _project_id(req), limit=req.limit, cursor=req.cursor, grants=grants)
+        return _translate_items(ar)
+    finally:
+        store.close()
+
+
+def handle_project_list_decisions(req: M6Request, runtime: Optional[M6Runtime] = None) -> List[Dict[str, Any]]:
+    runtime = runtime or get_runtime()
+    svc, store, grants = _open_facade(runtime, req)
+    try:
+        ar = svc.m4_decisions(
+            build_access_request(req),
+            _project_id(req), limit=req.limit, cursor=req.cursor, grants=grants)
+        return _translate_items(ar)
+    finally:
+        store.close()
+
+
+def handle_project_get_state(req: M6Request, runtime: Optional[M6Runtime] = None) -> List[Dict[str, Any]]:
+    runtime = runtime or get_runtime()
+    svc, store, grants = _open_facade(runtime, req)
+    try:
+        ar = svc.m4_current_state(
+            build_access_request(req),
+            _project_id(req), grants=grants)
+        return _translate_items(ar)
+    finally:
+        store.close()
+
+
+def handle_project_list_verifications(req: M6Request, runtime: Optional[M6Runtime] = None) -> List[Dict[str, Any]]:
+    runtime = runtime or get_runtime()
+    svc, store, grants = _open_facade(runtime, req)
+    try:
+        ar = svc.m4_verifications(
+            build_access_request(req),
+            _project_id(req), limit=req.limit, cursor=req.cursor, grants=grants)
+        return _translate_items(ar)
+    finally:
+        store.close()
+
+
+def handle_project_list_artifacts(req: M6Request, runtime: Optional[M6Runtime] = None) -> List[Dict[str, Any]]:
+    runtime = runtime or get_runtime()
+    svc, store, grants = _open_facade(runtime, req)
+    try:
+        ar = svc.m4_artifacts(
+            build_access_request(req),
+            _project_id(req), limit=req.limit, cursor=req.cursor, grants=grants)
+        items = _translate_items(ar)
+        # Metadata-only: never expose stored paths, file contents, or absolute paths.
+        for item in items:
+            for key in _ARTIFACT_SAFE_STRIP:
+                item.pop(key, None)
+        return items
+    finally:
+        store.close()
+
+
+# --------------------------------------------------------------------------
+# Registration
+# --------------------------------------------------------------------------
+def register_wired_handlers(dispatcher, runtime: Optional[M6Runtime] = None) -> None:
+    """Register ALL approved M6 read handlers (M6.2 memory_* + M6.3 project_*)."""
     rt = runtime or get_runtime()
     dispatcher.register("memory_query", lambda req: handle_memory_query(req, rt))
     dispatcher.register("memory_search", lambda req: handle_memory_search(req, rt))
     dispatcher.register("memory_get_event", lambda req: handle_memory_get_event(req, rt))
     dispatcher.register("memory_get_related", lambda req: handle_memory_get_related(req, rt))
+    dispatcher.register("project_get_charter", lambda req: handle_project_get_charter(req, rt))
+    dispatcher.register("project_list_requirements", lambda req: handle_project_list_requirements(req, rt))
+    dispatcher.register("project_list_decisions", lambda req: handle_project_list_decisions(req, rt))
+    dispatcher.register("project_get_state", lambda req: handle_project_get_state(req, rt))
+    dispatcher.register("project_list_verifications", lambda req: handle_project_list_verifications(req, rt))
+    dispatcher.register("project_list_artifacts", lambda req: handle_project_list_artifacts(req, rt))

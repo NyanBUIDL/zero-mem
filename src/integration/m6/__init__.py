@@ -63,4 +63,4 @@ def configure(store_path) -> M6Runtime:
 
 def register_m3_handlers_on_default(runtime: M6Runtime) -> None:
     from .dispatcher import _default_dispatcher
-    handlers.register_m3_handlers(_default_dispatcher, runtime)
+    handlers.register_wired_handlers(_default_dispatcher, runtime)

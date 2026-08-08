@@ -340,11 +340,16 @@ class TestContractRegression:
     def test_raw_jsonl_absent(self, rt):
         assert get_tool("read_jsonl") is None and get_tool("raw_jsonl") is None
 
-    def test_m4_project_tools_unavailable(self, rt):
+    def test_m4_project_tools_now_wired(self, rt):
+        # After M6.3 these tools are wired (no longer CAPABILITY_UNAVAILABLE) and
+        # still enforce authorization (unauthorized -> POLICY_DENIED).
         for t in ["project_get_charter", "project_list_requirements", "project_list_decisions",
                   "project_get_state", "project_list_verifications", "project_list_artifacts"]:
             r = dispatch({"tool": t, "requesting_profile_id": "A", "project_ids": ["P"]})
-            assert r.status is ResponseStatus.CAPABILITY_UNAVAILABLE
+            assert r.status is not ResponseStatus.CAPABILITY_UNAVAILABLE
+            r2 = dispatch({"tool": t, "requesting_profile_id": "A", "project_ids": ["P"],
+                           "target_profile_ids": ["B"]})
+            assert r2.status is ResponseStatus.POLICY_DENIED
 
     def test_no_m63_behavior(self, rt):
         assert get_tool("m4_charter") is None
