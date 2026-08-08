@@ -1510,7 +1510,7 @@
         "no deep Hermes-core modification"
       ],
       "status": "in_progress",
-      "current_increment": "M6.3",
+      "current_increment": "M6.4",
       "increment_1": {
         "name": "Integration contracts and read-only transport/tool surface",
         "status": "verified",
@@ -1565,8 +1565,26 @@
           "id": "M6.3",
           "title": "M4 project-memory read tools",
           "status": "verified",
-          "evidence": "acceptance-m6.3.md",
+          "evidence": "acceptance-M6.3.md",
           "tools": [
+            "project_get_charter",
+            "project_list_requirements",
+            "project_list_decisions",
+            "project_get_state",
+            "project_list_verifications",
+            "project_list_artifacts"
+          ]
+        },
+        {
+          "id": "M6.4",
+          "title": "Policy, linked-resource, MCP integration hardening",
+          "status": "verified",
+          "evidence": "acceptance-m6.4.md",
+          "tools": [
+            "memory_query",
+            "memory_search",
+            "memory_get_event",
+            "memory_get_related",
             "project_get_charter",
             "project_list_requirements",
             "project_list_decisions",
@@ -1715,6 +1733,7 @@
   "verified_milestones": [
     "M6.1",
     "M6.2",
-    "M6.3"
+    "M6.3",
+    "M6.4"
   ]
 }
