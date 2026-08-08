@@ -125,6 +125,8 @@ m6_increment_1_status: verified
 m6_increment_1_evidence: acceptance-m6.1.md
 m6_increment_2_status: verified
 m6_increment_2_evidence: acceptance-m6.2.md
+m6_increment_3_status: verified
+m6_increment_3_evidence: acceptance-m6.3.md
 m1_increment_4_1_status: verified
 m1_increment_4_2_status: verified
 m1_increment_4_3_status: verified

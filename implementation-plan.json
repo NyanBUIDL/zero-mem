@@ -1510,7 +1510,7 @@
         "no deep Hermes-core modification"
       ],
       "status": "in_progress",
-      "current_increment": "M6.2",
+      "current_increment": "M6.3",
       "increment_1": {
         "name": "Integration contracts and read-only transport/tool surface",
         "status": "verified",
@@ -1547,18 +1547,32 @@
           "canonical_result": "1173 passed, 3 skipped, 0 failed (clean isolated HOME)",
           "ad_hoc_result": "21/21 PASS",
           "schema_version": 8,
-          "evidence": "acceptance-m6.1.md"
+          "evidence": "acceptance-M6.1.md"
         },
         {
           "id": "M6.2",
           "title": "M3 authorized memory read tools",
           "status": "verified",
-          "evidence": "acceptance-m6.2.md",
+          "evidence": "acceptance-M6.2.md",
           "tools": [
             "memory_query",
             "memory_search",
             "memory_get_event",
             "memory_get_related"
+          ]
+        },
+        {
+          "id": "M6.3",
+          "title": "M4 project-memory read tools",
+          "status": "verified",
+          "evidence": "acceptance-m6.3.md",
+          "tools": [
+            "project_get_charter",
+            "project_list_requirements",
+            "project_list_decisions",
+            "project_get_state",
+            "project_list_verifications",
+            "project_list_artifacts"
           ]
         }
       ]
@@ -1699,6 +1713,8 @@
   ],
   "approval_gate": "No milestone implementation, system-wide installation, destructive operation, full corpus ingestion, automatic injection, or deep Hermes-core change before user approval and resolution/acceptance of open questions.",
   "verified_milestones": [
-    "M6.1"
+    "M6.1",
+    "M6.2",
+    "M6.3"
   ]
 }
