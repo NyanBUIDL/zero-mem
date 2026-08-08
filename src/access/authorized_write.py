@@ -166,6 +166,33 @@ def authorize_then_write(request: AccessRequest, store,
     return decision, result
 
 
+def authorize_linked_write(source_request: AccessRequest, store,
+                         verification_lookup: Callable[[str], Optional[object]],
+                         target_type: str, target_id: str,
+                         resource_type: Optional[str] = None) -> AccessDecision:
+    """WRITE to a target reached through a linked source object (M5.5 boundary).
+
+    Authorization for the SOURCE does NOT confer mutation permission for the LINKED
+    TARGET. The linked target must independently satisfy the full WRITE predicate:
+    base policy + persistent WRITE grant resolution (with M4 verification predicate).
+    No transitive/indirect mutation permission is granted.
+
+    Example: a WRITE granted for Requirement R does NOT authorize mutation of a
+    linked Project State S unless S's own scope (project + resource_type='state')
+    independently resolves a WRITE grant.
+    """
+    from .contracts import AccessRequest as _AR
+    linked_req = _AR(
+        operation=WRITE,
+        requesting_profile_id=source_request.requesting_profile_id,
+        target_profile_ids=[target_id] if target_type == "profile" else None,
+        project_ids=[target_id] if target_type == "project" else None,
+        knowledge_space_ids=[target_id] if target_type == "knowledge_space" else None,
+        resource_type=resource_type,
+    )
+    return authorize_write(linked_req, store, verification_lookup)
+
+
 class AuthorizedWriteService:
     """Thin facade for WRITE authorization (mirrors AuthorizedReadService)."""
 
@@ -180,9 +207,17 @@ class AuthorizedWriteService:
                              writer_fn: Callable[[AccessRequest], Any]) -> tuple:
         return authorize_then_write(request, self._store, self._verify, writer_fn)
 
+    def authorize_linked_write(self, source_request: AccessRequest,
+                               target_type: str, target_id: str,
+                               resource_type: Optional[str] = None) -> AccessDecision:
+        """WRITE to a linked target; target independently authorized (no transitive perm)."""
+        return authorize_linked_write(source_request, self._store, self._verify,
+                                       target_type, target_id, resource_type)
+
 
 __all__ = [
     "authorize_write",
     "authorize_then_write",
+    "authorize_linked_write",
     "AuthorizedWriteService",
 ]

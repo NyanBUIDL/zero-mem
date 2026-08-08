@@ -1,8 +1,10 @@
 """M5.2/M5.3 — authorized-read facade over the VERIFIED M3/M4 read surfaces.
 
 Integrates the M5.1 policy boundary and M5.3 explicit cross-profile READ
-composition with existing read-only retrieval. It does NOT implement grants,
-schema v8, audit persistence, or WRITE authorization.
+composition with existing read-only retrieval. It does NOT implement grants (M5.4), schema v8 (M5.4), audit persistence, or WRITE
+authorization (M5.4). M5.5 linked-resource hardening lives in src/access/linked.py and
+is wired here via get_related/get_parent/get_children/get_incoming/get_outgoing and
+source-event/verification/artifact link re-checks.
 
 Flow (authorization-before-retrieval):
     AccessRequest
@@ -42,6 +44,7 @@ from .contracts import (
 )
 from .grants import AuthorizedReadGrant, EffectiveReadScope, compose_effective_scope
 from .policy import evaluate
+from . import linked as _linked
 
 from src.retrieval.models import QueryError
 from src.retrieval.query import query_events, get_event, get_trace, _build_where, _row_to_view, _validate_limit
@@ -518,6 +521,8 @@ class AuthorizedReadService:
                                           include_source_event=include_source_event)
         except QueryError as exc:
             return self._downstream(eff, exc.code)
+        if include_source_event:
+            _linked.harden_m4_source_event(eff, self, view)
         if view is None:
             return AuthorizedResult(allowed=True, denied=False,
                                     reason_code=eff.reason_code, decision=eff)
@@ -553,6 +558,8 @@ class AuthorizedReadService:
             next_cursor = None
         allowed = []
         for v in source_items:
+            if getattr(v, "source_event", None) is not None:
+                _linked.harden_m4_source_event(eff, self, v)
             ok = False
             for scope in self._ordered_scopes(eff):
                 if _scope_allows(scope, self._requester,
@@ -609,6 +616,104 @@ class AuthorizedReadService:
                              lambda: m4.list_project_artifacts(self._store, project_id,
                                                               limit=limit, cursor=cursor),
                              resource_type="artifact", grants=grants)
+
+
+    # -- M5.5 linked-resource authorization ---------------------------------
+    def get_related(self, request: AccessRequest, event_id: str,
+                    direction: Optional[str] = None,
+                    relation_type: Optional[str] = None,
+                    limit: Optional[int] = None,
+                    cursor: Optional[str] = None,
+                    grants: Optional[List[AuthorizedReadGrant]] = None) -> AuthorizedResult:
+        """Relation traversal with target-scope recheck (fail closed).
+
+        Relations never grant scope: an authorized source event does NOT authorize
+        its linked target. Every target is independently scope-checked; any
+        out-of-scope target withholds the whole result (no leakage).
+        """
+        return _linked.authorize_relation(self, request, event_id, direction=direction,
+                                           relation_type=relation_type, limit=limit,
+                                           cursor=cursor, grants=grants)
+
+    def get_outgoing(self, request: AccessRequest, event_id: str,
+                     relation_type: Optional[str] = None, limit: Optional[int] = None,
+                     cursor: Optional[str] = None,
+                     grants: Optional[List[AuthorizedReadGrant]] = None) -> AuthorizedResult:
+        """Outgoing relation edges (from_event_id = event_id), target-scope rechecked."""
+        return self.get_related(request, event_id, direction="outgoing",
+                                relation_type=relation_type, limit=limit, cursor=cursor,
+                                grants=grants)
+
+    def get_incoming(self, request: AccessRequest, event_id: str,
+                     relation_type: Optional[str] = None, limit: Optional[int] = None,
+                     cursor: Optional[str] = None,
+                     grants: Optional[List[AuthorizedReadGrant]] = None) -> AuthorizedResult:
+        """Incoming relation edges (to_event_id = event_id), target-scope rechecked."""
+        return self.get_related(request, event_id, direction="incoming",
+                                relation_type=relation_type, limit=limit, cursor=cursor,
+                                grants=grants)
+
+    def get_parent(self, request: AccessRequest, event_id: str,
+                   grants: Optional[List[AuthorizedReadGrant]] = None) -> AuthorizedResult:
+        """Parent linkage (outgoing 'child_of'); target-scope rechecked. Fail closed."""
+        return self.get_related(request, event_id, direction="outgoing",
+                                relation_type="child_of", limit=1, grants=grants)
+
+    def get_children(self, request: AccessRequest, event_id: str,
+                     limit: Optional[int] = None, cursor: Optional[str] = None,
+                     grants: Optional[List[AuthorizedReadGrant]] = None) -> AuthorizedResult:
+        """Child linkage (incoming 'child_of'); targets-scope rechecked. Fail closed."""
+        return self.get_related(request, event_id, direction="incoming",
+                                relation_type="child_of", limit=limit, cursor=cursor,
+                                grants=grants)
+
+    def m4_requirement_verifications(self, request: AccessRequest, project_id: str,
+                                     requirement_id: str,
+                                     grants: Optional[List[AuthorizedReadGrant]] = None) -> AuthorizedResult:
+        """Resolve a Requirement's linked verification ids within scope.
+
+        A requirement link does NOT authorize the verification: the project must be
+        authorized AND resource_type='verification' must be permitted. Returns only
+        in-scope verifications (missing/out-of-scope dropped, no leak).
+        """
+        from src.project_memory import reader as _m4
+        eff = self._gate(request, grants)
+        if not eff.allow:
+            return self._denied(eff)
+        if not self._m4_project_scope_ok(eff, project_id):
+            return self._boundary_violation(eff)
+        if not self._m4_resource_allowed(eff, project_id, "verification"):
+            return self._denied(eff)
+        req = _m4.get_requirement(self._store, requirement_id)
+        if req is None:
+            return AuthorizedResult(allowed=True, denied=False,
+                                    reason_code=eff.reason_code, items=[], decision=eff)
+        return _linked.authorize_m4_link(
+            eff, self, request, project_id, "verification",
+            getattr(req, "linked_verification_ids", None),
+            lambda vid: _m4.get_verification(self._store, vid), grants=grants)
+
+    def m4_requirement_artifacts(self, request: AccessRequest, project_id: str,
+                                 requirement_id: str,
+                                 grants: Optional[List[AuthorizedReadGrant]] = None) -> AuthorizedResult:
+        """Resolve a Requirement's linked artifact ids within scope (artifact resource-type)."""
+        from src.project_memory import reader as _m4
+        eff = self._gate(request, grants)
+        if not eff.allow:
+            return self._denied(eff)
+        if not self._m4_project_scope_ok(eff, project_id):
+            return self._boundary_violation(eff)
+        if not self._m4_resource_allowed(eff, project_id, "artifact"):
+            return self._denied(eff)
+        req = _m4.get_requirement(self._store, requirement_id)
+        if req is None:
+            return AuthorizedResult(allowed=True, denied=False,
+                                    reason_code=eff.reason_code, items=[], decision=eff)
+        return _linked.authorize_m4_link(
+            eff, self, request, project_id, "artifact",
+            getattr(req, "linked_artifact_ids", None),
+            lambda aid: _m4.get_artifact(self._store, aid), grants=grants)
+
 
 
 __all__ = ["AuthorizedReadService", "AuthorizedResult",
