@@ -270,7 +270,8 @@ class TestFoundationDescription:
 
     def test_declares_deferred_behavior_absent(self):
         d = describe_derived_foundation()
-        assert d["projection_implemented"] is False
+        # Projection is implemented as of M8.2; everything later is not.
+        assert d["projection_implemented"] is True
         assert d["traversal_implemented"] is False
         assert d["temporal_query_implemented"] is False
         assert d["calibration_scoring_implemented"] is False

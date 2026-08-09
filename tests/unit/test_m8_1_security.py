@@ -217,10 +217,6 @@ class TestIdentityPreservation:
 
 
 class TestNonScope:
-    def test_no_m8_2_projection_module(self):
-        for banned in ("graph_projection.py", "projector.py", "graph_builder.py"):
-            assert not (M8_DIR / banned).exists(), banned
-
     def test_no_m8_3_read_service(self):
         for banned in ("graph_read_service.py", "graph_reader.py", "traversal.py"):
             assert not (M8_DIR / banned).exists(), banned

@@ -355,7 +355,9 @@ def describe_derived_foundation() -> dict[str, Any]:
         "rebuildable_tables": list(_REBUILDABLE_TABLES),
         "canonical_store": "jsonl",
         "sqlite_is_derived": True,
-        "projection_implemented": False,
+        # M8.2 implements deterministic graph projection over these tables;
+        # traversal, temporal query, and calibration scoring remain deferred.
+        "projection_implemented": True,
         "traversal_implemented": False,
         "temporal_query_implemented": False,
         "calibration_scoring_implemented": False,
