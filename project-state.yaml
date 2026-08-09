@@ -658,5 +658,8 @@ m7_increment_5_status: "verified"
 m7_increment_5_name: "Conflict / insufficient-evidence / prompt-injection / scope hardening"
 m7_increment_5_evidence: acceptance-m7.5.md
 m7_increment_5_schema: "v8 (no migration)"
-m7_increment_6_status: "not_started"
-m7_overall_status: "in_progress"
+m7_increment_6_status: "verified"
+m7_increment_6_name: "Performance, Security, End-to-End Acceptance + FINAL M7 Closure"
+m7_increment_6_evidence: acceptance-m7.6.md
+m7_increment_6_schema: "v8 (no migration)"
+m7_overall_status: "verified"
