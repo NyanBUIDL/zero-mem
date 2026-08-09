@@ -367,15 +367,18 @@ class TestSecurityRegression:
 # Deferred work absence
 # ---------------------------------------------------------------------------
 class TestDeferredAbsence:
-    def test_no_m7_router(self):
-        assert not (REPO_ROOT / "src/integration/m7/memory_router.py").exists()
-        assert not (REPO_ROOT / "src/integration/memory_router.py").exists()
+    def test_m7_router_exists_now(self):
+        # M7.2 introduced the deterministic router (expected after M7.2).
+        assert (REPO_ROOT / "src/integration/m7/memory_router.py").exists()
 
     def test_no_evidence_selector(self):
+        # M7.3 (evidence eligibility/selection) is deferred and must not exist yet.
         assert not (REPO_ROOT / "src/integration/m7/evidence_selector.py").exists()
 
     def test_no_injection_adapter(self):
+        # M7.4 (controlled context injection) is deferred and must not exist yet.
         assert not (REPO_ROOT / "src/integration/m7/injection_adapter.py").exists()
+
 
 
 # ---------------------------------------------------------------------------
