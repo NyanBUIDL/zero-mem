@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
   "authority": "Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx",
-  "status": "in_progress",
-  "current_milestone_status": "m6_in_progress",
+  "status": "m6_verified",
+  "current_milestone_status": "m6_verified",
   "current_milestone_verification": "verified",
-  "next_incomplete_milestone": "M6.2",
+  "next_incomplete_milestone": "M7",
   "next_milestone_status": "not_started",
   "scope": "External Zero-Mem sidecar for Hermes Agent; local-first, observation-only before controlled injection",
   "principles": [
@@ -619,7 +619,7 @@
       "increment_6": {
         "name": "Retention tombstones, logical deletion, secret scanning, and rollback",
         "status": "verified",
-        "decision": "B — logical deletion only; canonical JSONL immutable and append-only",
+        "decision": "B \u2014 logical deletion only; canonical JSONL immutable and append-only",
         "evidence": "acceptance-m2-increment-6.md",
         "focused_test": "tests/unit/test_m2_tombstones.py",
         "focused_result": "35 passed in 1.52s",
@@ -1509,8 +1509,8 @@
         "native memory remains minimal",
         "no deep Hermes-core modification"
       ],
-      "status": "in_progress",
-      "current_increment": "M6.5",
+      "status": "verified",
+      "current_increment": "M6.6",
       "increment_1": {
         "name": "Integration contracts and read-only transport/tool surface",
         "status": "verified",
@@ -1612,8 +1612,44 @@
             "project_list_verifications",
             "project_list_artifacts"
           ]
+        },
+        {
+          "id": "M6.6",
+          "title": "Performance, security, and FINAL M6 acceptance",
+          "status": "verified",
+          "evidence": "acceptance-m6.6.md",
+          "impl_commit": "a020880db753e92ee790b083ca28443033e77735",
+          "tested_commit": "a020880db753e92ee790b083ca28443033e77735",
+          "schema_version": 8
         }
-      ]
+      ],
+      "increment_6": {
+        "name": "Performance, security, and FINAL M6 acceptance",
+        "status": "verified",
+        "evidence": "acceptance-m6.6.md",
+        "focused_test": "tests/unit/test_m6_final_acceptance.py",
+        "focused_result": "86 passed",
+        "direct_m5_regression_test": "tests/unit/test_m5_grants.py::TestReadGrantResourceTypeIsolationM6_6",
+        "direct_m5_regression_result": "6 passed",
+        "combined_m6_result": "387 passed",
+        "canonical_result": "1497 passed, 3 skipped, 0 failed (clean isolated HOME)",
+        "ad_hoc_result": "37/37 PASS",
+        "schema_version": 8,
+        "start_commit": "143fb950235b616cd6e1e428c96a17b5686fb337",
+        "impl_commit": "a020880db753e92ee790b083ca28443033e77735",
+        "tested_commit": "a020880db753e92ee790b083ca28443033e77735",
+        "defect_corrected": "M5 cross-resource isolation: artifact-only project READ grant authorized M3 event/relation reads",
+        "defect_root_cause": "M6 M3 handlers did not propagate fixed ResourceType; build_access_request discarded explicit resource_type; M5 _gate did not enforce grant resource_types for explicit M3 reads",
+        "files_corrected": [
+          "src/access/authorized_read.py",
+          "src/integration/m6/handlers.py"
+        ],
+        "scope": "M6.6 FINAL acceptance: 10-tool registry, auth matrix, grant freshness/revoke/supersede, cross-resource isolation, linked-resource security, probing resistance, artifact metadata-only, adversarial input, sanitization, failure isolation, TRUE READ-ONLY proof, lifecycle/concurrency, determinism, pagination, FTS timings, transport overhead, resource growth, zero-LLM/network static, M1 non-interference, Hermes-core integrity, static audit, absence guards, contract consistency.",
+        "boundaries": "NO schema v9; NO M3/M4/M5 execution redesign; NO new M6 functionality; NO master ON/OFF switch (M7); NO automatic context injection (M7); NO LLM/network.",
+        "master_switch": "NOT IMPLEMENTED - deferred to M7",
+        "auto_injection": "NOT IMPLEMENTED - deferred to M7",
+        "m7_status": "not_started"
+      }
     },
     {
       "id": "M7",
