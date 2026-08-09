@@ -106,6 +106,77 @@ class MemoryRouteDecision:
         }
 
 
-def is_zero_mem_zero_mem_runtime_enabled() -> bool:
+def zero_mem_runtime_enabled() -> bool:
     """Consult the shared M7.1 runtime authority (never re-parse env)."""
     return get_runtime().is_enabled()
+
+
+# ---------------------------------------------------------------------------
+# M7.3 — authorized evidence contracts (immutable, no content injection)
+# ---------------------------------------------------------------------------
+class EvidenceRole(str, enum.Enum):
+    """Deterministic evidence role. No LLM classification."""
+
+    PRIMARY = "primary"
+    SUPPORTING = "supporting"
+
+
+@dataclass(frozen=True)
+class EvidenceItem:
+    """One selected, authorized, eligible memory item. Data only — never injected
+    as Hermes control text. No internal DB rows, no stored_path, no raw grant data."""
+
+    evidence_id: str
+    resource_type: str
+    memory_type: Optional[str] = None
+    trace_id: Optional[str] = None
+    route: Optional[str] = None
+    # Metadata-only surface; M3 EventView is metadata_only; M4 artifacts carry no
+    # content. Confidential body text is never placed here.
+    content_source: str = "metadata_only"
+    summary: Optional[str] = None
+    source: Optional[str] = None
+    created_at: Optional[str] = None
+    lifecycle: Optional[str] = None
+    verification: Optional[str] = None
+    confidence: Optional[str] = None
+    sensitivity: Optional[str] = None
+    profile_id: Optional[str] = None
+    project_id: Optional[str] = None
+    knowledge_space_ids: Tuple[str, ...] = ()
+    provenance: Optional[str] = None
+    role: EvidenceRole = EvidenceRole.SUPPORTING
+    eligibility_reason: Optional[str] = None
+    truncated: bool = False
+
+
+@dataclass(frozen=True)
+class EvidenceSet:
+    """Bounded, structured evidence for M7.4 to consume later. No prompt strings."""
+
+    route: MemoryRoute
+    memory_needed: bool
+    used_scopes: FrozenSet[str] = field(default_factory=frozenset)
+    primary_evidence: Tuple[EvidenceItem, ...] = ()
+    supporting_evidence: Tuple[EvidenceItem, ...] = ()
+    conflicts: Tuple[dict, ...] = ()
+    insufficient_evidence: bool = False
+    external_current_required: bool = False
+    omitted_count: int = 0
+    estimated_tokens: int = 0
+    reason_code: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "route": self.route.value,
+            "memory_needed": self.memory_needed,
+            "used_scopes": sorted(self.used_scopes),
+            "primary_evidence": [vars(e) for e in self.primary_evidence],
+            "supporting_evidence": [vars(s) for s in self.supporting_evidence],
+            "conflicts": [dict(c) for c in self.conflicts],
+            "insufficient_evidence": self.insufficient_evidence,
+            "external_current_required": self.external_current_required,
+            "omitted_count": self.omitted_count,
+            "estimated_tokens": self.estimated_tokens,
+            "reason_code": self.reason_code,
+        }
