@@ -650,7 +650,10 @@ m7_increment_3_tested_commit: cdb30b95465bbad2812d6108e0c0e51ca338bb54
 m7_increment_3_focused_result: "31 passed"
 m7_increment_3_canonical_result: "1627 passed, 3 skipped, 0 failed (clean isolated HOME)"
 m7_increment_3_schema: "v8 (no migration)"
-m7_increment_4_status: "not_started"
+m7_increment_4_status: "verified"
+m7_increment_4_name: "Hermes controlled context-injection adapter/envelope"
+m7_increment_4_evidence: acceptance-m7.4.md
+m7_increment_4_schema: "v8 (no migration)"
 m7_increment_5_status: "not_started"
 m7_increment_6_status: "not_started"
 m7_overall_status: "in_progress"
