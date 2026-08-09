@@ -8,6 +8,7 @@ from typing import Any
 from .bridge_config import BridgeConfig, BridgeMetrics, VERIFIED_SUPPORTED_HOOKS
 from .capture_adapter import adapt_mapped_event
 from .payload_mapping import map_hook_payload
+from .zero_mem_runtime import configure as configure_zero_mem_runtime, get_runtime
 
 
 class RegistrationFailure(RuntimeError):
@@ -30,6 +31,10 @@ class RegistrationAdapter:
         self.metrics = BridgeMetrics()
         self._registered: tuple[str, ...] = ()
         self.last_diagnostic: RegistrationDiagnostic | None = None
+        # M7.1 master runtime gate: resolve the single shared authority from the
+        # canonical config value. Master OFF dominates adapter-local enabled state.
+        configure_zero_mem_runtime(enabled=bool(config.zero_mem_enabled))
+        self._zero_mem = get_runtime()
 
     def register(self, context: Any) -> tuple[str, ...]:
         if not self.enabled:
@@ -66,6 +71,11 @@ class RegistrationAdapter:
         return callback
 
     def _observe(self, hook: str, payload: Any) -> None:
+        # M7.1 master gate: OFF => deterministic no-op (no redaction, no schema
+        # processing, no canonical append, no derived-state update). Valid bypass
+        # state, not an error.
+        if not self._zero_mem.is_enabled():
+            return
         copied = copy.deepcopy(payload)
         mapped = map_hook_payload(
             hook,

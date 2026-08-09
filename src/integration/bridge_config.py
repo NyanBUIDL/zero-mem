@@ -114,10 +114,18 @@ class BridgeConfig:
     capture_root: Path = field(default_factory=lambda: Path("data/traces"))
     hermes_home: Path | None = None
     use_environment_identity: bool = True
+    # M7.1 master Zero-Mem runtime switch (the ONE user-facing master boolean).
+    # Absent/missing defaults to True (backward-compatible with M0-M6 behavior).
+    # The per-bridge ``enabled`` flag remains a separate, narrower opt-in that
+    # controls whether this project's bridge wires hooks/tools at all; the master
+    # switch controls whether Zero-Mem participates globally.
+    zero_mem_enabled: bool = True
 
     def __post_init__(self) -> None:
         if not isinstance(self.enabled, bool):
             raise TypeError("enabled must be bool")
+        if not isinstance(self.zero_mem_enabled, bool):
+            raise TypeError("zero_mem_enabled must be bool")
         root = _safe_root(Path(self.capture_root))
         object.__setattr__(self, "capture_root", root)
         if self.hermes_home is not None:
@@ -139,6 +147,7 @@ class BridgeConfig:
             "capture_root": str(self.capture_root),
             "hermes_home": str(self.hermes_home) if self.hermes_home else None,
             "use_environment_identity": self.use_environment_identity,
+            "zero_mem_enabled": self.zero_mem_enabled,
         }
 
     def to_json(self) -> str:

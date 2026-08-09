@@ -384,11 +384,15 @@ class TestSecuritySurface:
                     mods.add((n.module or "").split(".")[0])
         assert not ({"openai", "llm", "requests", "httpx", "socket", "aiohttp", "urllib", "http"} & mods)
 
-    def test_no_master_switch(self, adapter):
+    def test_single_master_switch_only(self, adapter):
+        # M7.1 introduces EXACTLY ONE master switch (ZERO_MEM_ENABLED /
+        # BridgeConfig.zero_mem_enabled). No redundant/alias/per-subsystem switches.
         import ast
         base = REPO_ROOT / "src" / "integration"
         src = "\n".join(f.read_text() for f in base.rglob("*.py"))
-        assert all(t not in src for t in ("ZERO_MEM_ENABLED", "zero_mem.enabled", "master_enable",
+        assert "ZERO_MEM_ENABLED" in src
+        assert "zero_mem_enabled" in src
+        assert all(t not in src for t in ("zero_mem.enabled", "master_enable", "master_enabled",
                                           "memory_system_enabled", "disable_zero_mem"))
 
     def test_no_hardcoded_username(self, adapter):

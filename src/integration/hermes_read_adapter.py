@@ -30,6 +30,7 @@ from typing import Any, Final
 from .bridge_config import BridgeConfig
 from .m6 import configure as _configure_m6
 from .m6.mcp_wrapper import handle_call, tool_schemas
+from .zero_mem_runtime import configure as configure_zero_mem_runtime, get_runtime
 
 # Exactly the approved M6 read tools (no extra/hidden tools).
 ALL_READ_TOOLS: Final[tuple[str, ...]] = (
@@ -87,6 +88,10 @@ class HermesReadAdapter:
     def __init__(self, config: BridgeConfig, *, store_path: str | Path | None = None) -> None:
         self.config = config
         self.enabled = bool(config.enabled)
+        # M7.1 master runtime gate: resolve the single shared authority from the
+        # canonical config value. Master OFF dominates adapter-local enabled state.
+        configure_zero_mem_runtime(enabled=bool(config.zero_mem_enabled))
+        self._zero_mem = get_runtime()
         # Store path resolved explicitly; no cwd/home inference.
         self.store_path = Path(store_path).expanduser().resolve() if store_path is not None else None
         self.metrics: dict[str, int] = {}
@@ -103,7 +108,12 @@ class HermesReadAdapter:
         Performs NO migration, NO rebuild, NO mutation of M3/M4/M5 tables or
         canonical JSONL. Raises a sanitized RegistrationFailure if the store is
         unusable so Hermes can remain alive.
+
+        M7.1 master gate: when Zero-Mem is disabled, startup is a clean no-op.
+        The DB is NOT opened merely to know the system is disabled.
         """
+        if not self._zero_mem.is_enabled():
+            return
         if not self.enabled:
             return
         if self.store_path is None:
@@ -162,8 +172,19 @@ class HermesReadAdapter:
         self._registered = tuple(registered)
         return self._registered
 
+    def _disabled_response(self) -> dict[str, Any]:
+        """Sanitized master-disabled envelope. Distinct from CAPABILITY_UNAVAILABLE,
+        EMPTY, POLICY_DENIED, and INVALID_REQUEST."""
+        return {
+            "status": "CAPABILITY_UNAVAILABLE",
+            "reason_code": "ZERO_MEM_DISABLED",
+            "diagnostics": {"bounded": True, "master_switch": False},
+        }
+
     def _make_handler(self, tool_name: str):
         def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+            if not self._zero_mem.is_enabled():
+                return self._disabled_response()
             if not self.enabled or not self._runtime_started:
                 return {"status": "CAPABILITY_UNAVAILABLE", "reason_code": "adapter_not_ready"}
             try:
@@ -182,7 +203,14 @@ class HermesReadAdapter:
     # Direct adapter call (no plugin context required)
     # ------------------------------------------------------------------
     def call(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-        """Forward a single tool call through the M6 transport (adapter path)."""
+        """Forward a single tool call through the M6 transport (adapter path).
+
+        M7.1 master gate is consulted first: when Zero-Mem is disabled, every
+        approved M6 tool returns the sanitized ZERO_MEM_DISABLED envelope without
+        opening the DB, resolving grants, or querying M3/M4.
+        """
+        if not self._zero_mem.is_enabled():
+            return self._disabled_response()
         if not self.enabled or not self._runtime_started:
             return {"status": "CAPABILITY_UNAVAILABLE", "reason_code": "adapter_not_ready"}
         return handle_call(tool_name, arguments or {})

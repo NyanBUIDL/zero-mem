@@ -670,11 +670,29 @@ class TestAbsenceGuards:
                   "m6/dispatcher.py", "m6/mcp_wrapper.py", "m6/runtime.py", "m6/handlers.py", "m6/__init__.py"]:
             assert (base / n).exists(), "AD-HOC VERIFICATION INCOMPLETE - required path could not be verified: src/integration/" + n
 
-    def test_no_master_switch(self, adapter):
+    def test_single_master_switch_only(self, adapter):
+        # M7.1 introduces EXACTLY ONE master Zero-Mem switch (ZERO_MEM_ENABLED),
+        # backed by BridgeConfig.zero_mem_enabled. No redundant/alias/per-subsystem
+        # switches are permitted.
         base = REPO_ROOT / "src" / "integration"
         src = "\n".join(f.read_text() for f in base.rglob("*.py"))
-        for t in ("ZERO_MEM_ENABLED", "zero_mem.enabled", "master_enable", "memory_system_enabled", "disable_zero_mem"):
-            assert t not in src
+        # The one approved canonical switch IS present.
+        assert "ZERO_MEM_ENABLED" in src
+        assert "zero_mem_enabled" in src
+        # Forbidden redundant/alias/per-subsystem switches remain absent.
+        for forbidden in (
+            "zero_mem.enabled",        # alias form (only ZERO_MEM_ENABLED is canonical)
+            "master_enable",
+            "memory_system_enabled",
+            "disable_zero_mem",
+            "capture_enabled",
+            "retrieval_enabled",
+            "injection_enabled",
+            "mcp_enabled",
+            "routing_enabled",
+            "project_memory_enabled",
+        ):
+            assert forbidden not in src
 
     def test_no_auto_injection(self, adapter):
         NL = chr(10)
