@@ -5,7 +5,7 @@
   "current_milestone_status": "m6_verified",
   "current_milestone_verification": "verified",
   "next_incomplete_milestone": "M7",
-  "next_milestone_status": "not_started",
+  "next_milestone_status": "plan_ready_awaiting_approval",
   "scope": "External Zero-Mem sidecar for Hermes Agent; local-first, observation-only before controlled injection",
   "principles": [
     "trace-first and append-only raw provenance",
@@ -619,7 +619,7 @@
       "increment_6": {
         "name": "Retention tombstones, logical deletion, secret scanning, and rollback",
         "status": "verified",
-        "decision": "B \u2014 logical deletion only; canonical JSONL immutable and append-only",
+        "decision": "B — logical deletion only; canonical JSONL immutable and append-only",
         "evidence": "acceptance-m2-increment-6.md",
         "focused_test": "tests/unit/test_m2_tombstones.py",
         "focused_result": "35 passed in 1.52s",
