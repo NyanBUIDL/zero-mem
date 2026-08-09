@@ -636,8 +636,20 @@ m7_increment_1_evidence: acceptance-m7.1.md
 m7_increment_1_master_switch: "ZERO_MEM_ENABLED (BridgeConfig.zero_mem_enabled; default true; restart required)"
 m7_increment_1_resource_type_isolation: "preserved (M6.6 fix untouched, re-verified)"
 m7_increment_1_schema: "v8 (no migration)"
-m7_increment_2_status: "not_started"
-m7_increment_3_status: "not_started"
+m7_increment_2_status: "verified"
+m7_increment_2_name: "Deterministic memory-need router"
+m7_increment_2_evidence: acceptance-m7.2.md
+m7_increment_2_focused_result: "59 passed"
+m7_increment_2_canonical_result: "1595 passed, 3 skipped, 0 failed"
+m7_increment_2_schema: "v8 (no migration)"
+m7_increment_3_status: "verified"
+m7_increment_3_name: "Authorized evidence eligibility + bounded EvidenceSet"
+m7_increment_3_evidence: acceptance-m7.3.md
+m7_increment_3_impl_commit: cdb30b95465bbad2812d6108e0c0e51ca338bb54
+m7_increment_3_tested_commit: cdb30b95465bbad2812d6108e0c0e51ca338bb54
+m7_increment_3_focused_result: "31 passed"
+m7_increment_3_canonical_result: "1627 passed, 3 skipped, 0 failed (clean isolated HOME)"
+m7_increment_3_schema: "v8 (no migration)"
 m7_increment_4_status: "not_started"
 m7_increment_5_status: "not_started"
 m7_increment_6_status: "not_started"
