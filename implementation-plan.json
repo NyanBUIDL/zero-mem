@@ -4,7 +4,7 @@
   "status": "m7_in_progress",
   "current_milestone_status": "m7_in_progress",
   "current_milestone_verification": "verified",
-  "next_incomplete_milestone": "M7.5",
+  "next_incomplete_milestone": "M7.6",
   "next_milestone_status": "not_started",
   "scope": "External Zero-Mem sidecar for Hermes Agent; local-first, observation-only before controlled injection",
   "principles": [
@@ -1671,7 +1671,7 @@
         "insufficient/conflict states explicit",
         "redaction/isolation/stale-state/latency/token gates pass"
       ],
-      "status_note": "M7.1 VERIFIED, M7.2 VERIFIED, M7.3 VERIFIED, M7.4 VERIFIED; M7.5-M7.6 not started"
+      "status_note": "M7.1 VERIFIED, M7.2 VERIFIED, M7.3 VERIFIED, M7.4 VERIFIED, M7.5 VERIFIED; M7.6 not started"
     },
     {
       "id": "M8",
@@ -1795,6 +1795,7 @@
     "M7.1",
     "M7.2",
     "M7.3",
-    "M7.4"
+    "M7.4",
+    "M7.5"
   ]
 }
