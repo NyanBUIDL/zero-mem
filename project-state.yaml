@@ -666,9 +666,9 @@ m7_overall_status: "verified"
 
 # ---- M8 (Graph / Temporal / Calibration) ----
 m8_plan_status: "approved"
-m8_schema: "v9 (derived foundation only; M8.1 scope)"
+m8_schema: "v9 (derived foundation + graph projection; M8.1-M8.2 scope)"
 m8_overall_status: "in_progress"
-m8_next_incomplete_increment: "M8.2"
+m8_next_incomplete_increment: "M8.3"
 
 m8_increment_1_status: "verified"
 m8_increment_1_name: "Contract Freeze and Derived-Index Foundation"
@@ -683,7 +683,26 @@ m8_increment_1_scope_notes: >
   no M8.5 calibration ranking, no M8.6 EvidenceSet integration, no M9/M10.
   No Hermes core change. No vectors/embeddings.
 
-m8_increment_2_status: "not_started"
+m8_increment_2_status: "verified"
+m8_increment_2_name: "Explicit Graph Projection and Deterministic Rebuild"
+m8_increment_2_evidence: acceptance-m8.2.md
+m8_increment_2_impl_tested_commit: 1cc76cdfecaf54a199258eaa61058777a284b3b7
+m8_increment_2_focused_result: "108 passed, 0 failed (0.36s)"
+m8_increment_2_prebinding_canonical: "2121 passed, 3 skipped, 0 failed (11.81s)"
+m8_increment_2_schema: "v9"
+m8_increment_2_scope_notes: >
+  Deterministic graph projection over the frozen M8.1 contracts:
+  src/m8/graph_projection.py (pure projection), src/m8/graph_sources.py
+  (read-only approved M2/M4 scanners), src/m8/projection_store.py
+  (idempotent persistence + transactional rebuild).
+  Graph is derived, disposable, rebuildable, provenance-preserving.
+  Closed relation vocabulary enforced; unmapped source relations are
+  reported and dropped, never coerced. No authorization decisions (M5
+  remains sole authority). No conflict resolution. No M8.3 traversal,
+  no M8.4 temporal query, no M8.5 calibration, no M8.6 EvidenceSet
+  integration, no M9/M10. No Hermes core change. No M6 tool change.
+  No M7 change. No vectors/embeddings. Zero LLM, zero network.
+
 m8_increment_3_status: "not_started"
 m8_increment_4_status: "not_started"
 m8_increment_5_status: "not_started"
