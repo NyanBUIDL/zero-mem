@@ -663,3 +663,30 @@ m7_increment_6_name: "Performance, Security, End-to-End Acceptance + FINAL M7 Cl
 m7_increment_6_evidence: acceptance-m7.6.md
 m7_increment_6_schema: "v8 (no migration)"
 m7_overall_status: "verified"
+
+# ---- M8 (Graph / Temporal / Calibration) ----
+m8_plan_status: "approved"
+m8_schema: "v9 (derived foundation only; M8.1 scope)"
+m8_overall_status: "in_progress"
+m8_next_incomplete_increment: "M8.2"
+
+m8_increment_1_status: "verified"
+m8_increment_1_name: "Contract Freeze and Derived-Index Foundation"
+m8_increment_1_evidence: acceptance-m8.1.md
+m8_increment_1_impl_tested_commit: bbc304183abdaff72fd8a65fccef6551190a520f
+m8_increment_1_focused_result: "188 passed, 0 failed (0.65s)"
+m8_increment_1_prebinding_canonical: "2014 passed, 3 skipped, 0 failed (11.93s)"
+m8_increment_1_schema: "v9"
+m8_increment_1_scope_notes: >
+  Frozen contracts (src/m8/*) + derived schema v9 foundation only.
+  No M8.2 graph projection, no M8.3 read service, no M8.4 temporal query,
+  no M8.5 calibration ranking, no M8.6 EvidenceSet integration, no M9/M10.
+  No Hermes core change. No vectors/embeddings.
+
+m8_increment_2_status: "not_started"
+m8_increment_3_status: "not_started"
+m8_increment_4_status: "not_started"
+m8_increment_5_status: "not_started"
+m8_increment_6_status: "not_started"
+m9_status: "not_started"
+m10_status: "not_started"
