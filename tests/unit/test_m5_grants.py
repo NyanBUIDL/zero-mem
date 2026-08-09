@@ -78,6 +78,102 @@ def _memory_conn():
     return conn
 
 
+class TestReadGrantResourceTypeIsolationM6_6:
+    """Permanent direct-M5 regression guard for the M6.6 cross-resource defect.
+
+    A project READ grant scoped to resource_types=["artifact"] (or ["requirement"],
+    etc.) MUST NOT authorize M3 event/relation reads. The grant resource_type
+    restriction is enforced at the AuthorizedReadService read gate, not merely at
+    grant resolution. Discovered and fixed during M6.6.
+    """
+
+    def _read_svc(self, conn, subject="PR1"):
+        return authorized_read.AuthorizedReadService(conn, subject, grant_conn=conn)
+
+    def _project_read_grant(self, conn, gid, subject, project, rts):
+        grant_events.project_grant_event(conn, grant_events.AccessGrantEvent(
+            grant_id=gid, subject_profile=subject, operation=READ,
+            target_type="project", target_id=project, op="create",
+            resource_types=rts))
+        conn.commit()
+
+    def test_artifact_only_grant_denies_event_read(self):
+        conn = _memory_conn()
+        self._project_read_grant(conn, "GA", "PR1", "P1", ["artifact"])
+        svc = self._read_svc(conn)
+        grants = resolver.resolve_read_grants(conn, "PR1")
+        # CASE A: cross-profile, artifact-only grant, event request -> DENY
+        req = AccessRequest(operation=READ, requesting_profile_id="PR1",
+                            project_ids=["P1"], target_profile_ids=["PR2"],
+                            resource_type="event")
+        assert svc.get_event(req, "e1", grants=grants).allowed is False
+
+    def test_artifact_only_grant_denies_relation_read(self):
+        conn = _memory_conn()
+        self._project_read_grant(conn, "GA", "PR1", "P1", ["artifact"])
+        svc = self._read_svc(conn)
+        grants = resolver.resolve_read_grants(conn, "PR1")
+        # CASE B: relation request under artifact-only grant -> DENY
+        req = AccessRequest(operation=READ, requesting_profile_id="PR1",
+                            project_ids=["P1"], target_profile_ids=["PR2"],
+                            resource_type="relation")
+        assert svc.get_related(req, "e1", grants=grants).allowed is False
+
+    def test_event_grant_allows_event_read(self):
+        conn = _memory_conn()
+        self._project_read_grant(conn, "GE", "PR1", "P1", ["event"])
+        svc = self._read_svc(conn)
+        grants = resolver.resolve_read_grants(conn, "PR1")
+        # CASE C: event grant, event request -> ALLOW (policy dimensions permit)
+        req = AccessRequest(operation=READ, requesting_profile_id="PR1",
+                            project_ids=["P1"], target_profile_ids=["PR2"],
+                            resource_type="event")
+        assert svc.get_event(req, "e1", grants=grants).allowed is True
+
+    def test_wrong_resource_denied_even_when_profile_project_match(self):
+        conn = _memory_conn()
+        self._project_read_grant(conn, "GR", "PR1", "P1", ["requirement"])
+        svc = self._read_svc(conn)
+        grants = resolver.resolve_read_grants(conn, "PR1")
+        # CASE D: profile + project match grant, but wrong resource_type -> DENY
+        req = AccessRequest(operation=READ, requesting_profile_id="PR1",
+                            project_ids=["P1"], target_profile_ids=["PR1"],
+                            resource_type="event")
+        assert svc.get_event(req, "e1", grants=grants).allowed is False
+
+    def test_unrestricted_project_grant_allows_event_read(self):
+        conn = _memory_conn()
+        grant_events.project_grant_event(conn, grant_events.AccessGrantEvent(
+            grant_id="GALL", subject_profile="PR1", operation=READ,
+            target_type="project", target_id="P1", op="create",
+            resource_types=None))  # None = all resource types
+        conn.commit()
+        svc = self._read_svc(conn)
+        grants = resolver.resolve_read_grants(conn, "PR1")
+        req = AccessRequest(operation=READ, requesting_profile_id="PR1",
+                            project_ids=["P1"], target_profile_ids=["PR2"],
+                            resource_type="event")
+        assert svc.get_event(req, "e1", grants=grants).allowed is True
+
+    def test_revocation_applies_to_next_request(self):
+        conn = _memory_conn()
+        self._project_read_grant(conn, "GE", "PR1", "P1", ["event"])
+        svc = self._read_svc(conn)
+        grants = resolver.resolve_read_grants(conn, "PR1")
+        req = AccessRequest(operation=READ, requesting_profile_id="PR1",
+                            project_ids=["P1"], target_profile_ids=["PR2"],
+                            resource_type="event")
+        assert svc.get_event(req, "e1", grants=grants).allowed is True
+        # revoke -> next independent request denied
+        admin.GrantAdminService(conn, lambda e: None, lambda r: None).revoke(
+            admin.GrantAdminRequest(action="revoke", grant_id="GE",
+                                     subject_profile="PR1", operation=READ,
+                                     target_type="project", target_id="P1"))
+        conn.commit()
+        grants2 = resolver.resolve_read_grants(conn, "PR1")
+        assert svc.get_event(req, "e1", grants=grants2).allowed is False
+
+
 class _Ver:
     def __init__(self, status):
         self.verification_status = status

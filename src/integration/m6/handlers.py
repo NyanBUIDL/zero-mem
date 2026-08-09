@@ -61,7 +61,12 @@ def build_access_request(req: M6Request, resource_type: Optional[ResourceType] =
     ``resource_type`` (if any) is never used to broaden access.
     """
     from src.access.contracts import AccessRequest
-    rt = req.resource_type.value if (resource_type is None and req.resource_type) else None
+    rt = (resource_type or req.resource_type)
+    rt = rt.value if rt is not None else None
+    # Prefer an explicitly passed resource_type (the tool's fixed type); fall
+    # back to the caller-supplied one only when none was passed. For M4 calls the
+    # M6 layer passes resource_type=None and lets the M5 facade enforce per-call,
+    # so passing None here is intentional and does NOT broaden access.
     return AccessRequest(
         operation="READ",
         requesting_profile_id=req.requesting_profile_id,  # explicit; may be None
@@ -154,7 +159,7 @@ def handle_memory_query(req: M6Request, runtime: Optional[M6Runtime] = None) -> 
     runtime = runtime or get_runtime()
     svc, store, grants = _open_facade(runtime, req)
     try:
-        ar = svc.query_events(build_access_request(req), grants=grants,
+        ar = svc.query_events(build_access_request(req, resource_type=ResourceType.EVENT), grants=grants,
                               **_query_filters(req), limit=req.limit, cursor=req.cursor)
         return _translate_items(ar)
     finally:
@@ -167,7 +172,7 @@ def handle_memory_search(req: M6Request, runtime: Optional[M6Runtime] = None) ->
         raise M6Error(M6ErrorCode.INVALID_REQUEST, "search_text required")
     svc, store, grants = _open_facade(runtime, req)
     try:
-        ar = svc.search_text(build_access_request(req), req.search_text, grants=grants,
+        ar = svc.search_text(build_access_request(req, resource_type=ResourceType.EVENT), req.search_text, grants=grants,
                              **_query_filters(req), limit=req.limit, cursor=req.cursor)
         return _translate_items(ar)
     finally:
@@ -181,7 +186,7 @@ def handle_memory_get_event(req: M6Request, runtime: Optional[M6Runtime] = None)
         raise M6Error(M6ErrorCode.INVALID_REQUEST, "event_id required")
     svc, store, grants = _open_facade(runtime, req)
     try:
-        ar = svc.get_event(build_access_request(req), event_id, grants=grants)
+        ar = svc.get_event(build_access_request(req, resource_type=ResourceType.EVENT), event_id, grants=grants)
         return _translate_items(ar)
     finally:
         store.close()
@@ -195,7 +200,7 @@ def handle_memory_get_related(req: M6Request, runtime: Optional[M6Runtime] = Non
     direction = req.relation if req.relation in ("incoming", "outgoing", "parent", "children") else None
     svc, store, grants = _open_facade(runtime, req)
     try:
-        ar = svc.get_related(build_access_request(req), event_id, direction=direction,
+        ar = svc.get_related(build_access_request(req, resource_type=ResourceType.RELATION), event_id, direction=direction,
                              grants=grants, limit=req.limit, cursor=req.cursor)
         return _translate_items(ar)
     finally:

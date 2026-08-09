@@ -36,7 +36,7 @@ guarantees no record outside any authorized scope survives.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .contracts import (
@@ -233,7 +233,11 @@ class AuthorizedReadService:
         validated from their own fields only.
         """
         resolved = self._resolve_persistent_grants(request, grants)
-        return compose_effective_scope(request, resolved)
+        eff = compose_effective_scope(request, resolved)
+        if not self._resource_allowed(eff, request):
+            eff = replace(eff, allow=False,
+                          reason_code=ReasonCode.DENY_UNAUTHORIZED_CROSS_PROFILE_READ.value)
+        return eff
 
     def _denied(self, eff: EffectiveReadScope) -> AuthorizedResult:
         return AuthorizedResult(allowed=False, denied=True,
@@ -504,6 +508,24 @@ class AuthorizedReadService:
         if rt is None:
             return True
         return resource_type in rt
+
+    def _resource_allowed(self, eff: EffectiveReadScope, request: AccessRequest) -> bool:
+        """Cross-resource isolation for explicit-resource-type reads (M3 event/
+        relation). A grant that restricts resource_types must not authorize other
+        resource types. Base-policy allows and unrestricted grants pass. M4
+        project-memory reads pass resource_type=None and are gated per-call by
+        _m4_resource_allowed, so they are unaffected here."""
+        rt = request.resource_type
+        if rt is None:
+            return True
+        if not eff.grant_scopes:
+            # decision rests on base policy, not a restricting grant
+            return True
+        for proj in (request.project_ids or []):
+            allowed = eff.grant_resource_types.get(proj)
+            if allowed is not None and rt not in allowed:
+                return False
+        return True
 
     def m4_charter(self, request: AccessRequest, project_id: str,
                    charter_id: Optional[str] = None,
