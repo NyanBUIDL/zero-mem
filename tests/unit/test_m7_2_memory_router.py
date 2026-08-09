@@ -438,11 +438,14 @@ class TestDeferredAbsence:
     def test_no_evidence_selector(self):
         assert not (REPO_ROOT / "src/integration/m7/evidence_selector.py").exists()
 
-    def test_injection_adapter_present_m7_5_absent(self):
-        # M7.4 (controlled context injection) is now IMPLEMENTED.
+    def test_injection_adapter_present_hardening_present(self):
+        # M7.4 (controlled context injection) and M7.5 (hardening) are now IMPLEMENTED.
         assert (REPO_ROOT / "src/integration/m7/injection_adapter.py").exists()
-        # M7.5 (hardening) remains deferred.
-        assert not (REPO_ROOT / "src/integration/m7/hardening.py").exists()
+        assert (REPO_ROOT / "src/integration/m7/hardening.py").exists()
+        # No M8 features.
+        for p in REPO_ROOT.rglob("src/integration/m7/*.py"):
+            t = p.read_text().lower()
+            assert "vector retrieval" not in t and "embeddings" not in t
 
     def test_no_m8_features(self):
         for p in REPO_ROOT.rglob("src/**/*.py"):

@@ -592,12 +592,14 @@ class TestStaticAudit:
             assert "/home/brian" not in src
 
     def test_no_m7_5_implementation(self):
-        """M7.5 hardening modules must not exist yet."""
-        assert not (REPO_ROOT / "src/integration/m7/hardening.py").exists()
-        # No conflict resolution or injection hardening beyond envelope labeling
-        src = (REPO_ROOT / "src/integration/m7/injection_adapter.py").read_text()
-        assert "resolve_conflict" not in src
-        assert "auto_confirm" not in src
+        """M7.5 hardening is now IMPLEMENTED; verify no M7.6-specific module exists."""
+        assert (REPO_ROOT / "src/integration/m7/hardening.py").exists()
+        # No M7.6-specific module (M7.6 is acceptance/closure, not a new module)
+        # No M8 features
+        for p in REPO_ROOT.glob("src/integration/m7/*.py"):
+            t = p.read_text().lower()
+            assert "vector retrieval" not in t
+            assert "embeddings" not in t
 
     def test_no_m8_implementation(self):
         for p in REPO_ROOT.glob("src/integration/m7/*.py"):

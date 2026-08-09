@@ -32,6 +32,10 @@ from .budget import select_evidence, estimate_tokens, BudgetSelection
 from .evidence_builder import build_evidence_set
 from .envelope import serialize_evidence_set
 from .injection_adapter import InjectionAdapter, InjectionResult
+from .hardening import (
+    validate_evidence_set, sanitize_evidence_set, escape_field,
+    escape_summary, sanitize_evidence_item, ValidationResult,
+)
 
 __all__ = [
     "MemoryRoute",
@@ -52,4 +56,10 @@ __all__ = [
     "serialize_evidence_set",
     "InjectionAdapter",
     "InjectionResult",
+    "validate_evidence_set",
+    "sanitize_evidence_set",
+    "escape_field",
+    "escape_summary",
+    "sanitize_evidence_item",
+    "ValidationResult",
 ]

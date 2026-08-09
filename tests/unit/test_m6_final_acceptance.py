@@ -702,14 +702,13 @@ class TestAbsenceGuards:
             assert t not in src
 
     def test_no_m7_implementation(self, adapter):
-        # M7.2 introduced the deterministic router. M7.3 (evidence builder)
-        # and M7.4 (injection adapter) are now IMPLEMENTED. M7.5 (hardening)
-        # and evidence_selector remain deferred and MUST NOT exist yet.
+        # M7.2-M7.5 are now IMPLEMENTED. M7.6 (final acceptance) is not a
+        # separate module. evidence_selector remains deferred (M8 scope).
         m7 = REPO_ROOT / "src" / "integration" / "m7"
         assert m7.exists()
         assert not (m7 / "evidence_selector.py").exists()
         assert (m7 / "injection_adapter.py").exists()
-        assert not (m7 / "hardening.py").exists()
+        assert (m7 / "hardening.py").exists()
 
 
 # 27. Contract consistency

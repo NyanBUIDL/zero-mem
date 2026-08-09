@@ -375,11 +375,12 @@ class TestDeferredAbsence:
         # M7.3 (evidence eligibility/selection) is deferred and must not exist yet.
         assert not (REPO_ROOT / "src/integration/m7/evidence_selector.py").exists()
 
-    def test_injection_adapter_present_m7_5_absent(self):
-        # M7.4 (controlled context injection) is now IMPLEMENTED.
+    def test_injection_adapter_present_hardening_present(self):
+        # M7.4 (controlled context injection) and M7.5 (hardening) are now IMPLEMENTED.
         assert (REPO_ROOT / "src/integration/m7/injection_adapter.py").exists()
-        # M7.5 (hardening) remains deferred.
-        assert not (REPO_ROOT / "src/integration/m7/hardening.py").exists()
+        assert (REPO_ROOT / "src/integration/m7/hardening.py").exists()
+        # M7.6 (final acceptance) has no separate module; no M8 features.
+        assert not (REPO_ROOT / "src/integration/m7/evidence_selector.py").exists()
 
 
 

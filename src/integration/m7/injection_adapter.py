@@ -6,8 +6,10 @@ Registers a ``pre_llm_call`` hook on the REAL Hermes plugin-context
 1. Checks the M7.1 master gate (ZERO_MEM_ENABLED). OFF -> no injection.
 2. Routes the user message through the M7.2 deterministic router.
 3. If memory is needed, builds an M7.3 authorized EvidenceSet.
-4. Serializes the EvidenceSet into a safe DATA-only envelope (envelope.py).
-5. Returns ``{"context": envelope_text}`` — injected into the user message
+4. M7.5 hardening: validates EvidenceSet invariants (fail closed) and
+   sanitizes (escapes) all evidence fields.
+5. Serializes the sanitized EvidenceSet into a safe DATA-only envelope.
+6. Returns ``{"context": envelope_text}`` — injected into the user message
    API copy only (never system prompt, never the stored transcript).
 
 The adapter performs NO new retrieval, NO authorization, NO reranking,
@@ -36,6 +38,7 @@ from .contracts import (
 from .memory_router import route
 from .evidence_builder import build_evidence_set
 from .envelope import serialize_evidence_set
+from .hardening import validate_evidence_set, sanitize_evidence_set
 from ..zero_mem_runtime import get_runtime
 
 
@@ -189,6 +192,18 @@ class InjectionAdapter:
             grants=self._grants,
             sensitivity_ceiling=self._sensitivity_ceiling,
         )
+
+        # 5a. M7.5 hardening: validate EvidenceSet invariants (fail closed)
+        validation = validate_evidence_set(es)
+        if not validation:
+            # Malformed/tampered EvidenceSet -> fail closed, no injection
+            return InjectionResult(
+                injected=False, context="", route=decision.route.value,
+                reason=f"validation_failed:{validation.reason}",
+            )
+
+        # 5b. M7.5 hardening: sanitize (escape) all evidence fields
+        es = sanitize_evidence_set(es)
 
         # 6. Serialize
         envelope = serialize_evidence_set(es)
