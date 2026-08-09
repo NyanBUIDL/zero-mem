@@ -22,13 +22,13 @@ def test_master_spec_and_derived_agents_exist() -> None:
 
 def test_implementation_plan_is_machine_readable_and_gated() -> None:
     plan = json.loads((ROOT / "implementation-plan.json").read_text(encoding="utf-8"))
-    # M0-M7 VERIFIED; M8 IN PROGRESS (M8.1-M8.2 VERIFIED; M8.3-M8.6 NOT STARTED; M9/M10 NOT STARTED).
+    # M0-M7 VERIFIED; M8 IN PROGRESS (M8.1-M8.3 VERIFIED; M8.4-M8.6 NOT STARTED; M9/M10 NOT STARTED).
     assert plan["status"] == "m8_in_progress"
     assert plan["current_milestone_status"] == "m8_in_progress"
     assert plan["m8_increment_1_status"] == "verified"
     assert plan["m8_increment_2_status"] == "verified"
-    assert plan["m8_increment_3_status"] == "not_started"
-    assert plan["m8_next_incomplete_increment"] == "M8.3"
+    assert plan["m8_increment_3_status"] == "verified"
+    assert plan["m8_next_incomplete_increment"] == "M8.4"
     assert plan["m8_schema_version"] == 9
     assert plan["next_incomplete_milestone"] == "M8"
     assert plan["milestones"][0]["verification"]["status"] == "fully_verified"
@@ -44,13 +44,14 @@ def test_project_state_is_explicitly_unverified() -> None:
     # M0-M6 VERIFIED; M7 VERIFIED (M7.1-M7.6 all verified, M7 complete).
     assert "status: verified" in state
     assert "current_milestone: M7" in state
-    # M8 advanced by M8.2 state binding: M8 IN PROGRESS, M8.1-M8.2 VERIFIED,
-    # M8.3-M8.6 / M9 / M10 NOT STARTED.
+    # M8 advanced by M8.3 state binding: M8 IN PROGRESS, M8.1-M8.3 VERIFIED,
+    # M8.4-M8.6 / M9 / M10 NOT STARTED.
     assert "m8_plan_status: \"approved\"" in state
     assert "m8_overall_status: \"in_progress\"" in state
     assert "m8_increment_1_status: \"verified\"" in state
     assert "m8_increment_2_status: \"verified\"" in state
-    assert "m8_increment_3_status: \"not_started\"" in state
+    assert "m8_increment_3_status: \"verified\"" in state
+    assert "m8_increment_4_status: \"not_started\"" in state
     assert "m9_status: \"not_started\"" in state
     assert "m10_status: \"not_started\"" in state
     assert "m1_production_code_started: true" in state

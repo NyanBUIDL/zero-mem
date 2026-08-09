@@ -668,7 +668,7 @@ m7_overall_status: "verified"
 m8_plan_status: "approved"
 m8_schema: "v9 (derived foundation + graph projection; M8.1-M8.2 scope)"
 m8_overall_status: "in_progress"
-m8_next_incomplete_increment: "M8.3"
+m8_next_incomplete_increment: "M8.4"
 
 m8_increment_1_status: "verified"
 m8_increment_1_name: "Contract Freeze and Derived-Index Foundation"
@@ -703,7 +703,31 @@ m8_increment_2_scope_notes: >
   integration, no M9/M10. No Hermes core change. No M6 tool change.
   No M7 change. No vectors/embeddings. Zero LLM, zero network.
 
-m8_increment_3_status: "not_started"
+m8_increment_3_status: "verified"
+m8_increment_3_name: "Authorization-first bounded graph reads"
+m8_increment_3_evidence: acceptance-m8.3.md
+m8_increment_3_impl_tested_commit: eb91d60b4ee94d436d6a33eb8545c1a17a867745
+m8_increment_3_focused_result: "33 passed, 0 failed"
+m8_increment_3_prebinding_canonical: "2156 passed, 3 skipped, 0 failed"
+m8_increment_3_schema: "v9"
+m8_increment_3_scope_notes: >
+  Authorization-first bounded graph read service over the deterministic
+  M8.2 projection. src/m8/graph_bounds.py (frozen traversal bounds:
+  depth 2, fan-out 20, nodes 40, edges 80; widening fails closed) +
+  src/m8/graph_access.py (GraphAccessService). Flow: normalize ->
+  M5 authorize seed -> bounded expansion -> per-candidate authorization
+  using the candidate's own scope (not the seed's). Edges to
+  unauthorized nodes are withheld (no hidden-connection leak). M5
+  AuthorizedReadService remains the sole authorization authority; no
+  graph-derived auth. M6.6 resource_type isolation preserved (artifact-
+  only grant does not reveal decision/requirement neighbours). Revocation
+  honoured immediately. Deterministic ordering; cycles/self-loops/dense
+  graphs bounded; read-only; zero LLM/network. Internal request-time
+  infrastructure only: NO new Hermes/M6 tool surface (verified statically).
+  No Hermes core change. No M4/M5/M7 change. No M8.4 temporal query,
+  no M8.5 calibration, no M8.6 EvidenceSet integration, no M9/M10.
+  No vectors/embeddings.
+
 m8_increment_4_status: "not_started"
 m8_increment_5_status: "not_started"
 m8_increment_6_status: "not_started"
