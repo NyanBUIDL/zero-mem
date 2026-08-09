@@ -250,3 +250,28 @@ M8.6 EvidenceSet integration, M9 Obsidian, M10 corpus expansion, vectors/embeddi
 
 M8.2 — Explicit Graph Projection and Deterministic Rebuild (requires external final-head
 canonical pass + explicit user approval to begin).
+
+## Final-head canonical attempt 1 (history)
+
+- HEAD: d2afef2e4017f6bc83cfdef5997e8624363a8a5c
+- Result: 2013 passed, 3 skipped, 1 failed (11.20s)
+- Cause: stale baseline gate `tests/baseline/test_project_artifacts.py::
+  test_implementation_plan_is_machine_readable_and_gated` still asserted
+  `plan["status"] == "m7_verified"` after the legitimate M8.1 state transition to
+  `M8 overall: IN PROGRESS / M8.1: VERIFIED / schema: 9`.
+- This is NOT a product or schema failure. Repository state files were already
+  structurally reconciled and intentionally carry the M8.1-bound values.
+
+## Corrective action
+
+- `tests/baseline/test_project_artifacts.py` updated to validate the exact approved
+  M8.1-bound state: `plan["status"] == "m8_in_progress"`,
+  `plan["current_milestone_status"] == "m8_in_progress"`,
+  `plan["m8_increment_1_status"] == "verified"`, `plan["m8_schema_version"] == 9`,
+  `plan["next_incomplete_milestone"] == "M8"`; and `project-state.yaml` M8 keys
+  (`m8_plan_status=approved`, `m8_overall_status=in_progress`,
+  `m8_increment_1_status=verified`, `m8_increment_2_status=not_started`,
+  `m9_status=not_started`, `m10_status=not_started`).
+- Implementation/Tested commit `bbc3041...` and Evidence/state-binding commit
+  `d2afef2...` preserved unchanged (corrective commit is dedicated and separate).
+- `implementation-plan.json` and `project-state.yaml` deliberately NOT reverted to M7.
