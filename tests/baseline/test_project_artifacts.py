@@ -22,9 +22,9 @@ def test_master_spec_and_derived_agents_exist() -> None:
 
 def test_implementation_plan_is_machine_readable_and_gated() -> None:
     plan = json.loads((ROOT / "implementation-plan.json").read_text(encoding="utf-8"))
-    assert plan["status"] == "in_progress"
-    # M5 is VERIFIED; M6.1 is VERIFIED and M6 is now IN PROGRESS (M6.2 next).
-    assert plan["current_milestone_status"] == "m6_in_progress"
+    assert plan["status"] == "m6_verified"
+    # M5 VERIFIED; M6.1-M6.6 VERIFIED (M6 complete). M7 NOT STARTED.
+    assert plan["current_milestone_status"] == "m6_verified"
     assert plan["milestones"][0]["verification"]["status"] == "fully_verified"
     assert [milestone["id"] for milestone in plan["milestones"]] == [
         f"M{i}" for i in range(11)
