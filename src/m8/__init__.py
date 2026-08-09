@@ -1,9 +1,10 @@
-"""M8 — frozen contracts and derived-index foundation (M8.1).
+"""M8 — frozen contracts and derived-index foundation (M8.1) plus later increments.
 
-This package contains ONLY the M8.1 contract freeze and the minimal derived
-schema-v9 foundation. It deliberately contains NO graph projection (M8.2), NO
-authorization-first traversal (M8.3), NO temporal query behavior (M8.4), NO
-calibration scoring (M8.5), and NO M7 EvidenceSet integration (M8.6).
+M8.1 owns the contract freeze and the minimal derived schema-v9 foundation.
+M8.2 projects the deterministic graph. M8.3 adds the authorization-first
+bounded graph read layer (INTERNAL; not a new Hermes/M6 tool surface). M8.4
+(temporal), M8.5 (calibration), and M8.6 (EvidenceSet integration) are NOT
+implemented here yet.
 
 Architectural invariants (AGENTS.md, ARCHITECTURE.md, plan-m8.md §5/§7/§8/§9):
 
@@ -16,7 +17,8 @@ Architectural invariants (AGENTS.md, ARCHITECTURE.md, plan-m8.md §5/§7/§8/§9
 - A calibration score is evidence-ordering metadata. It never grants access,
   verifies a claim, resolves a conflict, or promotes lifecycle.
 - M5 remains the sole authorization authority. Nothing in this package makes,
-  caches, widens, or infers an access decision.
+  caches, widens, or infers an access decision (M8.3 re-checks M5 at every
+  traversal step).
 - `resource_type` identity is preserved end-to-end (permanent M6.6 invariant).
 - Zero LLM calls and zero external network calls.
 """

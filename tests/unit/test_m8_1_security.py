@@ -162,9 +162,13 @@ class TestNoAuthorizationReach:
                         )
 
     def test_access_import_is_contract_only(self):
-        # The one M5 touchpoint is the resource-type literal set. M8.1 must not
-        # import any policy/decision surface from src.access.
+        # M8.1's own freeze must not import any policy/decision surface from
+        # src.access. The single sanctioned exception is M8.3's graph_access.py,
+        # which is the increment that CONSUMES the M5 AuthorizedReadService as
+        # its sole authorization authority (authorization-first design).
         for path in _m8_files():
+            if path.name == "graph_access.py":
+                continue
             for imported in _imports(path):
                 if imported.startswith("src.access"):
                     assert "contracts" in imported, imported
