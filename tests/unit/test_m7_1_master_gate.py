@@ -388,11 +388,12 @@ class TestDeferredAbsence:
 # Environment / static audit
 # ---------------------------------------------------------------------------
 class TestEnvironment:
-    def test_schema_v8(self):
+    def test_schema_version(self):
         from src.storage.migrations import CURRENT_SCHEMA_VERSION
-        # Canonical schema remains v8 (no migration v9 introduced by M7.1).
-        assert CURRENT_SCHEMA_VERSION == 8
-        assert not (REPO_ROOT / "src/storage/migrations/migrate_9.py").exists()
+        # Schema is v9 as of the M8.1 derived-index foundation. M7.1 itself
+        # introduced no migration; assert it still owns none beyond v9.
+        assert CURRENT_SCHEMA_VERSION == 9
+        assert not (REPO_ROOT / "src/storage/migrations/migrate_10.py").exists()
 
     def test_gate_module_no_forbidden_imports(self):
         text = (REPO_ROOT / "src/integration/zero_mem_runtime.py").read_text()

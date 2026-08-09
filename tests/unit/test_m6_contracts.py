@@ -270,7 +270,7 @@ class TestTransport:
 class TestReadOnlyBoundaries:
     def test_schema_still_v8(self):
         from src.storage.migrations import CURRENT_SCHEMA_VERSION
-        assert CURRENT_SCHEMA_VERSION == 8
+        assert CURRENT_SCHEMA_VERSION == 9
 
     def test_no_forbidden_writable_imports(self):
         import ast as _ast

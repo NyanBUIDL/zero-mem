@@ -38,7 +38,7 @@ def _config(p: Path) -> SQLiteStoreConfig:
 def _open(p: Path) -> SQLiteStore:
     store = SQLiteStore(_config(p))
     store.ensure_schema()
-    assert store.get_schema_version() == 8
+    assert store.get_schema_version() == 9
     return store
 
 
@@ -397,7 +397,7 @@ def test_state_schema_remains_v8(tmp_path: Path) -> None:
     store = _open(tmp_path)
     try:
         project_state(store._conn, _st())
-        assert store.get_schema_version() == 8
+        assert store.get_schema_version() == 9
     finally:
         store.close()
 
@@ -409,7 +409,7 @@ def test_state_m3_readonly_untouched(tmp_path: Path) -> None:
         project_state(store._conn, _st())
         rs = open_readonly(store.path)
         try:
-            assert rs.get_schema_version() == 8
+            assert rs.get_schema_version() == 9
         finally:
             rs.close()
     finally:

@@ -77,7 +77,7 @@ def _insert(conn: sqlite3.Connection, table: str, **kw) -> None:
 
 def test_migration_registry_v8() -> None:
     assert 8 in MIGRATIONS
-    assert CURRENT_SCHEMA_VERSION == 8
+    assert CURRENT_SCHEMA_VERSION == 9
     assert MIGRATIONS[8] is migrate_8
     # Deterministic ascending ordering.
     assert list(MIGRATIONS) == sorted(MIGRATIONS)
@@ -90,12 +90,14 @@ def test_v6_to_v8_upgrade(tmp_path: Path) -> None:
     try:
         assert store.get_schema_version() == 0
         v = store.ensure_schema()
-        assert v == 8
-        assert store.get_schema_version() == 8
-        # Ledger rows present for every applied migration (1..8).
+        assert v == 9
+        assert store.get_schema_version() == 9
+        # Ledger rows present for every applied migration (1..CURRENT).
         cur = store._conn.cursor()
         cur.execute("SELECT version FROM zm_migrations ORDER BY version")
-        assert [r["version"] for r in cur.fetchall()] == list(range(1, 9))
+        assert [r["version"] for r in cur.fetchall()] == list(
+            range(1, CURRENT_SCHEMA_VERSION + 1)
+        )
     finally:
         store.close()
 
@@ -126,9 +128,9 @@ def test_v8_reopen_idempotent(tmp_path: Path) -> None:
     # Reopen the already-migrated DB: ledger persists on disk, version stays 8.
     store2 = SQLiteStore(_config(tmp_path))
     try:
-        assert store2.get_schema_version() == 8
+        assert store2.get_schema_version() == 9
         v = store2.ensure_schema()
-        assert v == 8
+        assert v == 9
         # No duplicate tables / double migration leds.
         cur = store2._conn.cursor()
         cur.execute("SELECT COUNT(*) AS n FROM zm_migrations WHERE version=8")
@@ -144,7 +146,7 @@ def test_v8_reopen_idempotent(tmp_path: Path) -> None:
 def test_v8_to_v7_downgrade(tmp_path: Path) -> None:
     store = _open(tmp_path)
     try:
-        assert store.get_schema_version() == 8
+        assert store.get_schema_version() == 9
         store.downgrade_to(7)
         assert store.get_schema_version() == 7
         # M5.4 derived tables dropped by the one-step downgrade.
@@ -218,12 +220,14 @@ def test_failed_migration_rolls_back(tmp_path: Path, monkeypatch) -> None:
 
 
 def test_unknown_future_schema_rejected(tmp_path: Path) -> None:
-    # Craft a DB recorded at version 9 (above code's CURRENT_SCHEMA_VERSION=8).
+    # Craft a DB recorded one version ABOVE the code's CURRENT_SCHEMA_VERSION.
+    future = CURRENT_SCHEMA_VERSION + 1
     store = SQLiteStore(_config(tmp_path))
     try:
-        store.ensure_schema()  # -> 8
+        store.ensure_schema()  # -> CURRENT_SCHEMA_VERSION
         store._conn.execute(
-            "INSERT INTO zm_migrations(version, applied_at, note) VALUES (9,'t','fake')"
+            "INSERT INTO zm_migrations(version, applied_at, note) VALUES (?,'t','fake')",
+            (future,),
         )
         store._conn.commit()
     finally:

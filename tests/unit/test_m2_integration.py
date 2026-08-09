@@ -339,7 +339,7 @@ def test_migration_path_v1_to_v6_idempotent(tmp_path: pathlib.Path) -> None:
     store = _open_store(tmp_path)
     try:
         assert store.get_schema_version() == CURRENT_SCHEMA_VERSION
-        assert CURRENT_SCHEMA_VERSION == 8
+        assert CURRENT_SCHEMA_VERSION == 9
         # adjacent downgrades all succeed
         for v in (5, 4, 3, 2, 1):
             store.downgrade_to(v)
@@ -379,7 +379,7 @@ def test_failed_migration_no_partial_advance(tmp_path: pathlib.Path) -> None:
     from src.storage.migrations import migrate_6 as _migrate_6
     store = _open_store(tmp_path)
     try:
-        assert store.get_schema_version() == 8
+        assert store.get_schema_version() == 9
 
         class _BadConn:
             def cursor(self):
@@ -390,7 +390,7 @@ def test_failed_migration_no_partial_advance(tmp_path: pathlib.Path) -> None:
         with pytest.raises(sqlite3.OperationalError):
             _migrate_6.up(store._conn, "fail")
         store._conn = real
-        assert store.get_schema_version() == 8
+        assert store.get_schema_version() == 9
     finally:
         store.close()
 

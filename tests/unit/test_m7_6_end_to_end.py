@@ -547,7 +547,7 @@ class TestArchitecture:
 
     def test_58_schema_v8(self):
         from src.storage.migrations import CURRENT_SCHEMA_VERSION
-        assert CURRENT_SCHEMA_VERSION == 8
+        assert CURRENT_SCHEMA_VERSION == 9
 
     def test_59_m6_tools_unchanged(self):
         from src.integration.m6.mcp_wrapper import tool_schemas

@@ -817,11 +817,18 @@ def scan_sqlite_for_secrets(store, secret_corpus) -> list:
 # ---- M2.3: lifecycle / provenance projection + rebuild ---------------------
 
 DERIVED_TABLES = ("zm_meta", "zm_lifecycle", "zm_provenance", "zm_ingest_checkpoint", "zm_ingest_log",
-                   "zm_relations", "zm_scopes", "zm_artifacts", "zm_tombstones", "zm_deletion_audit",
-                   "zm_project_charters", "zm_requirements", "zm_decisions",
-                   "zm_project_state", "zm_verifications", "zm_project_artifacts",
-                   "zm_access_grants", "zm_policy_audit",
-                   "zm_migrations")
+                  "zm_relations", "zm_scopes", "zm_artifacts", "zm_tombstones", "zm_deletion_audit",
+                  "zm_project_charters", "zm_requirements", "zm_decisions",
+                  "zm_project_state", "zm_verifications", "zm_project_artifacts",
+                  "zm_access_grants", "zm_policy_audit",
+                  # M8 (schema v9) derived graph/temporal/index-registry foundation.
+                  # These are derived and rebuildable, so a full canonical rebuild
+                  # must drop them too; otherwise stale derived M8 state would
+                  # survive a rebuild and migration 9 would collide on re-apply.
+                  # Child table first: zm_entity_mentions references zm_entities.
+                  "zm_entity_mentions", "zm_graph_edges", "zm_temporal_index",
+                  "zm_m8_index_versions", "zm_entities",
+                  "zm_migrations")
 
 
 def get_lifecycle(store, event_id: str) -> Optional[dict]:

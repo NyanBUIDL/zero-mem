@@ -571,7 +571,7 @@ def test_schema_is_v8(tmp_path: Path):
     store = _build_full_store(tmp_path)
     try:
         # M5.4 introduces schema v8 (zm_access_grants + zm_policy_audit).
-        assert store.get_schema_version() == CURRENT_SCHEMA_VERSION == 8
+        assert store.get_schema_version() == CURRENT_SCHEMA_VERSION == 9
     finally:
         store.close()
 
