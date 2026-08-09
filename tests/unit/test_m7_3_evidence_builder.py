@@ -469,8 +469,11 @@ class TestPriorRegression:
 # deferred absence
 # ---------------------------------------------------------------------------
 class TestDeferredAbsence:
-    def test_no_injection_adapter(self):
-        assert not (REPO_ROOT / "src/integration/m7/injection_adapter.py").exists()
+    def test_injection_adapter_present_m7_5_absent(self):
+        # M7.4 (controlled context injection) is now IMPLEMENTED.
+        assert (REPO_ROOT / "src/integration/m7/injection_adapter.py").exists()
+        # M7.5 (hardening) remains deferred.
+        assert not (REPO_ROOT / "src/integration/m7/hardening.py").exists()
     def test_no_evidence_m7_4_hook(self):
         src = (REPO_ROOT / "src/integration/m7/evidence_builder.py").read_text()
         assert "pre_llm" not in src
