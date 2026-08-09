@@ -153,7 +153,7 @@ m6_increment_6_canonical_result: "1497 passed, 3 skipped, 0 failed (clean isolat
 m6_increment_6_ad_hoc_result: "37/37 PASS"
 m6_increment_6_master_switch: "PLANNED - single ZERO_MEM_ENABLED switch (deferred impl to M7.1)"
 m6_increment_6_auto_injection: "PLANNED - controlled injection via M5-authorized M3/M4 reads (deferred impl to M7.2-7.4)"
-m6_increment_6_m7_status: "plan_ready_awaiting_approval"
+m6_increment_6_m7_status: "in_progress"
 m1_increment_4_1_status: verified
 m1_increment_4_2_status: verified
 m1_increment_4_3_status: verified
@@ -622,9 +622,23 @@ notes:
   - Do not mark a milestone complete without executable acceptance evidence.
 
 # ----- M7 planning (committed plan; not yet implemented) -----
-m7_plan_status: "plan_ready_awaiting_approval"
+m7_plan_status: "in_progress"
 m7_plan_artifact: "plan-m7.md"
-m7_master_switch: "ZERO_MEM_ENABLED (single boolean; default true; restart required)"
+m7_master_switch: "IMPLEMENTED (M7.1) - ZERO_MEM_ENABLED single boolean, default true, restart required"
 m7_schema_change: "none (remains v8)"
 m7_hermes_core_modification: "none (external plugin-context hook or explicit recall tool only)"
 m7_deferred_to_m8: "graph/temporal/vector/entity retrieval, advanced calibration, Obsidian projection, corpus expansion"
+
+# ----- M7 increments -----
+m7_increment_1_status: "verified"
+m7_increment_1_name: "Master runtime gate + shared configuration/contracts"
+m7_increment_1_evidence: acceptance-m7.1.md
+m7_increment_1_master_switch: "ZERO_MEM_ENABLED (BridgeConfig.zero_mem_enabled; default true; restart required)"
+m7_increment_1_resource_type_isolation: "preserved (M6.6 fix untouched, re-verified)"
+m7_increment_1_schema: "v8 (no migration)"
+m7_increment_2_status: "not_started"
+m7_increment_3_status: "not_started"
+m7_increment_4_status: "not_started"
+m7_increment_5_status: "not_started"
+m7_increment_6_status: "not_started"
+m7_overall_status: "in_progress"

@@ -2,10 +2,10 @@
   "schema_version": 1,
   "authority": "Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx",
   "status": "m6_verified",
-  "current_milestone_status": "m6_verified",
+  "current_milestone_status": "m7_in_progress",
   "current_milestone_verification": "verified",
-  "next_incomplete_milestone": "M7",
-  "next_milestone_status": "plan_ready_awaiting_approval",
+  "next_incomplete_milestone": "M7.2",
+  "next_milestone_status": "not_started",
   "scope": "External Zero-Mem sidecar for Hermes Agent; local-first, observation-only before controlled injection",
   "principles": [
     "trace-first and append-only raw provenance",
@@ -1670,7 +1670,8 @@
         "no wrong-scope injection",
         "insufficient/conflict states explicit",
         "redaction/isolation/stale-state/latency/token gates pass"
-      ]
+      ],
+      "status_note": "M7.1 VERIFIED; M7.2-M7.6 not started"
     },
     {
       "id": "M8",
@@ -1790,6 +1791,7 @@
     "M6.1",
     "M6.2",
     "M6.3",
-    "M6.4"
+    "M6.4",
+    "M7.1"
   ]
 }
