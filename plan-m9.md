@@ -1,6 +1,6 @@
 # M9 — Obsidian Projection Plan
 
-**Status:** PLAN READY — awaiting explicit approval. M9 implementation has NOT started.
+**Status:** APPROVED — awaiting implementation authorization. M9 implementation has NOT started.
 
 **Authority:** `Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx` §12 (Obsidian Knowledge Workspace and projection layer), §9.2 (rebuildable derived indexes), §14 (security/retention), §17.3 and §18 (roadmap item 9), plus `AGENTS.md` and `ARCHITECTURE.md`.
 
@@ -23,7 +23,8 @@ Performed at the start of this planning turn against live `git` and the state ar
 | M0–M7 | VERIFIED |
 | M8.1–M8.6 | VERIFIED (each with acceptance artifact + impl/tested commit) |
 | M8 overall | VERIFIED (`m8_overall_status: "verified"`, `m8_next_incomplete_increment: "none"`) |
-| Final M8 canonical | `2323 passed, 3 skipped, 0 failed` (pre-binding and final-head agree) |
+| Final M8 canonical (at M8 closure) | `2323 passed, 3 skipped, 0 failed` (pre-binding and final-head agree) |
+| Current canonical baseline (post M7.3 corrective fix `1cb67aa`) | `2353 passed, 3 skipped, 0 failed` — this is the regression baseline for M9 |
 | M9 | `m9_status: "not_started"` |
 | M10 | `m10_status: "not_started"` |
 
@@ -665,7 +666,7 @@ M9 introduces no table, column, index, or migration. All projection state lives 
 
 - Projection state is **derived and rebuildable** — the architecture prefers keeping such state out of the canonical/derived store when it has a natural home.
 - The manifest must share the vault's lifecycle; a SQLite table would desynchronize the moment the vault is moved, deleted, or restored.
-- Avoiding a migration removes all risk to the 2323-test canonical baseline.
+- Avoiding a migration removes all risk to the canonical baseline (currently **2353 passed, 3 skipped, 0 failed**; 2323 at M8 closure before the M7.3 corrective fix).
 - No canonical-vs-derived reclassification is needed.
 
 If a future milestone needs cross-vault or cross-profile projection analytics, a derived `zm_projection_links` table can be added then, rebuildable from manifests — recorded as **Q8** but **not proposed for M9**.
@@ -749,7 +750,7 @@ No distributed locking, no lock server, no lease renewal — a local single-writ
 
 ## 26. Testing strategy
 
-Tests live in `tests/unit/test_m9_*.py`, following existing naming, and are additive to the 2323-test canonical baseline.
+Tests live in `tests/unit/test_m9_*.py`, following existing naming, and are additive to the canonical baseline (currently **2353 passed, 3 skipped, 0 failed**).
 
 ### 26.1 Real-vault testing policy — MANDATORY
 
@@ -926,29 +927,29 @@ Each increment ends with: full canonical suite green under clean isolated HOME, 
 
 Resolved with a recommendation, but **all require owner sign-off before M9.1**.
 
-| # | Question | Recommendation | Status |
+| # | Question | Owner decision (APPROVED) | Status |
 | --- | --- | --- | --- |
-| Q1 | Curated note types | Project Home, Decision, Requirement, Verification, Conflict, Artifact ref, Knowledge index. System/Profile/Candidate Review deferred. | **APPROVAL REQUIRED** |
-| Q2 | Managed root inside vault | `<vault>/Zero-Mem/` | **APPROVAL REQUIRED** |
-| Q3 | Whole-vault vs subtree | **Subtree** (option B) | **APPROVAL REQUIRED** |
-| Q4 | Human edit semantics | Detect, never overwrite, quarantine as `edit_conflict` | Recommended |
-| Q5 | Write-back | **Projection-only in M9**; proposal export deferred | **APPROVAL REQUIRED** |
-| Q6 | Version granularity | Per-note fingerprint + global `projection_version` | Recommended |
-| Q7 | Manifest representation | Filesystem `_meta/manifest.json` | **APPROVAL REQUIRED** |
-| Q8 | v9 vs v10 | **v9 — NONE** | **APPROVAL REQUIRED** |
-| Q9 | Auto-project eligibility | `active`/`confirmed`/`superseded`/`conflicted`/`archived`; never `deleted` | Recommended |
-| Q10 | Human-approval eligibility | `raw`/`observed`/`candidate` excluded by default | **APPROVAL REQUIRED** |
-| Q11 | Conflict rendering | All authorized positions, no winner, warning callout | Recommended |
-| Q12 | Supersession rendering | Keep superseded notes, marked, linked; explicit M4 only | Recommended |
-| Q13 | Filename identity | `slug(title)[:80] + "--" + note_id_suffix + ".md"` | Recommended |
-| Q14 | Incremental invalidation | Content fingerprint; no separate backlink index | Recommended |
-| Q15 | Stale-note retirement | Delete managed file + manifest `retired`; `tombstone` mode offered | **APPROVAL REQUIRED** |
-| Q16 | Invocation | Explicit CLI + in-process call; no daemon/watcher | Recommended |
-| Q17 | Performance targets | §27 table; 0/1 write-count assertions load-bearing | Recommended |
-| Q18 | Sensitive-content policy | Canonical vocabulary; ceiling `internal`; `secret` never; unknown fails closed | **APPROVAL REQUIRED** |
-| **Q18-A** | **M7.3 sensitivity vocabulary defect (§1.2)** | **RESOLVED — prior M7.3 sensitivity vocabulary corrected before M9.1** (canonical `public/internal/private/secret`; default ceiling `private`; `secret` never eligible; unknown sensitivity *and* unknown ceiling both fail closed). Fixed in commit `fix(m7): align sensitivity eligibility with canonical vocabulary`. | **RESOLVED** |
-| Q19 | Cross-profile/project composition | Per-item M5 authorization; co-location grants nothing | Recommended |
-| Q20 | May Obsidian edits enter canonical state in M9? | **NO** | **APPROVAL REQUIRED** |
+| Q1 | Curated note types | **APPROVED WITH CHANGE.** M9 curated note types: Project Home, Decision, Requirement, Verification, Conflict, Artifact Reference, **Research Note**, Knowledge Index. Research Note = projection of research material ALREADY present in Zero-Mem; does NOT authorize M10 corpus ingestion. Deferred: System notes, Profile notes, Candidate Review UI/workflow. | **APPROVED** |
+| Q2 | Managed root inside vault | **APPROVED.** Dedicated Zero-Mem-managed subtree beneath the configured vault. Keep the deterministic managed-root contract. Configured operator vault `/home/brian-nguyen/Documents/Obsidian/Zero-Mem` remains runtime/operator configuration only; MUST NOT be hard-coded in product source. | **APPROVED** |
+| Q3 | Whole-vault vs subtree | **APPROVED.** SUBTREE ownership. M9 must not own the whole vault, `.obsidian/`, or unrelated human notes. | **APPROVED** |
+| Q4 | Human edit semantics | Detect, never overwrite, quarantine as `edit_conflict`. | **APPROVED** |
+| Q5 | Write-back | **APPROVED.** M9 is PROJECTION-ONLY. No Obsidian edit may directly or indirectly mutate canonical memory. Proposal-based write-back deferred beyond M9 unless separately approved. | **APPROVED** |
+| Q6 | Version granularity | Per-note fingerprint + global `projection_version`. | **APPROVED** |
+| Q7 | Manifest representation | **APPROVED.** Filesystem `_meta/manifest.json` inside the managed projection area. Derived/rebuildable projection metadata; do NOT add a SQLite projection table in M9. | **APPROVED** |
+| Q8 | v9 vs v10 | **APPROVED.** Schema remains **v9**; no migration; no v10. | **APPROVED** |
+| Q9 | Auto-project eligibility | `active`/`confirmed`/`superseded`/`conflicted`/`archived`; never `deleted`. | **APPROVED** |
+| Q10 | Human-approval eligibility | **APPROVED WITH CLARIFICATION.** Lifecycle states `raw`, `observed`, `candidate` are EXCLUDED from M9 generated projection. M9 does NOT implement a manual approval workflow for these states. A future separately-approved workflow may promote/verify them upstream, after which ordinary M9 eligibility may apply. Do not create an Obsidian-side approval authority. | **APPROVED** |
+| Q11 | Conflict rendering | All authorized positions, no winner, warning callout. | **APPROVED** |
+| Q12 | Supersession rendering | Keep superseded notes, marked, linked; explicit M4 only. | **APPROVED** |
+| Q13 | Filename identity | `slug(title)[:80] + "--" + note_id_suffix + ".md"`. | **APPROVED** |
+| Q14 | Incremental invalidation | Content fingerprint; no separate backlink index. | **APPROVED** |
+| Q15 | Stale-note retirement | **APPROVED.** A stale generated file may be retired/deleted ONLY when M9 proves the file is Zero-Mem-managed under the approved ownership contract. Retirement preserves canonical history, updates manifest status to `retired`, never deletes human-owned content, never deletes `.obsidian/`, never infers ownership from path alone. Three-signal ownership design remains required. Tombstone-file mode may remain optional rather than default. | **APPROVED** |
+| Q16 | Invocation | Explicit CLI + in-process call; no daemon/watcher. | **APPROVED** |
+| Q17 | Performance targets | §27 table; 0/1 write-count assertions load-bearing. | **APPROVED** |
+| Q18 | Sensitive-content policy | **APPROVED.** Canonical `public < internal < private < secret`. Default M9 projection ceiling **`internal`** (default projects `public` and `internal` only, subject to all authorization/eligibility rules). `private` excluded by default from projection; a future explicit OPERATOR configuration may raise the projection ceiling to `private`, but memory content/request text can never raise it. `secret` NEVER projected, under any ceiling. Unknown/malformed sensitivity → fail closed. Unknown/malformed ceiling → fail closed. Intentionally stricter than M7 retrieval's default `private` ceiling. | **APPROVED** |
+| **Q18-A** | **M7.3 sensitivity vocabulary defect (§1.2)** | **RESOLVED.** Corrective commit `1cb67aa4a1830a76c691a7e87b9db94e62f4c5f6`. Canonical sensitivity `public/internal/private/secret`. Prior M7.3 sensitivity vocabulary corrected before M9.1. | **RESOLVED** |
+| Q19 | Cross-profile/project composition | Per-item M5 authorization; co-location grants nothing. | **APPROVED** |
+| Q20 | May Obsidian edits enter canonical state in M9? | **APPROVED: NO.** During M9: Obsidian edit ⊬ canonical memory. No direct write-back, no silent write-back, no implicit proposal creation, no canonical mutation. | **APPROVED** |
 
 ---
 
@@ -957,7 +958,7 @@ Resolved with a recommendation, but **all require owner sign-off before M9.1**.
 M9 is VERIFIED only when **all** hold, each backed by executable evidence:
 
 1. M9.1–M9.6 each VERIFIED with a committed `acceptance-m9.N.md`.
-2. Full canonical suite green under clean isolated HOME, run **twice** — pre-binding and FINAL-HEAD post-binding (authoritative) — with no regression against the 2323-test M8 baseline.
+2. Full canonical suite green under clean isolated HOME, run **twice** — pre-binding and FINAL-HEAD post-binding (authoritative) — with no regression against the current canonical baseline of **2353 passed, 3 skipped, 0 failed** (raised from the M8-closure 2323 by the M7.3 sensitivity corrective fix, commit `1cb67aa`).
 3. Deterministic rebuild proven: A == B byte-for-byte across manifest, contents, filenames, links, metadata.
 4. Idempotence proven: unchanged re-run performs **zero** writes and produces an empty `git diff`.
 5. Path safety proven: the entire §10 attack matrix fails closed, including symlink escape.
@@ -985,4 +986,4 @@ M9 is VERIFIED only when **all** hold, each backed by executable evidence:
 - M9 tests created: **NO**.
 - M9 implementation started: **NO**.
 - M10: **NOT STARTED**.
-- Defect found in prior verified milestone (M7.3): **reported in §1.2**, dispositioned out of M9 scope, tracked as Q18-A.
+- Defect found in prior verified milestone (M7.3): **reported in §1.2**, corrected in a dedicated prior increment (commit `1cb67aa`), recorded as Q18-A (RESOLVED) before M9 plan approval.
