@@ -1,0 +1,24 @@
+# Zero-Mem Obsidian projection — OPERATOR configuration example.
+#
+# Copy to `config/projection.yaml` and set your own vault path. This file is an
+# EXAMPLE only: it is never read by the product, and `config/projection.yaml` is
+# optional — absent is the normal state.
+#
+# The vault root is runtime/operator configuration. It is deliberately NOT a
+# product constant: no username, home directory, or `~/Obsidian` guess appears
+# anywhere in `src/projection/`.
+#
+# Resolution order (plan-m9.md §2.2), highest precedence first:
+#   1. explicit argument   -> ProjectionConfig(vault_root=...) / load_projection_config(...)
+#   2. environment         -> ZERO_MEM_OBSIDIAN_VAULT=/absolute/path/to/YourVault
+#   3. this file           -> vault_root below
+#   4. nothing configured  -> projection is UNAVAILABLE and writes nothing, anywhere
+#
+# Requirements for `vault_root`: absolute, existing, a directory, not a symlink,
+# writable, not your home directory, not the repository root, not an `.obsidian`
+# directory. A `~` form is rejected: it is a guess, not an explicit path.
+#
+# Zero-Mem owns ONLY the dedicated subtree `<vault_root>/Zero-Mem/`. The vault
+# root itself, `.obsidian/`, and all your other notes are never written to.
+
+vault_root: /absolute/path/to/YourObsidianVault
