@@ -374,7 +374,11 @@ def test_conflict_insertion_order_irrelevant():
     assert fwd.content == rev.content
 
 
-def test_conflict_queue_lists_only_authorized():
+def test_conflict_index_lists_only_authorized():
+    # The M9.3 "Conflict Queue" deliverable is the unresolved-conflict INDEX,
+    # represented as an aggregate Conflict note (NoteType.CONFLICT), NOT a new
+    # public note type. (plan-m9.md §29 Q1 approves only the eight curated
+    # types, of which `conflict` is the sole conflict projection type.)
     d1 = _Rec(decision_id="D1", project_id="P", scope="project:P", decision_key="K",
               statement="pick A", lifecycle_status="conflicted", state="accepted",
               effective_at="2026-08-04T00:00:00Z", rationale_ref=None,
@@ -384,11 +388,12 @@ def test_conflict_queue_lists_only_authorized():
               effective_at="2026-08-04T00:00:00Z", rationale_ref=None,
               alternatives=None, trace_id="T2", source_event_id="E2", session_id="S1")
     groups = group_conflicts((d1, d2), resource_type="decision")
-    queue = R.render_conflict_queue(resource_type="decision", groups=groups)
-    assert "Unresolved Conflicts" in queue.content
-    assert "2 position(s)" in queue.content
-    # The queue never publishes a "total conflicts everywhere" count.
-    assert "total" not in queue.content.lower()
+    index = R.render_conflict_index(resource_type="decision", groups=groups)
+    assert index.note_type is NoteType.CONFLICT
+    assert "Unresolved Conflicts" in index.content
+    assert "2 position(s)" in index.content
+    # The index never publishes a "total conflicts everywhere" count.
+    assert "total" not in index.content.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -685,7 +690,7 @@ __all__ = [
     "test_hidden_position_does_not_leak",
     "test_calibration_does_not_resolve_conflict",
     "test_conflict_insertion_order_irrelevant",
-    "test_conflict_queue_lists_only_authorized",
+    "test_conflict_index_lists_only_authorized",
     "test_explicit_supersession_rendered",
     "test_superseded_note_retained_and_marked",
     "test_no_supersession_inferred_from_recency",

@@ -208,12 +208,13 @@ class TestSensitivityVocabulary:
 
 class TestProjectionContracts:
     def test_curated_note_types_match_owner_approved_set(self):
-        # M9.3 added the conflict_queue index type (an aggregation of authorized
-        # conflicts); it is a curated projection type, not a new source category.
+        # Plan-m9.md §29 Q1 (owner-approved M9 curated vocabulary): exactly
+        # eight types. conflict_queue is NOT approved as a public note type;
+        # the M9.3 "Conflict Queue" index is rendered as an aggregate Conflict
+        # note (NoteType.CONFLICT), not a new type.
         assert {t.value for t in NoteType} == {
             "project", "decision", "requirement", "verification",
-            "conflict", "conflict_queue", "artifact", "research_note",
-            "knowledge_index",
+            "conflict", "artifact", "research_note", "knowledge_index",
         }
 
     def test_every_note_type_has_a_directory(self):

@@ -1205,13 +1205,19 @@ def render_conflict(group: ConflictGroup) -> ProjectedNote:
     )
 
 
-def render_conflict_queue(*, resource_type: str,
+def render_conflict_index(*, resource_type: str,
                           groups: Sequence[ConflictGroup]) -> ProjectedNote:
-    """Render the per-resource-type UNRESOLVED Conflict Queue (plan-m9.md §19).
+    """Render the per-resource-type UNRESOLVED Conflict index (plan-m9.md §19).
+
+    This is the M9.3 "Conflict Queue" deliverable, represented WITHOUT a new
+    public note type: it is an aggregate Conflict note (NoteType.CONFLICT), the
+    only owner-approved conflict projection type (plan-m9.md §29 Q1). Its
+    note_id is a stable aggregate identity, so M9.1 identity/filename contracts
+    still apply and M9.4's manifest will treat it as a single managed note.
 
     An index of conflicts this request is authorized to see. It links each
     conflict to its note (navigation only) and states the position count per
-    conflict. A conflict the request may not see is absent, and the queue never
+    conflict. A conflict the request may not see is absent, and the index never
     publishes a total-of-all-conflicts count that would leak hidden conflicts.
     """
     validated_type = validate_resource_type(resource_type)
@@ -1236,9 +1242,9 @@ def render_conflict_queue(*, resource_type: str,
         "elsewhere or outside this request's scope.",
         queue,
         _provenance_block(
-            note_id=f"conflict-queue:{validated_type}",
+            note_id=f"conflict-index:{validated_type}",
             resource_type=validated_type,
-            resource_id=f"conflict-queue:{validated_type}",
+            resource_id=f"conflict-index:{validated_type}",
             project_id=None,
             profile_id=None,
             lifecycle_status=CONFLICTED_LIFECYCLE,
@@ -1252,9 +1258,9 @@ def render_conflict_queue(*, resource_type: str,
         ),
     )
     return _build_note(
-        note_type=NoteType.CONFLICT_QUEUE,
+        note_type=NoteType.CONFLICT,
         resource_type=validated_type,
-        resource_id=f"conflict-queue:{validated_type}",
+        resource_id=f"conflict-index:{validated_type}",
         project_id=None,
         profile_id=None,
         display_title=title,
@@ -1286,7 +1292,7 @@ __all__ = [
     "render_requirement",
     "render_verification",
     "render_conflict",
-    "render_conflict_queue",
+    "render_conflict_index",
     "UNRESOLVED_LINK_MARKER",
     "note_relative_path",
     "safe_link_display",

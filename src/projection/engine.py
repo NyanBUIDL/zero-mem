@@ -61,7 +61,7 @@ from .identity import derive_note_id
 from .links import LinkRegistry, LinkTarget, note_relative_path
 from .render import (
     render_conflict,
-    render_conflict_queue,
+    render_conflict_index,
     render_decision,
     render_project_home,
     render_project_state,
@@ -366,7 +366,7 @@ def project_source_records(
     # only. Grouping is a join on M4's explicit conflict key, never an inference.
     conflict_groups = group_conflicts(eligible_decisions, resource_type="decision")
     if conflict_groups:
-        notes.append(render_conflict_queue(resource_type="decision", groups=conflict_groups))
+        notes.append(render_conflict_index(resource_type="decision", groups=conflict_groups))
         for group in conflict_groups:
             notes.append(render_conflict(group))
 
