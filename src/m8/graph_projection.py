@@ -473,7 +473,9 @@ def describe_projection() -> dict[str, Any]:
         "graph_is_truth": False,
         "makes_authorization_decisions": False,
         "resolves_conflicts": False,
-        "temporal_query_implemented": False,
+        # M8.4 (introduced after M8.2) implements bounded authorization-first
+        # temporal as-of/history reads over the derived temporal index.
+        "temporal_query_implemented": True,
         "calibration_scoring_implemented": False,
     }
 

@@ -289,7 +289,7 @@ class TestProjectionDescription:
 
     def test_declares_later_increments_absent(self):
         d = describe_projection()
-        assert d["temporal_query_implemented"] is False
+        assert d["temporal_query_implemented"] is True
         assert d["calibration_scoring_implemented"] is False
 
     def test_schema_version_unchanged(self):

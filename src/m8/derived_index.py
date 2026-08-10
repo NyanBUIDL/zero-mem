@@ -356,10 +356,11 @@ def describe_derived_foundation() -> dict[str, Any]:
         "canonical_store": "jsonl",
         "sqlite_is_derived": True,
         # M8.2 implements deterministic graph projection over these tables;
-        # traversal, temporal query, and calibration scoring remain deferred.
+        # M8.4 implements bounded authorization-first temporal as-of/history
+        # reads. Traversal and calibration scoring remain deferred.
         "projection_implemented": True,
         "traversal_implemented": False,
-        "temporal_query_implemented": False,
+        "temporal_query_implemented": True,
         "calibration_scoring_implemented": False,
     }
 

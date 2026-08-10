@@ -124,7 +124,14 @@ class TestNoAuthorizationReach:
         assert "AuthorizedWriteService" not in _all_code()
 
     def test_no_policy_engine_import(self):
+        # M8.1's own freeze must not import src.access.policy. The sanctioned
+        # exceptions are M8.3's graph_access.py and M8.4's temporal_read.py:
+        # the increments that CONSUME the M5 authorization authority (via the
+        # AuthorizedReadService facade) as their sole authorization authority.
+        _SANCTIONED_ACCESS_CONSUMERS = {"graph_access.py", "temporal_read.py"}
         for path in _m8_files():
+            if path.name in _SANCTIONED_ACCESS_CONSUMERS:
+                continue
             for imported in _imports(path):
                 assert "policy" not in imported.lower(), f"{path.name}: {imported}"
                 assert "grant" not in imported.lower(), f"{path.name}: {imported}"
@@ -163,11 +170,13 @@ class TestNoAuthorizationReach:
 
     def test_access_import_is_contract_only(self):
         # M8.1's own freeze must not import any policy/decision surface from
-        # src.access. The single sanctioned exception is M8.3's graph_access.py,
-        # which is the increment that CONSUMES the M5 AuthorizedReadService as
-        # its sole authorization authority (authorization-first design).
+        # src.access. The sanctioned exceptions are M8.3's graph_access.py and
+        # M8.4's temporal_read.py: the increments that CONSUME the M5
+        # authorization authority as their sole authorization authority
+        # (authorization-first design).
+        _SANCTIONED_ACCESS_CONSUMERS = {"graph_access.py", "temporal_read.py"}
         for path in _m8_files():
-            if path.name == "graph_access.py":
+            if path.name in _SANCTIONED_ACCESS_CONSUMERS:
                 continue
             for imported in _imports(path):
                 if imported.startswith("src.access"):
@@ -225,10 +234,20 @@ class TestNonScope:
         for banned in ("graph_read_service.py", "graph_reader.py", "traversal.py"):
             assert not (M8_DIR / banned).exists(), banned
 
-    def test_no_m8_4_temporal_query(self):
-        source = _all_code()
-        for token in ("def as_of", "def query_history", "def history_at", "as_of_query"):
-            assert token not in source, token
+    def test_no_m8_4_temporal_query_outside_m8_4(self):
+        # The temporal as-of / history query vocabulary (def as_of / query_history
+        # / history_at / as_of_query) is EXPECTED in M8.4's own modules
+        # (temporal_read.py, temporal_projection.py). It must NOT appear in any
+        # earlier M8 module, which would mean M8.4's temporal surface leaked
+        # backwards into M8.1/M8.2/M8.3.
+        _M8_4_MODULES = {"temporal_read.py", "temporal_projection.py"}
+        for path in _m8_files():
+            if path.name in _M8_4_MODULES:
+                continue
+            source = _strip_docstrings(ast.parse(path.read_text(encoding="utf-8")))
+            code = ast.unparse(source)
+            for token in ("def as_of", "def query_history", "def history_at", "as_of_query"):
+                assert token not in code, f"{path.name}: {token}"
 
     def test_no_m8_5_calibration_scoring(self):
         source = _all_code()
