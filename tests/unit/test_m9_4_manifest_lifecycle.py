@@ -139,9 +139,16 @@ def test_manifest_sorted_keys_and_note_order(tmp_path):
         _mk_note("", "requirements/unscoped/a.md", "a", resource_id="A"),
     ]
     data = json.loads(ProjectionManifest.from_notes(notes).serialize())
-    # sort_keys=True yields alphabetical key order in the serialized bytes
-    assert list(data.keys()) == ["managed_dir_name", "manifest_version",
-                                  "notes", "projection_version"]
+    # sort_keys=True yields alphabetical key order in the serialized bytes.
+    # ``edit_conflicts`` is the M9.5 channel; it is always emitted (even when
+    # empty) so a manifest produced by M9.5 round-trips through any parser.
+    assert list(data.keys()) == [
+        "edit_conflicts",
+        "managed_dir_name",
+        "manifest_version",
+        "notes",
+        "projection_version",
+    ]
     # notes ordered by note_id, not insertion order
     assert len(data["notes"]) == 2
     assert data["notes"][0]["note_id"] < data["notes"][1]["note_id"]

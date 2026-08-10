@@ -42,7 +42,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Final, Iterable, Mapping, Optional, Tuple
+from typing import Final, Iterable, List, Mapping, Optional, Tuple
 
 from .contracts import (
     MANAGED_MARKER_KEY,
@@ -53,11 +53,17 @@ from .contracts import (
 )
 from .identity import content_fingerprint
 from .manifest import (
+    EditConflict,
     ManifestEntry,
     ManifestError,
     ProjectionManifest,
     load_manifest,
     store_manifest,
+)
+from .ownership import (
+    OwnershipClass,
+    classify_managed_file,
+    conflict_sibling_relative_path,
 )
 from .writer import (
     WriteOutcome,
@@ -106,12 +112,17 @@ class ReconcileResult:
     zero-write rerun invariant: on an unchanged second run both counters land on
     exactly the writes the prior run already produced, and any genuine rerun
     reports ``written == 0``.
+
+    ``edit_conflicts`` (M9.5) carries the deterministic, unresolved human-edit /
+    projection boundary records. They are DATA only — none of them ever mutates,
+    overwrites, or deletes a human-owned file.
     """
 
     writes: Tuple[WriteOutcome, ...] = ()
     manifest_stored: bool = False
     manifest: ProjectionManifest = field(default_factory=ProjectionManifest)
     notes: Tuple[ProjectedNote, ...] = ()
+    edit_conflicts: Tuple[EditConflict, ...] = ()
 
     @property
     def written(self) -> int:
@@ -193,21 +204,76 @@ def reconcile(
     desired_index = _note_index(desired_notes)
     prior_by_id = prior_manifest.by_note_id()
 
+    # M9.5 collectors. ``status_overrides`` / ``observed_fps`` are recorded DATA
+    # (never destructive): when a human edit is detected we mark the entry status
+    # and remember the human fingerprint (a hash, never content) so a later run
+    # can prove the file still diverges without re-reading it.
+    conflicts: list[EditConflict] = []
+    status_overrides: dict[str, NoteStatus] = {}
+    observed_fps: dict[str, str] = {}
+    content_fps: dict[str, str] = {}
+
     # -- 2. reconcile each desired note -----------------------------------
     for note in sorted(desired_notes, key=lambda item: (item.relative_path, item.note_id)):
         prior_entry = prior_by_id.get(note.note_id)
         # Signal 1 (manifest): does the old manifest list this exact note_id?
         listed = prior_entry is not None
-        outcome = _reconcile_desired(
+        outcome, maybe_conflict, maybe_status, maybe_observed, maybe_keep_recorded = _reconcile_desired(
             managed_root, note, prior_entry=prior_entry, listed=listed,
             dry_run=dry_run,
         )
         outcomes.append(outcome)
+        if maybe_conflict is not None:
+            conflicts.append(maybe_conflict)
+        if maybe_status is not None:
+            status_overrides[note.note_id] = maybe_status
+        if maybe_observed is not None:
+            observed_fps[note.note_id] = maybe_observed
+        if maybe_keep_recorded is not None:
+            content_fps[note.note_id] = maybe_keep_recorded
 
     # -- 3. retire previously-managed notes no longer desired, OR moved ----
+    # Skip any note_id with an active M9.5 human boundary: a human-edited note
+    # is preserved even if it is also stale, so human protection wins over
+    # stale-retirement convenience (plan-m9.md).
     retired_entries: list[ManifestEntry] = []
-    desired_ids = set(desired_index)
     for entry in prior_manifest.active_entries():
+        if entry.note_id in status_overrides:
+            continue
+        prior_recorded = entry.content_fingerprint
+        # M9.5: a note that is no longer desired must still be classified. If
+        # the CURRENT on-disk file is human-owned / human-modified / unknown, it
+        # is preserved untouched and never retired (spec: stale + human-edited
+        # must not be deleted). We classify with desired=False so an unchanged
+        # file reads as STALE_GENERATED (the only retirement-eligible class);
+        # any other class preserves the file.
+        try:
+            on_disk = classify_managed_file(
+                managed_root, note_id=entry.note_id,
+                relative_path=entry.relative_path, listed=True,
+                recorded_fingerprint=prior_recorded, desired=False,
+            )
+        except Exception:
+            on_disk = None
+        if on_disk is not None and on_disk.classification is not OwnershipClass.STALE_GENERATED:
+            # Human-divergent, human-owned, or unknown: preserve. Record the
+            # human boundary so the manifest reflects the unresolved state, and
+            # report a safe skipped outcome. Never retire, never delete.
+            status_overrides[entry.note_id] = (
+                NoteStatus.HUMAN_MODIFIED
+                if on_disk.classification is OwnershipClass.GENERATED_HUMAN_MODIFIED
+                else NoteStatus.EDIT_CONFLICT
+                if on_disk.classification is OwnershipClass.UNKNOWN_OWNERSHIP
+                else NoteStatus.HUMAN_MODIFIED
+            )
+            observed = on_disk.observed_fingerprint
+            if observed is not None:
+                observed_fps[entry.note_id] = observed
+            outcomes.append(WriteOutcome(
+                entry.note_id, entry.relative_path,
+                WriteStatus.SKIPPED_HUMAN_MODIFIED, "human_owned_preserved_from_retirement",
+            ))
+            continue
         desired_now = desired_index.get(entry.note_id)
         if desired_now is None:
             # No longer desired at all -> retire the stale file.
@@ -234,12 +300,16 @@ def reconcile(
             outcome = _retire_stale(managed_root, old_entry, dry_run=dry_run)
             _record_retire(outcome, old_entry, retired_entries, outcomes, dry_run)
 
-    # -- 4. build + write the resulting manifest (written LAST) ----------
+    # -- 4. build + write the resulting manifest (written LAST) -----------
     new_manifest = ProjectionManifest.from_notes(
         tuple(desired_notes),
         managed_dir_name=managed_dir_name,
         projection_version=prior_manifest.projection_version,
         retired=tuple(retired_entries),
+        statuses=status_overrides,
+        observed_fingerprints=observed_fps,
+        content_fingerprints=content_fps,
+        edit_conflicts=tuple(conflicts),
     )
     manifest_stored = store_manifest(managed_root, new_manifest, dry_run=dry_run)
     return ReconcileResult(
@@ -247,6 +317,7 @@ def reconcile(
         manifest_stored=manifest_stored,
         manifest=new_manifest,
         notes=tuple(desired_notes),
+        edit_conflicts=tuple(conflicts),
     )
 
 
@@ -281,27 +352,102 @@ def _reconcile_desired(
     prior_entry: Optional[ManifestEntry],
     listed: bool,
     dry_run: bool,
-) -> WriteOutcome:
-    """Create, update-skip, overwrite, or refuse for one desired note.
+) -> Tuple[WriteOutcome, Optional[EditConflict], Optional[NoteStatus], Optional[str], Optional[str]]:
+    """Create, update-skip, overwrite, refuse, or quarantine for one desired note.
 
-    The decision tree (plan-m9.md §14.3):
+    Returns ``(outcome, edit_conflict_or_none, status_override_or_none,
+    observed_fingerprint_or_none)``. The three trailing values are recorded DATA
+    only and are never used to authorize a destructive operation.
 
-    absent on disk
-        -> CREATE (via the M9.2 writer; never overwrites anything).
+    The decision tree (plan-m9.md §13.3, §14.3):
 
-    present + bytes equal rendered
-        -> SKIPPED_UNCHANGED (zero bytes written).
+    M9.5 FIRST classifies the CURRENT on-disk file with the full three-signal
+    ownership test (containment + frontmatter marker + manifest listing +
+    fingerprint comparison). This is the single authority for "what is on disk
+    right now":
 
-    present + bytes differ + ALL three ownership signals hold
-        -> UPDATE via the gated overwrite path.
-
-    present + bytes differ + ownership not provable
-        -> SKIPPED_HUMAN_MODIFIED / SKIPPED_UNSAFE_OWNERSHIP; the file is left
-           byte-for-byte intact and M9.5 resolves the actual edit later.
+    * GENERATED_HUMAN_MODIFIED (all three signals hold, bytes differ from the
+      recorded fingerprint) -> the human edited a note M9 genuinely owns.
+        - canonical source ALSO changed (desired fingerprint != recorded) ->
+          record an explicit ``edit_conflict``: leave the human's file byte-for-
+          byte intact, write the newly-rendered generated version to a
+          deterministic ``.zero-mem-new.md`` sibling (additive, never touches the
+          human file), and record the conflict with hashes only (no content).
+        - canonical source unchanged -> report ``human_modified`` only: leave the
+          file entirely alone, no sibling, no churn.
+    * every other classification falls through to the existing M9.4 gated logic,
+      which still refuses any silent overwrite of unproven ownership and refuses
+      to delete what it cannot prove it owns.
     """
+    prior_recorded = prior_entry.content_fingerprint if prior_entry is not None else None
+    try:
+        assessment = classify_managed_file(
+            managed_root,
+            note_id=note.note_id,
+            relative_path=note.relative_path,
+            listed=listed,
+            recorded_fingerprint=prior_recorded,
+            desired=True,
+        )
+    except Exception:
+        # Classification is read-only and rejection-biased; if it cannot decide,
+        # degrade to the safe M9.4 default rather than overwrite anything.
+        assessment = None
+
+    if assessment is not None and assessment.classification is OwnershipClass.GENERATED_HUMAN_MODIFIED:
+        desired_fingerprint = note.content_fingerprint
+        human_fingerprint = assessment.observed_fingerprint
+        desired_changed = (prior_recorded != desired_fingerprint)
+        if desired_changed:
+            # Write the new generated version beside the human's file. The
+            # sibling is additive and is built from the SAME closed path layer,
+            # so it can never escape the managed root or overwrite the human's
+            # bytes. The human file is never opened for writing here.
+            sibling_rel = conflict_sibling_relative_path(note.relative_path)
+            sibling_note = ProjectedNote(
+                note_id=note.note_id,
+                note_type=note.note_type,
+                relative_path=sibling_rel,
+                content=note.content,
+                content_fingerprint=note.content_fingerprint,
+                resource_type=note.resource_type,
+                resource_id=note.resource_id,
+                project_id=note.project_id,
+                source_trace_ids=note.source_trace_ids,
+            )
+            write_note(managed_root, sibling_note, dry_run=dry_run)
+            conflict = EditConflict(
+                note_id=note.note_id,
+                note_type=note.note_type,
+                relative_path=note.relative_path,
+                human_fingerprint=human_fingerprint or "",
+                recorded_fingerprint=prior_recorded or "",
+                desired_fingerprint=desired_fingerprint,
+                human_modified=True,
+                desired_changed=True,
+            )
+            # The human's actual file is reported untouched (never overwritten).
+            human_outcome = WriteOutcome(
+                note.note_id, note.relative_path,
+                WriteStatus.SKIPPED_HUMAN_MODIFIED, "human_edited_managed_note",
+            )
+            return human_outcome, conflict, NoteStatus.EDIT_CONFLICT, human_fingerprint, prior_recorded
+        # Canonical source unchanged: report human_modified, no sibling, no
+        # conflict churn.
+        return (
+            WriteOutcome(
+                note.note_id, note.relative_path,
+                WriteStatus.SKIPPED_HUMAN_MODIFIED, "human_modified_unchanged_source",
+            ),
+            None,
+            NoteStatus.HUMAN_MODIFIED,
+            human_fingerprint,
+            prior_recorded,
+        )
+
     path = managed_root / note.relative_path
     if not (path.exists() or path.is_symlink()):
-        return write_note(managed_root, note, dry_run=dry_run)
+        return write_note(managed_root, note, dry_run=dry_run), None, None, None, None
 
     # Byte-equal is always a no-op, regardless of ownership. A human who
     # re-saved the exact same content still owns it, but identical bytes mean
@@ -312,7 +458,7 @@ def _reconcile_desired(
         unchanged = False
     if unchanged:
         return WriteOutcome(note.note_id, note.relative_path,
-                            WriteStatus.SKIPPED_UNCHANGED, "unchanged")
+                            WriteStatus.SKIPPED_UNCHANGED, "unchanged"), None, None, None, None
 
     # Bytes differ. Ownership must be proven before any overwrite.
     # Signal 2 (containment): resolved path is physically inside the root.
@@ -339,12 +485,15 @@ def _reconcile_desired(
             if _on_disk_marked_managed(path, note.note_id)
             else "unsafe_ownership"
         )
-        return WriteOutcome(
-            note.note_id, note.relative_path,
-            WriteStatus.SKIPPED_HUMAN_MODIFIED
-            if reason == "human_modified"
-            else WriteStatus.SKIPPED_UNSAFE_OWNERSHIP,
-            reason,
+        return (
+            WriteOutcome(
+                note.note_id, note.relative_path,
+                WriteStatus.SKIPPED_HUMAN_MODIFIED
+                if reason == "human_modified"
+                else WriteStatus.SKIPPED_UNSAFE_OWNERSHIP,
+                reason,
+            ),
+            None, None, None, None,
         )
 
     # All three ownership signals hold. But a safe UPDATE must additionally
@@ -359,14 +508,17 @@ def _reconcile_desired(
         except OSError:
             on_disk_fingerprint = None
         if on_disk_fingerprint != prior_entry.content_fingerprint:
-            return WriteOutcome(
-                note.note_id, note.relative_path,
-                WriteStatus.SKIPPED_HUMAN_MODIFIED, "human_edited_managed_note",
+            return (
+                WriteOutcome(
+                    note.note_id, note.relative_path,
+                    WriteStatus.SKIPPED_HUMAN_MODIFIED, "human_edited_managed_note",
+                ),
+                None, None, None, None,
             )
 
     return overwrite_note(
         managed_root, note, force_managed=True, dry_run=dry_run
-    )
+    ), None, None, None, None
 
 
 def _retire_stale(
@@ -449,5 +601,6 @@ __all__ = [
     "rebuild",
     "load_manifest",
     "store_manifest",
+    "EditConflict",
 ]
 

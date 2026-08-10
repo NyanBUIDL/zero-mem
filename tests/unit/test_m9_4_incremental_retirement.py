@@ -253,8 +253,15 @@ def test_stale_retirement_ownership_not_proven_preserves(tmp_path):
     r2 = reconcile(vault, [note_a])
     assert (vault / "requirements/unscoped/b.md").read_text() == \
         "# Human note\n\nThis is my personal file, not generated.\n"
-    # The outcome is a safe skipped_unsafe_ownership, never a retire.
-    assert any(w.status is WriteStatus.SKIPPED_UNSAFE_OWNERSHIP for w in r2.writes)
+    # The outcome is a safe skip (ownership unproven for deletion), never a
+    # retire. M9.5 classifies the marker-less replacement precisely as
+    # HUMAN_OWNED and preserves it; M9.4's label for the same safe outcome was
+    # SKIPPED_UNSAFE_OWNERSHIP. The load-bearing invariant — the human file is
+    # preserved byte-for-byte and never deleted — is identical either way.
+    assert any(
+        w.status in (WriteStatus.SKIPPED_UNSAFE_OWNERSHIP, WriteStatus.SKIPPED_HUMAN_MODIFIED)
+        for w in r2.writes
+    )
 
 
 def test_human_owned_same_name_never_deleted(tmp_path):

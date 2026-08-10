@@ -71,15 +71,24 @@ MANIFEST_FILENAME: Final[str] = "manifest.json"
 #: Managed-root-relative manifest location, for reports and tests.
 MANIFEST_RELATIVE_PATH: Final[str] = f"{META_DIR_NAME}/{MANIFEST_FILENAME}"
 
-#: Closed envelope key set. An unknown key fails closed rather than being
-#: ignored: silently tolerating extra keys is how a tampered manifest smuggles
-#: state past a validator.
-ENVELOPE_KEYS: Final[Tuple[str, ...]] = (
+#: Required envelope keys. These MUST be present in every valid manifest,
+#: including every manifest M9.4 produced before M9.5 existed. They alone drive
+#: the ``missing`` check in :meth:`ProjectionManifest.from_json`.
+REQUIRED_ENVELOPE_KEYS: Final[Tuple[str, ...]] = (
     "manifest_version",
     "projection_version",
     "managed_dir_name",
     "notes",
 )
+
+#: Complete set of KNOWN envelope keys. Used only to REJECT unknown keys (a
+#: tampered manifest smuggling state past the validator fails closed); it is
+#: NOT used to require presence. ``edit_conflicts`` is an optional M9.5 channel:
+#: a manifest written before M9.5 simply omits it and loads unchanged
+#: (backward-safe), and a freshly written one emits an empty list so the
+#: conflict record travels WITH the manifest (one file to trust, one proof to
+#: verify) rather than as a separate sidecar.
+ENVELOPE_KEYS: Final[Tuple[str, ...]] = REQUIRED_ENVELOPE_KEYS + ("edit_conflicts",)
 
 #: Closed per-entry key set, in the fixed serialization order of §15.1.
 ENTRY_KEYS: Final[Tuple[str, ...]] = (
@@ -93,6 +102,19 @@ ENTRY_KEYS: Final[Tuple[str, ...]] = (
     "source_trace_ids",
     "status",
 )
+
+#: OPTIONAL per-entry keys (M9.5). An optional key is emitted ONLY when it
+#: carries a value, so a manifest written before M9.5 still loads unchanged and
+#: a ``current``/``retired`` entry serializes byte-identically to M9.4. The set
+#: stays closed: anything outside ``ENTRY_KEYS | OPTIONAL_ENTRY_KEYS`` is still
+#: rejected, so a tampered manifest cannot smuggle state past the validator.
+#:
+#: ``observed_fingerprint`` records the fingerprint of the bytes a human left on
+#: disk for an ``edit_conflict``/``human_modified`` note (plan-m9.md §13.3 step
+#: 3, "with both fingerprints"). It is a hash, never content: it explains that
+#: the file diverged without revealing a single byte of either version.
+OPTIONAL_ENTRY_KEYS: Final[Tuple[str, ...]] = ("observed_fingerprint",)
+
 
 #: Exact expected shape of a ``sha256:<64 lowercase hex>`` fingerprint.
 _FINGERPRINT_PREFIX: Final[str] = "sha256:"
@@ -176,6 +198,7 @@ class ManifestEntry:
     content_fingerprint: str
     source_trace_ids: Tuple[str, ...] = ()
     status: NoteStatus = NoteStatus.CURRENT
+    observed_fingerprint: Optional[str] = None
 
     def __post_init__(self) -> None:
         try:
@@ -204,6 +227,12 @@ class ManifestEntry:
             if not isinstance(trace_id, str) or not trace_id.strip():
                 raise ManifestError("source_trace_ids")
         object.__setattr__(self, "source_trace_ids", trace_ids)
+        if self.observed_fingerprint is not None:
+            object.__setattr__(
+                self,
+                "observed_fingerprint",
+                validate_fingerprint(self.observed_fingerprint),
+            )
 
     @property
     def is_active(self) -> bool:
@@ -221,8 +250,13 @@ class ManifestEntry:
         return self.relative_path.casefold()
 
     def to_json(self) -> Dict[str, Any]:
-        """Serialize in the fixed §15.1 key order. No absolute path, no clock."""
-        return {
+        """Serialize in the fixed §15.1 key order. No absolute path, no clock.
+
+        Optional M9.5 keys are emitted only when populated, so a ``current``
+        entry is byte-identical to what M9.4 produced and the deterministic
+        rebuild/zero-write invariants are untouched.
+        """
+        payload = {
             "note_id": self.note_id,
             "note_type": self.note_type.value,
             "resource_type": self.resource_type,
@@ -233,6 +267,9 @@ class ManifestEntry:
             "source_trace_ids": list(self.source_trace_ids),
             "status": self.status.value,
         }
+        if self.observed_fingerprint is not None:
+            payload["observed_fingerprint"] = self.observed_fingerprint
+        return payload
 
     @classmethod
     def from_json(cls, payload: Any) -> "ManifestEntry":
@@ -241,11 +278,12 @@ class ManifestEntry:
         A missing key, an unexpected key, or a wrong type is a hard failure: an
         entry that cannot be fully validated must never participate in an
         ownership decision, because a partially-understood entry is exactly how
-        a tampered manifest would try to authorize a deletion.
+        a tampered manifest would try to authorize a deletion. Optional M9.5
+        keys are permitted but still closed-set: an unknown key is refused.
         """
         if not isinstance(payload, dict):
             raise ManifestError("entry")
-        unexpected = set(payload) - set(ENTRY_KEYS)
+        unexpected = set(payload) - set(ENTRY_KEYS) - set(OPTIONAL_ENTRY_KEYS)
         if unexpected:
             raise ManifestError("entry_key")
         missing = set(ENTRY_KEYS) - set(payload)
@@ -264,11 +302,15 @@ class ManifestEntry:
             content_fingerprint=payload["content_fingerprint"],
             source_trace_ids=tuple(trace_ids),
             status=payload["status"],
+            observed_fingerprint=payload.get("observed_fingerprint"),
         )
 
     @classmethod
     def from_note(cls, note: ProjectedNote,
-                  *, status: NoteStatus = NoteStatus.CURRENT) -> "ManifestEntry":
+                  *, status: NoteStatus = NoteStatus.CURRENT,
+                  observed_fingerprint: Optional[str] = None,
+                  content_fingerprint: Optional[str] = None) -> "ManifestEntry":
+
         """Build an entry from a rendered note.
 
         The note already carries the authoritative identity the renderer used to
@@ -276,6 +318,12 @@ class ManifestEntry:
         note lacking that identity is refused rather than back-filled by parsing
         generated Markdown — inferring source identity from rendered text is
         exactly the "projection becomes its own source" inversion M9 forbids.
+
+        ``content_fingerprint`` (M9.5) overrides the fingerprint recorded for the
+        entry. For a human-divergent note this MUST stay the last fingerprint M9
+        actually wrote to the human's file (NOT the newly-desired content), so a
+        later run still detects the divergence. The default (note's own
+        fingerprint) is correct for every unchanged/created/updated note.
         """
         if not isinstance(note, ProjectedNote):
             raise ManifestError("note")
@@ -288,9 +336,140 @@ class ManifestEntry:
             resource_id=note.resource_id,
             project_id=note.project_id,
             relative_path=note.relative_path,
-            content_fingerprint=note.content_fingerprint,
+            content_fingerprint=content_fingerprint
+            if content_fingerprint is not None
+            else note.content_fingerprint,
             source_trace_ids=note.source_trace_ids,
             status=status,
+            observed_fingerprint=observed_fingerprint,
+        )
+
+
+
+# ---------------------------------------------------------------------------
+# Edit conflict record (M9.5)
+# ---------------------------------------------------------------------------
+
+#: Closed key set for a single M9.5 edit-conflict record (plan-m9.md §13.3).
+#: ``resolved`` is the only optional key; everything else is required, so a
+#: tampered or partially-understood conflict record is refused rather than
+#: trusted to authorize anything.
+EDIT_CONFLICT_KEYS: Final[Tuple[str, ...]] = (
+    "note_id",
+    "note_type",
+    "relative_path",
+    "human_fingerprint",
+    "recorded_fingerprint",
+    "desired_fingerprint",
+    "human_modified",
+    "desired_changed",
+    "resolved",
+)
+
+#: Keys that MUST be present in an edit-conflict record. ``resolved`` is omitted
+#: above so a pre-M9.5-shaped record (there were none) or a minimal one still
+#: loads; it always defaults to ``False``.
+EDIT_CONFLICT_REQUIRED_KEYS: Final[Tuple[str, ...]] = (
+    "note_id",
+    "note_type",
+    "relative_path",
+    "human_fingerprint",
+    "recorded_fingerprint",
+    "desired_fingerprint",
+    "human_modified",
+    "desired_changed",
+)
+
+
+@dataclass(frozen=True)
+class EditConflict:
+    """One deterministic, unresolved human-edit/projection conflict.
+
+    The record carries ONLY closed status codes and deterministic content
+    FINGERPRINTS (hashes of bytes, never the bytes themselves). That is what
+    makes it safe to store in the manifest, surface in a projection report, or
+    carry in an exception: when authorization or sensitivity no longer permits
+    the source material, this record still reveals nothing about it
+    (plan-m9.md §11.3, §13.3 step 3 "with both fingerprints").
+
+    **Resolution is always a human action.** M9.5 never resolves a conflict: it
+    records that one exists and, when the desired source also changed, writes
+    the new generated content to a deterministic sibling file while leaving the
+    human's file byte-for-byte intact. Exactly one conflict exists per
+    ``note_id`` (``conflict_id`` is the ``note_id``), so repeated runs can never
+    accumulate numbered duplicates.
+    """
+
+    note_id: str
+    note_type: NoteType
+    relative_path: str
+    human_fingerprint: str
+    recorded_fingerprint: str
+    desired_fingerprint: str
+    human_modified: bool = False
+    desired_changed: bool = False
+    resolved: bool = False
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "note_id", validate_note_id(self.note_id))
+        object.__setattr__(self, "note_type", validate_note_type(self.note_type))
+        object.__setattr__(
+            self, "relative_path", validate_manifest_relative_path(self.relative_path)
+        )
+        object.__setattr__(
+            self, "human_fingerprint", validate_fingerprint(self.human_fingerprint)
+        )
+        object.__setattr__(
+            self, "recorded_fingerprint", validate_fingerprint(self.recorded_fingerprint)
+        )
+        object.__setattr__(
+            self, "desired_fingerprint", validate_fingerprint(self.desired_fingerprint)
+        )
+        if not isinstance(self.human_modified, bool):
+            raise ManifestError("human_modified")
+        if not isinstance(self.desired_changed, bool):
+            raise ManifestError("desired_changed")
+        if not isinstance(self.resolved, bool):
+            raise ManifestError("resolved")
+
+    @property
+    def conflict_id(self) -> str:
+        """Stable deterministic identity (no clock, no uuid, no run id)."""
+        return self.note_id
+
+    def to_json(self) -> Dict[str, Any]:
+        return {
+            "note_id": self.note_id,
+            "note_type": self.note_type.value,
+            "relative_path": self.relative_path,
+            "human_fingerprint": self.human_fingerprint,
+            "recorded_fingerprint": self.recorded_fingerprint,
+            "desired_fingerprint": self.desired_fingerprint,
+            "human_modified": self.human_modified,
+            "desired_changed": self.desired_changed,
+            "resolved": self.resolved,
+        }
+
+    @classmethod
+    def from_json(cls, payload: Any) -> "EditConflict":
+        if not isinstance(payload, dict):
+            raise ManifestError("edit_conflict")
+        unexpected = set(payload) - set(EDIT_CONFLICT_KEYS)
+        if unexpected:
+            raise ManifestError("edit_conflict_key")
+        missing = set(EDIT_CONFLICT_REQUIRED_KEYS) - set(payload)
+        if missing:
+            raise ManifestError("edit_conflict_key")
+        return cls(
+            note_id=payload["note_id"],
+            note_type=payload["note_type"],
+            relative_path=payload["relative_path"],
+            human_fingerprint=payload["human_fingerprint"],
+            recorded_fingerprint=payload["recorded_fingerprint"],
+            desired_fingerprint=payload["desired_fingerprint"],
+            human_modified=payload["human_modified"],
+            desired_changed=payload["desired_changed"],
+            resolved=payload.get("resolved", False),
         )
 
 
@@ -314,6 +493,7 @@ class ProjectionManifest:
     managed_dir_name: str = ""
     entries: Tuple[ManifestEntry, ...] = ()
     manifest_version: int = MANIFEST_VERSION
+    edit_conflicts: Tuple["EditConflict", ...] = ()
 
     def __post_init__(self) -> None:
         for name in ("manifest_version", "projection_version"):
@@ -357,6 +537,25 @@ class ProjectionManifest:
             self, "entries", tuple(sorted(entries, key=lambda item: item.note_id))
         )
 
+        # Edit conflicts: validated closed records, deduped by note_id (every
+        # conflict is keyed on exactly one note_id, so two records for the same
+        # note are a projector bug and are rejected rather than silently merged).
+        raw_conflicts = tuple(self.edit_conflicts or ())
+        for conflict in raw_conflicts:
+            if not isinstance(conflict, EditConflict):
+                raise ManifestError("edit_conflict")
+        seen_conflict_ids: set[str] = set()
+        for conflict in raw_conflicts:
+            if conflict.conflict_id in seen_conflict_ids:
+                raise ManifestError("duplicate_edit_conflict")
+            seen_conflict_ids.add(conflict.conflict_id)
+        # Deterministic order by note_id — never run order, a dict, or a list.
+        object.__setattr__(
+            self,
+            "edit_conflicts",
+            tuple(sorted(raw_conflicts, key=lambda item: item.note_id)),
+        )
+
     # -- lookups (pure; never a decision) ----------------------------------
 
     def by_note_id(self) -> Dict[str, ManifestEntry]:
@@ -390,11 +589,16 @@ class ProjectionManifest:
     # -- serialization ------------------------------------------------------
 
     def to_json(self) -> Dict[str, Any]:
+        # ``edit_conflicts`` is emitted unconditionally (even when empty) so a
+        # manifest produced BY M9.5 round-trips through a parser that still
+        # treats the key as known. A pre-M9.5 manifest (no such key) is handled
+        # by from_json's backward-safe key handling.
         return {
             "manifest_version": self.manifest_version,
             "projection_version": self.projection_version,
             "managed_dir_name": self.managed_dir_name,
             "notes": [entry.to_json() for entry in self.entries],
+            "edit_conflicts": [conflict.to_json() for conflict in self.edit_conflicts],
         }
 
     def serialize(self) -> bytes:
@@ -416,13 +620,20 @@ class ProjectionManifest:
 
     @classmethod
     def from_json(cls, payload: Any) -> "ProjectionManifest":
-        """Rebuild from untrusted JSON, failing closed on any deviation."""
+        """Rebuild from untrusted JSON, failing closed on any deviation.
+
+        ``edit_conflicts`` is OPTIONAL in the wire form: a manifest written by
+        M9.4 (before M9.5 existed) carries no such key and must still load
+        byte-for-byte safely. Any UNKNOWN key is still refused (tamper defense).
+        """
         if not isinstance(payload, dict):
             raise ManifestError("manifest")
         unexpected = set(payload) - set(ENVELOPE_KEYS)
         if unexpected:
             raise ManifestError("manifest_key")
-        missing = set(ENVELOPE_KEYS) - set(payload)
+        # Only the keys that MUST always be present are required; edit_conflicts
+        # is tolerated when absent (backward-safe load).
+        missing = set(REQUIRED_ENVELOPE_KEYS) - set(payload)
         if missing:
             raise ManifestError("manifest_key")
         manifest_version = payload["manifest_version"]
@@ -444,11 +655,15 @@ class ProjectionManifest:
         notes = payload["notes"]
         if not isinstance(notes, list):
             raise ManifestError("notes")
+        raw_conflicts = payload.get("edit_conflicts", [])
+        if not isinstance(raw_conflicts, list):
+            raise ManifestError("edit_conflicts")
         return cls(
             manifest_version=manifest_version,
             projection_version=projection_version,
             managed_dir_name=payload["managed_dir_name"],
             entries=tuple(ManifestEntry.from_json(item) for item in notes),
+            edit_conflicts=tuple(EditConflict.from_json(item) for item in raw_conflicts),
         )
 
     @classmethod
@@ -467,17 +682,33 @@ class ProjectionManifest:
                    managed_dir_name: str = "",
                    projection_version: int = PROJECTION_VERSION,
                    statuses: Optional[Mapping[str, NoteStatus]] = None,
-                   retired: Iterable[ManifestEntry] = ()) -> "ProjectionManifest":
+                   retired: Iterable[ManifestEntry] = (),
+                   edit_conflicts: Iterable["EditConflict"] = (),
+                   observed_fingerprints: Mapping[str, str] = {},
+                   content_fingerprints: Mapping[str, str] = {}) -> "ProjectionManifest":
         """Build a manifest from the rendered desired set plus retired entries.
 
         ``statuses`` optionally overrides a note's recorded status (used for the
         human-boundary outcomes M9.4 must record without acting on). ``retired``
         carries forward entries whose files were retired in this run.
+        ``edit_conflicts`` (M9.5) carries the deterministic record of any
+        explored human-edit/projection boundary conflicts discovered in this run.
+        ``observed_fingerprints`` (M9.5) carries the fingerprint of a human's
+        current on-disk bytes for a note whose file diverged, recorded as a hash
+        only (never content) so a later run can prove divergence without reading
+        the file again. ``content_fingerprints`` (M9.5) overrides the recorded
+        content fingerprint — used to keep a human-divergent note's recorded
+        fingerprint equal to the LAST bytes M9 actually wrote, so the divergence
+        stays detectable on later runs.
         """
         overrides = dict(statuses or {})
+        observed = dict(observed_fingerprints or {})
+        content_overrides = dict(content_fingerprints or {})
         entries = [
             ManifestEntry.from_note(
-                note, status=overrides.get(note.note_id, NoteStatus.CURRENT)
+                note, status=overrides.get(note.note_id, NoteStatus.CURRENT),
+                observed_fingerprint=observed.get(note.note_id),
+                content_fingerprint=content_overrides.get(note.note_id),
             )
             for note in notes
         ]
@@ -487,6 +718,7 @@ class ProjectionManifest:
             projection_version=projection_version,
             managed_dir_name=managed_dir_name,
             entries=tuple(entries),
+            edit_conflicts=tuple(edit_conflicts),
         )
 
 
@@ -642,9 +874,12 @@ __all__ = [
     "MANIFEST_FILENAME",
     "MANIFEST_RELATIVE_PATH",
     "ENVELOPE_KEYS",
-    "ENTRY_KEYS",
+    "REQUIRED_ENVELOPE_KEYS",
+    "EDIT_CONFLICT_KEYS",
+    "EDIT_CONFLICT_REQUIRED_KEYS",
     "ManifestError",
     "ManifestEntry",
+    "EditConflict",
     "ProjectionManifest",
     "empty_manifest",
     "validate_fingerprint",
