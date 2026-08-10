@@ -275,4 +275,4 @@ class TestFoundationDescription:
         assert d["projection_implemented"] is True
         assert d["temporal_query_implemented"] is True
         assert d["traversal_implemented"] is False
-        assert d["calibration_scoring_implemented"] is False
+        assert d["calibration_scoring_implemented"] is True

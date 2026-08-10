@@ -412,7 +412,9 @@ CalibrationResult {
 }
 ```
 
-A score is computed only after M5 authorization and eligibility. Hard exclusions (unauthorized, secret, deleted, malformed provenance, invalid scope) occur before scoring and cannot be softened by a high score. The exact weights and threshold are an open approval item; they must be explicit, versioned, bounded, deterministic, and tested against the existing M7 fixtures rather than tuned by an LLM.
+A score is computed only after M5 authorization and eligibility. Hard exclusions (unauthorized, secret, deleted, malformed provenance, invalid scope) occur before scoring and cannot be softened by a high score. The exact weights and threshold were an open approval item; they must be explicit, versioned, bounded, deterministic, and tested against the existing M7 fixtures rather than tuned by an LLM.
+
+**RESOLVED (owner approval, before M8.5).** The exact factor set, combination function, factor derivation, bounds, tie-break, persistence mode, and threshold decision are recorded in [§22.1 Owner-approved resolution of M8-OQ-6 and M8-OQ-7](#221-owner-approved-resolution-of-m8-oq-6-and-m8-oq-7). That subsection is authoritative for M8.5; this section remains the descriptive contract.
 
 **Q14:** Can unauthorized evidence influence an observable score? **NO.** Unauthorized candidates are excluded before scoring, and hidden conflicts or hidden counts must not affect any visible score, `omitted_count`, conflict count, or explanation.
 
@@ -780,12 +782,164 @@ Deferred entirely: 600-PDF ingestion, bulk parsing/chunking, page/section extrac
 - **M8-OQ-3:** Approve the relation vocabulary and which existing M4 links are projected as which edge classes; no semantic synonym expansion by default.
 - **M8-OQ-4:** Approve traversal defaults (depth 2, fan-out 20, nodes 40, edges 80) and whether a caller may request lower bounds only.
 - **M8-OQ-5:** Approve the narrow temporal contract and both-time model; no invented time and no unrestricted bitemporal query language.
-- **M8-OQ-6:** Approve whether calibration remains request-time only (recommended) or whether derived factor rows are persisted in v9.
-- **M8-OQ-7:** Approve explicit calibration factors/weights and score range before M8.5; no opaque or LLM-tuned formula.
+- **M8-OQ-6:** Approve whether calibration remains request-time only (recommended) or whether derived factor rows are persisted in v9. **RESOLVED — see §22.1: request-time only.**
+- **M8-OQ-7:** Approve explicit calibration factors/weights and score range before M8.5; no opaque or LLM-tuned formula. **RESOLVED — see §22.1: frozen eight-factor multiplicative product, range [0.0, 1.0].**
 - **M8-OQ-8:** Approve whether M8.6 changes M7 routing metadata only or exposes a new explicit M6-compatible read tool; recommendation: internal integration first, no M6 tool changes.
 - **M8-OQ-9:** Resolve the authoritative-source path discrepancy (`IDEA.md` Markdown reference versus present DOCX) if a different specification is intended.
 
 No implementation should begin while a material question changes schema, authority, authorization, time semantics, score semantics, or the EvidenceSet boundary.
+
+### 22.1 Owner-approved resolution of M8-OQ-6 and M8-OQ-7
+
+Recorded before M8.5 implementation, by explicit owner approval. This subsection is **authoritative for M8.5**. It resolves M8-OQ-6 and M8-OQ-7 only; every other open question in §22 remains open, and no other part of this plan is changed by it.
+
+#### 22.1.1 Authoritative factor set (M8-OQ-7)
+
+The M8.1 frozen eight-name vocabulary (`src/m8/calibration_contract.py::ALLOWED_FACTOR_NAMES`) is authoritative and closed:
+
+1. `retrieval_match`
+2. `scope_priority`
+3. `verification_strength`
+4. `provenance_completeness`
+5. `temporal_validity`
+6. `lifecycle_eligibility`
+7. `conflict_penalty`
+8. `relation_relevance`
+
+The DOCX §11.3 formula is **reference material only**. For M8, the verified M8.1 contract supersedes the DOCX reference factor list. No separate factor is added for `source_quality`, `memory_scope_weight`, or `profile_priority`, and no hidden or semantically-equivalent extra factor may be introduced.
+
+#### 22.1.2 Combination function (M8-OQ-7)
+
+M8.5 uses a **multiplicative** formula with **no independent weights**:
+
+```text
+final_score = retrieval_match
+            * scope_priority
+            * verification_strength
+            * provenance_completeness
+            * temporal_validity
+            * lifecycle_eligibility
+            * conflict_penalty
+            * relation_relevance
+```
+
+Every factor lies in `[0.0, 1.0]`, therefore `final_score` lies in `[0.0, 1.0]`. The result is candidate-ordering metadata only. It is never truth, verification, authorization, conflict resolution, supersession, or lifecycle authority.
+
+#### 22.1.3 Exact factor derivation (M8-OQ-7)
+
+Existing repository enum/value names are used; no duplicate semantic enum is created. "EXCLUDE" means the candidate is removed from the scoring domain *before* calibration — never scored as zero and retained.
+
+**`retrieval_match`** — if the upstream authorized retrieval candidate already carries a legitimate normalized relevance value in `[0.0, 1.0]`, it is used verbatim. If no approved normalized retrieval relevance signal exists, `retrieval_match = 1.0` (neutral). No normalization function is invented for BM25, FTS, distance, or rank, and normalization never uses hidden candidates.
+
+**`scope_priority`**
+
+| condition | value |
+| --- | --- |
+| exact requested profile/project/knowledge-space scope | `1.0` |
+| explicitly authorized cross-space / composed scope | `0.9` |
+| authorized global / unbound fallback | `0.8` |
+| unauthorized scope | EXCLUDED BEFORE CALIBRATION |
+
+**`verification_strength`** — from the existing memory/evidence type semantics:
+
+| type | value |
+| --- | --- |
+| `verified_state` | `1.0` |
+| `verification` | `1.0` |
+| `decision` | `0.9` |
+| `tool_observation` | `0.9` |
+| `user_statement` | `0.8` |
+| `assistant_claim` | `0.6` |
+| `inference` | `0.5` |
+| unknown / unrecognized | FAIL CLOSED |
+
+**`provenance_completeness`**
+
+| condition | value |
+| --- | --- |
+| all M8.1-required provenance present and valid | `1.0` |
+| required provenance valid, optional provenance fields absent | `0.75` |
+| any REQUIRED provenance identity/field missing or invalid | FAIL CLOSED / EXCLUDE |
+
+Provenance is never fabricated to raise a score.
+
+**`temporal_validity`**
+
+| condition | value |
+| --- | --- |
+| explicitly valid/effective for the authorized temporal context | `1.0` |
+| genuinely unknown (source provides no valid-time signal) | `0.75` |
+| explicitly invalid / outside the relevant valid window | EXCLUDE BEFORE CALIBRATION |
+
+No timestamp is invented; recency is never converted into truth; a newer timestamp is never automatically rewarded.
+
+**`lifecycle_eligibility`**
+
+| condition | value |
+| --- | --- |
+| eligible under existing authoritative lifecycle rules | `1.0` |
+| ineligible lifecycle | EXCLUDE BEFORE CALIBRATION |
+
+Calibration never redefines lifecycle eligibility.
+
+**`conflict_penalty`**
+
+| condition | value |
+| --- | --- |
+| no unresolved authoritative conflict affecting the candidate | `1.0` |
+| candidate participates in an unresolved preserved conflict | `0.5` |
+
+Where M4 has already authoritatively resolved a conflict, the resulting authoritative lifecycle/conflict state is consumed; calibration never resolves it independently.
+
+**`relation_relevance`**
+
+| condition | value |
+| --- | --- |
+| no graph-relation context requested | `1.0` |
+| direct / root relation relevance | `1.0` |
+| authorized one-hop relation | `0.9` |
+| authorized two-hop relation | `0.8` |
+| beyond approved M8.3 traversal bounds | NOT ELIGIBLE |
+
+Only authorized M8.3-visible graph state is used. Hidden nodes and edges have zero influence.
+
+#### 22.1.4 Score validation
+
+`SCORE_MIN = 0.0` and `SCORE_MAX = 1.0`, preserving the M8.1 contract. Any factor or result that is `NaN`, `Infinity`, `-Infinity`, `< 0.0`, or `> 1.0` **fails closed**. Malformed values are never clamped.
+
+#### 22.1.5 Deterministic tie-break
+
+For equal `final_score`, ordering is:
+
+1. `final_score` DESC
+2. `resource_type` ASC
+3. deterministic stable candidate identity ASC
+
+The repository's existing deterministic candidate/resource identity is used. No random IDs. Insertion order, SQLite incidental row order, Python hash order, and wall-clock time are never used. M7's `_order_key` is **not** adopted as the M8.5 calibration contract; M7 ordering remains owned by M7/M8.6.
+
+#### 22.1.6 Persistence (M8-OQ-6)
+
+**Calibration is request-time only.** `zm_calibration_factors` is not created, scores are not persisted, calibration is never written into canonical JSONL, and no schema v10 is created. Schema remains **v9**. The calibration result and factor decomposition exist only for the request/retrieval candidate pipeline.
+
+#### 22.1.7 Confidence threshold
+
+**M8.5 has no confidence threshold gate.** M8.5 computes the deterministic score and factor decomposition, provides explainable authorized retrieval metadata, and provides deterministic candidate ordering. It must not discard evidence because a score is below some threshold. Threshold and injection policy are deferred explicitly to **M8.6**; the DOCX §11.4 injection threshold is not implemented in M8.5.
+
+#### 22.1.8 Mandatory security order
+
+```text
+request
+  -> M5 authorization
+  -> lifecycle / sensitivity eligibility
+  -> authorized candidate domain
+  -> M8.3 / M8.4 authorized metadata
+  -> factor derivation
+  -> calibration
+  -> deterministic ordering
+```
+
+The inverse (score everything, normalize globally, then authorize) is prohibited. Unauthorized evidence has zero influence on factor values, score, ordering, normalization, tie-break, counts, explanation, graph degree, and temporal statistics: an authorized dataset `A` and the same dataset plus unauthorized hidden `H` must produce identical visible calibration for `A`. Calibration never grants access, sets verification, resolves a conflict, sets supersession, promotes an assistant claim, changes lifecycle, or mutates project state. A high score is only higher deterministic retrieval-ordering metadata.
+
 
 ---
 

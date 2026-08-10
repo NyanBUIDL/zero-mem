@@ -249,14 +249,16 @@ class CalibrationResult:
 
 
 def describe_calibration_contract() -> dict[str, Any]:
-    """Introspectable description of the frozen contract (no scoring).
+    """Introspectable description of the frozen contract.
 
-    M8.1 freezes structure only. ``scoring_implemented`` is ``False`` and stays
-    ``False`` until an approved M8.5 lands explicit factors and weights.
+    M8.1 froze structure only. ``scoring_implemented`` became ``True`` when the
+    approved M8.5 engine landed the explicit factors and formula recorded in
+    plan-m8.md §22.1; the SHAPE described here is unchanged, and this module
+    still implements no scoring itself (see :mod:`src.m8.calibration`).
     """
     return {
         "calibration_contract_version": CALIBRATION_CONTRACT_VERSION,
-        "scoring_implemented": False,
+        "scoring_implemented": True,
         "score_min": SCORE_MIN,
         "score_max": SCORE_MAX,
         "allowed_factor_names": sorted(ALLOWED_FACTOR_NAMES),

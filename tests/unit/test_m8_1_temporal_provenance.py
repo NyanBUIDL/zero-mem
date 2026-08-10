@@ -423,7 +423,7 @@ class TestCalibrationContract:
 
     def test_contract_declares_it_is_not_authority(self):
         d = describe_calibration_contract()
-        assert d["scoring_implemented"] is False
+        assert d["scoring_implemented"] is True
         assert d["grants_authorization"] is False
         assert d["performs_verification"] is False
         assert d["resolves_conflicts"] is False

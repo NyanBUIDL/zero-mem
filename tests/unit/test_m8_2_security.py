@@ -218,9 +218,27 @@ class TestNonScope:
             assert token not in source, token
 
     def test_no_m3_plus_read_service_modules_added(self):
+        # These module names were never part of any approved increment and must
+        # never appear. ``calibration.py`` was on this list until M8.5, which
+        # legitimately introduces it as the approved deterministic calibration
+        # engine (plan-m8.md §22.1); the M8.2 boundary is now enforced by
+        # test_m8_2_modules_do_not_reach_m8_5_calibration below.
         for banned in ("graph_read_service.py", "graph_reader.py", "traversal.py",
-                       "temporal_query.py", "calibration.py"):
+                       "temporal_query.py"):
             assert not (M8_DIR / banned).exists(), banned
+
+    def test_m8_2_modules_do_not_reach_m8_5_calibration(self):
+        # M8.5's calibration surface must not leak backwards into M8.2: the
+        # projector neither imports the calibration engine nor scores anything.
+        for path in _m8_2_files():
+            for imported in _imports(path):
+                assert "calibration" not in imported.lower(), (
+                    f"{path.name}: {imported}"
+                )
+        code = _all_code()
+        for token in ("def calibrate", "def compute_score", "def rerank",
+                      "FACTOR_WEIGHTS"):
+            assert token not in code, token
 
     def test_no_m6_tool_import(self):
         for path in _m8_2_files():

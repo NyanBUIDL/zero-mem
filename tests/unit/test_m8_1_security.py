@@ -249,13 +249,26 @@ class TestNonScope:
             for token in ("def as_of", "def query_history", "def history_at", "as_of_query"):
                 assert token not in code, f"{path.name}: {token}"
 
-    def test_no_m8_5_calibration_scoring(self):
-        source = _all_code()
-        for token in (
-            "def calibrate", "def compute_score", "def score(", "FACTOR_WEIGHTS",
-            "def rank_", "def rerank",
-        ):
-            assert token not in source, token
+    def test_no_m8_5_calibration_scoring_outside_m8_5(self):
+        # The calibration scoring vocabulary (def calibrate / compute_score /
+        # rank_ / rerank / FACTOR_WEIGHTS) is EXPECTED in M8.5's own modules
+        # (calibration.py, retrieval_metadata.py). It must NOT appear in any
+        # earlier M8 module, which would mean M8.5's scoring surface leaked
+        # backwards into M8.1/M8.2/M8.3/M8.4. FACTOR_WEIGHTS stays banned
+        # everywhere: the approved M8.5 formula is a multiplicative product
+        # with NO independent weights (plan-m8.md §22.1.2).
+        _M8_5_MODULES = {"calibration.py", "retrieval_metadata.py"}
+        for path in _m8_files():
+            source = _strip_docstrings(ast.parse(path.read_text(encoding="utf-8")))
+            code = ast.unparse(source)
+            assert "FACTOR_WEIGHTS" not in code, f"{path.name}: FACTOR_WEIGHTS"
+            if path.name in _M8_5_MODULES:
+                continue
+            for token in (
+                "def calibrate", "def compute_score", "def score(",
+                "def rank_", "def rerank",
+            ):
+                assert token not in code, f"{path.name}: {token}"
 
     def test_no_m8_6_evidence_integration(self):
         source = _all_code()

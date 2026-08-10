@@ -357,11 +357,12 @@ def describe_derived_foundation() -> dict[str, Any]:
         "sqlite_is_derived": True,
         # M8.2 implements deterministic graph projection over these tables;
         # M8.4 implements bounded authorization-first temporal as-of/history
-        # reads. Traversal and calibration scoring remain deferred.
+        # reads; M8.5 implements the approved deterministic calibration engine
+        # (request-time only — no calibration table is added to v9).
         "projection_implemented": True,
         "traversal_implemented": False,
         "temporal_query_implemented": True,
-        "calibration_scoring_implemented": False,
+        "calibration_scoring_implemented": True,
     }
 
 

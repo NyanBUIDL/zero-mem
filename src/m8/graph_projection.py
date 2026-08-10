@@ -474,9 +474,11 @@ def describe_projection() -> dict[str, Any]:
         "makes_authorization_decisions": False,
         "resolves_conflicts": False,
         # M8.4 (introduced after M8.2) implements bounded authorization-first
-        # temporal as-of/history reads over the derived temporal index.
+        # temporal as-of/history reads over the derived temporal index; M8.5
+        # implements the approved deterministic calibration engine. Neither is
+        # reachable from the projector: projection scores nothing.
         "temporal_query_implemented": True,
-        "calibration_scoring_implemented": False,
+        "calibration_scoring_implemented": True,
     }
 
 
