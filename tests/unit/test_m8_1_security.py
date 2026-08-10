@@ -270,10 +270,29 @@ class TestNonScope:
             ):
                 assert token not in code, f"{path.name}: {token}"
 
-    def test_no_m8_6_evidence_integration(self):
+    def test_no_m8_6_evidence_integration_in_src_m8(self):
+        # M8.6 (EvidenceSet integration) is implemented in the M7 package
+        # (src/integration/m7/m8_integration.py), NOT in src/m8. src/m8 stays a
+        # VERIFIED, authority-first capability library that is not repurposed as
+        # an injection/retrieval pipeline. The M8.1 freeze still holds: no
+        # EvidenceSet / build_evidence lives under src/m8.
         source = _all_code()
         for token in ("EvidenceSet", "evidence_set", "build_evidence"):
             assert token not in source, token
+
+    def test_m8_6_integration_confined_to_m7_and_read_only(self):
+        # Where M8.6 actually lives (src/integration/m7) it must only REUSE the
+        # VERIFIED M8 public API and must not gain authorization authority or
+        # mutate M8 contracts.
+        m8_int = (SRC_ROOT / "integration/m7/m8_integration.py").read_text()
+        # Uses VERIFIED M8 public API only.
+        assert "from src.m8.calibration import" in m8_int
+        assert "from src.m8.retrieval_metadata import" in m8_int
+        # Does NOT reimplement authorization or write surfaces.
+        for banned in ("AuthorizedWriteService", "GrantAdminService", "create_grant",
+                       "revoke_grant", "def calibrate_authorized_items",
+                       "def build_candidate"):
+            assert banned not in m8_int, banned
 
     def test_no_traversal_primitives(self):
         source = _all_code()
@@ -304,9 +323,16 @@ class TestUnchangedPriorMilestones:
     def test_m7_evidence_budget_unchanged(self):
         from src.integration.m7 import contracts as m7_contracts
         source = Path(m7_contracts.__file__).read_text(encoding="utf-8")
+        # The 5-primary / 3-supporting budget must remain encoded in the contract.
         assert "5" in source and "3" in source
-        # M8.1 must not have touched the M7 contract module.
-        assert "m8" not in source.lower()
+        # M8.1 must not have redesigned M7; M8.6 only attached a read-only DATA
+        # metadata field (m8_metadata) to EvidenceSet. There must be NO retrieval,
+        # authorization, or reorder logic duplicated inside the contract module.
+        assert "m8_metadata" in source  # the single M8.6 addition (DATA-only field)
+        for banned in ("AuthorizedReadService", "calibrate_authorized_items",
+                       "def build_evidence_set", "def select_evidence",
+                       "GrantAdminService", "AuthorizedWriteService"):
+            assert banned not in source, banned
 
     def test_m8_does_not_import_m6_tools(self):
         for path in _m8_files():

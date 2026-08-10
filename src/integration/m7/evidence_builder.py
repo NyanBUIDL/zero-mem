@@ -257,7 +257,7 @@ def build_evidence_set(
         )
     )
 
-    return EvidenceSet(
+    es = EvidenceSet(
         route=route,
         memory_needed=True,
         used_scopes=used_scopes,
@@ -270,6 +270,23 @@ def build_evidence_set(
         estimated_tokens=sel.estimated_tokens,
         reason_code="EVIDENCE_READY",
     )
+
+    # M8.6 — integrate VERIFIED M8.3/M8.4/M8.5 into the M7 EvidenceSet.
+    # Authorization-first: only already-authorized candidates are enriched. The
+    # store (svc._store) is passed for OPTIONAL bounded M8.3 graph enrichment,
+    # which runs ONLY when an explicit authorized relation seed is supplied (it is
+    # not here, so no graph expansion fires on the standard M7 path). The
+    # enrichment is wrapped so any failure degrades gracefully to the validated
+    # M7 EvidenceSet (never more visible evidence).
+    try:
+        from .m8_integration import enrich_evidence_set as _enrich
+        store = getattr(svc, "_store", None)
+        es = _enrich(es, router, store=store)
+    except Exception:
+        # Fail closed: keep the upstream validated EvidenceSet untouched.
+        pass
+
+    return es
 
 
 def _route_resource_type(route: MemoryRoute) -> Optional[str]:

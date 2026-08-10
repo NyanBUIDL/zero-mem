@@ -10,9 +10,36 @@ from __future__ import annotations
 
 import enum
 from dataclasses import dataclass, field
-from typing import FrozenSet, Optional, Tuple
+from typing import Any, FrozenSet, Mapping, Optional, Tuple
 
 from src.integration.zero_mem_runtime import get_runtime
+
+
+def _sanitize_metadata_value(value: Any) -> Any:
+    """Recursively escape user-controlled strings inside m8_metadata (DATA only).
+
+    Defined locally to avoid a circular import with the M7.5 hardening module
+    (which imports this contracts module). Mirrors the hardening escape semantics
+    for the bounded M8 observation metadata attached to an EvidenceSet.
+    """
+    if isinstance(value, str):
+        s = value.replace("\x00", "").replace("\r", "")
+        s = s.replace("\n", " ").replace("\t", " ")
+        s = s.replace("[Zero-Mem Contextual Evidence]",
+                      "[Zero-Mem Contextual Evidence (data)]")
+        s = s.replace("[End Zero-Mem Contextual Evidence]",
+                      "[End Zero-Mem Contextual Evidence (data)]")
+        s = s.replace("role=system", "role\u200b=\u200bsystem (data)")
+        s = s.replace("role=developer", "role\u200b=\u200bdeveloper (data)")
+        s = s.replace("role=user", "role\u200b=\u200buser (data)")
+        if len(s) > 2000:
+            s = s[:2000]
+        return s
+    if isinstance(value, dict):
+        return {str(k): _sanitize_metadata_value(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return tuple(_sanitize_metadata_value(v) for v in value)
+    return value
 
 
 class MemoryRoute(str, enum.Enum):
@@ -165,6 +192,12 @@ class EvidenceSet:
     omitted_count: int = 0
     estimated_tokens: int = 0
     reason_code: Optional[str] = None
+    # M8.6 integration: bounded, deterministic, DATA-ONLY observation metadata
+    # keyed by evidence_id. Carries NO authority (no verification/truth/lifecycle/
+    # conflict-resolution/supersession). M7.5 hardening escapes its string values
+    # before serialization. Present only so diagnostic/explanation surfaces can show
+    # the M8.5 calibration + M8.4 temporal basis that produced the ordering.
+    m8_metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -179,4 +212,8 @@ class EvidenceSet:
             "omitted_count": self.omitted_count,
             "estimated_tokens": self.estimated_tokens,
             "reason_code": self.reason_code,
+            "m8_metadata": {
+                k: (_sanitize_metadata_value(v) if isinstance(v, (dict, list, tuple)) else v)
+                for k, v in self.m8_metadata.items()
+            },
         }
