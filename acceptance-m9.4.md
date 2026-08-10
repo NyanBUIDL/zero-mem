@@ -226,7 +226,8 @@ The operator vault is `${ZERO_MEM_OBSIDIAN_VAULT}` — runtime configuration onl
 | Item | Value |
 | --- | --- |
 | Implementation / tested commit | `c4ef440e0619aec59ca9b3b1b73d2c2696c067a1` |
-| Evidence / state-binding commit (this section) | recorded after commit |
-| Final HEAD | recorded after commit |
+| Evidence / state-binding commit (acceptance + project-state) | `852247dd6a7f094863c7726bbf838cabf4bd2048` |
+| Planning-artifact advance commit (implementation-plan.json + baseline test) | `fc5ac815e2fdf7b166cdcde849c8adfff3041a58` |
+| Final HEAD | `fc5ac815e2fdf7b166cdcde849c8adfff3041a58` |
 | Pre-binding canonical | 2793 passed, 3 skipped, 0 failed (isolated HOME) |
-| Final canonical (FINAL-HEAD) | recorded after FINAL-HEAD run |
+| Final canonical (FINAL-HEAD) | 2793 passed, 3 skipped, 0 failed (isolated HOME) |
