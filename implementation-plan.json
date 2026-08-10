@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "authority": "Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx",
-  "status": "m8_in_progress",
-  "current_milestone_status": "m8_in_progress",
-  "current_milestone_verification": "in_progress",
-  "next_incomplete_milestone": "M8",
-  "next_milestone_status": "in_progress",
+  "status": "m8_verified",
+  "current_milestone_status": "m8_verified",
+  "current_milestone_verification": "verified",
+  "next_incomplete_milestone": "M9",
+  "next_milestone_status": "not_started",
   "m8_increment_1_status": "verified",
   "m8_increment_1_impl_tested_commit": "bbc304183abdaff72fd8a65fccef6551190a520f",
   "m8_increment_1_evidence": "acceptance-m8.1.md",
@@ -35,7 +35,14 @@
   "m8_increment_5_focused_result": "96 passed, 0 failed",
   "m8_increment_5_prebinding_canonical": "2285 passed, 3 skipped, 0 failed",
   "m8_increment_5_schema": "v9",
-  "m8_next_incomplete_increment": "M8.6",
+  "m8_increment_6_status": "verified",
+  "m8_increment_6_name": "M7 EvidenceSet Integration of VERIFIED M8.3/M8.4/M8.5",
+  "m8_increment_6_evidence": "acceptance-m8.6.md",
+  "m8_increment_6_impl_tested_commit": "22c3dc5aa7dce1a936aeeccf90fa37e773caed7d",
+  "m8_increment_6_focused_result": "37 passed, 0 failed",
+  "m8_increment_6_prebinding_canonical": "2323 passed, 3 skipped, 0 failed",
+  "m8_increment_6_schema": "v9",
+  "m8_next_incomplete_increment": "none",
   "m8_schema_version": 9,
   "scope": "External Zero-Mem sidecar for Hermes Agent; local-first, observation-only before controlled injection",
   "principles": [
@@ -1702,11 +1709,13 @@
         "insufficient/conflict states explicit",
         "redaction/isolation/stale-state/latency/token gates pass"
       ],
-      "status_note": "M7.1-M7.6 ALL VERIFIED; M7 COMPLETE; M8 not started"
+      "status_note": "M8.1-M8.6 ALL VERIFIED; M8 COMPLETE; next is M9"
     },
     {
       "id": "M8",
       "name": "Graph, temporal hierarchy, calibration",
+      "status": "verified",
+      "verification": "verified",
       "spec_sections": [
         "6",
         "7",
@@ -1828,6 +1837,12 @@
     "M7.3",
     "M7.4",
     "M7.5",
-    "M7.6"
+    "M7.6",
+    "M8.1",
+    "M8.2",
+    "M8.3",
+    "M8.4",
+    "M8.5",
+    "M8.6"
   ]
 }

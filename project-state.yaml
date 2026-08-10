@@ -453,8 +453,8 @@ m1_increment_4_1_processing_order: copy-normalize-structurally-redact-map-resolv
 m1_increment_4_1_capture_rate_formula: successfully_accounted_logical_events / expected_supported_logical_events * 100
 authority: Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx
 master_spec_source_note: The requested .md path is absent; the workspace contains the DOCX with extracted text.
-current_milestone: M7
-next_incomplete_milestone: M5.3
+current_milestone: M8
+next_incomplete_milestone: M9
 next_milestone_status: pending
 m1_current_increment: increment_4_3_redaction_capture_adapter
 m1_increment_3_status: verified
@@ -666,9 +666,9 @@ m7_overall_status: "verified"
 
 # ---- M8 (Graph / Temporal / Calibration) ----
 m8_plan_status: "approved"
-m8_schema: "v9 (derived foundation + graph projection; M8.1-M8.2 scope)"
-m8_overall_status: "in_progress"
-m8_next_incomplete_increment: "M8.6"
+m8_schema: "v9 (derived foundation + graph projection; M8.1-M8.6 scope)"
+m8_overall_status: "verified"
+m8_next_incomplete_increment: "none"
 
 m8_increment_1_status: "verified"
 m8_increment_1_name: "Contract Freeze and Derived-Index Foundation"
@@ -774,6 +774,30 @@ m8_increment_5_scope_notes: >-
   surface, no traversal, no result-limit change. Approved formula recorded in
   plan-m8.md section 22.1 (authoritative for M8.5). No M8.6 EvidenceSet, no
   M9/M10. No Hermes core change. Schema remains v9.
-m8_increment_6_status: "not_started"
+m8_increment_6_status: "verified"
+m8_increment_6_name: "M7 EvidenceSet Integration of VERIFIED M8.3/M8.4/M8.5"
+m8_increment_6_evidence: acceptance-m8.6.md
+m8_increment_6_impl_tested_commit: 22c3dc5aa7dce1a936aeeccf90fa37e773caed7d
+m8_increment_6_focused_result: "37 passed, 0 failed"
+m8_increment_6_prebinding_canonical: "2323 passed, 3 skipped, 0 failed"
+m8_increment_6_schema: "v9"
+m8_increment_6_scope_notes: >-
+  Integrates the VERIFIED M8.3 (graph), M8.4 (temporal) and M8.5 (calibration)
+  capabilities into the EXISTING M7.3 EvidenceSet pipeline — no redesign, no
+  second retrieval/authorization/injection architecture. New adapter
+  src/integration/m7/m8_integration.py re-orders each role pool (primary /
+  supporting) by the VERIFIED M8.5 calibration score deterministically, never
+  dropping an authorized item and never promoting supporting->primary (M7 role
+  authority preserved). Attaches bounded DATA-only m8_metadata (calibration
+  score, explanation, M8.4 temporal factor, M8.3 relation distance, conflict
+  flag, resource_type verbatim) — carries NO authority (no verify/deny/promote/
+  exclude). Optional M8.3 graph enrichment runs ONLY with an explicit authorized
+  relation seed (default standard M7 path performs no graph traversal). Uses ONLY
+  the VERIFIED src/m8 public API; M5 remains sole authorizer; no numeric
+  confidence threshold; 5+3 budget preserved; M6.6 resource_type preserved;
+  authorization-first; existence-leak safe; read-only; zero LLM/network/
+  embeddings/vectors; graceful degradation returns the unchanged upstream
+  EvidenceSet on any failure. No Hermes core change. No M6 tool change. No
+  schema change (v9).
 m9_status: "not_started"
 m10_status: "not_started"

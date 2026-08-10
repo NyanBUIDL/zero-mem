@@ -22,17 +22,18 @@ def test_master_spec_and_derived_agents_exist() -> None:
 
 def test_implementation_plan_is_machine_readable_and_gated() -> None:
     plan = json.loads((ROOT / "implementation-plan.json").read_text(encoding="utf-8"))
-    # M0-M7 VERIFIED; M8 IN PROGRESS (M8.1-M8.5 VERIFIED; M8.6 NOT STARTED; M9/M10 NOT STARTED).
-    assert plan["status"] == "m8_in_progress"
-    assert plan["current_milestone_status"] == "m8_in_progress"
+    # M0-M8 VERIFIED; M8.1-M8.6 all verified, M8 complete; next is M9.
+    assert plan["status"] == "m8_verified"
+    assert plan["current_milestone_status"] == "m8_verified"
     assert plan["m8_increment_1_status"] == "verified"
     assert plan["m8_increment_2_status"] == "verified"
     assert plan["m8_increment_3_status"] == "verified"
     assert plan["m8_increment_4_status"] == "verified"
     assert plan["m8_increment_5_status"] == "verified"
-    assert plan["m8_next_incomplete_increment"] == "M8.6"
+    assert plan["m8_increment_6_status"] == "verified"
+    assert plan["m8_next_incomplete_increment"] == "none"
     assert plan["m8_schema_version"] == 9
-    assert plan["next_incomplete_milestone"] == "M8"
+    assert plan["next_incomplete_milestone"] == "M9"
     assert plan["milestones"][0]["verification"]["status"] == "fully_verified"
     assert [milestone["id"] for milestone in plan["milestones"]] == [
         f"M{i}" for i in range(11)
@@ -43,18 +44,18 @@ def test_implementation_plan_is_machine_readable_and_gated() -> None:
 
 def test_project_state_is_explicitly_unverified() -> None:
     state = (ROOT / "project-state.yaml").read_text(encoding="utf-8")
-    # M0-M6 VERIFIED; M7 VERIFIED (M7.1-M7.6 all verified, M7 complete).
+    # M0-M8 VERIFIED; M8.1-M8.6 all verified, M8 complete.
     assert "status: verified" in state
-    assert "current_milestone: M7" in state
-    # M8 advanced by M8.5 state binding: M8 IN PROGRESS, M8.1-M8.5 VERIFIED,
-    # M8.6 / M9 / M10 NOT STARTED.
+    assert "current_milestone: M8" in state
+    # M8.6 state binding: M8 VERIFIED, M8.1-M8.6 VERIFIED, M9/M10 NOT STARTED.
     assert "m8_plan_status: \"approved\"" in state
-    assert "m8_overall_status: \"in_progress\"" in state
+    assert "m8_overall_status: \"verified\"" in state
     assert "m8_increment_1_status: \"verified\"" in state
     assert "m8_increment_2_status: \"verified\"" in state
     assert "m8_increment_3_status: \"verified\"" in state
     assert "m8_increment_4_status: \"verified\"" in state
     assert "m8_increment_5_status: \"verified\"" in state
+    assert "m8_increment_6_status: \"verified\"" in state
     assert "m10_status: \"not_started\"" in state
     assert "m1_production_code_started: true" in state
     assert "m1_increment_4_6_status: verified" in state
