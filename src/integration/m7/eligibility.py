@@ -16,6 +16,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from src.capture.event_types import Sensitivity
+
 # Lifecycle that must never become eligible evidence (current truth).
 _INELIGIBLE_LIFECYCLE = {"deleted"}
 # Lifecycle that is not current truth and must not be PRIMARY.
@@ -26,8 +28,25 @@ _SUBORDINATE_LIFECYCLE = {"raw", "observed", "candidate"}
 # Memory types that must not be silently promoted to verified fact.
 _NON_PROMOTABLE_TYPE = {"assistant_claim", "inference", "user_statement"}
 
-# Default sensitivity ceiling: only content at or below this ceiling is eligible.
-DEFAULT_SENSITIVITY_CEILING = "high"
+# Canonical sensitivity ordering, derived from the M1 contract (src/capture/
+# event_types.py::Sensitivity). This is the ONLY sensitivity vocabulary in the
+# system: public < internal < private < secret. Master spec 14.1 defines the
+# default policy per class (public: searchable; internal: permitted profile only;
+# private: access-policy gated; secret: never persisted, redact/reject at the
+# capture boundary).
+_SENSITIVITY_ORDER = {
+    Sensitivity.PUBLIC.value: 0,
+    Sensitivity.INTERNAL.value: 1,
+    Sensitivity.PRIVATE.value: 2,
+    Sensitivity.SECRET.value: 3,
+}
+# Unknown/malformed values rank above every real class so they always fail closed.
+_UNKNOWN_SENSITIVITY_RANK = 99
+
+# Default ceiling: everything except `secret` may be eligible once authorized.
+# `secret` is never persisted (spec 14.2) and is additionally rejected here as
+# defense in depth, regardless of the configured ceiling.
+DEFAULT_SENSITIVITY_CEILING = Sensitivity.PRIVATE.value
 
 
 def _attr(item: Any, *names: str, default: Any = None) -> Any:
@@ -55,10 +74,30 @@ def _is_m3_event(item: Any) -> bool:
 
 
 def _sensitivity_rank(level: Optional[str]) -> int:
-    order = {"low": 0, "medium": 1, "high": 2, "critical": 3}
-    if level is None:
-        return 99  # unknown => fail closed (above any ceiling)
-    return order.get(level.lower(), 99)
+    """Rank a canonical sensitivity value. Unknown/malformed => fail closed."""
+    if not isinstance(level, str):
+        return _UNKNOWN_SENSITIVITY_RANK  # None/non-string => fail closed
+    return _SENSITIVITY_ORDER.get(level.strip().lower(), _UNKNOWN_SENSITIVITY_RANK)
+
+
+def _exceeds_ceiling(sensitivity: Optional[str], ceiling: Optional[str]) -> bool:
+    """True when `sensitivity` must be excluded for the given ceiling.
+
+    Fails closed in every ambiguous direction:
+      * unknown/malformed sensitivity is always excluded;
+      * unknown/malformed ceiling excludes everything (never widens access);
+      * `secret` is excluded unconditionally (spec 14.1/14.2: never persisted,
+        so it must never surface as evidence even if a ceiling says otherwise).
+    """
+    item_rank = _sensitivity_rank(sensitivity)
+    if item_rank == _UNKNOWN_SENSITIVITY_RANK:
+        return True
+    if item_rank >= _SENSITIVITY_ORDER[Sensitivity.SECRET.value]:
+        return True
+    ceiling_rank = _sensitivity_rank(ceiling)
+    if ceiling_rank == _UNKNOWN_SENSITIVITY_RANK:
+        return True
+    return item_rank > ceiling_rank
 
 
 def is_eligible(
@@ -88,7 +127,7 @@ def is_eligible(
         return EligibilityResult(False, f"lifecycle_excluded:{lifecycle}")
     # 2. sensitivity ceiling (authorization AND sensitivity both required for M3).
     #    M4 authorized items have no sensitivity field; M5 already governs access.
-    if _is_m3_event(item) and _sensitivity_rank(sensitivity) > _sensitivity_rank(sensitivity_ceiling):
+    if _is_m3_event(item) and _exceeds_ceiling(sensitivity, sensitivity_ceiling):
         return EligibilityResult(False, "sensitivity_ceiling_exceeded")
     # 3. provenance completeness (fail closed if minimum provenance missing)
     if not evidence_id or not (created_at or source_event_id):

@@ -27,7 +27,7 @@ from src.access.authorized_read import AuthorizedReadService, AuthorizedResult
 from .contracts import (
     EvidenceItem, EvidenceRole, EvidenceSet, MemoryRoute, MemoryRouteDecision, RouterRequest,
 )
-from .eligibility import is_eligible
+from .eligibility import DEFAULT_SENSITIVITY_CEILING, is_eligible
 from .budget import select_evidence, estimate_tokens
 
 # M4 resource_type mapping (M5.2 _M4_RESOURCE_TYPE mirror).
@@ -170,7 +170,7 @@ def build_evidence_set(
     router: RouterRequest,
     *,
     grants: Optional[list] = None,
-    sensitivity_ceiling: str = "high",
+    sensitivity_ceiling: str = DEFAULT_SENSITIVITY_CEILING,
     max_primary: int = _MAX_PRIMARY,
     max_supporting: int = _MAX_SUPPORTING,
     token_budget: int = _TOKEN_BUDGET,

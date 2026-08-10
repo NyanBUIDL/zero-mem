@@ -81,6 +81,8 @@ authorized M3 events for PR1 -> 2 returned (E1, E3), both sensitivity='internal'
 
 **Disposition.** Recorded here as a finding only. It is **out of M9 scope**, requires its own approval, fix commit, and canonical evidence, and is listed as blocking approval item **Q18-A** in §27. M9's sensitivity design in §11 is written to be correct under the *canonical* vocabulary so it does not inherit or entrench this bug.
 
+> **UPDATE — RESOLVED.** This defect was corrected in a dedicated corrective increment *before* M9.1, under commit `fix(m7): align sensitivity eligibility with canonical vocabulary`. The fix adopts the canonical `public < internal < private < secret` ordering, sets the M7 retrieval ceiling to `private` (all classes except `secret`, per spec §14.1), excludes `secret` unconditionally at any ceiling, and makes both an unknown *sensitivity* and an unknown *ceiling* fail closed. A second, related **fail-open** defect was found and fixed at the same time: a malformed ceiling previously compared `99 > 99` (False) and admitted every class including `secret`. Regression coverage is `tests/unit/test_m7_3_sensitivity_vocabulary.py` (30 tests, positive *and* negative; 17 of them fail against the pre-fix logic), plus a non-vacuity guard added to the original `test_above_ceiling_excluded`. Canonical after fix: **2353 passed, 3 skipped, 0 failed**. See §29 Q18-A.
+
 ---
 
 ## 2. Real vault configuration contract
@@ -370,7 +372,7 @@ Revocation is honored on the next run: M9 holds no cache across invocations, re-
 
 Uses the **canonical closed vocabulary** `public < internal < private < secret` from `src/capture/event_types.py::Sensitivity` — deliberately *not* the mismatched `low/medium/high/critical` ladder found in M7.3 (§1.2). M9 must not inherit or entrench that bug.
 
-- Default ceiling: **`internal`**. Only `public` and `internal` project by default.
+- Default ceiling: **`internal`**. Only `public` and `internal` project by default. This is deliberately *stricter* than the M7 retrieval ceiling (`private`, see `DEFAULT_SENSITIVITY_CEILING`), because a projected note is plaintext at rest in a vault the operator may sync, whereas M7 evidence is transient and in-process. Projection may narrow visibility; it must never widen it (§11.3).
 - **`secret` never projects, at any ceiling, unconditionally.**
 - Unknown/missing/unparseable sensitivity → rank 99 → **fail closed** (excluded).
 - Ceiling is configurable upward only by explicit operator configuration, never by memory content or request text.
@@ -944,7 +946,7 @@ Resolved with a recommendation, but **all require owner sign-off before M9.1**.
 | Q16 | Invocation | Explicit CLI + in-process call; no daemon/watcher | Recommended |
 | Q17 | Performance targets | §27 table; 0/1 write-count assertions load-bearing | Recommended |
 | Q18 | Sensitive-content policy | Canonical vocabulary; ceiling `internal`; `secret` never; unknown fails closed | **APPROVAL REQUIRED** |
-| **Q18-A** | **M7.3 sensitivity vocabulary defect (§1.2)** | **Fix separately, before or independently of M9; not inside M9** | **DECISION REQUIRED** |
+| **Q18-A** | **M7.3 sensitivity vocabulary defect (§1.2)** | **RESOLVED — prior M7.3 sensitivity vocabulary corrected before M9.1** (canonical `public/internal/private/secret`; default ceiling `private`; `secret` never eligible; unknown sensitivity *and* unknown ceiling both fail closed). Fixed in commit `fix(m7): align sensitivity eligibility with canonical vocabulary`. | **RESOLVED** |
 | Q19 | Cross-profile/project composition | Per-item M5 authorization; co-location grants nothing | Recommended |
 | Q20 | May Obsidian edits enter canonical state in M9? | **NO** | **APPROVAL REQUIRED** |
 

@@ -36,6 +36,7 @@ from .contracts import (
     zero_mem_runtime_enabled,
 )
 from .memory_router import route
+from .eligibility import DEFAULT_SENSITIVITY_CEILING
 from .evidence_builder import build_evidence_set
 from .envelope import serialize_evidence_set
 from .hardening import validate_evidence_set, sanitize_evidence_set
@@ -68,7 +69,7 @@ class InjectionAdapter:
         knowledge_space_ids: tuple[str, ...] = (),
         store_path: Optional[str | Path] = None,
         grants: Optional[list] = None,
-        sensitivity_ceiling: str = "high",
+        sensitivity_ceiling: str = DEFAULT_SENSITIVITY_CEILING,
     ) -> None:
         # Explicit identity only — never inferred from hook payload.
         self._requesting_profile_id = requesting_profile_id

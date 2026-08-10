@@ -249,15 +249,18 @@ class TestMemoryTypes:
 class TestSensitivity:
     def test_above_ceiling_excluded(self):
         store = _build_store()
-        _mutate_db(store, "UPDATE zm_meta SET sensitivity='critical' WHERE event_id='E1'")
+        _mutate_db(store, "UPDATE zm_meta SET sensitivity='secret' WHERE event_id='E1'")
         svc = AuthorizedReadService(store, requesting_profile_id="PR1")
         dec = route(RouterRequest(normalized_text="Continue the project.", project_id="P",
                                   requesting_profile_id="PR1"))
         es = build_evidence_set(dec, svc, RouterRequest(normalized_text="x", project_id="P",
                                                        requesting_profile_id="PR1"),
-                               sensitivity_ceiling="high")
+                               sensitivity_ceiling="private")
         ids = [e.evidence_id for e in es.primary_evidence + es.supporting_evidence]
         assert "E1" not in ids
+        # Non-vacuity guard: the run must actually produce evidence, otherwise
+        # "E1 not in ids" would hold trivially (the original M7.3 defect).
+        assert ids, "no evidence selected — exclusion assertion would be vacuous"
 
 
 # ---------------------------------------------------------------------------
