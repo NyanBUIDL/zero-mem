@@ -93,6 +93,31 @@ from .paths import (
     safe_note_path,
     validate_path_component,
 )
+from .writer import (
+    WriteOutcome,
+    WriteStatus,
+    overwrite_note,
+    retire_note,
+    write_note,
+    write_notes,
+)
+from .manifest import (
+    MANIFEST_FILENAME,
+    MANIFEST_RELATIVE_PATH,
+    MANIFEST_VERSION,
+    ManifestEntry,
+    ManifestError,
+    ProjectionManifest,
+    empty_manifest,
+    load_manifest,
+    resolve_entry_path,
+    store_manifest,
+)
+from .reconcile import (
+    ReconcileResult,
+    reconcile,
+    rebuild,
+)
 
 #: Derived-schema version this projection layer runs against. M9 adds no table,
 #: column, index, or migration; the manifest lives on the filesystem (§15.1/§23).
@@ -155,4 +180,25 @@ __all__ = [
     "is_obsidian_config_path",
     "path_ownership_signal",
     "managed_relative_path",
+    # writer (M9.2 atomic writes; M9.4 overwrite/retire gated extensions)
+    "WriteStatus",
+    "WriteOutcome",
+    "write_note",
+    "write_notes",
+    "overwrite_note",
+    "retire_note",
+    # manifest + reconcile (M9.4)
+    "MANIFEST_VERSION",
+    "MANIFEST_FILENAME",
+    "MANIFEST_RELATIVE_PATH",
+    "ManifestEntry",
+    "ManifestError",
+    "ProjectionManifest",
+    "empty_manifest",
+    "load_manifest",
+    "store_manifest",
+    "resolve_entry_path",
+    "ReconcileResult",
+    "reconcile",
+    "rebuild",
 ]

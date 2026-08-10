@@ -532,6 +532,13 @@ def _build_note(
         relative_path=relative_path,
         content=content,
         content_fingerprint=content_fingerprint(content),
+        # Source identity for the M9.4 manifest. These are the SAME values the
+        # identity derivation above consumed, so the manifest can never disagree
+        # with the note_id, and resource_type is carried verbatim (M6.6).
+        resource_type=validated_resource_type,
+        resource_id=resource_id,
+        project_id=project_id,
+        source_trace_ids=tuple(source_trace_ids),
     )
 
 

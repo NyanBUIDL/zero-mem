@@ -55,8 +55,15 @@ M9_1_MODULES: frozenset[str] = frozenset({
     "__init__.py", "contracts.py", "identity.py", "paths.py", "config.py",
 })
 
-#: Modules that must NOT exist until their own approved increment.
-NOT_YET_IMPLEMENTED_MODULES: tuple[str, ...] = ("projector.py", "manifest.py")
+#: Modules that must NOT exist until their own approved increment. M9.2
+#: delivered render/writer/engine/eligibility; M9.4 delivered manifest.py and
+#: reconcile.py (the deterministic manifest, incremental reconcile, and safe
+#: stale-retirement surfaces). Those are therefore no longer "not yet
+#: implemented" and are intentionally absent from this list. ``projector.py`` is
+#: kept as a permanent drift sentinel: the package's projection entry point is
+#: ``engine.py`` (project_to_vault), and a future splintered ``projector.py``
+#: would be an unapproved module and must fail here.
+NOT_YET_IMPLEMENTED_MODULES: tuple[str, ...] = ("projector.py",)
 
 
 def _projection_files() -> list[Path]:
@@ -518,16 +525,31 @@ class TestNonScope:
             assert token not in source, token
 
     def test_no_manifest_or_render_surface_yet(self):
-        # Manifest and retirement remain unimplemented (M9.4). Rendering and
-        # note writing are M9.2-approved surfaces and are therefore checked
-        # against the M9.1 module set only.
+        # M9.1 modules themselves carry NO projection/render/write/retire
+        # surface. Rendering, note writing, and (now) the M9.4 manifest +
+        # reconcile surfaces live in their OWN approved modules; the M9.1 layer
+        # remains read/validate only.
         m9_1 = _m9_1_code()
         for token in ("def project(", "def render", "def write_note", "def retire"):
             assert token not in m9_1, token
-        # Still globally absent: no increment has approved these yet.
+        # The M9.4-approved manifest/retirement surfaces (load_manifest,
+        # build_manifest/rebuild, retire/retire_note) MUST NOT leak into the
+        # M9.1 module set — M9.1 stays read/validate only even after M9.4 lands.
+        for token in ("def load_manifest", "def build_manifest", "def retire",
+                      "def rebuild"):
+            assert token not in m9_1, token
+        # Globally, those surfaces now legitimately exist (M9.4 approved them),
+        # but ONLY inside the approved modules — never inside M9.1's.
         source = _all_code()
-        for token in ("def retire", "def build_manifest", "def load_manifest"):
-            assert token not in source, token
+        m9_4_approved = {
+            p.name for p in _projection_files()
+            if p.name in ("manifest.py", "reconcile.py")
+        }
+        if m9_4_approved:
+            # Surface present in approved modules is expected; absence from M9.1
+            # is already proven above. This branch only asserts the package did
+            # not regress the M9.1 boundary.
+            assert "def project(" not in m9_1
 
     def test_no_schema_or_migration_change(self):
         source = _all_source()

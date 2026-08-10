@@ -38,6 +38,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from typing import Final, List, Optional, Set, Tuple
 
 from src.access.authorized_read import AuthorizedReadService, AuthorizedResult
@@ -50,6 +51,8 @@ from .contracts import (
     ProjectedNote,
     ProjectionVocabularyError,
 )
+from .reconcile import ReconcileResult, reconcile
+from .writer import WriteOutcome
 from .eligibility import (
     RESOURCE_TYPES,
     default_ceiling,
@@ -475,6 +478,42 @@ def _commit(service, request, config, project_id, notes, *,
     )
 
 
+def project_to_vault(
+    service: AuthorizedReadService,
+    request: AccessRequest,
+    config: ProjectionConfig,
+    project_id: str,
+    managed_root: Path,
+    *,
+    grants=None,
+    prior_manifest=None,
+    managed_dir_name: str = "",
+    dry_run: bool = False,
+    secret_patterns: Tuple[str, ...] = (),
+) -> "ReconcileResult":
+    """M9.4 deterministic projection into a managed vault (plan-m9.md §14).
+
+    Authorization-first (§22): the desired note set is produced by the closed
+    M9.2 pipeline (M5 authorization -> M6.6 resource_type -> M7 sensitivity/
+    lifecycle eligibility -> deterministic render). That set is then reconciled
+    against the managed tree with three-signal ownership and safe stale
+    retirement. The manifest is consulted only as a DATA input to the ownership
+    proof, never as a source of authorization, visibility, or truth.
+    """
+    report = run_projection(
+        service, request, config, project_id,
+        grants=grants, managed_root=None, dry_run=dry_run,
+        secret_patterns=secret_patterns,
+    )
+    return reconcile(
+        managed_root,
+        report.notes,
+        prior_manifest=prior_manifest,
+        managed_dir_name=managed_dir_name,
+        dry_run=dry_run,
+    )
+
+
 __all__ = [
     "PROJECTABLE_RESOURCE_TYPES",
     "ProjectionReport",
@@ -482,4 +521,5 @@ __all__ = [
     "project_project_state",
     "project_source_records",
     "run_projection",
+    "project_to_vault",
 ]

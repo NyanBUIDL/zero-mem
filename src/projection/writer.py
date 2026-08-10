@@ -65,6 +65,11 @@ class WriteStatus(str, Enum):
     SKIPPED_COLLISION = "skipped_collision"
     SKIPPED_DRY_RUN = "skipped_dry_run"
     SKIPPED_UNSAFE_PATH = "skipped_unsafe_path"
+    UPDATED = "updated"
+    RETIRED = "retired"
+    SKIPPED_HUMAN_MODIFIED = "skipped_human_modified"
+    SKIPPED_UNSAFE_OWNERSHIP = "skipped_unsafe_ownership"
+    RETIRE_FAILED = "retire_failed"
 
 
 @dataclass(frozen=True)
@@ -222,6 +227,140 @@ def write_notes(
     )
 
 
+def overwrite_note(
+    managed_root: Path,
+    note: ProjectedNote,
+    *,
+    force_managed: bool = False,
+    dry_run: bool = False,
+) -> WriteOutcome:
+    """In-place atomic update of an EXISTING managed note.
+
+    This is a deliberate DEEPER action than :func:`write_note` and is gated by a
+    caller-supplied ``force_managed`` flag: the M9.4 reconcile engine turns it
+    on ONLY after it has PROVEN the existing on-disk file is the same Zero-Mem
+    managed note (frontmatter marker + note_id + containment). That prevents a
+    stale or tampered manifest from ever reaching the overwrite path, and keeps
+    the default ``write_note`` behavior (never overwrite) intact for every other
+    caller including M9.2.
+
+    The replacement is atomic (temp + fsync + ``os.replace``), so a crash leaves
+    either the old file or the new file, never a half-written one. The call only
+    short-circuits to ``SKIPPED_UNCHANGED`` when the existing bytes already equal
+    the new bytes — preserving the zero-write rerun invariant.
+    """
+    if not force_managed:
+        raise ProjectionVocabularyError("overwrite_requires_explicit_ownership")
+    if not isinstance(note, ProjectedNote):
+        raise ProjectionVocabularyError("note")
+    if not isinstance(managed_root, Path):
+        raise ProjectionPathError("managed_root_not_a_path")
+
+    try:
+        target = _target_path(managed_root, note)
+    except ProjectionPathError as exc:
+        return WriteOutcome(note.note_id, note.relative_path,
+                            WriteStatus.SKIPPED_UNSAFE_PATH, exc.reason)
+
+    payload = note.content.encode("utf-8")
+
+    if target.exists() or target.is_symlink():
+        try:
+            unchanged = target.is_file() and target.read_bytes() == payload
+        except OSError:
+            unchanged = False
+        if unchanged:
+            return WriteOutcome(note.note_id, note.relative_path,
+                                WriteStatus.SKIPPED_UNCHANGED, "unchanged")
+
+    if dry_run:
+        return WriteOutcome(note.note_id, note.relative_path,
+                            WriteStatus.SKIPPED_DRY_RUN, "dry_run")
+
+    parent = target.parent
+    try:
+        parent.mkdir(parents=True, exist_ok=True)
+        assert_within_managed_root(managed_root, target)
+    except ProjectionPathError as exc:
+        return WriteOutcome(note.note_id, note.relative_path,
+                            WriteStatus.SKIPPED_UNSAFE_PATH, exc.reason)
+    except OSError:
+        return WriteOutcome(note.note_id, note.relative_path,
+                            WriteStatus.SKIPPED_UNSAFE_PATH, "directory_unavailable")
+
+    temp_name = f"{target.name}{TEMP_INFIX}{note_id_suffix(note.note_id)[:TEMP_SUFFIX_CHARS]}"
+    try:
+        temp_path = safe_managed_path(
+            managed_root, *(note.relative_path.split("/")[:-1] + [temp_name])
+        )
+    except ProjectionPathError as exc:
+        return WriteOutcome(note.note_id, note.relative_path,
+                            WriteStatus.SKIPPED_UNSAFE_PATH, exc.reason)
+
+    try:
+        descriptor = os.open(temp_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+        try:
+            os.write(descriptor, payload)
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+        os.replace(temp_path, target)
+        _fsync_directory(parent)
+    except OSError:
+        _remove_quietly(temp_path)
+        return WriteOutcome(note.note_id, note.relative_path,
+                            WriteStatus.SKIPPED_UNSAFE_PATH, "write_failed")
+
+    return WriteOutcome(note.note_id, note.relative_path, WriteStatus.UPDATED)
+
+
+def retire_note(
+    managed_root: Path,
+    path: Path,
+    *,
+    force_managed: bool = False,
+    dry_run: bool = False,
+) -> WriteOutcome:
+    """Non-destructive deletion of a PROVEN Zero-Mem managed file.
+
+    ``force_managed`` must be set by the caller (the M9.4 reconcile engine)
+    ONLY after the three-signal ownership proof passed: manifest lists the
+    note_id (signal 1), the resolved path is contained within the managed root
+    (signal 2), and the file carries the frontmatter marker + that note_id
+    (signal 3). On its own this function refuses: ``force_managed=False`` never
+    deletes anything, so a caller that forgets the proof cannot accidentally
+    destroy a human file.
+
+    The path is re-validated through the full M9.1 pipeline on entry; a path that
+    escapes the managed root or traverses a symlink is refused, never deleted.
+    """
+    if not force_managed:
+        raise ProjectionVocabularyError("retire_requires_explicit_ownership")
+    if not isinstance(managed_root, Path) or not isinstance(path, Path):
+        raise ProjectionPathError("path_not_a_path")
+    relative = None
+    try:
+        relative = str(path.relative_to(managed_root))
+        assert_within_managed_root(managed_root, path)
+    except (ValueError, ProjectionPathError):
+        return WriteOutcome("", relative or "", WriteStatus.SKIPPED_UNSAFE_PATH,
+                            "outside_managed_root")
+
+    if dry_run:
+        return WriteOutcome("", relative, WriteStatus.RETIRED, "dry_run")
+
+    try:
+        if path.is_symlink() or not path.is_file():
+            # A symlink here is hostile, and a vanished file needs no deletion.
+            return WriteOutcome("", relative, WriteStatus.RETIRE_FAILED,
+                                "not_a_regular_file")
+        os.unlink(path)
+        _fsync_directory(path.parent)
+        return WriteOutcome("", relative, WriteStatus.RETIRED, "retired")
+    except OSError:
+        return WriteOutcome("", relative, WriteStatus.RETIRE_FAILED, "unlink_failed")
+
+
 def _fsync_directory(directory: Path) -> None:
     """Fsync a directory so the rename is durable. Never fatal if unsupported."""
     try:
@@ -251,4 +390,6 @@ __all__ = [
     "WriteOutcome",
     "write_note",
     "write_notes",
+    "overwrite_note",
+    "retire_note",
 ]

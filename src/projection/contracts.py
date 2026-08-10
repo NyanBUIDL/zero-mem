@@ -428,6 +428,15 @@ class ProjectedNote:
     body was mutated can never travel with a stale fingerprint. ``relative_path``
     is always managed-root relative — an absolute path is never carried in a
     note contract, so a note value cannot smuggle a write target.
+
+    The optional source-identity fields (``resource_type``, ``resource_id``,
+    ``project_id``, ``source_trace_ids``) carry the AUTHORITATIVE identity the
+    renderer already used to derive ``note_id``. They exist so the M9.4 manifest
+    can record which authoritative record a managed file projects without
+    re-parsing generated Markdown. They are descriptive only: they confer no
+    authorization, no truth, and no ownership, and ``resource_type`` is
+    preserved verbatim so the permanent M6.6 isolation invariant survives into
+    the manifest (an ``artifact`` entry can never satisfy a ``decision`` lookup).
     """
 
     note_id: str
@@ -436,6 +445,10 @@ class ProjectedNote:
     content: str
     content_fingerprint: str
     links: Tuple[str, ...] = ()
+    resource_type: Optional[str] = None
+    resource_id: Optional[str] = None
+    project_id: Optional[str] = None
+    source_trace_ids: Tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         from .identity import content_fingerprint as _fingerprint, validate_note_id
@@ -457,6 +470,26 @@ class ProjectedNote:
             raise ProjectionVocabularyError("content_fingerprint")
         links = _identifier_tuple(self.links, "links")
         object.__setattr__(self, "links", links)
+
+        # Optional source identity. Absent stays absent (None), never inferred
+        # and never widened into a wildcard.
+        if self.resource_type is not None:
+            object.__setattr__(
+                self, "resource_type", validate_resource_type(self.resource_type)
+            )
+        object.__setattr__(
+            self, "resource_id", _optional_identifier(self.resource_id, "resource_id")
+        )
+        object.__setattr__(
+            self, "project_id", _optional_identifier(self.project_id, "project_id")
+        )
+        # Trace ids are preserved VERBATIM and in recorded order: they are
+        # authoritative provenance data, not a presentation choice.
+        trace_ids = tuple(self.source_trace_ids or ())
+        for trace_id in trace_ids:
+            if not isinstance(trace_id, str) or not trace_id.strip():
+                raise ProjectionVocabularyError("source_trace_ids")
+        object.__setattr__(self, "source_trace_ids", trace_ids)
 
 
 @dataclass(frozen=True)
