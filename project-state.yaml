@@ -802,8 +802,8 @@ m8_increment_6_scope_notes: >-
 m9_plan_status: "approved"
 m9_overall_status: "in_progress"
 m9_status: "in_progress"
-m9_current_increment: increment_1
-m9_next_incomplete_increment: "M9.2"
+m9_current_increment: increment_2
+m9_next_incomplete_increment: "M9.3"
 m9_schema: "v9"
 m9_increment_1_status: "verified"
 m9_increment_1_name: "Projection contracts, configuration boundary, path-safety foundation"
@@ -842,4 +842,58 @@ m9_increment_1_scope_notes: >-
   No write-back. No manifest behaviour (M9.4). No renderer (M9.2+). Schema
   remains v9 — no migration, no SQLite projection table. Zero LLM calls, zero
   external network calls, no new third-party dependency, no Hermes core change.
+m9_increment_2_status: "verified"
+m9_increment_2_name: "Deterministic project / state / decision / requirement / verification projection"
+m9_increment_2_evidence: acceptance-m9.2.md
+m9_increment_2_impl_tested_commit: 0b9c74116d4df100f3ef9f84352603da57286409
+m9_increment_2_focused_result: "72 passed, 0 failed (0.75s)"
+m9_increment_2_regression_result: "296 M9.1 + 61 M7.3 + 250 M5 + 387 M6 + 298 M7 + 502 M8 + 270 M4, 0 failed"
+m9_increment_2_prebinding_canonical: "2721 passed, 3 skipped, 0 failed (18.82s)"
+m9_increment_2_real_vault_modified: false
+m9_increment_2_obsidian_config_modified: false
+m9_increment_2_scope_notes: >-
+  First increment that actually generates notes. Five authoritative surfaces
+  render deterministically from authorized M4 project-memory records into a
+  temporary-vault managed root: Project Home, Project State, Decision,
+  Requirement, Verification. New modules render.py (pure deterministic
+  rendering — closed frontmatter field set in fixed order, every
+  content-derived string folded to a single line then context-escaped, no wall
+  clock, no randomness, no filesystem, no authorization), eligibility.py
+  (sensitivity + lifecycle predicate over a record's own fields, canonical
+  vocabulary, ceiling internal, secret never projected, raw/observed/candidate/
+  deleted excluded), engine.py (orchestration only — M5 AuthorizedReadService
+  consulted per resource_type BEFORE any read or render, then eligibility, then
+  the writer; content-level secret-pattern backstop withholds a whole note),
+  and writer.py (M9.1 path safety plus atomic same-directory temp, fsync,
+  os.replace; never overwrites an existing file — a collision is reported and
+  the bytes are left identical). Memory is DATA never instruction: content can
+  never open a frontmatter block, heading, callout, fence, wiki link, embed,
+  tag, or raw HTML, because content never selects structure and never reaches
+  the start of a line. verification_status is copied, never computed — no
+  claim-to-verification promotion; a Decision emits null rather than inferring
+  from a linked verification. Supersession renders from explicit supersedes_id/
+  replaced_by only, never from effective_at, note order, mtime, or M8 recency;
+  a conflicted record renders a warning and no winner is chosen. A denial
+  produces no note, no stub, no count, and no placeholder — no existence
+  signal. Fail-open defect in this increment's OWN new code found and fixed:
+  eligibility folded any non-string sensitivity/lifecycle to None and treated
+  None as "field absent", so sensitivity=123 / b"secret" / ["secret"] / True
+  all projected, contradicting plan-m9.md 11.2; "not carried" is now a distinct
+  sentinel from "carried but unparseable" and the latter fails closed on both
+  dimensions, with mutation-proven permanent regressions. Two vacuous
+  assertions corrected (an `or True` tautology, and a private-state check that
+  passed only because escaping produced "secret\_state"); the M4 v9 substrate
+  has no sensitivity column, so that boundary is now stated honestly by
+  test_project_state_row_without_sensitivity_is_visible instead of hidden
+  behind a passing assertion — M9 never invents a sensitivity it was not given.
+  Cross-project fixture defect corrected: the grant now covers P only and the
+  denial test carries a positive control. M9.1 security guards rescoped from a
+  package glob to the M9.1 module set because they asserted M9.2 surfaces did
+  not exist yet; no gate weakened, four guards ADDED, and authorization reach
+  tightened so the read service now has exactly one consumer (engine.py). No
+  wiki links or backlinks, no conflict navigation, no manifest, no incremental
+  suppression, no retirement, no human-edit quarantine (M9.3-M9.6). Real
+  operator vault and .obsidian/ untouched; every write is a tmp_path managed
+  root. Canonical JSONL and SQLite immutable. Schema remains v9 — no migration.
+  Zero LLM calls, zero external network calls, no Hermes core change.
 m10_status: "not_started"

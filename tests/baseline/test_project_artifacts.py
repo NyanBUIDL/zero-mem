@@ -22,7 +22,7 @@ def test_master_spec_and_derived_agents_exist() -> None:
 
 def test_implementation_plan_is_machine_readable_and_gated() -> None:
     plan = json.loads((ROOT / "implementation-plan.json").read_text(encoding="utf-8"))
-    # M0-M8 VERIFIED; M9 IN PROGRESS (M9.1 VERIFIED; M9.2-M9.6 / M10 NOT STARTED).
+    # M0-M8 VERIFIED; M9 IN PROGRESS (M9.1-M9.2 VERIFIED; M9.3-M9.6 / M10 NOT STARTED).
     assert plan["status"] == "m9_in_progress"
     assert plan["current_milestone_status"] == "m9_in_progress"
     assert plan["m8_increment_1_status"] == "verified"
@@ -33,16 +33,17 @@ def test_implementation_plan_is_machine_readable_and_gated() -> None:
     assert plan["m8_increment_6_status"] == "verified"
     assert plan["m8_next_incomplete_increment"] == "none"
     assert plan["m8_schema_version"] == 9
-    # M9.1 state binding.
+    # M9.1 + M9.2 state binding.
     assert plan["m9_plan_status"] == "approved"
     assert plan["m9_overall_status"] == "in_progress"
     assert plan["m9_increment_1_status"] == "verified"
-    assert plan["m9_increment_2_status"] == "not_started"
+    assert plan["m9_increment_2_status"] == "verified"
+    assert plan["m9_increment_2_evidence"] == "acceptance-m9.2.md"
     assert plan["m9_increment_3_status"] == "not_started"
     assert plan["m9_increment_4_status"] == "not_started"
     assert plan["m9_increment_5_status"] == "not_started"
     assert plan["m9_increment_6_status"] == "not_started"
-    assert plan["m9_next_incomplete_increment"] == "M9.2"
+    assert plan["m9_next_incomplete_increment"] == "M9.3"
     assert plan["m9_schema_version"] == 9
     assert plan["m10_status"] == "not_started"
     assert plan["next_incomplete_milestone"] == "M9"
@@ -68,14 +69,16 @@ def test_project_state_is_explicitly_unverified() -> None:
     assert "m8_increment_4_status: \"verified\"" in state
     assert "m8_increment_5_status: \"verified\"" in state
     assert "m8_increment_6_status: \"verified\"" in state
-    # M9 advanced by M9.1 state binding: M9 IN PROGRESS, M9.1 VERIFIED,
-    # M9.2-M9.6 / M10 NOT STARTED. Schema remains v9.
+    # M9 advanced by M9.2 state binding: M9 IN PROGRESS, M9.1-M9.2 VERIFIED,
+    # M9.3-M9.6 / M10 NOT STARTED. Schema remains v9.
     assert "m9_plan_status: \"approved\"" in state
     assert "m9_overall_status: \"in_progress\"" in state
     assert "m9_increment_1_status: \"verified\"" in state
-    assert "m9_next_incomplete_increment: \"M9.2\"" in state
+    assert "m9_increment_2_status: \"verified\"" in state
+    assert "m9_next_incomplete_increment: \"M9.3\"" in state
     assert "m9_schema: \"v9\"" in state
     assert "m9_increment_1_evidence: acceptance-m9.1.md" in state
+    assert "m9_increment_2_evidence: acceptance-m9.2.md" in state
     assert "m10_status: \"not_started\"" in state
     assert "m1_production_code_started: true" in state
     assert "m1_increment_4_6_status: verified" in state
