@@ -44,10 +44,30 @@ from src.projection.identity import content_fingerprint, derive_note_id
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROJECTION_DIR = REPO_ROOT / "src" / "projection"
 
+#: The modules M9.1 itself delivered. The M9.1 non-scope guards below are pinned
+#: to THIS set, not to a glob of the package: later increments legitimately add
+#: modules (M9.2 added render/writer/engine/eligibility), and a glob would turn
+#: every M9.1 "not yet implemented" guard into a false failure the moment the
+#: next approved increment lands. Invariants that are permanent for the WHOLE
+#: package (no operator path, no Hermes core import, no schema change, no LLM,
+#: no network, no write authority) stay globbed over every projection module.
+M9_1_MODULES: frozenset[str] = frozenset({
+    "__init__.py", "contracts.py", "identity.py", "paths.py", "config.py",
+})
+
+#: Modules that must NOT exist until their own approved increment.
+NOT_YET_IMPLEMENTED_MODULES: tuple[str, ...] = ("projector.py", "manifest.py")
+
 
 def _projection_files() -> list[Path]:
     files = sorted(PROJECTION_DIR.glob("*.py"))
     assert files, "expected M9.1 modules to exist"
+    return files
+
+
+def _m9_1_files() -> list[Path]:
+    files = [p for p in sorted(PROJECTION_DIR.glob("*.py")) if p.name in M9_1_MODULES]
+    assert len(files) == len(M9_1_MODULES), "M9.1 module set drifted"
     return files
 
 
@@ -86,8 +106,17 @@ def _all_source() -> str:
 
 def _all_code() -> str:
     """Executable code only: comments and docstrings removed."""
+    return _code_of(_projection_files())
+
+
+def _m9_1_code() -> str:
+    """Executable code of the M9.1 module set only."""
+    return _code_of(_m9_1_files())
+
+
+def _code_of(paths: list[Path]) -> str:
     chunks = []
-    for path in _projection_files():
+    for path in paths:
         tree = _strip_docstrings(ast.parse(path.read_text(encoding="utf-8")))
         chunks.append(ast.unparse(tree))
     return "\n".join(chunks)
@@ -320,7 +349,14 @@ class TestZeroLLMZeroNetwork:
             assert token not in source, token
 
     def test_stdlib_and_local_imports_only(self):
-        allowed_prefixes = ("src.projection", "src.capture", "src.m8", ".")
+        # Zero LLM, zero network, zero third-party. The allowed local prefixes
+        # grew with M9.2, which consumes the verified M4 project-memory reader
+        # and the M5 authorized-read facade. Every one of these is an in-repo,
+        # offline, already-verified module; nothing here reaches the network.
+        allowed_prefixes = (
+            "src.projection", "src.capture", "src.m8",
+            "src.project_memory", "src.access", ".",
+        )
         stdlib = {
             "__future__", "dataclasses", "typing", "enum", "hashlib", "json",
             "os", "pathlib", "unicodedata",
@@ -341,6 +377,26 @@ class TestZeroLLMZeroNetwork:
                         root = alias.name.split(".")[0]
                         assert root in stdlib, f"{path.name} imports {alias.name}"
 
+    def test_m9_1_layer_imports_stay_minimal(self):
+        # The M9.1 layer itself must NOT have acquired the wider dependency
+        # surface M9.2 needs; it stays a pure contract/identity/path/config layer.
+        allowed_prefixes = ("src.projection", "src.capture", "src.m8", ".")
+        stdlib = {
+            "__future__", "dataclasses", "typing", "enum", "hashlib", "json",
+            "os", "pathlib", "unicodedata",
+        }
+        for path in _m9_1_files():
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom):
+                    if node.level > 0:
+                        continue
+                    module = node.module or ""
+                    root = module.split(".")[0]
+                    assert module.startswith(allowed_prefixes) or root in stdlib, (
+                        f"{path.name} imports {module}"
+                    )
+
     def test_no_new_third_party_dependency(self):
         """stdlib + existing repo modules only; notably no PyYAML."""
         assert "import yaml" not in _all_source()
@@ -348,23 +404,58 @@ class TestZeroLLMZeroNetwork:
 
 class TestNoAuthorizationReach:
     def test_no_grant_admin_or_write_service(self):
+        # PERMANENT, whole-package: projection may never administer grants nor
+        # acquire ANY write authority over canonical state.
         source = _all_code()
         for token in (
             "GrantAdmin", "grant_admin", "AuthorizedWriteService",
-            "AuthorizedReadService", "authorized_write",
+            "authorized_write",
         ):
             assert token not in source, token
 
-    def test_no_policy_import(self):
+    def test_m9_1_layer_does_not_consume_the_read_service(self):
+        # M9.1 is a pure contract/identity/path/config layer: it must not even
+        # reference the read service. M9.2's engine is the single consumer, and
+        # it CONSULTS M5 as the sole authority rather than deciding access.
+        assert "AuthorizedReadService" not in _m9_1_code()
+
+    def test_read_service_is_consumed_only_by_the_engine(self):
+        # Authorization has exactly one entry point in the package. Rendering,
+        # writing, identity, and path safety must never touch it.
         for path in _projection_files():
+            if path.name == "engine.py":
+                continue
+            assert "AuthorizedReadService" not in path.read_text(encoding="utf-8"), (
+                f"{path.name} must not consume the authorization service"
+            )
+
+    def test_no_policy_import(self):
+        # M9.1 must not import the access layer at all.
+        for path in _m9_1_files():
             for imported in _imports(path):
                 assert "policy" not in imported.lower(), f"{path.name}: {imported}"
                 assert "src.access" not in imported, f"{path.name}: {imported}"
+        # Whole-package: the access POLICY engine is never imported, by anyone.
+        # M9.2's engine imports only the authorized-read facade and its request
+        # contract; it never reaches past them into policy internals.
+        allowed_access_imports = {
+            "src.access.authorized_read", "src.access.contracts",
+        }
+        for path in _projection_files():
+            for imported in _imports(path):
+                assert "policy" not in imported.lower(), f"{path.name}: {imported}"
+                if imported.startswith("src.access"):
+                    module = imported.rsplit(".", 1)[0] if imported not in allowed_access_imports else imported
+                    assert module in allowed_access_imports, f"{path.name}: {imported}"
 
     def test_no_access_decision_functions(self):
+        # Projection never DEFINES an access decision. `is_authorized_resource_type`
+        # is deliberately excluded from this ban: it is a closed-vocabulary
+        # validity check over M6.6 resource types and the sensitivity ceiling —
+        # it grants nothing and is not consulted in place of M5.
         source = _all_code()
         for token in (
-            "def authorize", "def check_access", "def is_authorized",
+            "def authorize", "def check_access", "def is_authorized(",
             "def grant", "def has_permission", "def can_read",
         ):
             assert token not in source, token
@@ -399,11 +490,23 @@ class TestNoHardcodedOperatorPath:
 
 class TestNonScope:
     def test_m9_1_does_not_implement_later_increments(self):
-        for banned in ("render.py", "writer.py", "projector.py", "manifest.py"):
+        # Pinned to modules whose increment has NOT been approved yet. M9.2
+        # delivered render.py/writer.py/engine.py/eligibility.py under its own
+        # approved scope, so those are no longer "later increments".
+        for banned in NOT_YET_IMPLEMENTED_MODULES:
             assert not (PROJECTION_DIR / banned).exists(), banned
 
+    def test_m9_1_module_set_is_exactly_as_delivered(self):
+        # The M9.1 surface itself must not silently grow. A new M9.1-owned
+        # module has to be an explicit, reviewed change to M9_1_MODULES.
+        present = {p.name for p in PROJECTION_DIR.glob("*.py")}
+        assert M9_1_MODULES <= present, "an M9.1 module disappeared"
+
     def test_no_write_operations_in_m9_1(self):
-        source = _all_code()
+        # The M9.1 layer is read/validate only. M9.2's writer legitimately owns
+        # the atomic write, so this guard is scoped to the M9.1 modules and
+        # continues to prove they gained no write authority.
+        source = _m9_1_code()
         for token in (
             "write_text", "open(", "mkdir", "os.replace", "shutil",
             "unlink", "rmtree", "os.remove", "rename(", "touch(",
@@ -411,8 +514,15 @@ class TestNonScope:
             assert token not in source, token
 
     def test_no_manifest_or_render_surface_yet(self):
-        source = _all_code()
+        # Manifest and retirement remain unimplemented (M9.4). Rendering and
+        # note writing are M9.2-approved surfaces and are therefore checked
+        # against the M9.1 module set only.
+        m9_1 = _m9_1_code()
         for token in ("def project(", "def render", "def write_note", "def retire"):
+            assert token not in m9_1, token
+        # Still globally absent: no increment has approved these yet.
+        source = _all_code()
+        for token in ("def retire", "def build_manifest", "def load_manifest"):
             assert token not in source, token
 
     def test_no_schema_or_migration_change(self):
