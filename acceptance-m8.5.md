@@ -184,5 +184,5 @@ These are smallest-exact updates (M8.4 precedent); no test was weakened generica
   `.venv/bin/python3`, exit 0).
 - M8.5 focused: **96 passed, 0 failed**.
 - Relevant M8.1–M8.5 regression: **all passed, 0 failed**.
-- Final-head canonical: **PENDING** (run on the evidence/state-binding commit
-  per the closure protocol).
+- Final-head canonical: **2285 passed, 3 skipped, 0 failed** (isolated HOME,
+  `.venv/bin/python3`, exit 0; evidence/state-binding commit `770555c`).
