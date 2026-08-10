@@ -19,11 +19,26 @@ best-effort (plan-m9.md §22.2):
    identity comes from the verified M9.1 primitives; nothing here consults
    ``time``, ``random``, ``uuid``, ``hash()``, a rowid, or an insertion order.
 
-Deliberately NOT implemented here (later increments): wiki links and backlinks,
-conflict navigation, the manifest, incremental/unchanged-write suppression,
-retirement, human-edit quarantine, Research Note and Knowledge Index bodies.
-M9.2 preserves a conflicted or superseded status honestly and minimally, but the
-full conflict/supersession presentation belongs to M9.3.
+M9.3 adds, on top of that: a complete deterministic provenance block on every
+note, safe wiki links between already-authorized notes, explicit
+supersession/history presentation, and honest unresolved-conflict presentation
+(Conflict notes plus a per-resource-type Conflict Queue).
+
+Deliberately NOT implemented here (later increments): the manifest,
+incremental/unchanged-write suppression, retirement, human-edit quarantine,
+Research Note and Knowledge Index bodies.
+
+Two authority rules govern the M9.3 surface and are load-bearing:
+
+* **Links are navigation only.** A rendered link asserts no authorization, no
+  truth, no verification, no conflict resolution, and no supersession. A
+  reference whose target this request did not authorize renders exactly like a
+  reference to something that was never recorded (plan-m9.md §5, §21).
+* **M4 is the only conflict/supersession authority.** This layer PRESENTS
+  ``lifecycle_status='conflicted'`` and the explicit ``supersedes`` /
+  ``replaced_by`` fields. It never creates, resolves, ranks, or infers them —
+  not from recency, insertion order, file mtime, calibration, or graph
+  structure (plan-m9.md §19, §20).
 
 Zero LLM calls, zero network calls, zero embeddings.
 """
@@ -44,7 +59,9 @@ from .contracts import (
     validate_note_type,
     validate_resource_type,
 )
+from .conflicts import ConflictGroup, CONFLICTED_LIFECYCLE, conflict_resource_id
 from .identity import content_fingerprint, derive_note_id, note_filename, slug
+from .links import LinkRegistry, LinkTarget, note_relative_path, wiki_link
 
 # ---------------------------------------------------------------------------
 # Closed rendering constants
@@ -266,6 +283,139 @@ def _conflict_status(lifecycle_status: Optional[str]) -> str:
     return CONFLICT_CONFLICTED if lifecycle_status == "conflicted" else CONFLICT_NONE
 
 
+def _join_field(records: Optional[Sequence[Any]], field: str) -> Optional[str]:
+    """Comma-join one authoritative id field across records, or ``None``.
+
+    A ``None`` record sequence means "this resource type was not in scope" and
+    is kept distinguished from an empty sequence ("in scope, nothing recorded")
+    by returning ``None`` rather than ``""`` (plan-m9.md §7.1).
+    """
+    if records is None:
+        return None
+    ids = [str(_attribute(item, field)) for item in records
+           if _attribute(item, field)]
+    return ", ".join(ids) if ids else None
+
+
+def _extract_session_id(record: Any) -> Optional[str]:
+    return _attribute(record, "session_id")
+
+
+def _needs_rebuild(record: Any) -> bool:
+    """True iff M4 explicitly recorded a supersession/replacement relation.
+
+    The relation must be EXPLICIT in canonical data — never inferred from
+    recency, mtime, note version, calibration score, insertion order, or graph
+    structure (plan-m9.md §20).
+    """
+    for name in ("replaced_by", "superseded_by", "supersedes", "supersedes_id"):
+        if _attribute(record, name):
+            return True
+    return False
+
+
+# ---------------------------------------------------------------------------
+# M9.3 — links (navigation only; never authorization, truth, or resolution)
+# ---------------------------------------------------------------------------
+
+#: Rendered in a link position when the reference resolves to nothing this
+#: request authorized. It is byte-identical for "withheld", "not recorded", and
+#: "malformed", so no reader can infer that something exists but is hidden.
+UNRESOLVED_LINK_MARKER: Final[str] = "(not available)"
+
+
+def _link_or_marker(registry: Optional[LinkRegistry],
+                    resource_type: str,
+                    resource_id: Any,
+                    *,
+                    display: Any = None) -> str:
+    """Render a wiki link when the target is authorized, else a neutral marker.
+
+    This is the single choke point for every link in the projection, and it is
+    where the existence-leak guarantee lives: the ``None`` branch is taken
+    identically whether the target was withheld, never recorded, or malformed,
+    and it emits no identifier, count, path, or relation metadata.
+    """
+    if registry is None:
+        return UNRESOLVED_LINK_MARKER
+    target = registry.resolve(resource_type, resource_id)
+    if target is None:
+        return UNRESOLVED_LINK_MARKER
+    return wiki_link(target, display=display)
+
+
+def _link_list(registry: Optional[LinkRegistry],
+               resource_type: str,
+               raw: Any) -> str:
+    """Render a comma-joined M4 identifier field as authorized links.
+
+    Unauthorized entries collapse to the same neutral marker as any other
+    unresolvable reference. The rendered item COUNT therefore equals the number
+    of recorded references, not the number of authorized ones — the visible
+    output never reveals which subset was authorized, and never publishes a
+    hidden count.
+    """
+    references = _identifier_list(raw)
+    if not references:
+        return NONE_MARKER
+    return ", ".join(
+        _link_or_marker(registry, resource_type, reference, display=reference)
+        for reference in references
+    )
+
+
+# ---------------------------------------------------------------------------
+# M9.3 — provenance (authorized source data only)
+# ---------------------------------------------------------------------------
+
+def _provenance_block(*,
+                      note_id: str,
+                      resource_type: str,
+                      resource_id: Any,
+                      project_id: Any,
+                      profile_id: Any,
+                      lifecycle_status: Any,
+                      verification_status: Any,
+                      conflict_status: str,
+                      supersedes: Any,
+                      replaced_by: Any,
+                      source_event_ids: Sequence[str],
+                      source_trace_ids: Sequence[str],
+                      session_id: Any = None,
+                      artifact_refs: Sequence[str] = ()) -> str:
+    """The audit block carried by EVERY projected note (plan-m9.md §M9.3).
+
+    Contains only fields the request already authorized and the record itself
+    carries. Deterministic: fixed label order from a closed literal list, and
+    list values rendered in their recorded order. A field the record does not
+    carry renders as ``(none)`` rather than being omitted (which would make two
+    different records' provenance blocks structurally indistinguishable) or
+    invented.
+
+    Deliberately absent: absolute paths, grant identifiers, rowids, cursors,
+    hidden sibling counts, and any wall-clock generation timestamp.
+    """
+    lines = [
+        _bullet("Note ID", note_id),
+        _bullet("Resource type", resource_type),
+        _bullet("Resource ID", resource_id),
+        _bullet("Project", project_id),
+        _bullet("Profile", profile_id),
+        _bullet("Lifecycle", lifecycle_status),
+        _bullet("Verification status", verification_status),
+        _bullet("Conflict status", conflict_status),
+        _bullet("Supersedes", supersedes),
+        _bullet("Replaced by", replaced_by),
+        _bullet("Session", session_id),
+        _bullet("Source events", ", ".join(source_event_ids) if source_event_ids else None),
+        _bullet("Source traces", ", ".join(source_trace_ids) if source_trace_ids else None),
+        _bullet("Artifact references", ", ".join(artifact_refs) if artifact_refs else None),
+        _bullet("Projection version", PROJECTION_VERSION),
+    ]
+    return "## Provenance\n\n" + "\n".join(lines)
+
+
+
 def _status_callouts(lifecycle_status: Optional[str],
                      replaced_by: Optional[str]) -> Tuple[str, ...]:
     """Minimal, honest status banners (plan-m9.md §19/§20 boundary for M9.2).
@@ -397,6 +547,7 @@ def render_project_home(
     decisions: Optional[Sequence[Any]] = None,
     requirements: Optional[Sequence[Any]] = None,
     verifications: Optional[Sequence[Any]] = None,
+    registry: Optional[LinkRegistry] = None,
 ) -> ProjectedNote:
     """Render the Project Home entry point from authoritative records only.
 
@@ -488,24 +639,67 @@ def render_project_home(
 
     trace_ids = tuple(t for t in (_attribute(charter, "trace_id"),) if t)
     event_ids = tuple(e for e in (_attribute(charter, "source_event_id"),) if e)
-    provenance = "## Provenance\n\n" + "\n".join([
-        _bullet("Source event", _attribute(charter, "source_event_id")),
-        _bullet("Trace", _attribute(charter, "trace_id")),
-        _bullet("Session", _attribute(charter, "session_id")),
-        _bullet("Profile", _attribute(charter, "profile_id")),
-    ])
-
-    body = _sections(
-        f"# {escape_inline(title)}",
-        _PROVENANCE_NOTE,
-        *_status_callouts(charter_lifecycle, _attribute(charter, "supersedes")),
-        identity,
-        state_block,
-        decision_block,
-        requirement_block,
-        verification_block,
-        provenance,
+    provenance = _provenance_block(
+        note_id=derive_note_id(
+            note_type=NoteType.PROJECT, resource_type="charter",
+            resource_id=project_id, project_id=project_id, profile_id=None,
+        ),
+        resource_type="charter",
+        resource_id=project_id,
+        project_id=project_id,
+        profile_id=_attribute(charter, "profile_id"),
+        lifecycle_status=charter_lifecycle,
+        verification_status=None,
+        conflict_status=_conflict_status(charter_lifecycle),
+        supersedes=_attribute(charter, "supersedes"),
+        replaced_by=None,
+        source_event_ids=event_ids,
+        source_trace_ids=trace_ids,
+        session_id=_attribute(charter, "session_id"),
+        artifact_refs=(),
     )
+
+    # M9.3 — optional deterministic cross-note links (navigation only).
+    if registry is not None:
+        link_rows = []
+        if decisions is not None:
+            link_rows.append(_bullet(
+                "Decisions", _link_list(registry, "decision",
+                                       _join_field(decisions, "decision_id"))))
+        if requirements is not None:
+            link_rows.append(_bullet(
+                "Requirements", _link_list(registry, "requirement",
+                                           _join_field(requirements, "requirement_id"))))
+        if verifications is not None:
+            link_rows.append(_bullet(
+                "Verifications", _link_list(registry, "verification",
+                                            _join_field(verifications, "verification_id"))))
+        links = "## Links\n\n" + (
+            "\n".join(link_rows) if link_rows else f"- {NONE_MARKER}")
+        body = _sections(
+            f"# {escape_inline(title)}",
+            _PROVENANCE_NOTE,
+            *_status_callouts(charter_lifecycle, _attribute(charter, "supersedes")),
+            identity,
+            state_block,
+            decision_block,
+            requirement_block,
+            verification_block,
+            links,
+            provenance,
+        )
+    else:
+        body = _sections(
+            f"# {escape_inline(title)}",
+            _PROVENANCE_NOTE,
+            *_status_callouts(charter_lifecycle, _attribute(charter, "supersedes")),
+            identity,
+            state_block,
+            decision_block,
+            requirement_block,
+            verification_block,
+            provenance,
+        )
 
     return _build_note(
         note_type=NoteType.PROJECT,
@@ -563,24 +757,29 @@ def render_project_state(*, project_id: str,
         header + "\n" + "\n".join(rows) if rows else "- " + NONE_MARKER
     )
 
-    provenance_rows = [
-        "- {key}: event {event}, trace {trace}, profile {profile}".format(
-            key=escape_inline(_attribute(row, "state_key")),
-            event=escape_inline(_attribute(row, "source_event_id")),
-            trace=escape_inline(_attribute(row, "trace_id")),
-            profile=escape_inline(_attribute(row, "profile_id")),
-        )
-        for row in state_rows
-    ]
-    provenance = "## Provenance\n\n" + (
-        "\n".join(provenance_rows) if provenance_rows else "- " + NONE_MARKER
-    )
-
     trace_ids = tuple(
         t for t in (_attribute(row, "trace_id") for row in state_rows) if t
     )
     event_ids = tuple(
         e for e in (_attribute(row, "source_event_id") for row in state_rows) if e
+    )
+    provenance = _provenance_block(
+        note_id=derive_note_id(
+            note_type=NoteType.PROJECT, resource_type="state",
+            resource_id=project_id, project_id=project_id, profile_id=None,
+        ),
+        resource_type="state",
+        resource_id=project_id,
+        project_id=project_id,
+        profile_id=None,
+        lifecycle_status="active",
+        verification_status=None,
+        conflict_status=CONFLICT_NONE,
+        supersedes=None,
+        replaced_by=None,
+        source_event_ids=event_ids,
+        source_trace_ids=trace_ids,
+        artifact_refs=(),
     )
 
     body = _sections(
@@ -615,7 +814,8 @@ def render_project_state(*, project_id: str,
 # Decision
 # ---------------------------------------------------------------------------
 
-def render_decision(decision: Any) -> ProjectedNote:
+def render_decision(decision: Any,
+                     registry: Optional[LinkRegistry] = None) -> ProjectedNote:
     """Render one authoritative Decision record.
 
     Supersession is rendered from the explicit ``supersedes_id`` /
@@ -647,17 +847,37 @@ def render_decision(decision: Any) -> ProjectedNote:
     ])
 
     linked = "## Linked records\n\n" + "\n".join([
-        _bullet("Requirements", _attribute(decision, "linked_requirement_ids")),
-        _bullet("Artifacts", _attribute(decision, "linked_artifact_ids")),
-        _bullet("Verifications", _attribute(decision, "linked_verification_ids")),
+        _bullet("Requirements", _link_list(
+            registry, "requirement", _attribute(decision, "linked_requirement_ids"))),
+        _bullet("Artifacts", _link_list(
+            registry, "artifact", _attribute(decision, "linked_artifact_ids"))),
+        _bullet("Verifications", _link_list(
+            registry, "verification", _attribute(decision, "linked_verification_ids"))),
     ])
 
-    provenance = "## Provenance\n\n" + "\n".join([
-        _bullet("Source event", _attribute(decision, "source_event_id")),
-        _bullet("Trace", _attribute(decision, "trace_id")),
-        _bullet("Session", _attribute(decision, "session_id")),
-        _bullet("Profile", _attribute(decision, "profile_id")),
-    ])
+    trace_id = _attribute(decision, "trace_id")
+    event_id = _attribute(decision, "source_event_id")
+    provenance = _provenance_block(
+        note_id=derive_note_id(
+            note_type=NoteType.DECISION, resource_type="decision",
+            resource_id=decision_id,
+            project_id=_attribute(decision, "project_id"),
+            profile_id=_attribute(decision, "profile_id"),
+        ),
+        resource_type="decision",
+        resource_id=decision_id,
+        project_id=_attribute(decision, "project_id"),
+        profile_id=_attribute(decision, "profile_id"),
+        lifecycle_status=lifecycle,
+        verification_status=None,
+        conflict_status=_conflict_status(lifecycle),
+        supersedes=_attribute(decision, "supersedes_id"),
+        replaced_by=_attribute(decision, "replaced_by"),
+        source_event_ids=(event_id,) if event_id else (),
+        source_trace_ids=(trace_id,) if trace_id else (),
+        session_id=_attribute(decision, "session_id"),
+        artifact_refs=_safe_artifact_refs(_attribute(decision, "linked_artifact_ids")),
+    )
 
     body = _sections(
         f"# Decision: {escape_inline(display_title)}",
@@ -669,8 +889,6 @@ def render_decision(decision: Any) -> ProjectedNote:
         provenance,
     )
 
-    trace_id = _attribute(decision, "trace_id")
-    event_id = _attribute(decision, "source_event_id")
     return _build_note(
         note_type=NoteType.DECISION,
         resource_type="decision",
@@ -697,7 +915,8 @@ def render_decision(decision: Any) -> ProjectedNote:
 # Requirement
 # ---------------------------------------------------------------------------
 
-def render_requirement(requirement: Any) -> ProjectedNote:
+def render_requirement(requirement: Any,
+                       registry: Optional[LinkRegistry] = None) -> ProjectedNote:
     """Render one authoritative Requirement record.
 
     A requirement exists here only because an authoritative requirement record
@@ -725,18 +944,39 @@ def render_requirement(requirement: Any) -> ProjectedNote:
         _bullet("Replaced by", _attribute(requirement, "replaced_by")),
     ])
 
+    trace_id = _attribute(requirement, "trace_id")
+    event_id = _attribute(requirement, "source_event_id")
     linked = "## Linked records\n\n" + "\n".join([
-        _bullet("Decisions", _attribute(requirement, "linked_decision_ids")),
-        _bullet("Artifacts", _attribute(requirement, "linked_artifact_ids")),
-        _bullet("Verifications", _attribute(requirement, "linked_verification_ids")),
+        _bullet("Decisions", _link_list(
+            registry, "decision", _attribute(requirement, "linked_decision_ids"))),
+        _bullet("Artifacts", _link_list(
+            registry, "artifact", _attribute(requirement, "linked_artifact_ids"))),
+        _bullet("Verifications", _link_list(
+            registry, "verification", _attribute(requirement, "linked_verification_ids"))),
     ])
 
-    provenance = "## Provenance\n\n" + "\n".join([
-        _bullet("Source event", _attribute(requirement, "source_event_id")),
-        _bullet("Trace", _attribute(requirement, "trace_id")),
-        _bullet("Session", _attribute(requirement, "session_id")),
-        _bullet("Profile", _attribute(requirement, "profile_id")),
-    ])
+    provenance = _provenance_block(
+        note_id=derive_note_id(
+            note_type=NoteType.REQUIREMENT, resource_type="requirement",
+            resource_id=requirement_id,
+            project_id=_attribute(requirement, "project_id"),
+            profile_id=_attribute(requirement, "profile_id"),
+        ),
+        resource_type="requirement",
+        resource_id=requirement_id,
+        project_id=_attribute(requirement, "project_id"),
+        profile_id=_attribute(requirement, "profile_id"),
+        lifecycle_status=lifecycle,
+        verification_status=_attribute(requirement, "verification_status"),
+        conflict_status=_conflict_status(lifecycle),
+        supersedes=_attribute(requirement, "supersedes"),
+        replaced_by=_attribute(requirement, "replaced_by"),
+        source_event_ids=(event_id,) if event_id else (),
+        source_trace_ids=(trace_id,) if trace_id else (),
+        session_id=_attribute(requirement, "session_id"),
+        artifact_refs=_safe_artifact_refs(
+            _attribute(requirement, "linked_artifact_ids")),
+    )
 
     body = _sections(
         f"# Requirement: {escape_inline(display_title)}",
@@ -748,8 +988,6 @@ def render_requirement(requirement: Any) -> ProjectedNote:
         provenance,
     )
 
-    trace_id = _attribute(requirement, "trace_id")
-    event_id = _attribute(requirement, "source_event_id")
     return _build_note(
         note_type=NoteType.REQUIREMENT,
         resource_type="requirement",
@@ -807,9 +1045,30 @@ def render_verification(verification: Any) -> ProjectedNote:
         "recorded subject."
     )
 
-    provenance = "## Provenance\n\n" + "\n".join([
-        _bullet("Source event", _attribute(verification, "source_event_id")),
-    ])
+    event_id = _attribute(verification, "source_event_id")
+    provenance = _provenance_block(
+        note_id=derive_note_id(
+            note_type=NoteType.VERIFICATION, resource_type="verification",
+            resource_id=verification_id,
+            project_id=_attribute(verification, "project_id"),
+            profile_id=None,
+        ),
+        resource_type="verification",
+        resource_id=verification_id,
+        project_id=_attribute(verification, "project_id"),
+        profile_id=None,
+        lifecycle_status=None,
+        verification_status=_attribute(verification, "verification_status"),
+        conflict_status=CONFLICT_NONE,
+        supersedes=None,
+        replaced_by=None,
+        source_event_ids=(event_id,) if event_id else (),
+        source_trace_ids=(),
+        session_id=_attribute(verification, "session_id"),
+        artifact_refs=_safe_artifact_refs(
+            _attribute(verification, "artifact_references")
+        ),
+    )
 
     body = _sections(
         f"# Verification: {escape_inline(verification_id)}",
@@ -819,7 +1078,6 @@ def render_verification(verification: Any) -> ProjectedNote:
         provenance,
     )
 
-    event_id = _attribute(verification, "source_event_id")
     return _build_note(
         note_type=NoteType.VERIFICATION,
         resource_type="verification",
@@ -845,6 +1103,173 @@ def render_verification(verification: Any) -> ProjectedNote:
     )
 
 
+# ---------------------------------------------------------------------------
+# M9.3 — conflict presentation (AUTHORIZED positions only; no winner, no leak)
+# ---------------------------------------------------------------------------
+
+#: Fixed, deterministic ordering of the position fields. No item here ranks the
+#: positions; the order is a presentation convention and is stated as such in
+#: the rendered note so a reader cannot mistake it for precedence.
+_POSITION_FIELDS: Final[Tuple[Tuple[str, str], ...]] = (
+    ("Decision ID", "decision_id"),
+    ("Statement", "statement"),
+    ("Project", "project_id"),
+    ("Scope", "scope"),
+    ("Decision key", "decision_key"),
+    ("Lifecycle", "lifecycle_status"),
+    ("State", "state"),
+    ("Effective at", "effective_at"),
+    ("Rationale reference", "rationale_ref"),
+    ("Alternatives", "alternatives"),
+    ("Source event", "source_event_id"),
+    ("Trace", "trace_id"),
+)
+
+_UNRESOLVED_NOTE: Final[str] = (
+    "> [!warning] Unresolved conflict\n"
+    "> These positions are recorded as conflicted in Zero-Mem. No position is "
+    "selected as the winner; this projection does not resolve, rank, score, or "
+    "choose among them. Resolve through the authoritative process."
+)
+
+
+def _position_block(record: Any) -> str:
+    """One authorized position, verbatim. No derived ordering, no winner flag."""
+    lines = [_bullet(label, _attribute(record, field))
+             for label, field in _POSITION_FIELDS]
+    return "\n".join(lines)
+
+
+def render_conflict(group: ConflictGroup) -> ProjectedNote:
+    """Render one Conflict note for an AUTHORIZED conflict group (plan-m9.md §19).
+
+    Every position present is from the already-authorized record set, so a
+    hidden position cannot appear, change the count, change the key, or imply a
+    hidden sibling through wording. The note states verbatim that the conflict
+    is UNRESOLVED and that no winner is chosen. It never promotes the highest-
+    scoring, newest, or most-calibrated item, and it never collapses the
+    conflict into a supersession.
+    """
+    group_id = conflict_resource_id(group)
+    title = f"Conflict: {group.display_key or group.conflict_key}"
+
+    position_blocks = [
+        f"### Position {idx + 1} (ID: {escape_inline(_attribute(p, 'decision_id'))})\n\n"
+        f"{_position_block(p)}"
+        for idx, p in enumerate(group.positions)
+    ]
+    body = _sections(
+        f"# {escape_inline(title)}",
+        _PROVENANCE_NOTE,
+        _UNRESOLVED_NOTE,
+        f"> [!note] Positions\n"
+        f"> {group.position_count} authorized position(s) are shown. "
+        f"Position order is a fixed presentation convention and implies "
+        f"no precedence, ranking, or resolution.",
+        "## Positions\n\n" + "\n\n".join(position_blocks),
+        _provenance_block(
+            note_id=group_id,
+            resource_type=group.resource_type,
+            resource_id=group_id,
+            project_id=group.project_id,
+            profile_id=None,
+            lifecycle_status=CONFLICTED_LIFECYCLE,
+            verification_status=None,
+            conflict_status=CONFLICT_CONFLICTED,
+            supersedes=None,
+            replaced_by=None,
+            source_event_ids=tuple(
+                e for e in (_attribute(p, "source_event_id") for p in group.positions)
+                if e),
+            source_trace_ids=tuple(
+                t for t in (_attribute(p, "trace_id") for p in group.positions) if t),
+            artifact_refs=(),
+        ),
+    )
+    return _build_note(
+        note_type=NoteType.CONFLICT,
+        resource_type=group.resource_type,
+        resource_id=group_id,
+        project_id=group.project_id,
+        profile_id=None,
+        display_title=title,
+        scope=group.project_id,
+        lifecycle_status=CONFLICTED_LIFECYCLE,
+        verification_status=None,
+        supersedes=None,
+        replaced_by=None,
+        source_trace_ids=(),
+        source_event_ids=(),
+        artifact_refs=(),
+        body=body,
+    )
+
+
+def render_conflict_queue(*, resource_type: str,
+                          groups: Sequence[ConflictGroup]) -> ProjectedNote:
+    """Render the per-resource-type UNRESOLVED Conflict Queue (plan-m9.md §19).
+
+    An index of conflicts this request is authorized to see. It links each
+    conflict to its note (navigation only) and states the position count per
+    conflict. A conflict the request may not see is absent, and the queue never
+    publishes a total-of-all-conflicts count that would leak hidden conflicts.
+    """
+    validated_type = validate_resource_type(resource_type)
+    title = f"Unresolved Conflicts — {validated_type}"
+    rows = []
+    for group in sorted(groups, key=lambda g: conflict_resource_id(g)):
+        link = _link_or_marker(
+            None, validated_type, group.conflict_key, display=group.display_key)
+        rows.append(
+            f"- {escape_inline(group.display_key or group.conflict_key)}: "
+            f"{group.position_count} position(s) — {link}")
+    queue = "## Unresolved conflicts\n\n" + (
+        "\n".join(rows) if rows else f"- {NONE_MARKER}")
+    body = _sections(
+        f"# {escape_inline(title)}",
+        _PROVENANCE_NOTE,
+        _UNRESOLVED_NOTE,
+        "> [!note] Scope\n"
+        "> Each entry lists only the conflicts this request is authorized to "
+        "see. The absence of an entry means no authorized conflict of this "
+        "type is present; it does not imply the absence of conflicts "
+        "elsewhere or outside this request's scope.",
+        queue,
+        _provenance_block(
+            note_id=f"conflict-queue:{validated_type}",
+            resource_type=validated_type,
+            resource_id=f"conflict-queue:{validated_type}",
+            project_id=None,
+            profile_id=None,
+            lifecycle_status=CONFLICTED_LIFECYCLE,
+            verification_status=None,
+            conflict_status=CONFLICT_CONFLICTED,
+            supersedes=None,
+            replaced_by=None,
+            source_event_ids=(),
+            source_trace_ids=(),
+            artifact_refs=(),
+        ),
+    )
+    return _build_note(
+        note_type=NoteType.CONFLICT_QUEUE,
+        resource_type=validated_type,
+        resource_id=f"conflict-queue:{validated_type}",
+        project_id=None,
+        profile_id=None,
+        display_title=title,
+        scope="global",
+        lifecycle_status=CONFLICTED_LIFECYCLE,
+        verification_status=None,
+        supersedes=None,
+        replaced_by=None,
+        source_trace_ids=(),
+        source_event_ids=(),
+        artifact_refs=(),
+        body=body,
+    )
+
+
 __all__ = [
     "GENERATED_BY",
     "MAX_FIELD_LENGTH",
@@ -860,4 +1285,10 @@ __all__ = [
     "render_decision",
     "render_requirement",
     "render_verification",
+    "render_conflict",
+    "render_conflict_queue",
+    "UNRESOLVED_LINK_MARKER",
+    "note_relative_path",
+    "safe_link_display",
+    "wiki_link",
 ]

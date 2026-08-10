@@ -110,6 +110,7 @@ class NoteType(str, Enum):
     REQUIREMENT = "requirement"        # Requirement
     VERIFICATION = "verification"      # Verification
     CONFLICT = "conflict"              # Conflict
+    CONFLICT_QUEUE = "conflict_queue"  # Unresolved Conflict Queue (index)
     ARTIFACT = "artifact"              # Artifact Reference
     RESEARCH_NOTE = "research_note"    # Research Note
     KNOWLEDGE_INDEX = "knowledge_index"  # Knowledge Index
@@ -126,6 +127,7 @@ NOTE_TYPE_DIRECTORIES: Final[Mapping[NoteType, str]] = {
     NoteType.REQUIREMENT: "Requirements",
     NoteType.VERIFICATION: "Verification",
     NoteType.CONFLICT: "Conflicts",
+    NoteType.CONFLICT_QUEUE: "Conflicts",
     NoteType.ARTIFACT: "Artifacts",
     NoteType.RESEARCH_NOTE: "Research",
     NoteType.KNOWLEDGE_INDEX: "Knowledge",

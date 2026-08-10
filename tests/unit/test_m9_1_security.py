@@ -208,9 +208,12 @@ class TestSensitivityVocabulary:
 
 class TestProjectionContracts:
     def test_curated_note_types_match_owner_approved_set(self):
+        # M9.3 added the conflict_queue index type (an aggregation of authorized
+        # conflicts); it is a curated projection type, not a new source category.
         assert {t.value for t in NoteType} == {
             "project", "decision", "requirement", "verification",
-            "conflict", "artifact", "research_note", "knowledge_index",
+            "conflict", "conflict_queue", "artifact", "research_note",
+            "knowledge_index",
         }
 
     def test_every_note_type_has_a_directory(self):

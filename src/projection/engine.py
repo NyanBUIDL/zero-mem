@@ -56,7 +56,12 @@ from .eligibility import (
     is_authorized_resource_type,
     is_eligible,
 )
+from .conflicts import group_conflicts
+from .identity import derive_note_id
+from .links import LinkRegistry, LinkTarget, note_relative_path
 from .render import (
+    render_conflict,
+    render_conflict_queue,
     render_decision,
     render_project_home,
     render_project_state,
@@ -154,6 +159,88 @@ def _eligible_records(items: Tuple[object, ...],
     return tuple(kept)
 
 
+def _build_link_registry(*,
+                          decisions: Tuple[object, ...] = (),
+                          requirements: Tuple[object, ...] = (),
+                          verifications: Tuple[object, ...] = (),
+                          state_rows: Tuple[object, ...] = (),
+                          charter=None) -> LinkRegistry:
+    """Build the authorized link universe from the SAME authorized+eligible set.
+
+    The registry is populated ONLY from records this request already authorized
+    and the eligibility filter already admitted. A record absent here is simply
+    unaddressable as a link — it cannot be named, counted, or implied (plan-m9.md
+    §5, §21). Targets are assembled from the verified M9.1 primitives and
+    re-validated by the link layer, so a target can never escape ``managed_root``
+    or embed hostile path/link syntax.
+    """
+    targets: List[LinkTarget] = []
+
+    def _add(resource_type: str, resource_id: object, note_type, record) -> None:
+        if not resource_id:
+            return
+        rid = str(resource_id)
+        # The link's note_id is the VERIFIED M9.1 deterministic identity, never
+        # the raw resource id. This keeps the link target identical to the file
+        # the writer actually creates (single source of truth).
+        note_id = derive_note_id(
+            note_type=note_type,
+            resource_type=resource_type,
+            resource_id=rid,
+            project_id=getattr(record, "project_id", None),
+            profile_id=getattr(record, "profile_id", None),
+        )
+        relative = note_relative_path(
+            note_type=note_type,
+            note_id=note_id,
+            display_title=getattr(record, "statement", None)
+            or getattr(record, "verification_id", None)
+            or getattr(record, "state_key", None)
+            or rid,
+            scope=getattr(record, "project_id", None),
+        )
+        targets.append(LinkTarget(
+            resource_type=resource_type,
+            resource_id=rid,
+            note_type=note_type,
+            note_id=note_id,
+            relative_path=relative,
+        ))
+
+    for record in decisions:
+        _add("decision", getattr(record, "decision_id", None), NoteType.DECISION, record)
+    for record in requirements:
+        _add("requirement", getattr(record, "requirement_id", None), NoteType.REQUIREMENT, record)
+    for record in verifications:
+        _add("verification", getattr(record, "verification_id", None), NoteType.VERIFICATION, record)
+    for record in state_rows:
+        _add("state", getattr(record, "state_key", None), NoteType.PROJECT, record)
+    if charter is not None:
+        pid = getattr(charter, "project_id", None) or getattr(charter, "charter_id", None)
+        if pid:
+            note_id = derive_note_id(
+                note_type=NoteType.PROJECT,
+                resource_type="charter",
+                resource_id=pid,
+                project_id=pid,
+                profile_id=None,
+            )
+            relative = note_relative_path(
+                note_type=NoteType.PROJECT,
+                note_id=note_id,
+                display_title=f"{pid} — Project Home",
+                scope=pid,
+            )
+            targets.append(LinkTarget(
+                resource_type="charter",
+                resource_id=pid,
+                note_type=NoteType.PROJECT,
+                note_id=note_id,
+                relative_path=relative,
+            ))
+    return LinkRegistry(targets)
+
+
 def project_project_home(
     service: AuthorizedReadService,
     request: AccessRequest,
@@ -197,6 +284,16 @@ def project_project_home(
     eligible_verifications = _eligible_records(verifications, ceiling, _ResourceType.VERIFICATION.value)
     eligible_state = _eligible_records(state_rows, ceiling, _ResourceType.STATE.value)
 
+    # M9.3 — the link universe is built from the SAME authorized+eligible set
+    # the notes are rendered from, so a link can never address a withheld record.
+    registry = _build_link_registry(
+        decisions=eligible_decisions,
+        requirements=eligible_requirements,
+        verifications=eligible_verifications,
+        state_rows=eligible_state,
+        charter=charter,
+    )
+
     # Each sub-collection is emitted only when its authorized read succeeded
     # AND produced authorized items. A denied/absent type contributes None,
     # which render_project_home omits entirely (no stub, no placeholder).
@@ -207,6 +304,7 @@ def project_project_home(
         decisions=eligible_decisions if (decisions_result.allowed and decisions) else None,
         requirements=eligible_requirements if (requirements_result.allowed and requirements) else None,
         verifications=eligible_verifications if (verifications_result.allowed and verifications) else None,
+        registry=registry,
     )
     return (home,)
 
@@ -224,6 +322,12 @@ def project_source_records(
     Project State is projected separately by :func:`project_project_state`
     because it aggregates the project's active state slot rather than emitting
     one note per row.
+
+    M9.3: the link universe is built from the SAME authorized+eligible decision/
+    requirement/verification records this call renders, so cross-note links can
+    never address a withheld record. Conflicts are grouped from the eligible
+    decision/state set M4 already marked ``conflicted`` and presented verbatim;
+    nothing here resolves, ranks, or infers them.
     """
     ceiling = config.sensitivity_ceiling
     notes: List[ProjectedNote] = []
@@ -231,20 +335,40 @@ def project_source_records(
     _, decisions = _read_authorized(
         service, request, project_id, _ResourceType.DECISION.value, grants=grants
     )
-    for record in _eligible_records(decisions, ceiling, _ResourceType.DECISION.value):
-        notes.append(render_decision(record))
-
+    eligible_decisions = _eligible_records(
+        decisions, ceiling, _ResourceType.DECISION.value)
     _, requirements = _read_authorized(
         service, request, project_id, _ResourceType.REQUIREMENT.value, grants=grants
     )
-    for record in _eligible_records(requirements, ceiling, _ResourceType.REQUIREMENT.value):
-        notes.append(render_requirement(record))
-
+    eligible_requirements = _eligible_records(
+        requirements, ceiling, _ResourceType.REQUIREMENT.value)
     _, verifications = _read_authorized(
         service, request, project_id, _ResourceType.VERIFICATION.value, grants=grants
     )
-    for record in _eligible_records(verifications, ceiling, _ResourceType.VERIFICATION.value):
+    eligible_verifications = _eligible_records(
+        verifications, ceiling, _ResourceType.VERIFICATION.value)
+
+    # Build the link universe from exactly the records about to be rendered.
+    registry = _build_link_registry(
+        decisions=eligible_decisions,
+        requirements=eligible_requirements,
+        verifications=eligible_verifications,
+    )
+
+    for record in eligible_decisions:
+        notes.append(render_decision(record, registry=registry))
+    for record in eligible_requirements:
+        notes.append(render_requirement(record, registry=registry))
+    for record in eligible_verifications:
         notes.append(render_verification(record))
+
+    # M9.3 — conflict presentation from AUTHORIZED, M4-marked-conflicted records
+    # only. Grouping is a join on M4's explicit conflict key, never an inference.
+    conflict_groups = group_conflicts(eligible_decisions, resource_type="decision")
+    if conflict_groups:
+        notes.append(render_conflict_queue(resource_type="decision", groups=conflict_groups))
+        for group in conflict_groups:
+            notes.append(render_conflict(group))
 
     return tuple(notes)
 
