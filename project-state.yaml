@@ -802,8 +802,8 @@ m8_increment_6_scope_notes: >-
 m9_plan_status: "approved"
 m9_overall_status: "in_progress"
 m9_status: "in_progress"
-m9_current_increment: increment_3
-m9_next_incomplete_increment: "M9.4"
+m9_current_increment: increment_4
+m9_next_incomplete_increment: "M9.5"
 m9_schema: "v9"
 m9_increment_1_status: "verified"
 m9_increment_1_name: "Projection contracts, configuration boundary, path-safety foundation"
@@ -933,4 +933,48 @@ m9_increment_3_scope_notes: >-
   8-type set. No manifest/incremental/retirement (M9.4), no edit-quarantine
   (M9.5). Canonical JSONL/SQLite untouched. Zero LLM, zero network, zero vault
   writes under test. Schema remains v9 — no migration.
+m9_increment_4_status: "verified"
+m9_increment_4_name: "Deterministic manifest + incremental update + safe stale retirement"
+m9_increment_4_evidence: acceptance-m9.4.md
+m9_increment_4_impl_tested_commit: c4ef440e0619aec59ca9b3b1b73d2c2696c067a1
+m9_increment_4_focused_result: "38 passed, 0 failed (0.72s)"
+m9_increment_4_regression_result: "1895 passed, 0 failed (M9.1 security/identity/paths/config 296, M9.2+M9.3 106, M5 250, M6.6 387, M7.3+M7 359, M8 497)"
+m9_increment_4_prebinding_canonical: "2793 passed, 3 skipped, 0 failed (isolated HOME)"
+m9_increment_4_real_vault_modified: false
+m9_increment_4_obsidian_config_modified: false
+m9_increment_4_scope_notes: >-
+  M9.4 adds the deterministic lifecycle layer over VERIFIED M9.1-M9.3: a
+  manifest that is the authoritative RECORD of projected state, a
+  deterministic rebuild, an incremental update that suppresses unchanged writes,
+  and a safe stale-retirement path guarded by the three-signal ownership rule
+  (plan-m9.md 12.1). The manifest is consulted only as DATA input to the
+  ownership proof, never as a source of authorization, visibility, or truth.
+  New modules manifest.py (ProjectionManifest/ManifestEntry, deterministic
+  JSON with sorted keys + note_id ordering, no absolute runtime paths,
+  in-manifest relative-path containment + traversal rejection, ownership-proof
+  helpers, load/store at _meta/manifest.json) and reconcile.py (reconcile():
+  desired-set reconcile + safe stale retirement + manifest written LAST;
+  rebuild(); ReconcileResult; three-signal gating). writer.py gains gated
+  overwrite_note/retire_note and WriteStatus UPDATED/RETIRED/
+  SKIPPED_UNSAFE_OWNERSHIP/SKIPPED_HUMAN_MODIFIED; engine.py gains
+  project_to_vault() (M9.2 pipeline -> reconcile). Deterministic byte-
+  equivalence across independent vaults and reverse source order verified.
+  Zero-write rerun verified (0 note bytes; already-current manifest not
+  rewritten). One authorized change writes exactly the affected set (changed
+  requirement re-created at its new deterministic path + old path retired +
+  embedding Project Home updated; no orphan). Three-signal ownership:
+  retirement/overwrite only when prior-manifest listing + root containment +
+  frontmatter marker all hold; human-owned/foreign/symlink-chain/unsafe files
+  never deleted or silently overwritten (SKIPPED_*, bytes preserved); a managed
+  note a human edited in place is not silently overwritten (M9.5 owns
+  resolution). Path/symlink safety: traversal/absolute/symlink-chain escape
+  rejected before any delete. No new public note type; Conflict uses
+  NoteType.CONFLICT, conflict_queue absent (pinned by integration test). M9.1
+  non-scope guards minimally updated to exempt the approved M9.4 surfaces
+  (manifest.py/reconcile.py) while keeping the M9.1 read/validate-only
+  boundary pinned. Canonical JSONL/SQLite untouched (m4.sqlite digest
+  identical before/after projection). Real operator vault and .obsidian/
+  untouched; every write is a tmp_path managed root. Zero LLM calls, zero
+  external network calls, no Hermes core change, no schema migration (v9), no
+  new dependencies.
 m10_status: "not_started"
