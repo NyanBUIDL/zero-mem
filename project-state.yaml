@@ -802,8 +802,8 @@ m8_increment_6_scope_notes: >-
 m9_plan_status: "approved"
 m9_overall_status: "in_progress"
 m9_status: "in_progress"
-m9_current_increment: increment_2
-m9_next_incomplete_increment: "M9.3"
+m9_current_increment: increment_3
+m9_next_incomplete_increment: "M9.4"
 m9_schema: "v9"
 m9_increment_1_status: "verified"
 m9_increment_1_name: "Projection contracts, configuration boundary, path-safety foundation"
@@ -896,4 +896,41 @@ m9_increment_2_scope_notes: >-
   operator vault and .obsidian/ untouched; every write is a tmp_path managed
   root. Canonical JSONL and SQLite immutable. Schema remains v9 — no migration.
   Zero LLM calls, zero external network calls, no Hermes core change.
+m9_increment_3_status: "verified"
+m9_increment_3_name: "Provenance, safe links, conflict and supersession presentation"
+m9_increment_3_evidence: acceptance-m9.3.md
+m9_increment_3_impl_tested_commit: ae5be21d85b021b1e4656138aa9deb21035410c8
+m9_increment_3_reconciliation_fix_commit: 067b589f5f232ecfa8e8073edeeb0f1d26e791b0
+m9_increment_3_focused_result: "34 passed, 0 failed (0.09s)"
+m9_increment_3_regression_result: "368 passed, 0 failed (M9.1 security/identity/paths/config + M9.2)"
+m9_increment_3_prebinding_canonical: "2755 passed, 3 skipped, 0 failed (14.54s)"
+m9_increment_3_real_vault_modified: false
+m9_increment_3_obsidian_config_modified: false
+m9_increment_3_scope_notes: >-
+  M9.3 PRESENTS the authorized M4 projection state; it creates, resolves,
+  ranks, or infers none. Three additions over M9.2: (1) an authorized-source
+  provenance block on every note (source event/trace IDs, artifact refs,
+  resource_type verbatim, project/profile context, lifecycle, verification
+  status, explicit supersession IDs) with no hidden source identity and fixed
+  label order; (2) safe wiki links between already-authorized notes built only
+  from the VERIFIED M9.1 identity/path contracts (navigation-only; hostile
+  display labels whitelisted to a stable machine identity; an unresolved
+  authorized reference renders a blind identical marker so existence of a
+  withheld record cannot leak); (3) honest unresolved-conflict presentation
+  from M4-marked-conflicted records grouped on M4's explicit conflict key,
+  plus explicit supersession/history presentation (supersedes_id/
+  replaced_by) that stays distinct from conflicted. New modules links.py
+  (LinkRegistry/LinkTarget, deterministic safe link identity) and conflicts.py
+  (authorized grouping only — conflict DETECTION is M4's authority). Pre-
+  acceptance scope reconciliation (Option B) removed the unapproved public
+  NoteType.CONFLICT_QUEUE: plan-m9.md 29 Q1 authorizes exactly eight curated
+  types (conflict is the sole conflict projection type), and the M9.3 "Conflict
+  Queue" index is now an aggregate NoteType.CONFLICT note (render_conflict_index)
+  with a stable aggregate note_id, so M9.1 identity/filename contracts and M9.4's
+  manifest still apply. The per-conflict Conflict projection is retained and
+  conflict visibility is fully preserved (every authorized position, no winner,
+  no total-of-all-conflicts leak). The M9.1 contract test was reverted to the
+  8-type set. No manifest/incremental/retirement (M9.4), no edit-quarantine
+  (M9.5). Canonical JSONL/SQLite untouched. Zero LLM, zero network, zero vault
+  writes under test. Schema remains v9 — no migration.
 m10_status: "not_started"
