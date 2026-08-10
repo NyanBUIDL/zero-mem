@@ -802,8 +802,8 @@ m8_increment_6_scope_notes: >-
 m9_plan_status: "approved"
 m9_overall_status: "in_progress"
 m9_status: "in_progress"
-m9_current_increment: increment_4
-m9_next_incomplete_increment: "M9.5"
+m9_current_increment: increment_5
+m9_next_incomplete_increment: "M9.6"
 m9_schema: "v9"
 m9_increment_1_status: "verified"
 m9_increment_1_name: "Projection contracts, configuration boundary, path-safety foundation"
@@ -977,4 +977,48 @@ m9_increment_4_scope_notes: >-
   untouched; every write is a tmp_path managed root. Zero LLM calls, zero
   external network calls, no Hermes core change, no schema migration (v9), no
   new dependencies.
+m9_increment_5_status: "verified"
+m9_increment_5_name: "Human ownership boundary + deterministic edit-conflict safe handling"
+m9_increment_5_evidence: acceptance-m9.5.md
+m9_increment_5_impl_tested_commit: ad03d0d5a6fdda7fe89cc046a0a67995d5fa262d
+m9_increment_5_focused_result: "29 passed, 0 failed (0.11s)"
+m9_increment_5_regression_result: "440 M9.1-M9.4 focused + 2822 canonical incl. M5/M6.6/M7/M8, 0 failed"
+m9_increment_5_prebinding_canonical: "2822 passed, 3 skipped, 0 failed (isolated HOME)"
+m9_increment_5_real_vault_modified: false
+m9_increment_5_obsidian_config_modified: false
+m9_increment_5_scope_notes: >-
+  M9.5 adds the explicit human-ownership boundary over the VERIFIED M9.1-M9.4
+  foundation, reusing the exact three-signal ownership rule (plan-m9.md 12.1) as
+  the single authority (src/projection/ownership.py: OwnershipClass /
+  OwnershipAssessment / classify_managed_file / conflict_sibling_relative_path).
+  New manifest contract EditConflict carries HASHES ONLY (human_fingerprint /
+  recorded_fingerprint / desired_fingerprint) - no content, no secret text;
+  edit_conflicts is an OPTIONAL envelope key so a pre-M9.5 manifest still loads
+  byte-for-byte (backward-safe), emitted unconditionally on write. reconcile.py
+  classifies each desired and retiring note with the three-signal test:
+  GENERATED_HUMAN_MODIFIED + canonical-changed -> human bytes preserved in place,
+  additive deterministic .zero-mem-new.md sibling written, exactly one
+  EditConflict record, entry status EDIT_CONFLICT, entry content_fingerprint kept
+  at the last managed-generated fingerprint so divergence stays detectable and
+  the conflict is stable across reruns; GENERATED_HUMAN_MODIFIED + canonical
+  unchanged -> HUMAN_MODIFIED (no sibling, no churn); the retirement loop skips
+  any human-divergent file (stale+edited preserved, never retired). Human-created
+  / unknown / spoofed files are never overwritten, never deleted, never adopted
+  (SKIPPED_UNSAFE_OWNERSHIP / SKIPPED_HUMAN_MODIFIED; bytes preserved). No
+  write-back of any kind; no Candidate Review; no conflict_queue; no new public
+  NoteType. Focused suite 29 passed; M9.1 296 / M9.2 72 / M9.3 34 / M9.4 38
+  regression suites green; prior-security (M5/M6.6/M7.3/M7/M8) included in
+  canonical with 0 failed. Two objectively-required M9.4 regression assertions
+  updated (envelope key set grew to include edit_conflicts; retirement-skips-
+  human-file accepts the M9.5-accurate SKIPPED_HUMAN_MODIFIED label alongside the
+  M9.4 SKIPPED_UNSAFE_OWNERSHIP - same load-bearing no-delete outcome). Real
+  operator vault and .obsidian/ untouched (every write is a tmp_path managed
+  root; real-vault content digest identical before/after). Canonical JSONL/SQLite
+  immutable. Zero LLM calls, zero external network calls, no Hermes core change,
+  no schema migration (v9), no new dependencies.
+m9_overall_status: "verified"
+m9_status: "verified"
+m9_current_increment: increment_5
+m9_next_incomplete_increment: "M9.6"
+m9_schema: "v9"
 m10_status: "not_started"

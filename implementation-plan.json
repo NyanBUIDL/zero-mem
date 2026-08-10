@@ -3,9 +3,9 @@
   "authority": "Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx",
   "status": "m9_in_progress",
   "current_milestone_status": "m9_in_progress",
-  "current_milestone_verification": "m9_1_verified",
-  "next_incomplete_milestone": "M9",
-  "next_milestone_status": "in_progress",
+  "current_milestone_verification": "m9_5_verified",
+  "next_incomplete_milestone": "M9.6",
+  "next_milestone_status": "not_started",
   "m8_increment_1_status": "verified",
   "m8_increment_1_impl_tested_commit": "bbc304183abdaff72fd8a65fccef6551190a520f",
   "m8_increment_1_evidence": "acceptance-m8.1.md",
@@ -73,9 +73,9 @@
   "m9_increment_4_focused_result": "38 passed, 0 failed (0.72s)",
   "m9_increment_4_regression_result": "1895 passed, 0 failed (M9.1 security/identity/paths/config 296, M9.2+M9.3 106, M5 250, M6.6 387, M7.3+M7 359, M8 497)",
   "m9_increment_4_prebinding_canonical": "2793 passed, 3 skipped, 0 failed (isolated HOME)",
-  "m9_increment_5_status": "not_started",
+  "m9_increment_5_status": "verified",
   "m9_increment_6_status": "not_started",
-  "m9_next_incomplete_increment": "M9.5",
+  "m9_next_incomplete_increment": "M9.6",
   "m9_schema_version": 9,
   "m10_status": "not_started",
   "scope": "External Zero-Mem sidecar for Hermes Agent; local-first, observation-only before controlled injection",
@@ -691,7 +691,7 @@
       "increment_6": {
         "name": "Retention tombstones, logical deletion, secret scanning, and rollback",
         "status": "verified",
-        "decision": "B — logical deletion only; canonical JSONL immutable and append-only",
+        "decision": "B \u2014 logical deletion only; canonical JSONL immutable and append-only",
         "evidence": "acceptance-m2-increment-6.md",
         "focused_test": "tests/unit/test_m2_tombstones.py",
         "focused_result": "35 passed in 1.52s",
@@ -1878,5 +1878,10 @@
     "M8.4",
     "M8.5",
     "M8.6"
-  ]
+  ],
+  "m9_increment_5_name": "Human ownership boundary + deterministic edit-conflict safe handling",
+  "m9_increment_5_evidence": "acceptance-m9.5.md",
+  "m9_increment_5_impl_tested_commit": "ad03d0d5a6fdda7fe89cc046a0a67995d5fa262d",
+  "m9_increment_5_focused_result": "29 passed, 0 failed (0.11s)",
+  "m9_increment_5_prebinding_canonical": "2822 passed, 3 skipped, 0 failed (isolated HOME)"
 }
