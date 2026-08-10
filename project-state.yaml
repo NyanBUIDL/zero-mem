@@ -668,7 +668,7 @@ m7_overall_status: "verified"
 m8_plan_status: "approved"
 m8_schema: "v9 (derived foundation + graph projection; M8.1-M8.2 scope)"
 m8_overall_status: "in_progress"
-m8_next_incomplete_increment: "M8.5"
+m8_next_incomplete_increment: "M8.6"
 
 m8_increment_1_status: "verified"
 m8_increment_1_name: "Contract Freeze and Derived-Index Foundation"
@@ -752,7 +752,28 @@ m8_increment_4_scope_notes: >
   isolation preserved. No M8.5 calibration, no M8.6 EvidenceSet, no M9/M10.
   No Hermes core change. No M6 tool change. No M7 change. Schema remains v9.
 
-m8_increment_5_status: "not_started"
+m8_increment_5_status: "verified"
+m8_increment_5_name: "Deterministic Calibration and Retrieval-Metadata Integration"
+m8_increment_5_evidence: acceptance-m8.5.md
+m8_increment_5_impl_tested_commit: 5e4d6fe86271c194a16627e71bfccacb7a988f2e
+m8_increment_5_focused_result: "96 passed, 0 failed"
+m8_increment_5_prebinding_canonical: "2285 passed, 3 skipped, 0 failed"
+m8_increment_5_schema: "v9"
+m8_increment_5_scope_notes: >-
+  Deterministic calibration engine (src/m8/calibration.py) + authorization-first
+  retrieval-metadata integration (src/m8/retrieval_metadata.py), both request-time
+  only (M8-OQ-6). Frozen 8-factor multiplicative score over approved closed
+  vocabularies; fails closed on any out-of-range/unknown input (no clamping);
+  exclusion before calibration; fixed deterministic tie-break
+  (score desc, resource_type asc, resource_id asc). Pure, read-only, no I/O,
+  no authorization, no LLM, no network. Calibration score is NOT authority:
+  verification/lifecycle echoed unchanged, never set or promoted. Retrieval
+  layer consumes the M5 AuthorizationDecision (never re-made); a denial/error
+  yields an empty unauthorized result leaking no existence/count/ordering; no
+  cache between calls so revocation is honoured immediately. No new tool
+  surface, no traversal, no result-limit change. Approved formula recorded in
+  plan-m8.md section 22.1 (authoritative for M8.5). No M8.6 EvidenceSet, no
+  M9/M10. No Hermes core change. Schema remains v9.
 m8_increment_6_status: "not_started"
 m9_status: "not_started"
 m10_status: "not_started"
