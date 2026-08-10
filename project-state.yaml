@@ -668,7 +668,7 @@ m7_overall_status: "verified"
 m8_plan_status: "approved"
 m8_schema: "v9 (derived foundation + graph projection; M8.1-M8.2 scope)"
 m8_overall_status: "in_progress"
-m8_next_incomplete_increment: "M8.4"
+m8_next_incomplete_increment: "M8.5"
 
 m8_increment_1_status: "verified"
 m8_increment_1_name: "Contract Freeze and Derived-Index Foundation"
@@ -728,7 +728,30 @@ m8_increment_3_scope_notes: >
   no M8.5 calibration, no M8.6 EvidenceSet integration, no M9/M10.
   No vectors/embeddings.
 
-m8_increment_4_status: "not_started"
+m8_increment_4_status: "verified"
+m8_increment_4_name: "Temporal Projection and Bounded As-Of / History Reads"
+m8_increment_4_evidence: acceptance-m8.4.md
+m8_increment_4_impl_tested_commit: 22ef685af8b29792e78b92f565a1257faf27bea4
+m8_increment_4_focused_result: "32 passed, 0 failed"
+m8_increment_4_prebinding_canonical: "2188 passed, 3 skipped, 0 failed"
+m8_increment_4_schema: "v9"
+m8_increment_4_scope_notes: >
+  Deterministic temporal projection (src/m8/temporal_projection.py, sole
+  writer of zm_temporal_index) + authorization-first bounded as-of/history
+  reads (src/m8/temporal_read.py). Projection reads authorized M4/event/
+  relation/artifact subsources and copies transaction (created_at) and
+  valid/effective (effective_at / valid_from-valid_until where actually
+  present) dimensions verbatim; no invented timestamps; malformed source
+  timestamps fail closed via M8.1 normalize_timestamp; lifecycle preserved
+  verbatim; scope/provenance preserved; rebuild deterministic and
+  insertion-order independent. Reads route every seed through
+  AuthorizedReadService (sole authority; no src.access.policy import);
+  as_of_match / within_window are pure predicates keeping transaction vs
+  valid distinct; limit ceiling 20; read-only; zero LLM/network; recency
+  != truth; supersession not inferred from timestamp. M6.6 resource_type
+  isolation preserved. No M8.5 calibration, no M8.6 EvidenceSet, no M9/M10.
+  No Hermes core change. No M6 tool change. No M7 change. Schema remains v9.
+
 m8_increment_5_status: "not_started"
 m8_increment_6_status: "not_started"
 m9_status: "not_started"
