@@ -799,5 +799,47 @@ m8_increment_6_scope_notes: >-
   embeddings/vectors; graceful degradation returns the unchanged upstream
   EvidenceSet on any failure. No Hermes core change. No M6 tool change. No
   schema change (v9).
-m9_status: "not_started"
+m9_plan_status: "approved"
+m9_overall_status: "in_progress"
+m9_status: "in_progress"
+m9_current_increment: increment_1
+m9_next_incomplete_increment: "M9.2"
+m9_schema: "v9"
+m9_increment_1_status: "verified"
+m9_increment_1_name: "Projection contracts, configuration boundary, path-safety foundation"
+m9_increment_1_evidence: acceptance-m9.1.md
+m9_increment_1_impl_tested_commit: 532f9efd9e17a9a1a99ac857b1cee89994707319
+m9_increment_1_focused_result: "292 passed, 0 failed (1.12s)"
+m9_increment_1_regression_result: "458 passed, 0 failed (M1 path/config, M5 authorization, M7.3 sensitivity, M7.5 hardening, M8.6 integration, baseline)"
+m9_increment_1_prebinding_canonical: "2645 passed, 3 skipped, 0 failed (21.12s)"
+m9_increment_1_real_vault_modified: false
+m9_increment_1_obsidian_config_modified: false
+m9_increment_1_scope_notes: >-
+  Safe foundation only: no note of any curated type is generated and no
+  production projection pipeline exists. New package src/projection with
+  contracts (closed NoteType/NoteStatus/ProjectionStatus vocabularies covering
+  the eight owner-approved §29 Q1 curated types, ProjectionRequest/
+  ProjectedNote/ProjectionResult, sanitized error hierarchy), deterministic
+  identity (canonical fields only — no uuid4, wall clock, PYTHONHASHSEED-
+  dependent hash, or rowid; total path-safe slug; domain-separated content
+  fingerprints), path safety (SUBTREE-only managed root under the configured
+  vault, physical os.path.realpath containment rather than lexical
+  is_relative_to, explicit symlink-chain rejection including a symlinked
+  managed root, constructive builders so content-controlled text can never
+  select a directory), and explicit-only configuration (argument, then
+  ZERO_MEM_OBSIDIAN_VAULT, then config/projection.yaml; no cwd/HOME/~Obsidian
+  fallback; unconfigured returns UNAVAILABLE silently and creates nothing
+  anywhere). Sensitivity reuses the canonical M1 vocabulary derived
+  programmatically from src/capture/event_types.Sensitivity — projection
+  ceiling internal, secret never projected at any ceiling, unknown sensitivity
+  or ceiling fails closed; the M7 retrieval default (private) is untouched and
+  the M7.3 corrective fix is not duplicated. Ownership requires all three
+  §12.1 signals; path containment alone is exposed only as a signal and a
+  human file at a generated target path is never claimed. M5 remains sole
+  authorization authority: requesting_profile_id is explicit (None stays None)
+  and grants are an opaque passthrough M9.1 never inspects. Real operator
+  vault read-only verified byte-identical before/after including .obsidian/.
+  No write-back. No manifest behaviour (M9.4). No renderer (M9.2+). Schema
+  remains v9 — no migration, no SQLite projection table. Zero LLM calls, zero
+  external network calls, no new third-party dependency, no Hermes core change.
 m10_status: "not_started"
