@@ -1068,3 +1068,41 @@ m9_increment_6_scope_notes: >-
   NOT touched (post-M10 audit). Zero LLM calls, zero external network calls, no
   Hermes core change, no schema migration (v9), no new dependencies.
 m10_status: "not_started"
+m10_plan_status: "approved"
+m10_plan_artifact: "plan-m10.md"
+m10_plan_status_note: "APPROVED / IMPLEMENTATION CONTRACT. All six owner decisions (Q1-Q6) resolved; three blocking clarifications folded in. M10 implementation NOT started; M10.1 pending. No migration, no product code until M10.1 begins."
+m10_plan_approval_status: "approved"
+m10_plan_approved_by: "owner"
+m10_plan_approved_scope: "current corrected plan-m10.md only; no silent scope broadening"
+m10_current_increment: "none"
+m10_increments_proposed:
+  - m10_1_corpus_source_registry_and_auth
+  - m10_2_multi_format_ingestion_and_extraction_pdf_txt
+  - m10_3_normalization_dedup_versioning
+  - m10_4_derived_storage_and_indexing_migrate_10
+  - m10_5_hybrid_retrieval_and_evidenceset_optional_semantic
+  - m10_6_graph_and_optional_enrichment
+  - m10_7_large_corpus_rollout_benchmark_final_acceptance
+m10_increment_count: 7
+m10_deferred_outside_m10:
+  - "corpus_obsidian_projection: DEFERRED per owner decision Q5 (Option B); NOT an M10 increment; no auto-created M11; optional future/release enhancement reusing M9 contracts"
+m10_schema_recommendation: "stay v9 through M10.1-M10.3; introduce derived-only migrate_10 (v9 to v10) at M10.4; derived-store migration-version change only, does NOT alter canonical memory authority; canonical corpus = blob store + corpus_sources.jsonl"
+m10_new_mandatory_dependencies: "none (optional parser/vector adapters only)"
+m10_owner_review_status: "complete"
+m10_owner_review_artifact: "review-m10.md"
+m10_owner_review_verdict: "APPROVE_WITH_CHANGES"
+m10_owner_review_blocking_changes: 3
+m10_owner_decisions_status: "all_resolved"
+m10_owner_decisions_remaining: 0
+m10_owner_decisions:
+  - "Q1 corpus resource-type granularity — RESOLVED / OPTION A (two distinct types: corpus_source + corpus_unit; preserve M6.6 isolation; mirror into M8)"
+  - "Q2 semantic/vector retrieval — RESOLVED / OPTION A (optional local-only adapter; NOT core-blocking; absence-safe; no cloud/paid API mandatory; not embed-everything)"
+  - "Q3 corpus storage root resolution — RESOLVED (repo convention; explicit/config-only; Option A)"
+  - "Q4 domain field free-vs-closed — RESOLVED (task spec; free optional, unknown domain valid; Option A)"
+  - "Q5 Obsidian corpus projection — RESOLVED / OPTION B (deferred outside M10; M10.8 removed; no auto M11)"
+  - "Q6 first adapter set — RESOLVED / OPTION A (universal FormatAdapter + PDF + TXT first; format-neutral)"
+m10_review_summary: "Architecturally sound; extends M1-M9 cleanly (M5 auth, M7 EvidenceSet, M8 graph, M9 Obsidian). Three blocking clarifications folded in: (1) every corpus read routes through AuthorizedReadService (no bypass); (2) explicit corpus redaction adapter reusing M1 fail-closed + M9 non-disableable baseline; (3) M10.3 coarse unit_kind only. All six owner decisions resolved (Q1 A, Q2 A, Q3, Q4, Q5 B, Q6 A). Final sequence = 7 increments (M10.1-M10.7; no M10.8). Schema: stay v9 through M10.3, derived-only migrate_10 at M10.4. No mandatory new deps."
+m10_owner_review_clarifications_folded_into_plan:
+  - "auth_routing_invariant: every corpus read routes through AuthorizedReadService; no direct SQLite/FTS/JSONL bypass; static/regression guard (plan §3.1, §6.1, §9, M10.1/M10.5)"
+  - "corpus_redaction_adapter: src/corpus/redact.py reuses M1 fail-closed rules + M9 non-disableable baseline on extracted corpus text (plan §4.1, §6, M10.2)"
+  - "coarse_unit_kind: M10.3 unit_kind trimmed to coarse structural set; semantic subtypes deferred to optional M10.6 enrichment (plan M10.3)"
