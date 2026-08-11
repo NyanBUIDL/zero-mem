@@ -214,11 +214,12 @@ def test_m9_effective_parsed_state_is_verified() -> None:
     M10.1 (Corpus Source Registry + Authorization Boundary), M10.2
     (Multi-format Ingestion + Structural Extraction), M10.3
     (Normalization + Deduplication + Versioning), M10.4
-    (Derived Corpus Storage + Indexing, migrate_10 -> schema v10), and M10.5
-    (Hybrid Retrieval + EvidenceSet Integration) and M10.6
-    (Derived authorization-safe corpus graph + optional enrichment boundary)
-    are VERIFIED.
-    This baseline reflects the genuine post-M10.6 state.
+    (Derived Corpus Storage + Indexing, migrate_10 -> schema v10), M10.5
+    (Hybrid Retrieval + EvidenceSet Integration), M10.6
+    (Derived authorization-safe corpus graph + optional enrichment boundary),
+    and M10.7 (Large-Corpus Rollout + Benchmark + Final M10 Acceptance) are
+    VERIFIED -- so M10 overall is VERIFIED.
+    This baseline reflects the genuine post-M10.7 state.
     """
     state = _effective_state(_state_text())
     assert state["m9_plan_status"] == "approved"
@@ -232,11 +233,18 @@ def test_m9_effective_parsed_state_is_verified() -> None:
     assert state["m9_increment_6_status"] == "verified"
     assert state["m9_next_incomplete_increment"] == "none"
     assert state["m9_schema"] == "v9"
-    # M10 plan APPROVED; M10.1-M10.6 verified; M10.7 pending.
+    # M10 plan APPROVED; M10.1-M10.7 verified; M10 COMPLETE.
     assert state["m10_plan_status"] == "approved"
-    assert state["m10_status"] == "in_progress"
-    assert state["m10_current_increment"] == "m10_6_graph_and_optional_enrichment"
+    assert state["m10_status"] == "verified"
+    assert state["m10_current_increment"] == (
+        "m10_7_large_corpus_rollout_benchmark_final_acceptance"
+    )
     assert state["m10_current_increment_status"] == "verified"
+    # M10 is the final approved milestone: no M10.8 and no M11 may be invented.
+    # _effective_state yields raw scalar STRINGS, so compare as text.
+    assert state["m10_increment_count"] == "7"
+    assert "m10_8" not in _state_text()
+    assert "m11_" not in _state_text()
 
 
 def test_m9_duplicate_key_shadowing_is_detected() -> None:
