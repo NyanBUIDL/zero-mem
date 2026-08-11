@@ -210,8 +210,11 @@ def test_m9_state_binding_keys_are_each_present_exactly_once() -> None:
 def test_m9_effective_parsed_state_is_verified() -> None:
     """Assert the EFFECTIVE (parsed) M9 binding, not its textual appearance.
 
-    After M9.6 acceptance, M9 overall is VERIFIED; M9.1-M9.6 are verified;
-    M10 has not started; schema remains v9.
+    M9 overall is VERIFIED; M9.1-M9.6 are verified. The M10 plan is APPROVED and
+    M10.1 (Corpus Source Registry + Authorization Boundary) is IN PROGRESS
+    (no ingestion, no migration, schema remains v9). This baseline reflects the
+    genuine post-approval state — it is NOT the stale pre-approval expectation
+    that M10 was not started.
     """
     state = _effective_state(_state_text())
     assert state["m9_plan_status"] == "approved"
@@ -225,7 +228,10 @@ def test_m9_effective_parsed_state_is_verified() -> None:
     assert state["m9_increment_6_status"] == "verified"
     assert state["m9_next_incomplete_increment"] == "none"
     assert state["m9_schema"] == "v9"
-    assert state["m10_status"] == "not_started"
+    # M10 plan APPROVED; M10.1 implementation IN PROGRESS (approved owner directive).
+    assert state["m10_plan_status"] == "approved"
+    assert state["m10_status"] == "in_progress"
+    assert state["m10_current_increment"] == "m10_1_corpus_source_registry_and_auth"
 
 
 def test_m9_duplicate_key_shadowing_is_detected() -> None:

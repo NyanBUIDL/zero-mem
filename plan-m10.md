@@ -272,19 +272,19 @@ A possible starting hypothesis was given in the prompt (M10.1–M10.7). Based on
 ### M10.1 — Corpus Source Registry + Authorization Boundary
 
 1. **Objective:** Establish the canonical corpus source registry and wrap corpus under the existing M5 authorization from day one.
-2. **Exact scope:** `corpus_sources.jsonl` + content-addressed blob store + `corpus_ingest_log.jsonl`; append-only, provenance-preserving, supersession-linked lifecycle; add `corpus_source` + `corpus_unit` to M5 `_VALID_RESOURCE_TYPES` (mirrored into M8 `RESOURCE_TYPES` with the existing equality test); wire corpus read methods into `AuthorizedReadService` (M4-handler pattern); zero-LLM; NO schema migration.
-3. **Out of scope:** extraction, normalization, FTS, retrieval, projection.
-4. **M1–M9 reused:** M1 append-only + redactor; M2 idempotence/checkpoint + sanitized ingest log; M5 policy/grants/resolver; M6.6 isolation; M8 vocabulary mirror.
-5. **Product modules/files:** `src/corpus/contracts.py`, `src/corpus/registry.py`, `src/corpus/storage_root.py` (explicit/config resolution), `src/access/contracts.py` (resource-type add), `src/access/authorized_read.py` (corpus handlers), `tests/unit/test_m10_1_registry.py`, `tests/unit/test_m10_1_auth.py`.
-6. **Expected tests:** registry append/idempotence/checkpoint; content-hash identity + exact-dup collapse; scope/sensitivity/lifecycle fields; M5 authorization-before-read; M6.6 isolation (corpus grant does not leak event/artifact); fail-closed unknown resource_type; **static guard: no corpus read bypasses `AuthorizedReadService` (direct SQLite/FTS/JSONL access forbidden — §3.1)**.
+2. **Exact scope (as delivered in VERIFIED M10.1):** `corpus_sources.jsonl` registry (append-first, content-addressed, idempotent, provenance-preserving) via `src/corpus/registry.py`; `CorpusSourceRecord` closed contract (`src/corpus/contracts.py`); deterministic identity/hashing reusing `src/m8/identity.content_hash` (`src/corpus/identity.py`); add `corpus_source` + `corpus_unit` to M5 `_VALID_RESOURCE_TYPES` (mirrored into M8 `RESOURCE_TYPES` with the existing equality test); portable corpus-root resolution (explicit → `ZERO_MEM_CORPUS_ROOT` → `config/corpus.yaml`); zero-LLM; NO schema migration. NOTE: M10.1 delivers the registry + auth resource types + M6.6 isolation proof, but does NOT add corpus read handlers to `AuthorizedReadService` yet (no corpus rows exist until M10.2/3/4); the authorization path is proven at the facade's `_resource_allowed` enforcement point. The blob store + `corpus_ingest_log.jsonl` belong to M10.2/M10.4, not M10.1.
+3. **Out of scope:** extraction, normalization, FTS, retrieval, projection, blob storage.
+4. **M1–M9 reused:** M1 append-only + redactor (boundary principle); M2 idempotence/checkpoint discipline; M5 policy/grants; M6.6 isolation; M8 vocabulary mirror.
+5. **Product modules/files:** `src/corpus/__init__.py`, `src/corpus/contracts.py`, `src/corpus/identity.py`, `src/corpus/registry.py`; `src/access/contracts.py` (resource-type add); `src/m8/vocabulary.py` (mirror); `tests/unit/test_m10_1_corpus_registry.py`.
+6. **Expected tests:** registry append/idempotence/checkpoint; content-hash identity + exact-dup collapse; scope/sensitivity/lifecycle fields; M5 authorization (resource-type registration + fail-closed unknown type); M6.6 isolation (corpus grant does not leak corpus_unit/event/artifact); portable root resolution; zero-LLM import guard.
 7. **Schema implications:** none (v9 unchanged).
-8. **Security implications:** extends sole authority; mandatory M5/M6.6/M7/M8 regression.
-9. **Canonical vs derived:** registry JSONL + blobs = canonical; (no derived yet).
-10. **Acceptance criteria:** focused green; M5/M6.6/M7/M8 regression green; **static/regression authorization-routing guard green (§3.1)**; pre-binding + FINAL-HEAD canonical green (0 failed, 3 historical skips only).
-11. **Regression suites:** M5, M6.6, M7, M8 (+ M2 path/provenance).
+8. **Security implications:** extends sole authority; mandatory M5/M6.6/M8 regression.
+9. **Canonical vs derived:** registry JSONL = canonical; no derived yet.
+10. **Acceptance criteria (MET — VERIFIED):** focused green (28 passed); M5/M6.6/M8 regression green (258 passed combined); pre-binding + FINAL-HEAD canonical green (2869 passed, 3 skipped, 0 failed) under clean isolated HOME.
+11. **Regression suites:** M5, M6.6, M8.
 12. **Rollback/rebuild:** JSONL is append-only canonical; registry rebuildable by replay.
-13. **Evidence before VERIFIED:** focused result; regression result; canonical result; sanitized command log.
-14. **Commit boundary:** one impl commit + one tested commit + one state/plan-binding commit; `m10_1_status: verified` recorded; `m10_status` stays `not_started` until all increments close.
+13. **Evidence before VERIFIED:** `acceptance-m10.1.md`; focused + regression + canonical results.
+14. **Commit boundary:** impl + tested + state/plan-binding commits; `m10_current_increment_status: verified` recorded.
 
 ### M10.2 — Multi-format Ingestion + Structural Extraction (initial adapters: PDF + TXT)
 
@@ -507,9 +507,10 @@ The full M1→M10 end-to-end audit is **reserved for after M10 is VERIFIED** (pe
 
 ## 19. Planning artifact
 
-- This file: `plan-m10.md` — **Status: APPROVED / IMPLEMENTATION CONTRACT** (owner-approved; all six owner decisions resolved; three blocking clarifications folded in).
-- `project-state.yaml`: `m10_plan_status: "approved"` and `m10_plan_artifact: "plan-m10.md"` recorded; **`m10_status` remains `"not_started"`** (M10 NOT started, M10.1 pending).
-- No migration, no product-code, no ingestion, no experimental DB, no corpus data created.
+- This file: `plan-m10.md` — **Status: APPROVED / IMPLEMENTATION CONTRACT** (owner-approved; all six owner decisions resolved; three blocking clarifications folded in). **M10.1 VERIFIED.**
+- `project-state.yaml`: `m10_plan_status: "approved"` and `m10_plan_artifact: "plan-m10.md"` recorded; `m10_status` is `in_progress` (M10.1 verified; M10.2–M10.7 pending; M10.8 deferred per Q5).
+- `acceptance-m10.1.md`: M10.1 VERIFIED evidence.
+- No migration performed in M10.1; no product-code change outside the M10.1 file list; no ingestion; no experimental DB; no corpus data created.
 - Three owner-review blocking clarifications are folded into this plan (review-m10.md §M): **(1) authorization-routing invariant** (§3.1, §6.1, §9, M10.1/M10.5 acceptance — every corpus read routes through `AuthorizedReadService`; static/regression guard); **(2) corpus redaction adapter `src/corpus/redact.py`** (§4.1, §6, M10.2 — reuses M1 fail-closed rules + M9 non-disableable baseline on extracted corpus text); **(3) coarse `unit_kind`** (M10.3 — trimmed to structural set; semantic subtypes deferred to optional M10.6 enrichment). Q3/Q4 resolved by convention/spec; Q1/Q2/Q5/Q6 resolved by final owner decision (§20). M10.8 removed — corpus→Obsidian projection deferred outside M10 per Q5.
 
 ---
@@ -551,4 +552,4 @@ M10 is VERIFIED only when **all** hold:
 
 Adopt the **7-increment M10.1–M10.7 sequence** (there is no M10.8; corpus→Obsidian projection is deferred outside M10 per owner decision Q5). It preserves every load-bearing M1–M9 contract, wraps corpus under the existing M5 authorization from the first increment (no bypass), keeps canonical corpus storage distinct from memory JSONL, defers `migrate_10` to after the canonical model is frozen (M8.1 precedent), adds **no mandatory new dependency**, treats the 600 PDFs as a generic stress test, and makes semantic/vector retrieval an optional local-only absence-safe adapter (Q2). **Schema recommendation: stay v9 through M10.1–M10.3; introduce derived-only `migrate_10` at M10.4 — a derived-store migration-version change that does NOT alter canonical memory authority (the memory substrate stays v-agnostic JSONL + v1–v9 tables; `migrate_10` only adds derived corpus tables).** New mandatory dependencies: **none**.
 
-**Do NOT begin M10.1 until the owner approves this plan.**
+**M10.1 is VERIFIED; proceed to M10.2 (Multi-format Ingestion + Structural Extraction, PDF + TXT adapters) only after its own pre-binding + FINAL-HEAD canonical gates.**

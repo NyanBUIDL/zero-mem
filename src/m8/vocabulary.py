@@ -40,6 +40,8 @@ RESOURCE_TYPES: Final[FrozenSet[str]] = frozenset({
     "verification",
     "artifact",
     "project_artifact",
+    "corpus_source",
+    "corpus_unit",
 })
 
 

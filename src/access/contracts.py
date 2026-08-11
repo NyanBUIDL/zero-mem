@@ -49,6 +49,7 @@ class Operation(str, Enum):
 _VALID_RESOURCE_TYPES = {
     "event", "trace", "relation", "charter", "requirement",
     "decision", "state", "verification", "artifact", "project_artifact",
+    "corpus_source", "corpus_unit",
 }
 
 
