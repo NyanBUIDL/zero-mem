@@ -126,6 +126,68 @@ def test_pdf_valid_extraction_has_page_provenance():
     assert "Hello Corpus World" in res.units[0].text
 
 
+def test_sample_pdf_fixture_is_structurally_valid():
+    """PERMANENT REGRESSION (M10.7).
+
+    The ``sample.pdf`` fixture must be a genuinely parseable PDF, not merely a
+    file starting with ``%PDF``. The original hand-written fixture declared
+    ``xref`` offsets and a ``startxref`` that did not match its own byte layout,
+    so a conforming parser resolved the trailer onto ``5 0 obj /Type /Font``
+    and reported ``corrupt_source``. That defect stayed invisible for the whole
+    of M10.2-M10.6 because the only tests that read it through the real parser
+    were skipped while the optional parser was absent.
+
+    This check is parser-INDEPENDENT: it validates the fixture's internal
+    self-consistency from raw bytes, so it fails even when ``pypdf`` is not
+    installed and can never be masked by a skip again.
+    """
+    data = (FIX / "sample.pdf").read_bytes()
+    assert data.startswith(b"%PDF-"), "fixture lost its PDF header"
+
+    # startxref must point at the real xref table. Locate it by the leading
+    # newline so the substring inside the trailing "startxref" keyword cannot
+    # be mistaken for the table itself.
+    tail = data.rsplit(b"startxref", 1)
+    assert len(tail) == 2, "fixture has no startxref"
+    declared = int(tail[1].strip().split()[0])
+    actual = data.rfind(b"\nxref\n") + 1
+    assert actual > 0, "fixture has no xref table"
+    assert declared == actual, (
+        f"startxref {declared} does not point at the xref table at {actual}"
+    )
+    assert data[declared:declared + 5] == b"xref\n", (
+        "startxref does not resolve onto the xref keyword"
+    )
+
+    # Every xref entry offset must land exactly on its own "N 0 obj" header.
+    xref_body = data[actual:].split(b"trailer", 1)[0].splitlines()
+    entries = [ln for ln in xref_body[2:] if ln.endswith(b"n ")]
+    assert entries, "fixture xref table has no in-use entries"
+    for index, entry in enumerate(entries, start=1):
+        offset = int(entry.split()[0])
+        expected = f"{index} 0 obj".encode("ascii")
+        assert data[offset:offset + len(expected)] == expected, (
+            f"xref entry {index} offset {offset} does not point at {expected!r}"
+        )
+
+
+def test_corrupt_pdf_fixture_is_not_accidentally_valid():
+    """Guard the negative fixture: ``corrupt.pdf`` must stay unparseable.
+
+    Prevents the inverse failure mode of the M10.7 fixture defect — a
+    "corrupt" fixture that silently becomes valid would make the
+    ``corrupt_source`` classification test vacuous.
+    """
+    data = (FIX / "corrupt.pdf").read_bytes()
+    assert data.startswith(b"%PDF-")
+    assert b"startxref" not in data, "corrupt fixture must not gain a valid xref"
+
+    if PYPDF_AVAILABLE:
+        adapter = PdfAdapter()
+        res = adapter.extract(source_ref="s#bad", content=data, kind_hint="pdf")
+        assert res.status == ExtractionStatus.CORRUPT_SOURCE.value
+
+
 # ---------------------------------------------------------------------------
 # Blob store (canonical source artifact; path safety)
 # ---------------------------------------------------------------------------
