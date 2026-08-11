@@ -476,11 +476,12 @@ def _commit(service, request, config, project_id, notes, *,
     """
     ordered = tuple(sorted(set(notes), key=lambda n: (n.relative_path, n.note_id)))
     # The content backstop is the defense for secret-shaped material that reaches
-    # the sensitivity-agnostic derived substrate. It must ALWAYS run: an empty
-    # caller-supplied pattern list must fall back to the built-in baseline, never
-    # disable the backstop (M9.6 regression: the real CLI defaulted to () and
-    # leaked a secret verification observed_result).
-    effective_patterns = secret_patterns or DEFAULT_SECRET_PATTERNS
+    # the sensitivity-agnostic derived substrate. The built-in baseline is
+    # MANDATORY and non-disableable: caller patterns EXTEND it, never replace it
+    # (M9 contract). A non-empty custom list must NOT drop the baseline (the
+    # previous ``secret_patterns or DEFAULT_SECRET_PATTERNS`` form did — a custom
+    # --secret-pattern would have disabled the baseline and re-opened the V9 leak).
+    effective_patterns = tuple(dict.fromkeys(DEFAULT_SECRET_PATTERNS + tuple(secret_patterns)))
     kept = []
     for note in ordered:
         if any(pat in note.content for pat in effective_patterns):

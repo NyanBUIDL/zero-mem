@@ -538,3 +538,72 @@ def test_secret_verification_v9_withheld_via_actual_cli_entrypoint(tmp_path):
     assert fx.SECRET not in tree_text, f"CLI leaked secret marker {fx.SECRET!r}"
     # Positive control: V1 was written.
     assert list((vault / "Zero-Mem").rglob("*v1*")), "CLI did not project V1"
+
+
+CUSTOM_MARKER = "CUSTOM-PAT-9f3a-leak"
+
+
+def _add_custom_marker_verification(store):
+    """Inject a second verification (VC) whose observed_result is a CUSTOM secret
+    marker (distinct from the baseline marker), mirroring V9's eligible shape so
+    it would project under internal ceiling if not withheld by the backstop."""
+    v9 = store.conn.execute(
+        "SELECT project_id, method, command_ref, tested_commit, source_event_id, "
+        "timestamp, verification_status, artifact_references "
+        "FROM zm_verifications WHERE verification_id='V9'"
+    ).fetchone()
+    store.conn.execute(
+        "INSERT INTO zm_verifications "
+        "(verification_id, project_id, method, command_ref, observed_result, "
+        "tested_commit, source_event_id, timestamp, verification_status, "
+        "artifact_references) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        ("VC", v9[0], v9[1], v9[2], CUSTOM_MARKER, v9[3], v9[4], v9[5],
+         v9[6], v9[7]),
+    )
+    store.conn.commit()
+
+
+def test_secret_baseline_non_disableable_with_custom_patterns(tmp_path):
+    """M9 contract: the built-in secret baseline is MANDATORY and non-disableable.
+
+    Caller-supplied ``--secret-pattern`` values must EXTEND the baseline, never
+    replace it. Proves simultaneously:
+
+    * DEFAULT baseline marker (SK-M9-2-SECRET-XYZ / V9) blocked with NO caller
+      patterns (empty list -> baseline still applies);
+    * DEFAULT baseline marker still blocked with a NON-EMPTY custom pattern list
+      (the regression being fixed: ``or`` semantics would have dropped the
+      baseline and re-opened the leak);
+    * a CUSTOM marker (VC) is ALSO blocked when the operator supplies it;
+    * authorized non-secret content (V1) still projects (positive control).
+    """
+    # 1+2: baseline marker blocked whether or not custom patterns are supplied.
+    for custom in ((), ("SOME_OTHER_OPERATOR_PATTERN",)):
+        r, cfg = _project(tmp_path, name=f"v_{len(custom)}",
+                          secret_patterns=custom)
+        assert not any("v9" in n.relative_path for n in r.notes), \
+            f"baseline V9 leaked despite custom={custom!r}"
+        active = [e for e in r.manifest.entries if e.is_active]
+        assert all(e.resource_id != "V9" for e in active)
+        # Positive control: V1 still projects.
+        assert any("v1" in n.relative_path for n in r.notes), \
+            f"V1 non-secret must project despite custom={custom!r}"
+
+    # 3: a CUSTOM marker is also withheld when the operator supplies it.
+    r2, cfg2 = _project(
+        tmp_path, name="vcustom", secret_patterns=(CUSTOM_MARKER,),
+        corpus_mutator=_add_custom_marker_verification,
+    )
+    # V9 (baseline marker) withheld even with a non-empty custom list.
+    assert not any("v9" in n.relative_path for n in r2.notes), \
+        "baseline V9 leaked under non-empty custom pattern list"
+    # VC (custom marker) withheld because the operator supplied its pattern.
+    assert not any("vc" in n.relative_path for n in r2.notes), \
+        "custom-marker VC must be withheld when its pattern is supplied"
+    tree = "\n".join(p.read_text(errors="replace")
+                      for p in cfg2.managed_root.rglob("*.md"))
+    assert CUSTOM_MARKER not in tree, "custom marker leaked"
+    assert fx.SECRET not in tree, "baseline marker leaked under custom list"
+    # Positive control: V1 still projected.
+    assert any("v1" in n.relative_path for n in r2.notes), \
+        "V1 non-secret must project alongside custom patterns"
