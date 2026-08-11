@@ -228,10 +228,11 @@ def test_m9_effective_parsed_state_is_verified() -> None:
     assert state["m9_increment_6_status"] == "verified"
     assert state["m9_next_incomplete_increment"] == "none"
     assert state["m9_schema"] == "v9"
-    # M10 plan APPROVED; M10.1 implementation IN PROGRESS (approved owner directive).
+    # M10 plan APPROVED; M10.1 + M10.2 verified; M10.3-M10.7 pending.
     assert state["m10_plan_status"] == "approved"
     assert state["m10_status"] == "in_progress"
-    assert state["m10_current_increment"] == "m10_1_corpus_source_registry_and_auth"
+    assert state["m10_current_increment"] == "m10_2_multi_format_ingestion_and_extraction_pdf_txt"
+    assert state["m10_current_increment_status"] == "verified"
 
 
 def test_m9_duplicate_key_shadowing_is_detected() -> None:

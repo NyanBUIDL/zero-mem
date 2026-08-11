@@ -1068,18 +1068,17 @@ m9_increment_6_scope_notes: >-
   NOT touched (post-M10 audit). Zero LLM calls, zero external network calls, no
   Hermes core change, no schema migration (v9), no new dependencies.
 m10_status: "in_progress"
-m10_status_note: "M10.1 VERIFIED (Corpus Source Registry + Authorization Boundary, schema v9). M10.2-M10.7 not started; M10.8 deferred. Next: M10.2."
+m10_status_note: "M10.1 VERIFIED; M10.2 VERIFIED (Multi-format Ingestion + Structural Extraction, PDF+TXT, schema v9). M10.3-M10.7 not started; M10.8 deferred. Next: M10.3."
 m10_plan_status: "approved"
 m10_plan_artifact: "plan-m10.md"
 m10_plan_status_note: "APPROVED / IMPLEMENTATION CONTRACT. All six owner decisions (Q1-Q6) resolved; three blocking clarifications folded in. M10.1 implementation in progress; M10.2-M10.7 pending."
 m10_plan_approval_status: "approved"
 m10_plan_approved_by: "owner"
 m10_plan_approved_scope: "current corrected plan-m10.md only; no silent scope broadening"
-m10_current_increment: "m10_1_corpus_source_registry_and_auth"
+m10_current_increment: "m10_2_multi_format_ingestion_and_extraction_pdf_txt"
 m10_current_increment_status: "verified"
-m10_current_increment_plan: "plan-m10.1.md"
-m10_current_increment_evidence: "acceptance-m10.1.md"
-m10_current_increment_head: "749380db7813c0f42610421cc6e426299c98a81d"
+m10_current_increment_plan: "plan-m10.2.md"
+m10_current_increment_evidence: "acceptance-m10.2.md"
 m10_current_increment_schema: "v9"
 m10_increments_proposed:
   - m10_1_corpus_source_registry_and_auth

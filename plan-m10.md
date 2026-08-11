@@ -286,22 +286,22 @@ A possible starting hypothesis was given in the prompt (M10.1–M10.7). Based on
 13. **Evidence before VERIFIED:** `acceptance-m10.1.md`; focused + regression + canonical results.
 14. **Commit boundary:** impl + tested + state/plan-binding commits; `m10_current_increment_status: verified` recorded.
 
-### M10.2 — Multi-format Ingestion + Structural Extraction (initial adapters: PDF + TXT)
+### M10.2 — Multi-format Ingestion + Structural Extraction (initial adapters: PDF + TXT) — VERIFIED
 
 1. **Objective:** Ingest multiple source formats through a pluggable parser/adapter boundary; structurally extract content deterministically.
-2. **Exact scope:** `FormatAdapter` protocol (closed format registry: pdf, txt, md, html, docx, csv, json, code, log); **PDF + TXT adapters first** (PDF via an *optional* parser dependency, see §15); extraction → raw extraction record (text + structure: sections/paragraphs/tables/figures/metadata) with provenance to source; failure/quarantine/unsupported handling; secret scan on extracted text via `src/corpus/redact.py` (reuses M1 fail-closed rules + M9 non-disableable baseline). **No finance/PDF-specific logic.**
-3. **Out of scope:** normalization/dedup/versioning (M10.3), FTS/retrieval (M10.4/5).
-4. **M1–M9 reused:** M1 redactor (secret boundary); M2 failure classification + `IngestionOutcome` shape; M9 content-backstop discipline.
-5. **Product modules/files:** `src/corpus/adapters/__init__.py`, `base.py`, `pdf.py`, `txt.py`, `registry.py`; `src/corpus/extract.py`; `src/corpus/redact.py` (explicit redaction adapter: M1 fail-closed rules + M9 non-disableable baseline, applied to extracted corpus text); `tests/unit/test_m10_2_adapters.py`, fixtures (sample PDF/TXT, corrupt, unsupported).
-6. **Expected tests:** each adapter extracts deterministic structure; corrupt → quarantined (not admitted); unsupported format → rejected with reason; secret in source → redacted/rejected; provenance links extraction→source.
-7. **Schema implications:** none (derived extraction kept in-memory / derived JSONL).
-8. **Security implications:** secret fail-closed at boundary; unsupported-content handled without crash/leak.
-9. **Canonical vs derived:** source blobs canonical; extraction record derived.
-10. **Acceptance criteria:** focused green; M1/M2 security regression green; canonical green.
-11. **Regression suites:** M1 (secret scan), M2 (failure handling), M5 (no auth change but guard).
+2. **Exact scope (as delivered in VERIFIED M10.2):** `FormatAdapter` protocol (`src/corpus/adapters/base.py`) + `ADAPTER_REGISTRY`/`select_adapter` (format-neutral; future adapters need no core change); **PDF + TXT adapters** (`pdf.py` optional `pypdf`, absence-safe; `txt.py` stdlib). Extraction → `ExtractionResult`/`ExtractionUnit` (coarse `unit_kind` set only: text/heading/table/code/figure/metadata/other; no semantic ontology) with provenance to source; failure classification via closed `ExtractionStatus`; secret scan on extracted text via `src/corpus/redact.py` (reuses M1 fail-closed `redact_payload`). Source bytes persist to a content-addressed **blob store** (`blob_store.py`) and bind to `CorpusSourceRecord.blob_ref` via `register_source_with_blob` — bytes never enter memory JSONL. **No finance/PDF-specific logic.**
+3. **Out of scope:** normalization/dedup/versioning (M10.3), FTS/retrieval (M10.4/5), semantic/vector (M10.5/6), graph (M10.6), EvidenceSet corpus retrieval (M10.5), Obsidian (deferred Q5), `migrate_10` (M10.4). Schema remains **v9**.
+4. **M1–M9 reused:** M1 redactor (secret boundary); M5 resource types + M6.6 isolation; M8 M5↔M8 mirror; M2 append-first/idempotence discipline (registry).
+5. **Product modules/files:** `src/corpus/extract.py`, `src/corpus/adapters/{__init__,base,txt,pdf,registry}.py`, `src/corpus/blob_store.py`, `src/corpus/redact.py`, `src/corpus/registry.py` (`register_source_with_blob`), `src/corpus/__init__.py`; `tests/unit/test_m10_2_ingestion.py`, `tests/fixtures/corpus/*`.
+6. **Expected tests (MET):** adapter selection deterministic; unsupported format → None; future adapter registers without core change; TXT deterministic/ordered/empty/encoding; PDF absent → `parser_unavailable`, corrupt → `corrupt_source` (valid/corrupt paths skipped when `pypdf` absent, absence-safe); blob roundtrip/idempotent + path-escape rejected; redaction detects/rejects secrets; registry blob binding + idempotent; corpus resource types isolated (M6.6 regression intact).
+7. **Schema implications:** none (v9 unchanged).
+8. **Security implications:** secret fail-closed at boundary; unsupported-content handled without crash/leak; path escape defended.
+9. **Canonical vs derived:** source blobs + `corpus_sources.jsonl` canonical; extraction record derived/rebuildable.
+10. **Acceptance criteria (MET — VERIFIED):** focused 17 passed / 2 skipped; relevant regressions 275 passed / 2 skipped; pre-binding + FINAL-HEAD canonical 2886 passed / 5 skipped / 0 failed under clean isolated HOME.
+11. **Regression suites:** M10.1 registry, M5 (auth/grants/cross-profile), M6.6, M8 mirror.
 12. **Rollback/rebuild:** re-extract from canonical blobs.
-13. **Evidence before VERIFIED:** focused + regression + canonical results.
-14. **Commit boundary:** separate impl/tested/binding commits.
+13. **Evidence before VERIFIED:** `acceptance-m10.2.md`; focused + regression + canonical results.
+14. **Commit boundary:** impl + tested + state/plan-binding commits; `m10_current_increment_status: verified` recorded; `m10_status` stays `in_progress` until all increments close.
 
 ### M10.3 — Normalization + Deduplication + Versioning
 
@@ -507,10 +507,11 @@ The full M1→M10 end-to-end audit is **reserved for after M10 is VERIFIED** (pe
 
 ## 19. Planning artifact
 
-- This file: `plan-m10.md` — **Status: APPROVED / IMPLEMENTATION CONTRACT** (owner-approved; all six owner decisions resolved; three blocking clarifications folded in). **M10.1 VERIFIED.**
-- `project-state.yaml`: `m10_plan_status: "approved"` and `m10_plan_artifact: "plan-m10.md"` recorded; `m10_status` is `in_progress` (M10.1 verified; M10.2–M10.7 pending; M10.8 deferred per Q5).
+- This file: `plan-m10.md` — **Status: APPROVED / IMPLEMENTATION CONTRACT** (owner-approved; all six owner decisions resolved; three blocking clarifications folded in). **M10.1 VERIFIED; M10.2 VERIFIED.**
+- `project-state.yaml`: `m10_plan_status: "approved"` and `m10_plan_artifact: "plan-m10.md"` recorded; `m10_status` is `in_progress` (M10.1 + M10.2 verified; M10.3–M10.7 pending; M10.8 deferred per Q5).
 - `acceptance-m10.1.md`: M10.1 VERIFIED evidence.
-- No migration performed in M10.1; no product-code change outside the M10.1 file list; no ingestion; no experimental DB; no corpus data created.
+- `acceptance-m10.2.md`: M10.2 VERIFIED evidence.
+- No migration performed (schema v9). No real corpus ingested. No product-code change outside the M10.1/M10.2 file lists.
 - Three owner-review blocking clarifications are folded into this plan (review-m10.md §M): **(1) authorization-routing invariant** (§3.1, §6.1, §9, M10.1/M10.5 acceptance — every corpus read routes through `AuthorizedReadService`; static/regression guard); **(2) corpus redaction adapter `src/corpus/redact.py`** (§4.1, §6, M10.2 — reuses M1 fail-closed rules + M9 non-disableable baseline on extracted corpus text); **(3) coarse `unit_kind`** (M10.3 — trimmed to structural set; semantic subtypes deferred to optional M10.6 enrichment). Q3/Q4 resolved by convention/spec; Q1/Q2/Q5/Q6 resolved by final owner decision (§20). M10.8 removed — corpus→Obsidian projection deferred outside M10 per Q5.
 
 ---
