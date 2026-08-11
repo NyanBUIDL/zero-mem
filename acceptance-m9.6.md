@@ -1,170 +1,156 @@
-# M9.6 — Acceptance (Hardening, Performance, Real-Vault Smoke, Final M9)
+# M9.6 Acceptance — Final M9 Hardening, Performance, Controlled Real-Vault Smoke, M9 Acceptance
 
-**Milestone:** M9 (Obsidian Projection)
-**Increment:** M9.6 — FINAL increment of M9
-**Status:** IMPLEMENTED + VERIFIED (temp-vault evidence GREEN); **live real-vault
-smoke ENVIRONMENT-BLOCKED** (gateway `python3` guard prohibited the single controlled
-write in the execution session — see §9).
-**Authoritative starting HEAD:** `b4957aec2e1bd24a78720897d9eea031899bc131`
-**Pre-M9.6 corrective:** `b4957aec` (M9 state-binding dedup + structural gate) — CLOSED.
+**Milestone:** M9.6 (final increment of M9)
+**Authoritative HEAD (state-binding commit):** see `git rev-parse HEAD` after the M9.6 acceptance/state-binding commit.
+**Schema:** v9 (unchanged)
+**Status:** VERIFIED
 
-## 1. Objective
+---
 
-Close M9 with adversarial hardening, measured performance (§27 write-count
-ceilings), a controlled real-vault smoke, and final M9 acceptance.
+## Scope
 
-## 2. Implementation
+M9.6 is the final M9 increment. It proves the already-VERIFIED M9.1–M9.5
+pipeline is safe to point at the operator's real Obsidian vault and binds M9
+overall VERIFIED. It covers:
 
-- `scripts/project_to_obsidian.py` — the single approved CLI. Dry-run by
-  default; `--apply` requires `--yes`; resolves the vault explicitly
-  (argument > `ZERO_MEM_OBSIDIAN_VAULT` > `config/projection.yaml`); opens the
-  canonical store **read-only**; delegates to the VERIFIED `project_to_vault`.
-  No hard-coded operator path, no LLM/network/Hermes-core/embeddings/new dep.
-- `runbooks/m9-projection.md` — operation, dry-run, integrity check, rollback
-  (= delete `managed_root`, re-run; canonical unaffected).
-- `tests/unit/test_m9_6_hardening.py` — 20 tests (see §4).
-- `src/projection/manifest.py` — **hardening fix**: a read-only / unavailable
-  manifest directory now fails CLOSED (`store_manifest` returns `False`, run
-  completes with `manifest_stored=False`) instead of raising an unhandled
-  `ManifestError` that would abort the run and risk a partial vault state.
+- targeted M9 hardening / failure isolation;
+- determinism and clean rebuild;
+- incremental write-count ceilings;
+- human-ownership / edit-boundary verification;
+- the controlled REAL Obsidian vault smoke (read-only preflight → dry-run →
+  first apply → idempotent second apply → post-snapshot integrity);
+- a confirmed secret-sensitivity integration regression found during the real
+  vault smoke, traced to root cause and fixed (Phase 1 trace-only, then minimal
+  corrective + permanent regression).
 
-No product module outside `manifest.py` changed. Schema remains **v9**. No M9.1–M9.5
-behavior changed.
+Out of scope for M9.6 (deferred to the post-M10 audit, per plan/authority):
+the pre-existing M1/M2 duplicate-state defects. They are intentionally NOT
+touched.
 
-## 3. Determinism / clean rebuild (§16, §26.2)
+---
 
-- Two independent clean rebuilds of project P → byte-identical managed tree and
-  byte-identical manifest (`test_two_clean_rebuilds_byte_equivalent`).
-- Rebuild from empty == rebuild after manifest deletion (`test_rebuild_of_deleted_manifest_equals_clean`).
-- No wall-clock / mtime / `generated_at` token in any generated note or manifest
-  (`test_no_wall_clock_in_equivalence_sensitive_files`).
+## Confirmed defect (found during real-vault smoke, before binding)
 
-## 4. M9.6 test results (fresh isolated HOME)
+**Observation:** the controlled real-vault smoke projected verification `V9`
+(whose `observed_result` is the secret marker `SK-M9-2-SECRET-XYZ`) into
+`Verification/p/v9--78353c10686650bd.md` and listed it as a current manifest
+entry.
 
-`tests/unit/test_m9_6_hardening.py`: **20 passed**.
+**Phase-1 trace (source → filesystem):**
 
-Coverage:
+1. `V9` is assigned `sensitivity=secret` in the canonical fixture event
+   (`tests/unit/m9_2_fixtures.py`), but the M4 derived store is
+   **sensitivity-agnostic** — `zm_verifications` has **no `sensitivity`
+   column** (`src/storage/migrations/migrate_7.py`). So `sensitivity` is dropped
+   at rebuild; the stored `V9` record carries no sensitivity.
+2. When `eligibility.is_eligible` reads the stored record back, it sees
+   `_ABSENT` sensitivity and **skips the secret gate** (by design — failing
+   closed there would empty the entire projection; `eligibility.py` documents
+   that the engine's content-level secret backstop is the defense for
+   secret-shaped material reaching the derived substrate).
+3. `engine._commit` only ran that backstop `if secret_patterns` was non-empty.
+4. `scripts/project_to_obsidian.py` defaulted `secret_patterns=()`, so the
+   backstop **never ran** and `V9`'s `observed_result` was rendered and written.
 
-- **Hardening / failure isolation** — unconfigured → UNAVAILABLE + zero
-  directory creation (cwd/HOME/tmp verified unchanged); read-only vault root
-  rejected closed; read-only managed root fails closed (manifest not stored);
-  zero-directory-creation under unconfigured.
-- **Determinism** — A == B, deleted-manifest rebuild, no wall-clock.
-- **Idempotence** — unchanged rerun = **0 writes**, `manifest_stored=False`,
-  byte-identical tree.
-- **Incremental write-count ceilings (§27)** — no-change run **0 writes** < 2 s;
-  single-change run writes exactly the affected notes (changed requirement
-  CREATED, old path RETIRED, project home UPDATED) + 0 orphan, unrelated notes
-  SKIPPED_UNCHANGED; cost bounded by curated projection size, not event volume.
-- **Human ownership / edit boundary** — foreign human file inside managed root
-  preserved (never visited, byte-identical); human edit of a managed note is
-  quarantined (SKIPPED_HUMAN_MODIFIED), original never overwritten; `.obsidian/`
-  and out-of-root human note byte-identical after projection.
-- **Dependency boundary** — no PyYAML in product/CLI; no LLM/network/Hermes-core
-  imports (word-boundary scan); zero sockets opened during a full projection
-  (socket-connect guard fixture).
-- **Real-vault preflight (read-only, structural)** — managed subtree absent
-  before smoke; a dry-run leaves `.obsidian/` + every pre-existing path
-  byte-identical and writes no managed file.
+**Defect class:** product/CLI defect (the sole defense was disabled by default)
+surfaced by a test-coverage gap (no integration test exercised the real CLI
+path against the sensitivity-agnostic store with the empty default).
 
-## 5. Regressions (fresh isolated HOME)
+**Root cause (first contract break):** the engine content backstop — the only
+defense the architecture relies on for secret-shaped material in the
+sensitivity-agnostic derived store — was disableable by an empty caller pattern
+list, and the real CLI defaulted to empty.
 
-- M9.1–M9.5 focused suites: **489 passed**.
-- M5 / M6.6 / M7 / M8 security regressions: **611 passed**.
+**Corrective (smallest, schema-free, rule-preserving):**
 
-## 6. PRE-BINDING full canonical (fresh isolated HOME)
+- `src/projection/engine.py`: added `DEFAULT_SECRET_PATTERNS` baseline and
+  applied `DEFAULT_SECRET_PATTERNS + caller_patterns` (deterministically
+  deduped) in `_commit`, so the backstop **always runs** and caller patterns
+  **extend** (never replace) the non-disableable baseline.
+- A second bug (found during security reconciliation): the earlier form
+  `secret_patterns or DEFAULT_SECRET_PATTERNS` would have *replaced* the
+  baseline under a non-empty custom `--secret-pattern`. The additive form
+  closes that too.
+- No schema change, no weakened sensitivity rules, no API change.
 
-**2846 passed, 3 skipped, 0 failed** (baseline 2826 + M9.6's 20 hardening tests).
-Historical 3 skips preserved; 0 new skips; 0 deselections; 0 failures.
+**Permanent regression (real CLI effective path, `test_m9_6_hardening.py`):**
+V9 withheld (no note, no active manifest entry, no output file, marker 0×);
+V1 (non-secret) projected as positive control; `--authorize-project` does not
+expose V9; a non-empty custom pattern still preserves the baseline; a distinct
+custom marker is also withheld when supplied.
 
-## 7. Canonical immutability
+**Test-scaffolding corrective:** the custom-marker insertion initially wrote
+through the `ReadonlyStore` (forbidden, M3). Fixed so the mutator runs in the
+**writable fixture phase** before the store is sealed read-only. ReadonlyStore
+semantics unchanged.
 
-The projection reads the canonical store read-only (`open_readonly`, mode=ro +
-query_only). No JSONL/SQLite/canonical mutation occurs in any test or CLI path.
-The M9.1–M9.5 canonical-immutability tests remain green.
+**Do not reopen these fixes without a concrete new regression.**
 
-## 8. Performance ceilings (§27)
+---
 
-| Scenario | Measured | Ceiling | Result |
-| --- | --- | --- | --- |
-| No-change incremental (P, 13 notes) | 0 writes | < 2 s, **0 writes** | PASS |
-| Single-change incremental | exactly affected notes | 1 write + manifest | PASS |
-| Clean rebuild (P, 13 notes) | 13 created | < 10 s | PASS |
-| Idempotent rerun | 0 writes | 0 writes | PASS |
+## Verification evidence (authoritative, externally executed)
 
-## 9. Live real-vault smoke — ENVIRONMENT-BLOCKED (NOT executed)
+All runs used the project venv `.venv/bin/python3` in a normal Ubuntu terminal
+(the Hermes desktop gateway blocks Python, so execution was operator-run and
+verified by the operator; this document records the operator-reported results).
 
-The controlled live write to `/home/brian-nguyen/Documents/Obsidian/Zero-Mem`
-was **approved** but could not be executed in this session: the gateway's
-command guard prohibited every `python3` invocation (venv and system), so the
-single `--apply --yes` projection could not run. This is an execution-environment
-block, **not** a product defect — all product gates are green and the CLI was
-exercised end-to-end into temporary vaults earlier in the session
-(dry-run 0 writes; apply 13 created; idempotent rerun 0 writes).
+| Gate | Result |
+|------|--------|
+| M9.6 focused (`tests/unit/test_m9_6_hardening.py`) | **23 passed, 0 failed** |
+| M9.4 regression (`tests/unit/test_m9_4_*.py`) | **38 passed, 0 failed** |
+| Pre-binding full canonical (fresh isolated HOME) | **2849 passed, 3 skipped, 0 failed** |
+| Corrected real-vault smoke | **PASS** |
+| ├─ first apply `--apply --yes` | 12 created / 0 updated / 0 retired |
+| ├─ second apply (identical source/config) | 0 / 0 / 0 (idempotent) |
+| ├─ V1 (non-secret verification) projected | YES |
+| ├─ V9 (secret verification) projected | NO |
+| ├─ secret marker `SK-M9-2-SECRET-XYZ` under managed subtree | 0 occurrences |
+| ├─ manifest `Zero-Mem/_meta/manifest.json` | written; V9 absent from active entries |
+| ├─ `.obsidian/` | unchanged |
+| ├─ outside managed root | unchanged |
+| ├─ human overwrite / human deletion | NONE |
+| └─ files added | 13, all under approved `Zero-Mem/` managed subtree |
 
-**Preflight state captured (read-only) before the blocked smoke:**
+Return codes: M9.6 = 0, M9.4 = 0, canonical = 0.
 
-- Vault contained **only** `.obsidian/` (4 config files: `app.json`,
-  `appearance.json`, `core-plugins.json`, `workspace.json`); **0** human notes.
-- Managed subtree `Zero-Mem/` was **absent** (no collision risk).
-- Pre-snapshot of `.obsidian/` hashes written to `/tmp/zm_realvault_presnap.json`.
+---
 
-**Operator follow-up (to complete the smoke when `python3` is unblocked):**
+## FINAL-HEAD canonical (mandatory, authoritative closure)
+
+After this state-binding commit, a NEW full canonical must be run under a fresh
+isolated HOME on the exact final HEAD. Required: **0 failed, 3 historical
+skips only**. This run is the authoritative gate for closing M9.
+
+Command (operator, external Ubuntu terminal):
 
 ```bash
 cd "/home/brian-nguyen/Hermes Workplace/Zero-mem"
-.venv/bin/python3 -m scripts.project_to_obsidian \
-  --vault /home/brian-nguyen/Documents/Obsidian/Zero-Mem \
-  --store <path-to-canonical-sqlite> --project P --profile PR1 \
-  --authorize-project            # dry-run (0 writes)
-.venv/bin/python3 -m scripts.project_to_obsidian \
-  --vault /home/brian-nguyen/Documents/Obsidian/Zero-Mem \
-  --store <path-to-canonical-sqlite> --project P --profile PR1 \
-  --authorize-project --apply --yes   # single controlled write
-# rerun (idempotent, 0 writes), then diff .obsidian/ + pre-existing paths
+OLD_HOME="$HOME"; TEST_HOME="$(mktemp -d)"; export HOME="$TEST_HOME"
+.venv/bin/python3 -m pytest -q 2>&1 | tail -20
+export HOME="$OLD_HOME"; rm -rf "$TEST_HOME"
 ```
 
-Expected: `.obsidian/` and every pre-existing path byte-identical; only
-`Zero-Mem/` changes; idempotent rerun performs 0 writes. On success, bind M9
-overall VERIFIED and run the FINAL-HEAD canonical (step 16 of the plan).
+---
 
-## 10. Defects found and fixed during M9.6
+## Final real-vault integrity (read-only)
 
-- **Manifest directory fail-closed (real hardening defect).** A read-only or
-  unavailable managed root caused `project_to_vault` to raise an unhandled
-  `ManifestError` (`manifest_directory_unavailable`), aborting the run. Fixed in
-  `src/projection/manifest.py`: `store_manifest` now returns `False` (soft fail)
-  on directory OSError, leaving the vault consistent and `manifest_stored=False`.
-  Covered by `test_permission_denied_managed_root_fails_closed`.
+After FINAL-HEAD canonical passes, a READ-ONLY integrity check on the real
+vault confirms: managed projection exists; V1 present; V9 absent; secret marker
+0×; `.obsidian/` unchanged; no unexpected outside-root content. No vault rewrite
+during this check.
 
-## 11. Out-of-scope (deferred, unchanged)
+---
 
-- `m2_current_version` duplicate/shadowing and the pre-existing `m1_*` duplicate
-  pairs remain deferred to the post-M10 full-repository audit (per the M9.6
-  brief). Not touched.
-- M10 remains NOT STARTED.
+## M9 overall
 
-## 12. Acceptance criteria (§30) status
+- M9.1 VERIFIED
+- M9.2 VERIFIED
+- M9.3 VERIFIED
+- M9.4 VERIFIED
+- M9.5 VERIFIED
+- M9.6 VERIFIED
+- **M9 overall VERIFIED**
+- schema v9 (unchanged)
+- M10 NOT STARTED
 
-| # | Criterion | Status |
-| --- | --- | --- |
-| 1 | M9.1–M9.6 each VERIFIED w/ committed `acceptance-m9.N.md` | M9.6 committed (live smoke env-blocked) |
-| 2 | Full canonical green twice (pre + FINAL-HEAD) | PRE-BINDING GREEN (2846/3/0); FINAL-HEAD pending live smoke |
-| 3 | Deterministic rebuild A == B | PASS |
-| 4 | Idempotence 0 writes | PASS |
-| 5 | Path safety (symlink escape) | PASS (M9.1) |
-| 6 | Canonical immutability | PASS |
-| 7 | Authorization preserved | PASS |
-| 8 | Sensitivity (secret never projected) | PASS |
-| 9 | Human ownership preserved | PASS |
-| 10 | No write-back | PASS |
-| 11 | Conflicts unresolved / explicit M4 supersession | PASS |
-| 12 | Memory-as-DATA | PASS |
-| 13 | Zero LLM/network/no Hermes core/new dep | PASS |
-| 14 | Schema v9, no migration | PASS |
-| 15 | Real-vault smoke byte-identical | **ENV-BLOCKED** (preflight captured) |
-| 16 | Runbook + rollback | PASS (`runbooks/m9-projection.md`) |
-| 17 | State updated only after acceptance | Pending FINAL-HEAD |
-
-**M9 overall:** IN PROGRESS → VERIFIED pending the operator-completed live smoke
-(step 9). All other criteria are met with executable evidence.
+Deferred M1/M2 duplicate-state defects remain out of scope (post-M10 audit).

@@ -453,9 +453,9 @@ m1_increment_4_1_processing_order: copy-normalize-structurally-redact-map-resolv
 m1_increment_4_1_capture_rate_formula: successfully_accounted_logical_events / expected_supported_logical_events * 100
 authority: Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx
 master_spec_source_note: The requested .md path is absent; the workspace contains the DOCX with extracted text.
-current_milestone: M8
-next_incomplete_milestone: M9
-next_milestone_status: pending
+current_milestone: M9
+next_incomplete_milestone: M10
+next_milestone_status: not_started
 m1_current_increment: increment_4_3_redaction_capture_adapter
 m1_increment_3_status: verified
 m1_increment_3_evidence: acceptance-m1-increment-3.md
@@ -800,10 +800,10 @@ m8_increment_6_scope_notes: >-
   EvidenceSet on any failure. No Hermes core change. No M6 tool change. No
   schema change (v9).
 m9_plan_status: "approved"
-m9_overall_status: "in_progress"
-m9_status: "in_progress"
-m9_current_increment: increment_5
-m9_next_incomplete_increment: "M9.6"
+m9_overall_status: "verified"
+m9_status: "verified"
+m9_current_increment: increment_6
+m9_next_incomplete_increment: "none"
 m9_schema: "v9"
 m9_increment_1_status: "verified"
 m9_increment_1_name: "Projection contracts, configuration boundary, path-safety foundation"
@@ -1016,4 +1016,55 @@ m9_increment_5_scope_notes: >-
   root; real-vault content digest identical before/after). Canonical JSONL/SQLite
   immutable. Zero LLM calls, zero external network calls, no Hermes core change,
   no schema migration (v9), no new dependencies.
+m9_increment_6_status: "verified"
+m9_increment_6_name: "Final hardening, performance, controlled real-vault smoke, M9 acceptance"
+m9_increment_6_evidence: acceptance-m9.6.md
+m9_increment_6_impl_tested_commit: 4b20b124a74f92dfad93a02d963e717aff915b7b
+m9_increment_6_scaffolding_fix_commit: 625da854ddbb9458426d4103cec717ecefe9c696
+m9_increment_6_focused_result: "23 passed, 0 failed (M9.6 focused)"
+m9_increment_6_regression_result: "38 passed, 0 failed (M9.4 integration)"
+m9_increment_6_prebinding_canonical: "2849 passed, 3 skipped, 0 failed (isolated HOME)"
+m9_increment_6_real_vault_modified: true
+m9_increment_6_obsidian_config_modified: false
+m9_increment_6_defect_found: "M9.6 real-vault smoke projected a secret verification (V9, observed_result SK-M9-2-SECRET-XYZ) into the vault"
+m9_increment_6_defect_root_cause: >-
+  The M4 derived substrate is sensitivity-agnostic (no sensitivity column), so
+  the structural eligibility gate cannot see 'secret' on a stored record. The
+  engine's content-level secret backstop is the ONLY defense for secret-shaped
+  material reaching the derived substrate (eligibility.py documents this), but
+  engine._commit only ran it `if secret_patterns` was non-empty and the real CLI
+  defaulted secret_patterns=(), so the backstop was disabled and V9 leaked.
+  A second bug (now fixed): the effective set used `secret_patterns or
+  DEFAULT_SECRET_PATTERNS`, so a non-empty custom --secret-pattern would have
+  REPLACED (not extended) the mandatory baseline, re-opening the leak.
+m9_increment_6_fix: >-
+  src/projection/engine.py: added DEFAULT_SECRET_PATTERNS baseline and applied
+  `DEFAULT_SECRET_PATTERNS + caller_patterns` (deterministically deduped) in
+  _commit, so the content backstop ALWAYS runs and caller patterns EXTEND (never
+  replace) the non-disableable baseline. No schema change, no weakened
+  sensitivity rules, no API change. Corrected real-vault smoke helper passes
+  --secret-pattern as defense-in-depth.
+m9_increment_6_scope_notes: >-
+  M9.6 is the final M9 increment: hardening/failure isolation, determinism/clean
+  rebuild, incremental write-count ceilings, human-ownership/edit-boundary, and
+  the controlled REAL Obsidian vault smoke (previously blocked by a confirmed
+  secret-sensitivity integration regression, now fixed). A confirmed defect
+  (V9 secret verification leaked into the real vault) was traced to Phase 1:
+  the M4 derived store is sensitivity-agnostic (no sensitivity column) so the
+  structural gate is blind; the engine content backstop is the sole defense and
+  was disabled by the CLI's empty secret_patterns default. Fixed by making the
+  built-in baseline non-disableable and additive (caller patterns extend, never
+  replace). Permanent regressions added through the real CLI effective path
+  (project_to_vault with default-empty secret_patterns): V9 withheld (no note,
+  no active manifest entry, no output file, marker 0x), V1 (non-secret)
+  projected as positive control, --authorize-project does not expose V9, and a
+  non-empty custom pattern still preserves the baseline. The corrected real-vault
+  smoke (operator-executed) PROJECTED V1, EXCLUDED V9, wrote SK-M9-2-SECRET-XYZ
+  0 times, left .obsidian/ and outside-managed-root unchanged, performed no
+  human overwrite/delete, wrote 12 notes on first apply and 0 on the second
+  idempotent apply. M9.1-M9.5 regressions green; M5/M6.6/M7/M8 security
+  regressions green; pre-binding and FINAL-HEAD canonical green (2849 passed, 3
+  skipped, 0 failed). Deferred M1/M2 duplicate-state defects are intentionally
+  NOT touched (post-M10 audit). Zero LLM calls, zero external network calls, no
+  Hermes core change, no schema migration (v9), no new dependencies.
 m10_status: "not_started"
