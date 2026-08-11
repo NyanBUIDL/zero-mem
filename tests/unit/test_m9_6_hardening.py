@@ -69,9 +69,13 @@ def _project(tmp_path, *, vault=None, name="vault", project_id="P",
              secret_patterns=(), env=None, corpus_mutator=None):
     """Run one full M9 projection against a fresh M4 store."""
     vault = vault or _vault(tmp_path, name)
-    store = fx.build_store(tmp_path)
     if corpus_mutator is not None:
-        corpus_mutator(store)
+        # Fixture-construction phase: build the DB in its WRITABLE phase and
+        # apply the mutator BEFORE sealing it as a ReadonlyStore. Writes through
+        # a ReadonlyStore are forbidden (M3 read-only retrieval semantics).
+        store = _build_store_writable(tmp_path, corpus_mutator)
+    else:
+        store = fx.build_store(tmp_path)
     svc = fx.make_service(store, "PR1")
     cfg = ProjectionConfig(vault_root=vault, sensitivity_ceiling=ceiling)
     # Block any ambient ZERO_MEM_OBSIDIAN_VAULT so a real vault can never leak
@@ -96,6 +100,29 @@ def _project(tmp_path, *, vault=None, name="vault", project_id="P",
                 os.environ.pop("ZERO_MEM_OBSIDIAN_VAULT", None)
     store.close()
     return result, cfg
+
+
+def _build_store_writable(tmp_path, mutator):
+    """Rebuild the corpus into a WRITABLE store, apply ``mutator`` during the
+    fixture-construction phase, then seal as a ReadonlyStore for projection.
+
+    Mirrors ``fx.build_store``'s writable phase so a mutator may INSERT before
+    the store is opened read-only. Writes through a ReadonlyStore are forbidden
+    (M3 read-only retrieval semantics); the mutator opens its own writable
+    connection to the fixture DB path while it is still the writable fixture.
+    """
+    from src.retrieval.db import open_readonly
+
+    corpus = fx.build_corpus(tmp_path)
+    existing = tmp_path / "m4.sqlite"
+    if existing.exists():
+        existing.unlink()
+    wstore = fx.open_store(tmp_path)  # writable SQLiteStore (fixture construction)
+    for pid in ("P", "Q", "H"):
+        fx.rebuild_project_memory(wstore, corpus, project_id=pid)
+    mutator(wstore)
+    wstore.close()
+    return open_readonly(wstore.path)
 
 
 def _tree_hashes(root: Path) -> dict:
@@ -546,21 +573,34 @@ CUSTOM_MARKER = "CUSTOM-PAT-9f3a-leak"
 def _add_custom_marker_verification(store):
     """Inject a second verification (VC) whose observed_result is a CUSTOM secret
     marker (distinct from the baseline marker), mirroring V9's eligible shape so
-    it would project under internal ceiling if not withheld by the backstop."""
-    v9 = store.conn.execute(
-        "SELECT project_id, method, command_ref, tested_commit, source_event_id, "
-        "timestamp, verification_status, artifact_references "
-        "FROM zm_verifications WHERE verification_id='V9'"
-    ).fetchone()
-    store.conn.execute(
-        "INSERT INTO zm_verifications "
-        "(verification_id, project_id, method, command_ref, observed_result, "
-        "tested_commit, source_event_id, timestamp, verification_status, "
-        "artifact_references) VALUES (?,?,?,?,?,?,?,?,?,?)",
-        ("VC", v9[0], v9[1], v9[2], CUSTOM_MARKER, v9[3], v9[4], v9[5],
-         v9[6], v9[7]),
-    )
-    store.conn.commit()
+    it would project under internal ceiling if not withheld by the backstop.
+
+    Runs during the fixture-construction (writable) phase. The store passed in is
+    the WRITABLE fixture SQLiteStore; we open our own writable connection to its
+    path (the ReadonlyStore is only opened later, for projection). This never
+    writes through a ReadonlyStore.
+    """
+    import sqlite3
+
+    conn = sqlite3.connect(str(store.path))
+    conn.row_factory = sqlite3.Row
+    try:
+        v9 = conn.execute(
+            "SELECT project_id, method, command_ref, tested_commit, source_event_id, "
+            "timestamp, verification_status, artifact_references "
+            "FROM zm_verifications WHERE verification_id='V9'"
+        ).fetchone()
+        conn.execute(
+            "INSERT INTO zm_verifications "
+            "(verification_id, project_id, method, command_ref, observed_result, "
+            "tested_commit, source_event_id, timestamp, verification_status, "
+            "artifact_references) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            ("VC", v9[0], v9[1], v9[2], CUSTOM_MARKER, v9[3], v9[4], v9[5],
+             v9[6], v9[7]),
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def test_secret_baseline_non_disableable_with_custom_patterns(tmp_path):
@@ -594,6 +634,19 @@ def test_secret_baseline_non_disableable_with_custom_patterns(tmp_path):
         tmp_path, name="vcustom", secret_patterns=(CUSTOM_MARKER,),
         corpus_mutator=_add_custom_marker_verification,
     )
+    # Non-vacuity: prove VC was actually inserted into the constructed source DB
+    # with the custom marker, so the test cannot pass simply because VC never
+    # existed. Read it back through a read-only connection (no write path).
+    import sqlite3 as _sqlite3
+    _src = _sqlite3.connect(f"file:{str(tmp_path / 'm4.sqlite')}?mode=ro", uri=True)
+    try:
+        _vc = _src.execute(
+            "SELECT observed_result FROM zm_verifications WHERE verification_id='VC'"
+        ).fetchone()
+    finally:
+        _src.close()
+    assert _vc is not None, "non-vacuity: VC must exist in the source DB"
+    assert _vc[0] == CUSTOM_MARKER, "non-vacuity: VC observed_result must be the custom marker"
     # V9 (baseline marker) withheld even with a non-empty custom list.
     assert not any("v9" in n.relative_path for n in r2.notes), \
         "baseline V9 leaked under non-empty custom pattern list"
