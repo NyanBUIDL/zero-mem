@@ -1068,18 +1068,23 @@ m9_increment_6_scope_notes: >-
   NOT touched (post-M10 audit). Zero LLM calls, zero external network calls, no
   Hermes core change, no schema migration (v9), no new dependencies.
 m10_status: "in_progress"
-m10_status_note: "M10.1 VERIFIED; M10.2 VERIFIED (Multi-format Ingestion + Structural Extraction, PDF+TXT, schema v9). M10.3-M10.7 not started; M10.8 deferred. Next: M10.3."
+m10_status_note: "M10.1 VERIFIED; M10.2 VERIFIED (Multi-format Ingestion + Structural Extraction, PDF+TXT, schema v9); M10.3 VERIFIED (Normalization + Deduplication + Versioning, schema v9). M10.4-M10.7 not started; M10.8 deferred. Next: M10.4 (requires explicit owner direction)."
 m10_plan_status: "approved"
 m10_plan_artifact: "plan-m10.md"
-m10_plan_status_note: "APPROVED / IMPLEMENTATION CONTRACT. All six owner decisions (Q1-Q6) resolved; three blocking clarifications folded in. M10.1 implementation in progress; M10.2-M10.7 pending."
+m10_plan_status_note: "APPROVED / IMPLEMENTATION CONTRACT. All six owner decisions (Q1-Q6) resolved; three blocking clarifications folded in. M10.1/M10.2/M10.3 verified; M10.4-M10.7 pending."
 m10_plan_approval_status: "approved"
 m10_plan_approved_by: "owner"
 m10_plan_approved_scope: "current corrected plan-m10.md only; no silent scope broadening"
-m10_current_increment: "m10_2_multi_format_ingestion_and_extraction_pdf_txt"
+m10_current_increment: "m10_3_normalization_dedup_versioning"
 m10_current_increment_status: "verified"
-m10_current_increment_plan: "plan-m10.2.md"
-m10_current_increment_evidence: "acceptance-m10.2.md"
+m10_current_increment_plan: "plan-m10.md#M10.3"
+m10_current_increment_evidence: "acceptance-m10.3.md"
 m10_current_increment_schema: "v9"
+m10_current_increment_focused_result: "29 passed, 0 failed"
+m10_current_increment_relevant_regression_result: "826 passed, 2 skipped (M10.1, M10.2, M5, M6.6, M8 under isolated HOME)"
+m10_current_increment_prebinding_canonical: "2915 passed, 5 skipped, 0 failed (isolated HOME)"
+m10_current_increment_finalhead_canonical: "2915 passed, 5 skipped, 0 failed (isolated HOME)"
+m10_current_increment_plan_resolutions: "two plan-internal inconsistencies reconciled favor of VERIFIED contracts: (a) unit_kind inherits M10.2 UnitKind verbatim (text/heading/table/code/figure/metadata/other); plan section 10.3 enumeration (section/paragraph/list/...) is a documentation artifact and does NOT override the verified enum; (b) RelationSource.corpus_extraction (plan section 4) does not exist in verified M8 vocabulary and is inert/forward-looking for M10.3; no M8 change made."
 m10_increments_proposed:
   - m10_1_corpus_source_registry_and_auth
   - m10_2_multi_format_ingestion_and_extraction_pdf_txt
