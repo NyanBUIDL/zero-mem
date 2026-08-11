@@ -7,9 +7,8 @@ be interpreted as implementation acceptance tests for any future milestone.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
-
-import yaml
 
 
 ROOT = Path(__file__).parents[2]
@@ -47,24 +46,46 @@ def _state_text() -> str:
     return (ROOT / "project-state.yaml").read_text(encoding="utf-8")
 
 
+_TOP_KEY_RE = re.compile(r"^([A-Za-z0-9_-]+):\s*(.*)$", re.MULTILINE)
+
+
+def _strip_scalar(raw: str) -> str:
+    """Normalize a single-line scalar: drop one layer of surrounding double
+    quotes and collapse internal whitespace, matching the simple representation
+    used by project-state.yaml's top-level M9 bindings.
+    """
+    s = raw.strip()
+    if len(s) >= 2 and s[0] == '"' and s[-1] == '"':
+        s = s[1:-1]
+    return re.sub(r"\s+", " ", s).strip()
+
+
 def _top_level_key_counts(text: str) -> dict[str, int]:
     """Count top-level mapping keys STRUCTURALLY, before last-wins collapses them.
 
-    ``yaml.safe_load`` cannot answer this question: by the time it returns a
-    dict, a duplicated key has already been silently reduced to one entry. The
-    composed node graph still carries every key node, so it is the only place a
-    duplicate is observable without hand-rolling a parser or adding a
-    dependency.
+    A duplicated top-level key is invisible to a standard parse (last-wins
+    reduces it to one entry). We therefore scan the raw text for column-0
+    ``key:`` lines with a dependency-free regex, preserving every occurrence so
+    a duplicate is observable without a third-party YAML library.
     """
-    root = yaml.compose(text)
-    if root is None:
-        return {}
     counts: dict[str, int] = {}
-    for key_node, _value_node in getattr(root, "value", []):
-        key = getattr(key_node, "value", None)
-        if isinstance(key, str):
-            counts[key] = counts.get(key, 0) + 1
+    for m in _TOP_KEY_RE.finditer(text):
+        key = m.group(1)
+        counts[key] = counts.get(key, 0) + 1
     return counts
+
+
+def _effective_state(text: str) -> dict[str, str]:
+    """Parse top-level scalar bindings, LAST-WINS (mirrors YAML resolution).
+
+    Narrowly scoped to the simple top-level scalar syntax used by
+    project-state.yaml. Block scalars and nested maps are intentionally out of
+    scope: the guarded M9 keys are all single-line scalars. Dependency-free.
+    """
+    eff: dict[str, str] = {}
+    for m in _TOP_KEY_RE.finditer(text):
+        eff[m.group(1)] = _strip_scalar(m.group(2))
+    return eff
 
 
 def test_master_spec_and_derived_agents_exist() -> None:
@@ -190,7 +211,7 @@ def test_m9_effective_parsed_state_is_m9_in_progress() -> None:
     M9 overall stays ``in_progress`` until M9.6 is verified; M9.1-M9.5 are
     verified; M10 has not started.
     """
-    state = yaml.safe_load(_state_text())
+    state = _effective_state(_state_text())
     assert state["m9_plan_status"] == "approved"
     assert state["m9_overall_status"] == "in_progress"
     assert state["m9_status"] == "in_progress"
@@ -232,8 +253,8 @@ def test_m9_duplicate_key_shadowing_is_detected() -> None:
     # 1. the OLD substring gate is fooled: the expected text is still present.
     assert 'm9_overall_status: "in_progress"' in shadowed
 
-    # 2. but the document now MEANS the opposite.
-    assert yaml.safe_load(shadowed)["m9_overall_status"] == "verified"
+    # 2. but the document now MEANS the opposite (last-wins resolution).
+    assert _effective_state(shadowed)["m9_overall_status"] == "verified"
 
     # 3. the structural gate catches it.
     counts = _top_level_key_counts(shadowed)
