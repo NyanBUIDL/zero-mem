@@ -282,7 +282,12 @@ class CorpusSourceRegistry:
                     new_lines.append(line)
             if not replaced:
                 new_lines.append(self._serialize(record))
-            data = b"\n".join(new_lines) + b"\n"
+            # ``_serialize`` already terminates each record with "\n" while
+            # ``splitlines()`` yields unterminated lines. Normalize to exactly
+            # one terminator per record so the append-first JSONL never gains a
+            # blank line (a blank line makes the canonical registry unreadable
+            # on replay -- see the M10.7 regression).
+            data = b"".join(line.rstrip(b"\n") + b"\n" for line in new_lines)
             tmp = self._path.with_suffix(".tmp")
             tmp.write_bytes(data)
             os.chmod(tmp, 0o600)

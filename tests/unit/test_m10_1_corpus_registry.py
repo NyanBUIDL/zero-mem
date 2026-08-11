@@ -284,3 +284,58 @@ def test_corpus_module_has_no_llm_or_network_import():
                 assert node.module is None or not any(
                     b in node.module for b in banned
                 ), node.module
+
+
+# ---------------------------------------------------------------------------
+# 9. canonical JSONL stays replayable after blob_ref rebinding (M10.7 defect)
+# ---------------------------------------------------------------------------
+def _blob_bound_registry(root: Path, count: int) -> CorpusSourceRegistry:
+    """Register ``count`` sources WITH blobs, which triggers _update_record."""
+    from src.corpus.blob_store import CorpusBlobStore
+
+    blob = CorpusBlobStore(root=root)
+    reg = CorpusSourceRegistry(root=root)
+    for index in range(count):
+        reg.register_source_with_blob(
+            content=f"canonical replay doc {index}".encode(),
+            external_ref=f"label/doc{index}.txt",
+            kind="txt",
+            blob_store=blob,
+            profile_id="p1",
+            project_id="P",
+        )
+    return reg
+
+
+def test_registry_jsonl_has_no_blank_lines_after_blob_rebind():
+    """PERMANENT REGRESSION (M10.7) — canonical registry must stay parseable.
+
+    ``_update_record`` rewrites the registry to bind ``blob_ref``. It read lines
+    via ``splitlines()`` (unterminated) but re-inserted records via
+    ``_serialize`` (already newline-terminated), then re-joined with "\\n" --
+    injecting one BLANK line per rebound record. The canonical
+    ``corpus_sources.jsonl`` was therefore written in a state its own loader
+    rejects with ``malformed_historical_line``, so any reload/rebuild from
+    canonical failed. Registering N sources with blobs produced N blank lines.
+    """
+    root = _tmp_root()
+    _blob_bound_registry(root, 3)
+    raw = (root / "corpus_sources.jsonl").read_bytes()
+
+    # Exactly one trailing terminator, and no interior blank lines.
+    assert raw.endswith(b"\n")
+    assert b"\n\n" not in raw, "canonical registry JSONL contains a blank line"
+    lines = raw.split(b"\n")[:-1]
+    assert len(lines) == 3, f"expected 3 record lines, got {len(lines)}"
+    assert all(lines), "canonical registry JSONL contains an empty record line"
+
+
+def test_registry_reloads_from_canonical_after_blob_rebind():
+    """The registry must replay its own canonical JSONL (rebuild precondition)."""
+    root = _tmp_root()
+    first = _blob_bound_registry(root, 3)
+    original = {r.source_id: r.blob_ref for r in first.all_records()}
+    assert all(ref is not None for ref in original.values())
+
+    reloaded = CorpusSourceRegistry(root=root)  # must not raise
+    assert {r.source_id: r.blob_ref for r in reloaded.all_records()} == original
