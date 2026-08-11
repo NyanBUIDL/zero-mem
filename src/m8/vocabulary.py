@@ -108,6 +108,11 @@ class RelationSource(str, enum.Enum):
     M4_SUPERSESSION = "m4_supersession"
     #: Explicit M4 verification record subject linkage.
     M4_VERIFICATION = "m4_verification"
+    #: Explicit M10 corpus-extraction structural link (source_ref / duplicate_of).
+    #: Authoritative per plan-m10.md §4 ("RelationSource gains a corpus_extraction
+    #: member"); the v10 migration's zm_corpus_relations CHECK already hard-codes
+    #: 'corpus_extraction'. Deterministic, never inferred/LLM.
+    CORPUS_EXTRACTION = "corpus_extraction"
 
 
 #: Closed lifecycle vocabulary, re-exported from the authoritative M1 contract.

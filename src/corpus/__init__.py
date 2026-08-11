@@ -80,6 +80,24 @@ from .adapters import (
     TxtAdapter,
     select_adapter,
 )
+from .graph import (
+    CorpusGraphEdge,
+    CorpusGraphError,
+    CorpusGraphReadService,
+    CorpusGraphResult,
+    DEFAULT_GRAPH_BOUNDS,
+    GraphReadBounds,
+    build_corpus_graph,
+    build_corpus_graph_readonly,
+)
+from .enrichment import (
+    ENRICHMENT_PROVENANCE_KIND,
+    EnrichmentAdapter,
+    EnrichmentItem,
+    KeywordEnrichmentAdapter,
+    UnitEnrichment,
+    enrich_unit,
+)
 
 __all__ = [
     "CORPUS_SOURCE_RESOURCE_TYPE",
@@ -138,4 +156,18 @@ __all__ = [
     "PdfAdapter",
     "TxtAdapter",
     "select_adapter",
+    "CorpusGraphEdge",
+    "CorpusGraphError",
+    "CorpusGraphReadService",
+    "CorpusGraphResult",
+    "DEFAULT_GRAPH_BOUNDS",
+    "GraphReadBounds",
+    "build_corpus_graph",
+    "build_corpus_graph_readonly",
+    "ENRICHMENT_PROVENANCE_KIND",
+    "EnrichmentAdapter",
+    "EnrichmentItem",
+    "KeywordEnrichmentAdapter",
+    "UnitEnrichment",
+    "enrich_unit",
 ]
