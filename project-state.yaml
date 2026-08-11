@@ -453,9 +453,12 @@ m1_increment_4_1_processing_order: copy-normalize-structurally-redact-map-resolv
 m1_increment_4_1_capture_rate_formula: successfully_accounted_logical_events / expected_supported_logical_events * 100
 authority: Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx
 master_spec_source_note: The requested .md path is absent; the workspace contains the DOCX with extracted text.
-current_milestone: M9
-next_incomplete_milestone: M10
-next_milestone_status: not_started
+current_milestone: M10
+next_incomplete_milestone: none
+next_milestone_status: feature_freeze_active
+feature_freeze_status: active
+post_m10_audit_status: not_started
+packaging_status: not_started
 m1_current_increment: increment_4_3_redaction_capture_adapter
 m1_increment_3_status: verified
 m1_increment_3_evidence: acceptance-m1-increment-3.md
@@ -1071,7 +1074,7 @@ m10_status: "verified"
 m10_status_note: "M10 COMPLETE — all 7 increments VERIFIED (M10.1-M10.7). M10.7 VERIFIED (Large-Corpus Rollout + Benchmark + Final M10 Acceptance): 601 real PDFs (1,410,552,914 source bytes) processed through the ACTUAL M10.1-M10.6 product pipeline with 0 ingest failures; 26,144 normalized units; 4 units rejected fail-closed by the safety boundary; 32,377 deterministic graph edges; second unchanged sync created 0 new sources/units/versions (idempotent); derived rebuild reproduced an identical logical projection (empty digest diff); 25/25 real-corpus E2E invariants PASS; schema stays v10 with NO migrate_11; NO new mandatory dependencies (optional venv-only pypdf==6.15.0 for PDF extraction); real corpus path is RUNTIME-ONLY via ZERO_MEM_M10_CORPUS_PATH and is never product identity; no real corpus committed to git; NO corpus Obsidian projection. Two defects in prior-VERIFIED increments were found by this rollout, reported explicitly, and fixed minimally in their own commits: (a) malformed M10.2 sample.pdf fixture (test-side only; PdfAdapter was correct), (b) PRODUCT defect in CorpusSourceRegistry._update_record that wrote a blank line per blob_ref rebind, making canonical corpus_sources.jsonl unreadable on replay and breaking rebuild-from-canonical. M10.8 DOES NOT EXIST; M11 DOES NOT EXIST. Post-M10 full audit NOT STARTED; packaging NOT STARTED. Next step requires explicit owner direction."
 m10_plan_status: "approved"
 m10_plan_artifact: "plan-m10.md"
-m10_plan_status_note: "APPROVED / IMPLEMENTATION CONTRACT. All six owner decisions (Q1-Q6) resolved. M10.1/M10.2/M10.3/M10.4/M10.5 verified; M10.6-M10.7 pending."
+m10_plan_status_note: "APPROVED / IMPLEMENTATION CONTRACT. All six owner decisions (Q1-Q6) resolved. M10.1-M10.7 verified; M10 COMPLETE. M10.8 does not exist; M11 does not exist."
 m10_plan_approval_status: "approved"
 m10_plan_approved_by: "owner"
 m10_plan_approved_scope: "current corrected plan-m10.md only; no silent scope broadening"
@@ -1084,7 +1087,7 @@ m10_current_increment_focused_result: "152 passed, 1 skipped, 0 failed (M10.1-M1
 m10_current_increment_relevant_regression_result: "1306 passed, 0 failed (M5 authorization + M6.6 resource-type isolation + M7 injection/EvidenceSet bounds + M8 graph authorization/bounds + secret/redaction + cross-scope isolation, under isolated HOME)"
 m10_current_increment_e2e_real_corpus: "25/25 real-corpus E2E invariants PASS (authorization-before-influence, corpus-only/memory-only/mixed EvidenceSet, 5/3/8 bounds, provenance, injection-remains-DATA, secret fail-closed, graph bounds 2/20/40/80, unauthorized graph seed leaks 0 nodes/0 edges, derived store byte-identical after all reads)"
 m10_current_increment_prebinding_canonical: "3001 passed, 4 skipped, 0 failed (isolated HOME)"
-m10_current_increment_finalhead_canonical: "3001 passed, 4 skipped, 0 failed (isolated HOME, at final HEAD 2e6213700022581a37673cc0bab4a0aaa4facfcd)"
+m10_current_increment_finalhead_canonical: "HISTORICAL canonical-tested HEAD 2e6213700022581a37673cc0bab4a0aaa4facfcd: 3001 passed, 4 skipped, 0 failed (isolated HOME). Later state/acceptance commit 6224292e453c2392f3a8121b1f1b578006c9768f is state/acceptance only; canonical at that exact HEAD is NOT PROVEN."
 m10_current_increment_plan_resolutions: "Authorization-before-influence: M5 _gate runs before FTS/lexical discovery; corpus candidate universe is scoped before ranking/scoring/fusion/truncation. FTS used for DISCOVERY only; deterministic lexical score computed over authorized subset only (unauthorized FTS tf-idf cannot alter authorized scores). SemanticAdapter is OPTIONAL/LOCAL-ONLY/absence-safe; when present applied only over authorized hits (no global ANN). EvidenceSet corpus_evidence fused into the SAME bounded budget (5 primary / 3 supporting / 8 total). corpus_source vs corpus_unit remain distinct (M6.6). Same-content cross-scope units remain authorization-isolated. Provenance anchor: corpus_unit -> source_id; memory/event -> source_event_id (corrected at eligibility boundary; corpus source never pretends to be memory event)."
 m10_increments_proposed:
   - m10_1_corpus_source_registry_and_auth
@@ -1223,4 +1226,4 @@ m10_7_large_corpus_rollout_benchmark_final_acceptance:
   post_m10_audit: "NOT STARTED"
   packaging: "NOT STARTED"
   final_head: "2e6213700022581a37673cc0bab4a0aaa4facfcd"
-  finalhead_canonical: "3001 passed, 4 skipped, 0 failed (isolated HOME)"
+  finalhead_canonical: "HISTORICAL canonical-tested HEAD 2e6213700022581a37673cc0bab4a0aaa4facfcd: 3001 passed, 4 skipped, 0 failed (isolated HOME). Later state/acceptance commit 6224292e453c2392f3a8121b1f1b578006c9768f; canonical at that exact HEAD NOT PROVEN."

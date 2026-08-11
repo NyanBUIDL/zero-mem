@@ -97,9 +97,10 @@ def test_master_spec_and_derived_agents_exist() -> None:
 
 def test_implementation_plan_is_machine_readable_and_gated() -> None:
     plan = json.loads((ROOT / "implementation-plan.json").read_text(encoding="utf-8"))
-    # M0-M8 VERIFIED; M9 IN PROGRESS (M9.1-M9.5 VERIFIED; M9.6 / M10 NOT STARTED).
-    assert plan["status"] == "m9_in_progress"
-    assert plan["current_milestone_status"] == "m9_in_progress"
+    # M0-M10 VERIFIED; M10.7 is the final verified increment.
+    assert plan["status"] == "verified"
+    assert plan["current_milestone_status"] == "m10_verified"
+    assert plan["current_milestone_verification"] == "m10_7_verified"
     assert plan["m8_increment_1_status"] == "verified"
     assert plan["m8_increment_2_status"] == "verified"
     assert plan["m8_increment_3_status"] == "verified"
@@ -108,9 +109,9 @@ def test_implementation_plan_is_machine_readable_and_gated() -> None:
     assert plan["m8_increment_6_status"] == "verified"
     assert plan["m8_next_incomplete_increment"] == "none"
     assert plan["m8_schema_version"] == 9
-    # M9.1-M9.5 state binding.
+    # M9.1-M9.6 state binding; M9 is complete.
     assert plan["m9_plan_status"] == "approved"
-    assert plan["m9_overall_status"] == "in_progress"
+    assert plan["m9_overall_status"] == "verified"
     assert plan["m9_increment_1_status"] == "verified"
     assert plan["m9_increment_2_status"] == "verified"
     assert plan["m9_increment_2_evidence"] == "acceptance-m9.2.md"
@@ -118,11 +119,20 @@ def test_implementation_plan_is_machine_readable_and_gated() -> None:
     assert plan["m9_increment_4_status"] == "verified"
     assert plan["m9_increment_5_status"] == "verified"
     assert plan["m9_increment_5_evidence"] == "acceptance-m9.5.md"
-    assert plan["m9_increment_6_status"] == "not_started"
-    assert plan["m9_next_incomplete_increment"] == "M9.6"
+    assert plan["m9_increment_6_status"] == "verified"
+    assert plan["m9_next_incomplete_increment"] == "none"
     assert plan["m9_schema_version"] == 9
-    assert plan["m10_status"] == "not_started"
-    assert plan["next_incomplete_milestone"] == "M9.6"
+    assert plan["m10_status"] == "verified"
+    for increment in range(1, 8):
+        assert plan[f"m10_increment_{increment}_status"] == "verified"
+    assert plan["m10_increment_count"] == 7
+    assert plan["next_incomplete_milestone"] == "none"
+    assert plan["next_milestone_status"] == "feature_freeze_active"
+    assert plan["feature_freeze_status"] == "active"
+    assert plan["post_m10_audit_status"] == "not_started"
+    assert plan["packaging_status"] == "not_started"
+    assert not any(key.startswith("m10_8") for key in plan)
+    assert not any(key.startswith("m11") for key in plan)
     assert plan["milestones"][0]["verification"]["status"] == "fully_verified"
     assert [milestone["id"] for milestone in plan["milestones"]] == [
         f"M{i}" for i in range(11)
@@ -135,8 +145,8 @@ def test_project_state_reflects_verified_m9_binding() -> None:
     state = (ROOT / "project-state.yaml").read_text(encoding="utf-8")
     # M0-M8 VERIFIED; M8.1-M8.6 all verified, M8 complete.
     assert "status: verified" in state
-    assert "current_milestone: M9" in state
-    # M8.6 state binding: M8 VERIFIED, M8.1-M8.6 VERIFIED, M9/M10 NOT STARTED.
+    assert "current_milestone: M10" in state
+    # M8.6 state binding: M8 VERIFIED, M8.1-M8.6 VERIFIED.
     assert "m8_plan_status: \"approved\"" in state
     assert "m8_overall_status: \"verified\"" in state
     assert "m8_increment_1_status: \"verified\"" in state
@@ -145,8 +155,7 @@ def test_project_state_reflects_verified_m9_binding() -> None:
     assert "m8_increment_4_status: \"verified\"" in state
     assert "m8_increment_5_status: \"verified\"" in state
     assert "m8_increment_6_status: \"verified\"" in state
-    # M9.6 final state binding: M9 VERIFIED, M9.1-M9.6 VERIFIED,
-    # M10 NOT STARTED. Schema remains v9.
+    # M9.6 final state binding: M9 VERIFIED, M9.1-M9.6 VERIFIED.
     assert "m9_plan_status: \"approved\"" in state
     assert "m9_overall_status: \"verified\"" in state
     assert "m9_increment_1_status: \"verified\"" in state
@@ -161,6 +170,11 @@ def test_project_state_reflects_verified_m9_binding() -> None:
     assert "m9_increment_2_evidence: acceptance-m9.2.md" in state
     assert "m9_increment_5_evidence: acceptance-m9.5.md" in state
     assert "m9_increment_6_evidence: acceptance-m9.6.md" in state
+    assert "next_incomplete_milestone: none" in state
+    assert "next_milestone_status: feature_freeze_active" in state
+    assert "feature_freeze_status: active" in state
+    assert "post_m10_audit_status: not_started" in state
+    assert "packaging_status: not_started" in state
     assert "m1_production_code_started: true" in state
     assert "m1_increment_4_6_status: verified" in state
     assert "m1_status: verified" in state
@@ -240,6 +254,9 @@ def test_m9_effective_parsed_state_is_verified() -> None:
         "m10_7_large_corpus_rollout_benchmark_final_acceptance"
     )
     assert state["m10_current_increment_status"] == "verified"
+    assert state["feature_freeze_status"] == "active"
+    assert state["post_m10_audit_status"] == "not_started"
+    assert state["packaging_status"] == "not_started"
     # M10 is the final approved milestone: no M10.8 and no M11 may be invented.
     # _effective_state yields raw scalar STRINGS, so compare as text.
     assert state["m10_increment_count"] == "7"
