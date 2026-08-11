@@ -161,7 +161,9 @@ Both authorization **and** redaction may be required for a single corpus object.
 
 M10.1 establishes the canonical registry (JSONL) + blob store + authorization contract. M10.2–M10.3 produce derived units in-memory / as derived JSONL, validated by focused tests. **v9 is untouched.** This mirrors the M8 pattern (M8.1 froze contracts + a v9 *foundation* before projection) and keeps risk low.
 
-### 5.2 M10.4: `migrate_10` — DERIVED corpus tables only (additive, v9 → v10)
+### 5.2 M10.4: `migrate_10` — DERIVED corpus tables only (additive, v9 → v10) — VERIFIED
+
+**Status:** VERIFIED (schema v10; `migrate_10` implemented and bound).
 
 **Why v9 cannot safely represent the requirement:**
 - The v1–v9 tables are the **memory** substrate (events, M4 project memory, M8 graph/temporal). Putting corpus units/FTS into them would (a) pollute memory semantics, (b) blur the canonical/derived line, (c) risk M6.6 isolation bleed.
