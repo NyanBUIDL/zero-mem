@@ -17,3 +17,6 @@ venv/
 
 # OS cruft
 .DS_Store
+
+# M10.x generated verification artifacts (never commit)
+output/

@@ -198,6 +198,13 @@ class EvidenceSet:
     # before serialization. Present only so diagnostic/explanation surfaces can show
     # the M8.5 calibration + M8.4 temporal basis that produced the ordering.
     m8_metadata: Mapping[str, Any] = field(default_factory=dict)
+    # M10.5 integration: bounded, DATA-ONLY corpus evidence channel. Corpus units
+    # retrieved through the M5 authorization-first stack (src.corpus.retrieval)
+    # are represented as EvidenceItem(resource_type="corpus_unit") and fused into
+    # the SAME bounded budget (5 primary / 3 supporting / 8 total) as memory
+    # evidence. This field is a convenience mirror of the corpus items selected
+    # into primary/supporting; it is never an additional unbounded channel.
+    corpus_evidence: Tuple[EvidenceItem, ...] = ()
 
     def to_dict(self) -> dict:
         return {
@@ -205,7 +212,7 @@ class EvidenceSet:
             "memory_needed": self.memory_needed,
             "used_scopes": sorted(self.used_scopes),
             "primary_evidence": [vars(e) for e in self.primary_evidence],
-            "supporting_evidence": [vars(s) for s in self.supporting_evidence],
+            "supporting_evidence": [vars(e) for e in self.supporting_evidence],
             "conflicts": [dict(c) for c in self.conflicts],
             "insufficient_evidence": self.insufficient_evidence,
             "external_current_required": self.external_current_required,
@@ -216,4 +223,5 @@ class EvidenceSet:
                 k: (_sanitize_metadata_value(v) if isinstance(v, (dict, list, tuple)) else v)
                 for k, v in self.m8_metadata.items()
             },
+            "corpus_evidence": [vars(e) for e in self.corpus_evidence],
         }

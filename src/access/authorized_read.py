@@ -738,5 +738,103 @@ class AuthorizedReadService:
 
 
 
+    def corpus_unit_search(
+        self,
+        request: AccessRequest,
+        text: str,
+        *,
+        metadata: Optional[dict] = None,
+        limit: Optional[int] = None,
+        semantic: Optional[Any] = None,
+        grants: Optional[List[AuthorizedReadGrant]] = None,
+    ) -> AuthorizedResult:
+        """Authorization-before-influence corpus_unit retrieval.
+
+        Authorization is performed by M5 BEFORE any corpus candidate discovery.
+        The effective scope (base + per-grant atomic scopes) is enumerated into
+        concrete (profile, project, space) tuples, and only units inside that
+        authorized scope may become candidates. FTS is used for lexical
+        discovery only; unauthorized units are dropped before ranking/scoring/
+        fusion/truncation (see src/corpus/retrieval.py).
+
+        `corpus_unit` is a DISTINCT resource type from `corpus_source`; a
+        `corpus_source` grant does NOT authorize `corpus_unit` reads and vice
+        versa (permanent M6.6 isolation, enforced by `_gate` resource_type check
+        and the explicit `resource_type="corpus_unit"` request).
+
+        Returns an ``AuthorizedResult`` whose ``items`` are ``CorpusHit``
+        objects (DATA only). Denials/errors yield nothing here.
+        """
+        eff = self._gate(request, grants)
+        if not eff.allow:
+            return self._denied(eff)
+        # Explicit resource_type gate: corpus_unit reads require corpus_unit
+        # authorization; a corpus_source-only scope must not leak corpus_unit.
+        if request.resource_type not in (None, "corpus_unit"):
+            return self._denied(eff)
+
+        from src.corpus.query_planner import build_query_plan
+        from src.corpus.retrieval import (
+            AuthorizedCorpusScope,
+            CorpusHit,
+            retrieve_corpus,
+        )
+
+        # Enumerate the authorized corpus scope from the M5 EffectiveReadScope.
+        allowed: List[tuple] = []
+        for scope in self._ordered_scopes(eff):
+            # Unowned/default (NULL profile) scope is authorized only when
+            # global_read_allowed; represented as (None, None, None) so NULL
+            # unit rows match. Profile/project/space grants enumerate their own
+            # authorized dimensions.
+            profiles = list(scope.allowed_profile_ids)
+            projects = list(scope.allowed_project_ids)
+            spaces = list(scope.allowed_knowledge_space_ids)
+            if scope.global_read_allowed:
+                profiles = profiles + [self._requester] if self._requester else profiles
+                # NULL-profile default rows are authorizable under global read.
+                allowed.append((None, None, None))
+            if not profiles and not projects and not spaces:
+                # Implicit-local base scope (own profile only).
+                if self._requester is not None:
+                    allowed.append((self._requester, None, None))
+                continue
+            # Cartesian combination of authorized dimensions for this scope.
+            p_set = profiles or [None]
+            j_set = projects or [None]
+            k_set = spaces or [None]
+            for p in p_set:
+                for j in j_set:
+                    for k in k_set:
+                        allowed.append((p, j, k))
+        # De-duplicate while preserving order.
+        seen = set()
+        deduped = []
+        for triple in allowed:
+            if triple not in seen:
+                seen.add(triple)
+                deduped.append(triple)
+        auth_scope = AuthorizedCorpusScope(allowed_scopes=tuple(deduped))
+
+        try:
+            plan = build_query_plan(text, metadata=metadata, limit=limit or 100)
+        except Exception as exc:
+            return self._downstream(eff, f"corpus_query_plan_error:{type(exc).__name__}")
+
+        try:
+            hits = retrieve_corpus(self._store.conn, auth_scope, plan, semantic=semantic)
+        except Exception as exc:
+            return self._downstream(eff, f"corpus_retrieval_error:{type(exc).__name__}")
+
+        return AuthorizedResult(
+            allowed=True,
+            denied=False,
+            reason_code=eff.reason_code,
+            items=[h for h in hits if isinstance(h, CorpusHit)],
+            query=plan.as_dict(),
+            decision=eff,
+        )
+
+
 __all__ = ["AuthorizedReadService", "AuthorizedResult",
            "_profile_predicate", "_project_predicate", "_scope_allows"]

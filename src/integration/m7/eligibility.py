@@ -100,6 +100,24 @@ def _exceeds_ceiling(sensitivity: Optional[str], ceiling: Optional[str]) -> bool
     return item_rank > ceiling_rank
 
 
+def _provenance_anchor(item: Any, resource_type: Optional[str]) -> Optional[str]:
+    """Return the identity that anchors an item's provenance, by resource type.
+
+    - Memory / event-backed evidence: ``source_event_id`` (canonical memory
+      event identity). This is the existing M7 contract and is NOT changed.
+    - Corpus evidence (resource_type == "corpus_unit", M10.5): ``source_id``
+      (corpus source identity). A corpus source is a DISTINCT authorization
+      object from a memory event, so it must NOT be forced through
+      ``source_event_id``; doing so would make a corpus source pretend to be a
+      memory event.
+
+    The two provenance concepts remain semantically distinct.
+    """
+    if resource_type == "corpus_unit":
+        return _attr(item, "source_id")
+    return _attr(item, "source_event_id")
+
+
 def is_eligible(
     item: Any,
     route: str,
@@ -117,9 +135,9 @@ def is_eligible(
     lifecycle = (_attr(item, "lifecycle_status", "lifecycle") or "active").lower()
     sensitivity = _attr(item, "sensitivity")
     evidence_id = _attr(item, "event_id", "requirement_id", "decision_id",
-                        "verification_id", "artifact_id", "charter_id", "id")
+                        "verification_id", "artifact_id", "charter_id", "id",
+                        "unit_id")
     created_at = _attr(item, "created_at", "effective_at", "timestamp")
-    source_event_id = _attr(item, "source_event_id")
     memory_type = _attr(item, "event_type", "memory_type") or resource_type
 
     # 1. lifecycle hard exclusions
@@ -130,7 +148,22 @@ def is_eligible(
     if _is_m3_event(item) and _exceeds_ceiling(sensitivity, sensitivity_ceiling):
         return EligibilityResult(False, "sensitivity_ceiling_exceeded")
     # 3. provenance completeness (fail closed if minimum provenance missing)
-    if not evidence_id or not (created_at or source_event_id):
+    #    Provenance anchor differs by resource type (see _provenance_anchor):
+    #      * corpus_unit evidence anchors on source_id (corpus source identity);
+    #      * memory/event-backed evidence anchors on source_event_id (canonical
+    #        memory event identity).
+    #    Corpus evidence carries a stable unit_id (evidence_id) and source_id,
+    #    and no created_at/source_event_id; that combination is sufficient and
+    #    fail-closed (missing unit_id still fails). Memory items still require the
+    #    stricter (created_at or source_event_id) provenance. The existing
+    #    semantic meaning of source_event_id is unchanged for memory.
+    is_corpus_evidence = (resource_type == "corpus_unit")
+    provenance_anchor = _provenance_anchor(item, resource_type)
+    if is_corpus_evidence:
+        provenance_ok = bool(evidence_id) and bool(provenance_anchor)
+    else:
+        provenance_ok = bool(evidence_id) and bool(created_at or provenance_anchor)
+    if not provenance_ok:
         return EligibilityResult(False, "provenance_incomplete")
 
     # 4. role classification (deterministic)

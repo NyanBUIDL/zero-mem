@@ -372,6 +372,7 @@ def _attach_m8_metadata(
         estimated_tokens=es.estimated_tokens,
         reason_code=es.reason_code,
         m8_metadata=metadata,
+        corpus_evidence=es.corpus_evidence,
     )
 
 
@@ -422,6 +423,7 @@ def enrich_evidence_set(
             estimated_tokens=es.estimated_tokens,
             reason_code=es.reason_code,
             m8_metadata=es.m8_metadata,
+            corpus_evidence=es.corpus_evidence,
         )
         return _attach_m8_metadata(reordered, router)
     except Exception:

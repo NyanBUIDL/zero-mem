@@ -54,6 +54,33 @@ def _item_attr(item: Any, *names: str, default: Any = None) -> Any:
 
 def _to_evidence_item(item: Any, route: MemoryRoute, resource_type: str,
                       role: EvidenceRole, eligibility_reason: str) -> EvidenceItem:
+    # CorpusHit (M10.5) carries its own identity/summary fields.
+    if resource_type == "corpus_unit":
+        hit = item  # type: ignore[assignment]
+        summary = (getattr(hit, "normalized_text", None) or "")[:280] or None
+        return EvidenceItem(
+            evidence_id=getattr(hit, "unit_id", "unknown"),
+            resource_type="corpus_unit",
+            memory_type="corpus_unit",
+            trace_id=getattr(hit, "source_id", None),
+            route=route.value,
+            content_source="metadata_only",
+            summary=summary,
+            source=getattr(hit, "source_ref", None),
+            created_at=None,
+            lifecycle=getattr(hit, "lifecycle_status", None),
+            verification=None,
+            confidence=None,
+            sensitivity=getattr(hit, "sensitivity", None),
+            profile_id=getattr(hit, "profile_id", None),
+            project_id=getattr(hit, "project_id", None),
+            knowledge_space_ids=tuple(
+                [k] if (k := getattr(hit, "knowledge_space_id", None)) else ()
+            ),
+            provenance=f"corpus_unit:{getattr(hit, 'unit_id', 'unknown')}",
+            role=role,
+            eligibility_reason=eligibility_reason,
+        )
     evidence_id = str(_item_attr(item, "event_id", "requirement_id", "decision_id",
                              "verification_id", "artifact_id", "charter_id", "id") or "unknown")
     summary = _item_attr(item, "statement", "title", "summary", "content",
@@ -174,12 +201,19 @@ def build_evidence_set(
     max_primary: int = _MAX_PRIMARY,
     max_supporting: int = _MAX_SUPPORTING,
     token_budget: int = _TOKEN_BUDGET,
+    semantic: Optional[Any] = None,
 ) -> EvidenceSet:
     """Construct a bounded EvidenceSet from an authorized route decision.
 
     Authorization is performed by `svc` (M5) BEFORE any item is eligible. M7.3 adds
     a second independent eligibility gate, deterministic selection, conflict grouping,
     and an immutable EvidenceSet. No injection, no writes, no LLM, no network.
+
+    M10.5: authorized CORPUS evidence (resource_type="corpus_unit") is retrieved
+    through the SAME M5 authorization-first stack and fused into the SAME bounded
+    budget (5 primary / 3 supporting / 8 total) as memory evidence. Corpus units
+    are DATA only and never gain authority. The permanent 8-total bound is
+    preserved: corpus items compete for the same primary/supporting slots.
 
     Identity (requesting_profile_id) is taken from the explicit RouterRequest field;
     it is never inferred from route/project/session.
@@ -224,9 +258,48 @@ def build_evidence_set(
 
     raw = _authorized_retrieve(svc, decision, request, router, grants=grants)
 
+    # ---- M10.5: authorized corpus retrieval (same M5 auth stack) ---------
+    # Runs for any route that carries query text (RESEARCH explicitly; also
+    # when explicit research intent is present), and is authorization-first:
+    # corpus_unit_search() performs the M5 policy gate before discovery, so
+    # unauthorized corpus units can never become candidates. Corpus hits are
+    # represented as EvidenceItem(resource_type="corpus_unit") and fused with
+    # memory candidates into the SAME bounded budget below.
+    corpus_items: List[Any] = []
+    if router.normalized_text and router.normalized_text.strip():
+        try:
+            from src.access import AccessRequest as _AR
+            cres = svc.corpus_unit_search(
+                _AR(
+                    operation="READ",
+                    requesting_profile_id=requesting_profile_id,
+                    target_profile_ids=target_profiles,
+                    project_ids=[router.project_id] if router.project_id else None,
+                    knowledge_space_ids=list(router.knowledge_space_ids) or None,
+                    resource_type="corpus_unit",
+                    include_global=True,
+                ),
+                router.normalized_text,
+                metadata={
+                    "project_id": router.project_id,
+                    "knowledge_space_id": (
+                        router.knowledge_space_ids[0] if router.knowledge_space_ids else None
+                    ),
+                },
+                semantic=semantic,
+                grants=grants,
+            )
+            if cres.allowed and not cres.denied:
+                for hit in cres.items:
+                    corpus_items.append((hit, "corpus_unit"))
+        except Exception:
+            # Corpus retrieval failures must NEVER broaden or leak memory
+            # evidence; degrade gracefully to memory-only (fail safe).
+            corpus_items = []
+
     # Eligibility gate (authorization already done by M5).
     eligible: List[Tuple[EvidenceItem, Any]] = []
-    for item, rt in raw:
+    for item, rt in (raw + corpus_items):
         res = is_eligible(item, route.value, sensitivity_ceiling=sensitivity_ceiling,
                           resource_type=rt)
         if not res.eligible:
@@ -257,12 +330,20 @@ def build_evidence_set(
         )
     )
 
+    # M10.5: convenience mirror of the corpus items selected into the bounded
+    # primary/supporting sets (they already share the same 5/3/8 budget).
+    corpus_selected = tuple(
+        e for e in (list(sel.primary) + list(sel.supporting))
+        if e.resource_type == "corpus_unit"
+    )
+
     es = EvidenceSet(
         route=route,
         memory_needed=True,
         used_scopes=used_scopes,
         primary_evidence=tuple(sel.primary),
         supporting_evidence=tuple(sel.supporting),
+        corpus_evidence=corpus_selected,
         conflicts=tuple(conflicts),
         insufficient_evidence=False,
         external_current_required=False,

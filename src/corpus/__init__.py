@@ -57,6 +57,21 @@ from .versioning import (
     compute_source_version_id,
     scope_from_record,
 )
+from .query_planner import (
+    CorpusMetadataFilter,
+    CorpusQueryError,
+    CorpusQueryPlan,
+    VALID_METADATA_KEYS,
+    build_query_plan,
+    normalize_query_text,
+)
+from .retrieval import (
+    AuthorizedCorpusScope,
+    CorpusHit,
+    SemanticAdapter,
+    NO_SEMANTIC_ADAPTER,
+    retrieve_corpus,
+)
 from .adapters import (
     ADAPTER_REGISTRY,
     FormatAdapter,
@@ -106,6 +121,17 @@ __all__ = [
     "build_version_chain",
     "compute_source_version_id",
     "scope_from_record",
+    "CorpusMetadataFilter",
+    "CorpusQueryError",
+    "CorpusQueryPlan",
+    "VALID_METADATA_KEYS",
+    "build_query_plan",
+    "normalize_query_text",
+    "AuthorizedCorpusScope",
+    "CorpusHit",
+    "SemanticAdapter",
+    "NO_SEMANTIC_ADAPTER",
+    "retrieve_corpus",
     "ADAPTER_REGISTRY",
     "FormatAdapter",
     "FormatKind",
