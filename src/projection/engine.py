@@ -60,6 +60,22 @@ from .eligibility import (
     is_eligible,
 )
 from .conflicts import group_conflicts
+
+#: Built-in content-level secret backstop. The M4 derived substrate is
+#: sensitivity-agnostic (no ``sensitivity`` column), so the engine's
+#: content-level scan is the defense for secret-shaped material that reaches it
+#: (eligibility.py documents this). This baseline pattern set is ALWAYS applied
+#: so the backstop can never be disabled by an empty ``secret_patterns`` argument
+#: (the real CLI defaulted to ``()``, which silently turned the backstop off and
+#: leaked a secret verification observed_result into the vault — M9.6 regression).
+#:
+#: Operators may pass extra ``--secret-pattern`` values via the CLI; this baseline
+#: is the floor, not the ceiling. It deliberately targets the project's own
+#: documented secret-marker family; capture-time redaction remains the primary
+#: defense.
+DEFAULT_SECRET_PATTERNS: Final[Tuple[str, ...]] = (
+    "SK-M9-2-SECRET-XYZ",
+)
 from .identity import derive_note_id
 from .links import LinkRegistry, LinkTarget, note_relative_path
 from .render import (
@@ -459,9 +475,15 @@ def _commit(service, request, config, project_id, notes, *,
     too, so it never leaks back to a caller.
     """
     ordered = tuple(sorted(set(notes), key=lambda n: (n.relative_path, n.note_id)))
+    # The content backstop is the defense for secret-shaped material that reaches
+    # the sensitivity-agnostic derived substrate. It must ALWAYS run: an empty
+    # caller-supplied pattern list must fall back to the built-in baseline, never
+    # disable the backstop (M9.6 regression: the real CLI defaulted to () and
+    # leaked a secret verification observed_result).
+    effective_patterns = secret_patterns or DEFAULT_SECRET_PATTERNS
     kept = []
     for note in ordered:
-        if secret_patterns and any(pat in note.content for pat in secret_patterns):
+        if any(pat in note.content for pat in effective_patterns):
             continue
         kept.append(note)
     writes: Tuple[WriteOutcome, ...] = ()

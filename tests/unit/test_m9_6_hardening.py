@@ -51,6 +51,8 @@ from src.projection.writer import WriteStatus  # noqa: E402
 
 import tests.unit.m9_2_fixtures as fx  # noqa: E402
 
+import scripts.project_to_obsidian as cli  # noqa: E402
+
 
 # ---------------------------------------------------------------------------
 # Shared harness
@@ -434,3 +436,105 @@ def test_real_vault_dry_run_touches_no_pre_existing_path(tmp_path):
     assert not (cfg.managed_root).exists() or \
         len(list(cfg.managed_root.rglob("*.md"))) == 0
     assert human.read_bytes() == human_before
+
+
+# ---------------------------------------------------------------------------
+# 8. Secret sensitivity integration regression (M9.6 real-CLI path)
+# ---------------------------------------------------------------------------
+
+def test_secret_verification_v9_never_projected_real_cli_path(tmp_path):
+    """PERMANENT REGRESSION for the M9.6 real-vault leak.
+
+    The real CLI (``scripts/project_to_obsidian.py``) projected a verification
+    whose ``observed_result`` was a raw secret (``SK-M9-2-SECRET-XYZ``) into the
+    vault. Root cause: the M4 derived store is sensitivity-agnostic (no
+    ``sensitivity`` column), so the structural eligibility gate cannot see
+    ``secret``; the ONLY defense is the engine's content-level backstop, which
+    the CLI disabled by defaulting ``secret_patterns=()``.
+
+    This test exercises the SAME effective path the real CLI uses — ``project_to_vault``
+    (the CLI delegates to it) with the default-empty ``secret_patterns`` — and
+    proves the engine's built-in baseline now withholds the secret. It must hold
+    simultaneously:
+
+    * V1 (authorized non-secret verification) IS projected (positive control —
+      the test cannot pass vacuously);
+    * V9 exists in the source input and its observed_result IS the secret marker;
+    * V9 is withheld: no note, no manifest entry, no output file, marker absent;
+    * ``--authorize-project`` (the explicit in-memory grant) does NOT expose V9.
+    """
+    # --- Source input carries V9 with a secret observed_result ---
+    store = fx.build_store(tmp_path)
+    row = store.conn.execute(
+        "SELECT observed_result FROM zm_verifications WHERE verification_id='V9'"
+    ).fetchone()
+    assert row is not None, "V9 must exist in the source store"
+    assert row[0] == fx.SECRET, "V9 observed_result must be the secret marker"
+    secret_marker = fx.SECRET
+
+    # --- Real effective CLI path: default-empty secret_patterns (the leak path) ---
+    r1, cfg = _project(tmp_path, secret_patterns=())  # empty -> engine baseline applies
+
+    # Positive control: V1 is projected.
+    v1_notes = [n for n in r1.notes if "v1" in n.relative_path]
+    assert v1_notes, "V1 (non-secret verification) must be projected"
+    assert any(fx.SECRET not in n.content for n in v1_notes)
+
+    # V9 withheld entirely.
+    assert not any("v9" in n.relative_path for n in r1.notes), \
+        "V9 must not appear as a projected note"
+    active = [e for e in r1.manifest.entries if e.is_active]
+    assert all(e.resource_id != "V9" for e in active), \
+        "V9 must leave no active manifest entry"
+
+    # No V9 output file on disk.
+    v9_files = list(cfg.managed_root.rglob("*v9*"))
+    assert not v9_files, f"V9 output file must not exist: {v9_files}"
+
+    # Secret marker appears ZERO times in the generated tree.
+    tree_text = "\n".join(
+        p.read_text(encoding="utf-8", errors="replace")
+        for p in cfg.managed_root.rglob("*.md")
+    )
+    assert secret_marker not in tree_text, \
+        f"secret marker {secret_marker!r} leaked into the vault"
+
+    # --- --authorize-project (explicit in-memory grant) does NOT expose V9 ---
+    # The CLI builds exactly this grant; authorization must never override the
+    # sensitivity backstop.
+    r2, _ = _project(tmp_path, name="vault2", secret_patterns=(),
+                     grants=fx.authorized_grants_for_P())
+    assert not any("v9" in n.relative_path for n in r2.notes), \
+        "--authorize-project must not expose V9"
+    assert all(e.resource_id != "V9" for e in r2.manifest.entries if e.is_active)
+
+
+def test_secret_verification_v9_withheld_via_actual_cli_entrypoint(tmp_path):
+    """Same regression through the literal CLI ``run()`` entry point, writing to
+    a temp vault with ``--apply --yes`` and NO ``--secret-pattern`` (the exact
+    real-vault invocation that leaked). Proves the operator entry point itself
+    honors the engine baseline."""
+    vault = _vault(tmp_path, name="realcli")
+    store = fx.build_store(tmp_path)
+    store_path = store.path
+    store.close()  # CLI opens it read-only independently
+
+    rc = cli.run([
+        "--vault", str(vault),
+        "--store", str(store_path),
+        "--project", "P",
+        "--profile", "PR1",
+        "--authorize-project",
+        "--apply", "--yes",
+    ])
+    assert rc == 0
+
+    # No V9 file; secret marker absent from the written tree.
+    assert not list((vault / "Zero-Mem").rglob("*v9*")), "CLI wrote a V9 file"
+    tree_text = "\n".join(
+        p.read_text(encoding="utf-8", errors="replace")
+        for p in (vault / "Zero-Mem").rglob("*.md")
+    )
+    assert fx.SECRET not in tree_text, f"CLI leaked secret marker {fx.SECRET!r}"
+    # Positive control: V1 was written.
+    assert list((vault / "Zero-Mem").rglob("*v1*")), "CLI did not project V1"

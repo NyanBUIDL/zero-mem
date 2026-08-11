@@ -49,7 +49,9 @@ from src.projection.writer import WriteStatus  # noqa: E402
 from src.retrieval.db import open_readonly  # noqa: E402
 
 # Content-level secret backstop forwarded to the engine (plan-m9.md §11.3).
-# Matches nothing by default; an operator may pass extra patterns.
+# The engine ALWAYS applies its built-in baseline (DEFAULT_SECRET_PATTERNS),
+# so even an empty list here never disables the backstop. Operators may add
+# more patterns; they are appended, not a replacement.
 DEFAULT_SECRET_PATTERNS: Tuple[str, ...] = ()
 
 
