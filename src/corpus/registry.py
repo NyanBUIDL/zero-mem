@@ -39,15 +39,13 @@ from .identity import (
     derive_source_id,
     source_descriptor,
 )
-
-#: The ONE environment variable that may supply a corpus root.
-CORPUS_ROOT_ENV_VAR: Final[str] = "ZERO_MEM_CORPUS_ROOT"
-
-#: Project-local optional config file, joining the existing ``config/`` convention.
-CONFIG_FILE_RELATIVE_PATH: Final[str] = "config/corpus.yaml"
-
-#: Key read from that file. It is the only key this module honours.
-CONFIG_FILE_CORPUS_ROOT_KEY: Final[str] = "corpus_root"
+from .blob_store import (
+    CORPUS_ROOT_ENV_VAR,
+    CONFIG_FILE_CORPUS_ROOT_KEY,
+    CONFIG_FILE_RELATIVE_PATH,
+    CorpusBlobStore,
+    _resolve_root,
+)
 
 #: Default registry filename beneath the resolved corpus root.
 REGISTRY_FILENAME: Final[str] = "corpus_sources.jsonl"
@@ -216,6 +214,81 @@ class CorpusSourceRegistry:
             self._by_id[record.source_id] = record
             self._by_hash[record.content_hash] = record
         return record
+
+    def register_source_with_blob(
+        self,
+        *,
+        content: bytes,
+        external_ref: str,
+        kind: str,
+        profile_id: Optional[str] = None,
+        project_id: Optional[str] = None,
+        knowledge_space_id: Optional[str] = None,
+        sensitivity: str = SourceSensitivity.INTERNAL.value,
+        lifecycle_status: str = SourceLifecycle.OBSERVED.value,
+        custom_meta: Optional[Mapping[str, Any]] = None,
+        blob_store: Optional[CorpusBlobStore] = None,
+    ) -> CorpusSourceRecord:
+        """Register a source AND persist its bytes in the blob store (M10.2).
+
+        The source bytes live ONLY in the blob store (never in memory JSONL);
+        the returned record carries ``blob_ref`` = the content-address so the
+        canonical source artifact is recoverable and extraction is rebuildable.
+        """
+        record = self.register_source(
+            content=content,
+            external_ref=external_ref,
+            kind=kind,
+            profile_id=profile_id,
+            project_id=project_id,
+            knowledge_space_id=knowledge_space_id,
+            sensitivity=sensitivity,
+            lifecycle_status=lifecycle_status,
+            custom_meta=custom_meta,
+        )
+        if record.blob_ref is not None:
+            return record
+        store = blob_store or CorpusBlobStore(root=self._root)
+        if not store.available:
+            # Blob store unavailable => keep registry entry but no blob bound.
+            # Source bytes are NOT stored anywhere; M10.4 may add derived store.
+            return record
+        digest = store.put(content=content, source_ref=record.source_id)
+        # Update the persisted record's blob_ref in place (append-first replay).
+        updated = CorpusSourceRecord(
+            **{**record.as_dict(), "blob_ref": digest}
+        )
+        self._update_record(updated)
+        return updated
+
+    def _update_record(self, record: CorpusSourceRecord) -> None:
+        """Rewrite the single line for ``record.source_id`` (idempotent identity)."""
+        if not self.available or self._path is None:
+            return
+        with self._lock:
+            lines = self._path.read_bytes().splitlines()
+            new_lines: list[bytes] = []
+            replaced = False
+            for line in lines:
+                try:
+                    rec = json.loads(line.decode("utf-8"))
+                except Exception:
+                    new_lines.append(line)
+                    continue
+                if rec.get("source_id") == record.source_id:
+                    new_lines.append(self._serialize(record))
+                    replaced = True
+                else:
+                    new_lines.append(line)
+            if not replaced:
+                new_lines.append(self._serialize(record))
+            data = b"\n".join(new_lines) + b"\n"
+            tmp = self._path.with_suffix(".tmp")
+            tmp.write_bytes(data)
+            os.chmod(tmp, 0o600)
+            os.replace(tmp, self._path)
+            self._by_id[record.source_id] = record
+            self._by_hash[record.content_hash] = record
 
     # -- read (deterministic, authorization is the caller's responsibility) --
     def get_by_source_id(self, source_id: str) -> Optional[CorpusSourceRecord]:

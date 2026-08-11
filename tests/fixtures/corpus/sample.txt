@@ -1,0 +1,9 @@
+Chapter 1
+
+This is the first paragraph of the sample document.
+
+This is the second paragraph, used to verify ordering and provenance.
+
+Chapter 2
+
+A final paragraph with some content for extraction testing.
