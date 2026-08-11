@@ -390,10 +390,10 @@ class TestDeferredAbsence:
 class TestEnvironment:
     def test_schema_version(self):
         from src.storage.migrations import CURRENT_SCHEMA_VERSION
-        # Schema is v9 as of the M8.1 derived-index foundation. M7.1 itself
-        # introduced no migration; assert it still owns none beyond v9.
-        assert CURRENT_SCHEMA_VERSION == 9
-        assert not (REPO_ROOT / "src/storage/migrations/migrate_10.py").exists()
+        # Schema is v10 as of M10.4 (additive derived corpus store). M7.1
+        # introduced no migration of its own; the latest migration is migrate_10.
+        assert CURRENT_SCHEMA_VERSION == 10
+        assert (REPO_ROOT / "src/storage/migrations/migrate_10.py").exists()
 
     def test_gate_module_no_forbidden_imports(self):
         text = (REPO_ROOT / "src/integration/zero_mem_runtime.py").read_text()

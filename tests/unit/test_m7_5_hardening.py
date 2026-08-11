@@ -572,7 +572,7 @@ class TestStaticAudit:
 
     def test_schema_v8(self):
         from src.storage.migrations import CURRENT_SCHEMA_VERSION
-        assert CURRENT_SCHEMA_VERSION == 9
+        assert CURRENT_SCHEMA_VERSION == 10
 
     def test_no_m7_6_module(self):
         """M7.6 is acceptance/closure, not a new module."""

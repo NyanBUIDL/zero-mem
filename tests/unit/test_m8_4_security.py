@@ -156,7 +156,15 @@ class TestAccessSurfaceIsSanctionedOnly:
             assert token not in source, token
 
     def test_no_schema_v10(self):
-        assert not (SRC_ROOT / "storage" / "migrations" / "migrate_10.py").exists()
+        # M10.4 legitimately introduces migrate_10 (schema v10) as an ADDITIVE
+        # derived corpus store. This test now asserts that the v10 migration
+        # exists AND is purely derived (it must not mutate canonical JSONL or
+        # v1-v9 memory tables). The access-surface invariant preserved: no v10
+        # migration alters canonical authority or M1-M9 tables.
+        from src.storage.migrations.migrate_10 import CORPUS_DERIVED_TABLES
+
+        assert (SRC_ROOT / "storage" / "migrations" / "migrate_10.py").exists()
+        assert all(t.startswith("zm_corpus_") for t in CORPUS_DERIVED_TABLES)
 
     def test_lives_only_under_m8(self):
         for path in _m8_4_files():

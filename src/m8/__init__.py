@@ -31,7 +31,10 @@ from typing import Final
 #: later increment that changes a frozen contract shape.
 M8_CONTRACT_VERSION: Final[str] = "m8.1"
 
-#: Derived SQLite schema version introduced by the M8.1 foundation.
-M8_SCHEMA_VERSION: Final[int] = 9
+#: Derived SQLite schema version. M8.1 introduced the schema-v9 foundation;
+#: M10.4 (migrate_10) extends the derived store to v10 (additive corpus tables)
+#: without altering any M8.1 structure. This tracks the current derived schema
+#: version the M8 contracts are coherent with.
+M8_SCHEMA_VERSION: Final[int] = 10
 
 __all__ = ["M8_CONTRACT_VERSION", "M8_SCHEMA_VERSION"]

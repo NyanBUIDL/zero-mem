@@ -230,7 +230,7 @@ class TestMigrationV8:
         store = _open(tmp_path)
         v1 = store.get_schema_version()
         store.ensure_schema()  # reopen
-        assert store.get_schema_version() == v1 == 9
+        assert store.get_schema_version() == v1 == 10
         store.close()
 
     def test_v8_to_v7_downgrade(self, tmp_path):
@@ -967,7 +967,7 @@ class TestM53Integration:
 
 class TestSecurity:
     def test_schema_v8(self):
-        assert CURRENT_SCHEMA_VERSION == 9
+        assert CURRENT_SCHEMA_VERSION == 10
 
     def test_jsonl_unchanged_during_resolution(self):
         # Resolving grants reads only derived state; it must not rewrite canonical

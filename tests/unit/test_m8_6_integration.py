@@ -151,7 +151,7 @@ class TestBoundary:
         assert d["no_vector_ops"] is True
         assert d["no_hermes_core_change"] is True
         assert d["no_m6_tool_change"] is True
-        assert d["schema_version"] == 9
+        assert d["schema_version"] == 10
 
 
 # ---------------------------------------------------------------------------
@@ -572,7 +572,7 @@ class TestStaticSecurity:
 
     def test_schema_unchanged(self):
         from src.storage.migrations import CURRENT_SCHEMA_VERSION
-        assert CURRENT_SCHEMA_VERSION == 9
+        assert CURRENT_SCHEMA_VERSION == 10
 
 
 # ---------------------------------------------------------------------------

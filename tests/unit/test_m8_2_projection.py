@@ -293,4 +293,4 @@ class TestProjectionDescription:
         assert d["calibration_scoring_implemented"] is True
 
     def test_schema_version_unchanged(self):
-        assert describe_projection()["schema_version"] == 9
+        assert describe_projection()["schema_version"] == 10

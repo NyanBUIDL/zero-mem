@@ -91,13 +91,13 @@ def db_v8(tmp_path: Path):
 
 class TestSchemaVersion:
     def test_current_schema_version_is_9(self):
-        assert CURRENT_SCHEMA_VERSION == 9
+        assert CURRENT_SCHEMA_VERSION == 10
 
     def test_migration_9_registered(self):
         assert 9 in MIGRATIONS
 
     def test_migration_chain_contiguous(self):
-        assert sorted(MIGRATIONS) == list(range(1, 10))
+        assert sorted(MIGRATIONS) == list(range(1, 11))
 
     def test_migration_9_has_up_and_down(self):
         assert callable(MIGRATIONS[9].up)
@@ -106,7 +106,7 @@ class TestSchemaVersion:
 
 class TestFreshInitialization:
     def test_fresh_db_reports_version_9(self, db):
-        assert db.get_schema_version() == 9
+        assert db.get_schema_version() == 10
 
     def test_all_v9_tables_created(self, db):
         for table in M8_DERIVED_TABLES:
@@ -132,8 +132,8 @@ class TestFreshInitialization:
 
     def test_ensure_schema_is_idempotent(self, db):
         before = _table_names(db) | _index_names(db)
-        assert db.ensure_schema() == 9
-        assert db.ensure_schema() == 9
+        assert db.ensure_schema() == 10
+        assert db.ensure_schema() == 10
         assert (_table_names(db) | _index_names(db)) == before
 
 
@@ -146,7 +146,7 @@ class TestUpgradeFromV8:
 
     def test_upgrade_creates_m8_tables(self, db_v8):
         db_v8.ensure_schema()
-        assert db_v8.get_schema_version() == 9
+        assert db_v8.get_schema_version() == 10
         for table in M8_DERIVED_TABLES:
             assert db_v8.table_exists(table), table
 
@@ -155,7 +155,16 @@ class TestUpgradeFromV8:
         db_v8.ensure_schema()
         after = _table_names(db_v8)
         assert before.issubset(after)
-        assert after - before == set(M8_DERIVED_TABLES)
+        # Upgrade adds the M8.1 derived tables AND (after M10.4) the corpus
+        # derived tables. Both are additive. No v1-v8 table is altered.
+        from src.storage.migrations.migrate_10 import CORPUS_DERIVED_TABLES
+
+        added = after - before
+        # FTS5 creates implicit shadow tables (zm_corpus_fts_*) alongside the
+        # virtual table; treat them as part of the derived corpus addition.
+        added_core = {t for t in added if not t.startswith("zm_corpus_fts_")}
+        assert added_core == set(M8_DERIVED_TABLES) | set(CORPUS_DERIVED_TABLES)
+        assert added - added_core == {t for t in added if t.startswith("zm_corpus_fts_")}
 
     def test_upgrade_preserves_existing_rows(self, db_v8):
         _seed_meta_row(db_v8, "E-KEEP")
@@ -175,7 +184,7 @@ class TestUpgradeFromV8:
             "SELECT version FROM zm_migrations ORDER BY version"
         ).fetchall()
         assert [tuple(r) for r in before] == [tuple(r) for r in after][:len(before)]
-        assert [tuple(r)[0] for r in after][-1] == 9
+        assert [tuple(r)[0] for r in after][-1] == 10
 
     def test_rollback_removes_only_v9_structures(self, db_v8):
         v8_tables = _table_names(db_v8)
@@ -207,6 +216,10 @@ class TestNoSpeculativeSchema:
             if "entit" in t or "graph" in t or "temporal" in t
             or "m8" in t or "calibration" in t
         }
+        # M10.4 corpus tables (zm_corpus_*) are a separate, later increment and
+        # must not be mistaken for speculative M8.1 schema. The M8.1 invariant
+        # this test guards is "M8.1 created no tables beyond its approved set".
+        m8_like = {t for t in m8_like if not t.startswith("zm_corpus_")}
         assert m8_like == set(M8_DERIVED_TABLES)
 
     def test_no_calibration_table_in_m8_1(self, db):
