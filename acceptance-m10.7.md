@@ -4,7 +4,7 @@
 **Schema / migration version:** v10 (NO new migration; **no `migrate_11`**)
 **Authority:** `plan-m10.md` §M10.7, `implementation-plan.json`, `project-state.yaml`, `Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx`.
 **Starting HEAD:** `c40875b60025736da18391da3b07bc8e7cc56999`
-**Final HEAD:** _(set by the binding commit of this acceptance; see FINAL-HEAD canonical report)_
+**Final HEAD:** `2e6213700022581a37673cc0bab4a0aaa4facfcd`
 
 ---
 
@@ -465,8 +465,8 @@ corpus-wide LLM analysis was performed.
 | M10.1–M10.6 focused groups | 152 passed, 1 skipped |
 | Security / authorization regressions (`m5`/`m6_6`/`m7`/`m8`/injection/secret/redact/isolation/authoriz) | 1306 passed |
 | E2E real-corpus invariants | **25/25 PASS** |
-| PRE-BINDING canonical | _(see below)_ |
-| FINAL-HEAD canonical | _(see below)_ |
+| PRE-BINDING canonical | **3001 passed, 4 skipped, 0 failed** |
+| FINAL-HEAD canonical | **3001 passed, 4 skipped, 0 failed** (at `2e62137`) |
 
 Canonical command (clean isolated HOME):
 

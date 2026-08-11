@@ -1084,7 +1084,7 @@ m10_current_increment_focused_result: "152 passed, 1 skipped, 0 failed (M10.1-M1
 m10_current_increment_relevant_regression_result: "1306 passed, 0 failed (M5 authorization + M6.6 resource-type isolation + M7 injection/EvidenceSet bounds + M8 graph authorization/bounds + secret/redaction + cross-scope isolation, under isolated HOME)"
 m10_current_increment_e2e_real_corpus: "25/25 real-corpus E2E invariants PASS (authorization-before-influence, corpus-only/memory-only/mixed EvidenceSet, 5/3/8 bounds, provenance, injection-remains-DATA, secret fail-closed, graph bounds 2/20/40/80, unauthorized graph seed leaks 0 nodes/0 edges, derived store byte-identical after all reads)"
 m10_current_increment_prebinding_canonical: "3001 passed, 4 skipped, 0 failed (isolated HOME)"
-m10_current_increment_finalhead_canonical: "PENDING (set after the binding commit; see acceptance-m10.7.md)"
+m10_current_increment_finalhead_canonical: "3001 passed, 4 skipped, 0 failed (isolated HOME, at final HEAD 2e6213700022581a37673cc0bab4a0aaa4facfcd)"
 m10_current_increment_plan_resolutions: "Authorization-before-influence: M5 _gate runs before FTS/lexical discovery; corpus candidate universe is scoped before ranking/scoring/fusion/truncation. FTS used for DISCOVERY only; deterministic lexical score computed over authorized subset only (unauthorized FTS tf-idf cannot alter authorized scores). SemanticAdapter is OPTIONAL/LOCAL-ONLY/absence-safe; when present applied only over authorized hits (no global ANN). EvidenceSet corpus_evidence fused into the SAME bounded budget (5 primary / 3 supporting / 8 total). corpus_source vs corpus_unit remain distinct (M6.6). Same-content cross-scope units remain authorization-isolated. Provenance anchor: corpus_unit -> source_id; memory/event -> source_event_id (corrected at eligibility boundary; corpus source never pretends to be memory event)."
 m10_increments_proposed:
   - m10_1_corpus_source_registry_and_auth
@@ -1222,3 +1222,5 @@ m10_7_large_corpus_rollout_benchmark_final_acceptance:
   scope_discipline: "No M10.8 invented. No M11 created. No packaging/release engineering. No post-M10 audit performed. No corpus Obsidian projection. No schema migration. No mandatory dependency. No security invariant weakened and no M7/M8 bound increased for benchmark convenience."
   post_m10_audit: "NOT STARTED"
   packaging: "NOT STARTED"
+  final_head: "2e6213700022581a37673cc0bab4a0aaa4facfcd"
+  finalhead_canonical: "3001 passed, 4 skipped, 0 failed (isolated HOME)"
