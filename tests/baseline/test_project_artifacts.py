@@ -213,9 +213,10 @@ def test_m9_effective_parsed_state_is_verified() -> None:
     M9 overall is VERIFIED; M9.1-M9.6 are verified. The M10 plan is APPROVED and
     M10.1 (Corpus Source Registry + Authorization Boundary), M10.2
     (Multi-format Ingestion + Structural Extraction), M10.3
-    (Normalization + Deduplication + Versioning), and M10.4
-    (Derived Corpus Storage + Indexing, migrate_10 -> schema v10) are VERIFIED.
-    This baseline reflects the genuine post-M10.4 state.
+    (Normalization + Deduplication + Versioning), M10.4
+    (Derived Corpus Storage + Indexing, migrate_10 -> schema v10), and M10.5
+    (Hybrid Retrieval + EvidenceSet Integration) are VERIFIED.
+    This baseline reflects the genuine post-M10.5 state.
     """
     state = _effective_state(_state_text())
     assert state["m9_plan_status"] == "approved"
@@ -229,10 +230,10 @@ def test_m9_effective_parsed_state_is_verified() -> None:
     assert state["m9_increment_6_status"] == "verified"
     assert state["m9_next_incomplete_increment"] == "none"
     assert state["m9_schema"] == "v9"
-    # M10 plan APPROVED; M10.1 + M10.2 + M10.3 + M10.4 verified; M10.5-M10.7 pending.
+    # M10 plan APPROVED; M10.1-M10.5 verified; M10.6-M10.7 pending.
     assert state["m10_plan_status"] == "approved"
     assert state["m10_status"] == "in_progress"
-    assert state["m10_current_increment"] == "m10_4_derived_storage_and_indexing_migrate_10"
+    assert state["m10_current_increment"] == "m10_5_hybrid_retrieval_and_evidenceset_optional_semantic"
     assert state["m10_current_increment_status"] == "verified"
 
 
