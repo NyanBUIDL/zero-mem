@@ -131,11 +131,11 @@ def test_implementation_plan_is_machine_readable_and_gated() -> None:
     assert len(plan["open_questions_and_conflicts"]) >= 1
 
 
-def test_project_state_is_explicitly_unverified() -> None:
+def test_project_state_reflects_verified_m9_binding() -> None:
     state = (ROOT / "project-state.yaml").read_text(encoding="utf-8")
     # M0-M8 VERIFIED; M8.1-M8.6 all verified, M8 complete.
     assert "status: verified" in state
-    assert "current_milestone: M8" in state
+    assert "current_milestone: M9" in state
     # M8.6 state binding: M8 VERIFIED, M8.1-M8.6 VERIFIED, M9/M10 NOT STARTED.
     assert "m8_plan_status: \"approved\"" in state
     assert "m8_overall_status: \"verified\"" in state
@@ -145,20 +145,22 @@ def test_project_state_is_explicitly_unverified() -> None:
     assert "m8_increment_4_status: \"verified\"" in state
     assert "m8_increment_5_status: \"verified\"" in state
     assert "m8_increment_6_status: \"verified\"" in state
-    # M9.5 state binding: M9 IN PROGRESS, M9.1-M9.5 VERIFIED,
-    # M9.6 / M10 NOT STARTED. Schema remains v9.
+    # M9.6 final state binding: M9 VERIFIED, M9.1-M9.6 VERIFIED,
+    # M10 NOT STARTED. Schema remains v9.
     assert "m9_plan_status: \"approved\"" in state
-    assert "m9_overall_status: \"in_progress\"" in state
+    assert "m9_overall_status: \"verified\"" in state
     assert "m9_increment_1_status: \"verified\"" in state
     assert "m9_increment_2_status: \"verified\"" in state
     assert "m9_increment_3_status: \"verified\"" in state
     assert "m9_increment_4_status: \"verified\"" in state
     assert "m9_increment_5_status: \"verified\"" in state
-    assert "m9_next_incomplete_increment: \"M9.6\"" in state
+    assert "m9_increment_6_status: \"verified\"" in state
+    assert "m9_next_incomplete_increment: \"none\"" in state
     assert "m9_schema: \"v9\"" in state
     assert "m9_increment_1_evidence: acceptance-m9.1.md" in state
     assert "m9_increment_2_evidence: acceptance-m9.2.md" in state
     assert "m9_increment_5_evidence: acceptance-m9.5.md" in state
+    assert "m9_increment_6_evidence: acceptance-m9.6.md" in state
     assert "m1_production_code_started: true" in state
     assert "m1_increment_4_6_status: verified" in state
     assert "m1_status: verified" in state
@@ -205,22 +207,23 @@ def test_m9_state_binding_keys_are_each_present_exactly_once() -> None:
     assert missing == [], f"missing M9 state-binding keys: {missing}"
 
 
-def test_m9_effective_parsed_state_is_m9_in_progress() -> None:
+def test_m9_effective_parsed_state_is_verified() -> None:
     """Assert the EFFECTIVE (parsed) M9 binding, not its textual appearance.
 
-    M9 overall stays ``in_progress`` until M9.6 is verified; M9.1-M9.5 are
-    verified; M10 has not started.
+    After M9.6 acceptance, M9 overall is VERIFIED; M9.1-M9.6 are verified;
+    M10 has not started; schema remains v9.
     """
     state = _effective_state(_state_text())
     assert state["m9_plan_status"] == "approved"
-    assert state["m9_overall_status"] == "in_progress"
-    assert state["m9_status"] == "in_progress"
+    assert state["m9_overall_status"] == "verified"
+    assert state["m9_status"] == "verified"
     assert state["m9_increment_1_status"] == "verified"
     assert state["m9_increment_2_status"] == "verified"
     assert state["m9_increment_3_status"] == "verified"
     assert state["m9_increment_4_status"] == "verified"
     assert state["m9_increment_5_status"] == "verified"
-    assert state["m9_next_incomplete_increment"] == "M9.6"
+    assert state["m9_increment_6_status"] == "verified"
+    assert state["m9_next_incomplete_increment"] == "none"
     assert state["m9_schema"] == "v9"
     assert state["m10_status"] == "not_started"
 
