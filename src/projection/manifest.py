@@ -832,7 +832,15 @@ def store_manifest(managed_root: Path, manifest: ProjectionManifest,
     except ProjectionPathError:
         raise
     except OSError:
-        raise ManifestError("manifest_directory_unavailable") from None
+        # Fail CLOSED on an unavailable manifest directory (permission denied,
+        # read-only managed root, disk-full). The manifest is DERIVED and fully
+        # rebuildable from canonical traces + on-disk notes, so a failed store is
+        # a soft condition: the run completes with manifest_stored=False and the
+        # next reconcile re-derives it. Raising here would abort the whole run
+        # and risk leaving the vault in a half-written state (plan-m9.md §28
+        # failure-isolation: every failure fails closed and leaves the vault
+        # consistent).
+        return False
 
     temp_path = safe_managed_path(
         managed_root, META_DIR_NAME, f"{MANIFEST_FILENAME}.tmp-manifest"
