@@ -1016,9 +1016,4 @@ m9_increment_5_scope_notes: >-
   root; real-vault content digest identical before/after). Canonical JSONL/SQLite
   immutable. Zero LLM calls, zero external network calls, no Hermes core change,
   no schema migration (v9), no new dependencies.
-m9_overall_status: "verified"
-m9_status: "verified"
-m9_current_increment: increment_5
-m9_next_incomplete_increment: "M9.6"
-m9_schema: "v9"
 m10_status: "not_started"
