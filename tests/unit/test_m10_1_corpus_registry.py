@@ -9,6 +9,8 @@ No ingestion, no normalization, no FTS, no embeddings, no graph, no migrate_10.
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 import tempfile
 import threading
 from pathlib import Path
@@ -19,11 +21,13 @@ from src.access.contracts import _VALID_RESOURCE_TYPES
 from src.access.grants import AuthorizedReadGrant, compose_effective_scope
 from src.capture.event_types import LifecycleStatus
 from src.corpus import (
+    CorpusBlobStore,
     CorpusSourceRegistry,
     compute_content_identity,
     compute_source_hash,
     derive_source_id,
 )
+from src.corpus.config import CorpusConfigError
 from src.corpus.contracts import (
     CORPUS_SOURCE_RESOURCE_TYPE,
     CorpusSourceRecord,
@@ -378,6 +382,104 @@ def test_root_resolution_unconfigured_is_none(monkeypatch):
     monkeypatch.delenv("ZERO_MEM_CORPUS_ROOT", raising=False)
     reg = CorpusSourceRegistry(root=None, config_path=Path("/no/corpus.yaml"))
     assert reg.available is False
+
+
+def _write_corpus_config(path: Path, value: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f'  # optional comment\ncorpus_root: "{value}"  # inline comment\n')
+    return path
+
+
+def test_root_resolution_valid_config_without_yaml_module(tmp_path, monkeypatch):
+    """The real config path works in a clean stdlib-only interpreter."""
+    monkeypatch.delenv("ZERO_MEM_CORPUS_ROOT", raising=False)
+    config = _write_corpus_config(tmp_path / "config" / "corpus.yaml", str(tmp_path / "safe root"))
+    code = (
+        "import importlib.util, pathlib; "
+        "assert importlib.util.find_spec('yaml') is None; "
+        "from src.corpus.blob_store import CorpusBlobStore; "
+        "from src.corpus.registry import CorpusSourceRegistry; "
+        f"cfg = pathlib.Path({str(config)!r}); "
+        f"expected = pathlib.Path({str(tmp_path / 'safe root')!r}).resolve(); "
+        "reg = CorpusSourceRegistry(config_path=cfg); blob = CorpusBlobStore(config_path=cfg); "
+        "assert reg.path is not None and reg.path.parent == expected; "
+        "assert blob._root == expected"
+    )
+    env = os.environ.copy()
+    env["PYTHONPATH"] = ""
+    env.pop("PYTHONHOME", None)
+    env["PYTHONNOUSERSITE"] = "1"
+    env["HOME"] = str(tmp_path / "home")
+    result = subprocess.run(
+        [sys.executable, "-S", "-c", code],
+        cwd=Path(__file__).resolve().parents[2],
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_root_resolution_config_fallback_and_registry_blob_consistency(tmp_path, monkeypatch):
+    monkeypatch.delenv("ZERO_MEM_CORPUS_ROOT", raising=False)
+    configured = tmp_path / "configured root with spaces"
+    config = _write_corpus_config(tmp_path / "config" / "corpus.yaml", str(configured))
+    registry = CorpusSourceRegistry(config_path=config)
+    blob_store = CorpusBlobStore(config_path=config)
+    assert registry.path is not None
+    assert registry.path.parent == configured.resolve()
+    assert blob_store._root == configured.resolve()
+
+
+def test_root_resolution_explicit_precedes_env_and_config(tmp_path, monkeypatch):
+    config = _write_corpus_config(tmp_path / "config" / "corpus.yaml", str(tmp_path / "config-root"))
+    monkeypatch.setenv("ZERO_MEM_CORPUS_ROOT", str(tmp_path / "env-root"))
+    registry = CorpusSourceRegistry(root=tmp_path / "explicit-root", config_path=config)
+    assert registry.path is not None
+    assert registry.path.parent == (tmp_path / "explicit-root").resolve()
+
+
+def test_root_resolution_env_precedes_config(tmp_path, monkeypatch):
+    config = _write_corpus_config(tmp_path / "config" / "corpus.yaml", str(tmp_path / "config-root"))
+    monkeypatch.setenv("ZERO_MEM_CORPUS_ROOT", str(tmp_path / "env-root"))
+    registry = CorpusSourceRegistry(config_path=config)
+    blob_store = CorpusBlobStore(config_path=config)
+    assert registry.path is not None
+    assert registry.path.parent == (tmp_path / "env-root").resolve()
+    assert blob_store._root == (tmp_path / "env-root").resolve()
+
+
+@pytest.mark.parametrize(
+    "contents",
+    [
+        "corpus_root: /a\ncorpus_root: /b\n",
+        "corpus_root:\n",
+        "corpus_root:\n  nested: value\n",
+        "corpus_root: [a, b]\n",
+        "corpus_root: true\n",
+        "corpus_root: /a\nextra: value\n",
+        "corpus_root /a\n",
+        'corpus_root: "/unterminated\n',
+    ],
+    ids=[
+        "duplicate",
+        "empty",
+        "nested",
+        "sequence",
+        "implicit-bool",
+        "unsupported-key",
+        "missing-separator",
+        "unterminated-quote",
+    ],
+)
+def test_present_invalid_corpus_config_fails_explicitly(tmp_path, contents):
+    config = tmp_path / "config" / "corpus.yaml"
+    config.parent.mkdir()
+    config.write_text(contents)
+    with pytest.raises(CorpusConfigError):
+        CorpusSourceRegistry(config_path=config)
+    with pytest.raises(CorpusConfigError):
+        CorpusBlobStore(config_path=config)
 
 
 # ---------------------------------------------------------------------------

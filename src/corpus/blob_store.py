@@ -7,7 +7,8 @@ config). Path safety: blobs are confined to the resolved corpus root; traversal,
 symlink-escape, and out-of-root writes are rejected fail-closed.
 
 Portability: root resolves explicit -> ZERO_MEM_CORPUS_ROOT -> config/corpus.yaml
-key ``corpus_root`` -> None (unavailable = safe). No username / $HOME / repo path.
+key ``corpus_root`` -> None only when the optional config is absent. No username /
+$HOME / repo path.
 """
 from __future__ import annotations
 
@@ -17,14 +18,13 @@ import threading
 from pathlib import Path
 from typing import Final, Optional
 
-#: The ONE environment variable that may supply a corpus root.
-CORPUS_ROOT_ENV_VAR: Final[str] = "ZERO_MEM_CORPUS_ROOT"
-
-#: Project-local optional config file, joining the existing ``config/`` convention.
-CONFIG_FILE_RELATIVE_PATH: Final[str] = "config/corpus.yaml"
-
-#: Key read from that file. It is the only key this module honours.
-CONFIG_FILE_CORPUS_ROOT_KEY: Final[str] = "corpus_root"
+from .config import (
+    CONFIG_FILE_CORPUS_ROOT_KEY,
+    CONFIG_FILE_RELATIVE_PATH,
+    CORPUS_ROOT_ENV_VAR,
+    CorpusConfigError,
+    resolve_root,
+)
 
 
 def _resolve_root(
@@ -32,34 +32,8 @@ def _resolve_root(
     env_name: str = CORPUS_ROOT_ENV_VAR,
     config_path: Optional[Path] = None,
 ) -> Optional[Path]:
-    """Deterministic, explicit-only root resolution (mirrors projection/config).
-
-    Shared by the registry and the blob store so both resolve to the SAME root.
-    Order: explicit argument -> env var (absolute path) -> project-local config
-    file key -> None. Never derives the root from cwd, ``$HOME``, the repository
-    name, or any memory content.
-    """
-    if explicit is not None:
-        value = str(explicit).strip()
-        if value:
-            return Path(value).expanduser().resolve()
-    env_value = os.environ.get(env_name)
-    if env_value:
-        env_value = env_value.strip()
-        if env_value:
-            return Path(env_value).expanduser().resolve()
-    if config_path is not None and config_path.exists():
-        try:
-            import yaml  # local import; config is optional
-
-            data = yaml.safe_load(config_path.read_text()) or {}
-            file_value = data.get(CONFIG_FILE_CORPUS_ROOT_KEY)
-            if isinstance(file_value, str) and file_value.strip():
-                return Path(file_value.strip()).expanduser().resolve()
-        except Exception:
-            # Any config failure => treat as unconfigured (fail safe, silent).
-            return None
-    return None
+    """Resolve the shared, dependency-free corpus-root contract."""
+    return resolve_root(explicit, env_name=env_name, config_path=config_path)
 
 
 class BlobStoreError(ValueError):
@@ -163,5 +137,11 @@ class CorpusBlobStore:
             raise BlobStoreError("blob_store: path_escape_attempt")
 
 
-__all__ = ["CorpusBlobStore", "BlobStoreError", "CORPUS_ROOT_ENV_VAR",
-           "CONFIG_FILE_RELATIVE_PATH", "CONFIG_FILE_CORPUS_ROOT_KEY"]
+__all__ = [
+    "CorpusBlobStore",
+    "BlobStoreError",
+    "CorpusConfigError",
+    "CORPUS_ROOT_ENV_VAR",
+    "CONFIG_FILE_RELATIVE_PATH",
+    "CONFIG_FILE_CORPUS_ROOT_KEY",
+]

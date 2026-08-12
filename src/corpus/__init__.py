@@ -23,6 +23,7 @@ from .identity import (
 from .compatibility import CompatibilityError, CompatibilityReport, convert_legacy_registry
 from .registry import CorpusSourceRegistry
 from .blob_store import CorpusBlobStore
+from .config import CorpusConfigError, parse_corpus_config, resolve_root
 from .extract import (
     ExtractionError,
     ExtractionResult,
@@ -120,6 +121,9 @@ __all__ = [
     "convert_legacy_registry",
     "CorpusSourceRegistry",
     "CorpusBlobStore",
+    "CorpusConfigError",
+    "parse_corpus_config",
+    "resolve_root",
     "ExtractionError",
     "ExtractionResult",
     "ExtractionStatus",

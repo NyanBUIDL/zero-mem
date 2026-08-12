@@ -22,6 +22,7 @@ from .blob_store import (
     CorpusBlobStore,
     _resolve_root,
 )
+from .config import CorpusConfigError
 from .contracts import CorpusSourceRecord, SourceSensitivity, ValidationError
 from .identity import (
     SourceLifecycle,
@@ -300,6 +301,7 @@ class CorpusSourceRegistry:
 
 __all__ = [
     "CorpusSourceRegistry",
+    "CorpusConfigError",
     "CORPUS_ROOT_ENV_VAR",
     "CONFIG_FILE_RELATIVE_PATH",
     "CONFIG_FILE_CORPUS_ROOT_KEY",
