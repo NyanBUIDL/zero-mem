@@ -34,3 +34,19 @@ canonical Memory JSONL stream, and the derived SQLite schema. It finishes with
 or a repository checkout. `doctor` is read-only and reports stable PASS/WARN/
 OPTIONAL/FAIL checks; absent optional integrations are warnings or optional
 capabilities, not setup failures.
+
+PKG-4 adds an explicit, optional Hermes integration workflow:
+
+```text
+zero-mem integrate hermes --check
+zero-mem integrate hermes --project-id PROJECT --profile-id PROFILE
+zero-mem integrate hermes --remove
+```
+
+Integration is never enabled by `setup`, `doctor`, or normal startup. The
+project and profile identifiers are mandatory and are never inferred from the
+working directory, repository name, HOME, session text, or branch. The command
+stores only a Zero-Mem-owned descriptor under the configured XDG config root;
+it does not edit Hermes files, install Hermes, contact the network, or expose
+write/admin/raw-storage tools. `ZERO_MEM_ENABLED` remains the sole master
+switch, and Hermes remains operational when Zero-Mem is unavailable.

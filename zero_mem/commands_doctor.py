@@ -121,7 +121,18 @@ def collect() -> dict[str, Any]:
     fts_status, fts_message = _fts5_check()
     checks.append(_check("fts5", fts_status, fts_message))
 
-    checks.append(_check("hermes", "WARN", "Hermes integration not configured"))
+    try:
+        from .hermes_integration import inspect_integration
+
+        hermes = inspect_integration()
+        if hermes["configured"] and hermes["zero_mem_ready"] and hermes["zero_mem_enabled"]:
+            checks.append(_check("hermes", "PASS", "Hermes integration configured and healthy"))
+        elif hermes["hermes_found"]:
+            checks.append(_check("hermes", "WARN", "Hermes available but optional integration is not configured"))
+        else:
+            checks.append(_check("hermes", "WARN", "Hermes integration not configured"))
+    except Exception:
+        checks.append(_check("hermes", "WARN", "Hermes integration status unavailable"))
     checks.append(_check("corpus", "WARN", "Corpus root not configured"))
     checks.append(_check("obsidian", "WARN", "Obsidian projection not configured"))
     checks.append(_check("pypdf", "OPTIONAL", "optional PDF parser available" if importlib.util.find_spec("pypdf") else "optional PDF parser absent"))

@@ -21,6 +21,19 @@ non-mutating runtime, configuration, canonical Memory, derived SQLite, and
 optional-integration checks. Hermes, Corpus, Obsidian, and AI APIs are optional;
 their absence does not prevent first-run readiness.
 
+The optional PKG-4 branch is explicit and identity-bound:
+
+```text
+zero-mem integrate hermes --check
+zero-mem integrate hermes --project-id PROJECT --profile-id PROFILE
+zero-mem integrate hermes --remove
+```
+
+It does not run during installation, setup, or doctor. It writes only the
+Zero-Mem-owned integration descriptor below the configured XDG config root and
+uses the existing external Hermes plugin-context boundary. Hermes is not a
+runtime dependency of the Zero-Mem wheel.
+
 This is a **PKG-3 SETUP + DOCTOR ACCEPTANCE BUNDLE**, not the final v1.0.0
 release artifact. It does not provide status, rebuild, integration, backup,
 restore, upgrade, rollback, service, or GitHub publication commands.
