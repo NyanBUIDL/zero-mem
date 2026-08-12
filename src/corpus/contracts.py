@@ -63,6 +63,10 @@ class CorpusSourceRecord:
     blob_ref: Optional[str] = None
     provenance: Mapping[str, Any] = field(default_factory=dict)
     custom_meta: Mapping[str, Any] = field(default_factory=dict)
+    source_version_id: Optional[str] = None
+    supersedes: Optional[str] = None
+    predecessor_content_hash: Optional[str] = None
+    normalization_version: Optional[str] = None
 
     def __post_init__(self) -> None:
         # Closed-contract validation (fail closed). Surface a contract-specific
@@ -95,6 +99,10 @@ class CorpusSourceRecord:
             "provenance": dict(self.provenance),
             "custom_meta": dict(self.custom_meta),
             "created_at": self.created_at,
+            "source_version_id": self.source_version_id,
+            "supersedes": self.supersedes,
+            "predecessor_content_hash": self.predecessor_content_hash,
+            "normalization_version": self.normalization_version,
         }
 
     @classmethod
@@ -114,6 +122,10 @@ class CorpusSourceRecord:
             blob_ref=data.get("blob_ref"),
             provenance=data.get("provenance") or {},
             custom_meta=data.get("custom_meta") or {},
+            source_version_id=data.get("source_version_id"),
+            supersedes=data.get("supersedes"),
+            predecessor_content_hash=data.get("predecessor_content_hash"),
+            normalization_version=data.get("normalization_version"),
         )
 
 

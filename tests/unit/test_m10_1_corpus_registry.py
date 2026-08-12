@@ -19,6 +19,7 @@ from src.access.grants import AuthorizedReadGrant, compose_effective_scope
 from src.capture.event_types import LifecycleStatus
 from src.corpus import (
     CorpusSourceRegistry,
+    compute_content_identity,
     compute_source_hash,
     derive_source_id,
 )
@@ -97,18 +98,58 @@ def test_source_hash_deterministic_and_unchanged_source_detection():
     h1 = compute_source_hash(content, desc)
     h2 = compute_source_hash(content, desc)
     assert h1 == h2
-    # different content => different hash
+    # different content => different content identity
     assert compute_source_hash(b"different", desc) != h1
     # deterministic source_id
     assert derive_source_id(h1, desc) == derive_source_id(h1, desc)
 
 
-def test_source_id_changes_when_scope_changes():
+def test_content_identity_excludes_descriptor_and_scope():
     content = b"same bytes"
     desc_a = dict(external_ref="r", kind="pdf", profile_id="p1", project_id="pr")
     desc_b = dict(external_ref="r", kind="pdf", profile_id="p2", project_id="pr")
-    h = compute_source_hash(content, desc_a)
-    assert derive_source_id(h, desc_a) != derive_source_id(h, desc_b)
+    assert compute_source_hash(content, desc_a) == compute_source_hash(content, desc_b)
+    assert compute_content_identity(content) == compute_source_hash(content, desc_a)
+    assert derive_source_id("ignored", desc_a) != derive_source_id("ignored", desc_b)
+
+
+def test_registry_changed_bytes_keep_logical_source_and_supersede(tmp_path):
+    reg = CorpusSourceRegistry(root=tmp_path)
+    first = reg.register_source(content=b"v1", external_ref="docs/a.txt", kind="txt", project_id="P")
+    second = reg.register_source(content=b"v2", external_ref="docs/a.txt", kind="txt", project_id="P")
+    assert second.source_id == first.source_id
+    assert second.content_hash != first.content_hash
+    assert second.source_version_id != first.source_version_id
+    assert second.supersedes == first.source_version_id
+    assert second.predecessor_content_hash == first.content_hash
+    assert len(reg.all_records()) == 2
+
+
+def test_registry_unchanged_reingest_is_idempotent(tmp_path):
+    reg = CorpusSourceRegistry(root=tmp_path)
+    first = reg.register_source(content=b"same", external_ref="docs/a.txt", kind="txt", project_id="P")
+    second = reg.register_source(content=b"same", external_ref="docs/a.txt", kind="txt", project_id="P")
+    assert second == first
+    assert len(reg.all_records()) == 1
+
+
+def test_renamed_same_bytes_share_content_only(tmp_path):
+    reg = CorpusSourceRegistry(root=tmp_path)
+    first = reg.register_source(content=b"same", external_ref="docs/a.txt", kind="txt", project_id="P")
+    renamed = reg.register_source(content=b"same", external_ref="docs/renamed.txt", kind="txt", project_id="P")
+    assert renamed.content_hash == first.content_hash
+    assert renamed.source_id != first.source_id
+    assert renamed.external_ref != first.external_ref
+
+
+def test_cross_scope_same_bytes_do_not_share_authorization_identity(tmp_path):
+    reg = CorpusSourceRegistry(root=tmp_path)
+    first = reg.register_source(content=b"same", external_ref="docs/a.txt", kind="txt", profile_id="p1", project_id="P1")
+    other = reg.register_source(content=b"same", external_ref="docs/a.txt", kind="txt", profile_id="p2", project_id="P2")
+    assert other.content_hash == first.content_hash
+    assert other.source_id != first.source_id
+    assert other.source_version_id != first.source_version_id
+    assert (other.profile_id, other.project_id) != (first.profile_id, first.project_id)
 
 
 # ---------------------------------------------------------------------------

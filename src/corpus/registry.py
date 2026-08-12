@@ -1,23 +1,10 @@
-"""M10.1 — append-first corpus source registry store.
+"""Append-first corpus source registry.
 
-The corpus source registry is its own append-only JSONL store
-(``corpus_sources.jsonl``). It is a canonical corpus artifact, NOT memory
-JSONL: corpus source records never enter the M1 event stream (MEMORY != CORPUS).
-
-Discipline mirrors ``src/storage/jsonl_capture.py``:
-- 0o700 parent, 0o600 file;
-- fsync on append;
-- duplicate-by-source_id and duplicate-by-content_hash are idempotent (return
-  the existing record, never a second append);
-- malformed historical lines reject closed (fail closed).
-
-No document bytes are written here (blob store is M10.2/M10.4); ``blob_ref``
-stays None in M10.1.
-
-Portability: the registry root resolves as explicit arg -> environment variable
-``ZERO_MEM_CORPUS_ROOT`` -> project-local ``config/corpus.yaml`` key
-``corpus_root`` -> None (unavailable = safe, silent). No username, no
-``$HOME`` guess, no repository-relative default.
+The registry is a canonical corpus artifact, separate from memory JSONL.  Its
+records deliberately keep five identity axes separate: bytes-only content
+identity, stable logical source identity, location provenance, explicit
+authorization scope, and immutable source-version identity.  Registry reads do
+not authorize access; M5 remains the sole authorization authority.
 """
 from __future__ import annotations
 
@@ -28,26 +15,21 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Final, List, Mapping, Optional
 
-from .contracts import (
-    CorpusSourceRecord,
-    SourceSensitivity,
-    ValidationError,
-)
-from .identity import (
-    SourceLifecycle,
-    compute_source_hash,
-    derive_source_id,
-    source_descriptor,
-)
 from .blob_store import (
-    CORPUS_ROOT_ENV_VAR,
     CONFIG_FILE_CORPUS_ROOT_KEY,
     CONFIG_FILE_RELATIVE_PATH,
+    CORPUS_ROOT_ENV_VAR,
     CorpusBlobStore,
     _resolve_root,
 )
+from .contracts import CorpusSourceRecord, SourceSensitivity, ValidationError
+from .identity import (
+    SourceLifecycle,
+    compute_content_identity,
+    derive_source_id,
+    source_descriptor,
+)
 
-#: Default registry filename beneath the resolved corpus root.
 REGISTRY_FILENAME: Final[str] = "corpus_sources.jsonl"
 
 
@@ -55,53 +37,16 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _resolve_root(
-    explicit: Optional[Path],
-    env_name: str = CORPUS_ROOT_ENV_VAR,
-    config_path: Optional[Path] = None,
-) -> Optional[Path]:
-    """Deterministic, explicit-only root resolution (mirrors projection/config).
-
-    Order: explicit argument -> env var (absolute path) -> project-local config
-    file key -> None. Never derives the root from cwd, ``$HOME``, the repository
-    name, or any memory content.
-    """
-    if explicit is not None:
-        value = str(explicit).strip()
-        if value:
-            return Path(value).expanduser().resolve()
-    env_value = os.environ.get(env_name)
-    if env_value:
-        env_value = env_value.strip()
-        if env_value:
-            return Path(env_value).expanduser().resolve()
-    if config_path is not None and config_path.exists():
-        try:
-            import yaml  # local import; config is optional
-
-            data = yaml.safe_load(config_path.read_text()) or {}
-            file_value = data.get(CONFIG_FILE_CORPUS_ROOT_KEY)
-            if isinstance(file_value, str) and file_value.strip():
-                return Path(file_value.strip()).expanduser().resolve()
-        except Exception:
-            # Any config failure => treat as unconfigured (fail safe, silent).
-            return None
-    return None
-
-
 class CorpusSourceRegistry:
-    """Append-first, deterministic corpus source registry."""
+    """Append-first, deterministic registry of logical source versions."""
 
-    def __init__(
-        self,
-        root: Optional[Path] = None,
-        config_path: Optional[Path] = None,
-    ) -> None:
+    def __init__(self, root: Optional[Path] = None, config_path: Optional[Path] = None) -> None:
         self._root = _resolve_root(root, config_path=config_path)
         self._path: Optional[Path] = None
         self._lock = threading.RLock()
         self._by_id: dict[str, CorpusSourceRecord] = {}
-        self._by_hash: dict[str, CorpusSourceRecord] = {}
+        self._by_hash: dict[str, list[CorpusSourceRecord]] = {}
+        self._records: list[CorpusSourceRecord] = []
         if self._root is not None:
             self._root.mkdir(parents=True, exist_ok=True)
             if os.name != "nt":
@@ -109,17 +54,14 @@ class CorpusSourceRegistry:
             self._path = self._root / REGISTRY_FILENAME
             self._load()
 
-    # -- availability -------------------------------------------------------
     @property
     def available(self) -> bool:
-        """Unconfigured corpus root is a NORMAL, SAFE state (silent)."""
         return self._path is not None
 
     @property
     def path(self) -> Optional[Path]:
         return self._path
 
-    # -- load ---------------------------------------------------------------
     def _load(self) -> None:
         assert self._path is not None
         if not self._path.exists():
@@ -136,22 +78,54 @@ class CorpusSourceRegistry:
                 if not isinstance(record, dict):
                     raise ValueError
                 rec = CorpusSourceRecord.from_dict(record)
-            except Exception as exc:
+            except Exception:
                 raise ValidationError(
                     f"corpus_registry: malformed_historical_line:{line_number}"
                 ) from None
-            self._by_id[rec.source_id] = rec
-            self._by_hash[rec.content_hash] = rec
+            self._index_record(rec)
 
-    # -- serialize ----------------------------------------------------------
+    def _index_record(self, record: CorpusSourceRecord) -> None:
+        self._records.append(record)
+        self._by_id[record.source_id] = record
+        self._by_hash.setdefault(record.content_hash, []).append(record)
+
     @staticmethod
     def _serialize(record: CorpusSourceRecord) -> bytes:
         return (
-            json.dumps(record.as_dict(), ensure_ascii=False, sort_keys=True,
-                       separators=(",", ":")) + "\n"
+            json.dumps(record.as_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            + "\n"
         ).encode("utf-8")
 
-    # -- register -----------------------------------------------------------
+    def _next_version_fields(
+        self,
+        *,
+        source_id: str,
+        content_hash_value: str,
+        profile_id: Optional[str],
+        project_id: Optional[str],
+        knowledge_space_id: Optional[str],
+    ) -> tuple[str, Optional[str], Optional[str]]:
+        from .normalize import NORMALIZATION_VERSION
+        from .versioning import ScopeKey, compute_source_version_id
+
+        scope = ScopeKey(profile_id, project_id, knowledge_space_id)
+        version_id = compute_source_version_id(
+            source_id=source_id,
+            content_hash_value=content_hash_value,
+            scope=scope,
+            normalization_version=NORMALIZATION_VERSION,
+        )
+        latest = self._by_id.get(source_id)
+        if latest is None:
+            return version_id, None, None
+        predecessor_id = latest.source_version_id or compute_source_version_id(
+            source_id=latest.source_id,
+            content_hash_value=latest.content_hash,
+            scope=ScopeKey(latest.profile_id, latest.project_id, latest.knowledge_space_id),
+            normalization_version=latest.normalization_version or NORMALIZATION_VERSION,
+        )
+        return version_id, predecessor_id, latest.content_hash
+
     def register_source(
         self,
         *,
@@ -164,12 +138,13 @@ class CorpusSourceRegistry:
         sensitivity: str = SourceSensitivity.INTERNAL.value,
         lifecycle_status: str = SourceLifecycle.OBSERVED.value,
         custom_meta: Optional[Mapping[str, Any]] = None,
+        provenance: Optional[Mapping[str, Any]] = None,
     ) -> CorpusSourceRecord:
-        """Register (or idempotently return) one corpus source version.
+        """Register a logical source or append its changed immutable version.
 
-        Deterministic: identical (content, scope) => identical source_id and
-        content_hash; re-registration returns the existing record without a
-        second append. No document bytes are stored (blob_ref stays None).
+        The descriptor determines ``source_id`` and bytes determine
+        ``content_hash``.  The check and append are intentionally kept under the
+        instance lock; distributed/process concurrency remains R5 scope.
         """
         if not self.available:
             raise ValidationError("corpus_registry: root_not_configured")
@@ -181,39 +156,47 @@ class CorpusSourceRegistry:
             knowledge_space_id=knowledge_space_id,
             custom_meta=custom_meta,
         )
-        content_hash_value = compute_source_hash(content, descriptor)
-        if content_hash_value in self._by_hash:
-            return self._by_hash[content_hash_value]
+        content_hash_value = compute_content_identity(content)
         source_id = derive_source_id(content_hash_value, descriptor)
-        if source_id in self._by_id:
-            return self._by_id[source_id]
-        record = CorpusSourceRecord(
-            source_id=source_id,
-            content_hash=content_hash_value,
-            external_ref=external_ref,
-            kind=kind,
-            created_at=_now(),
-            profile_id=profile_id,
-            project_id=project_id,
-            knowledge_space_id=knowledge_space_id,
-            sensitivity=sensitivity,
-            lifecycle_status=lifecycle_status,
-            blob_ref=None,
-            provenance={"registered_at": _now(), "registry": "corpus_sources"},
-            custom_meta=custom_meta or {},
-        )
         with self._lock:
-            blob = self._serialize(record)
+            existing = self._by_id.get(source_id)
+            if existing is not None and existing.content_hash == content_hash_value:
+                return existing
+            source_version_id, supersedes, predecessor_hash = self._next_version_fields(
+                source_id=source_id,
+                content_hash_value=content_hash_value,
+                profile_id=profile_id,
+                project_id=project_id,
+                knowledge_space_id=knowledge_space_id,
+            )
+            record = CorpusSourceRecord(
+                source_id=source_id,
+                content_hash=content_hash_value,
+                external_ref=external_ref,
+                kind=kind,
+                created_at=_now(),
+                profile_id=profile_id,
+                project_id=project_id,
+                knowledge_space_id=knowledge_space_id,
+                sensitivity=sensitivity,
+                lifecycle_status=lifecycle_status,
+                blob_ref=None,
+                provenance={"registered_at": _now(), "registry": "corpus_sources", **dict(provenance or {})},
+                custom_meta=custom_meta or {},
+                source_version_id=source_version_id,
+                supersedes=supersedes,
+                predecessor_content_hash=predecessor_hash,
+                normalization_version="m10.3",
+            )
             try:
                 with self._path.open("ab") as stream:  # type: ignore[union-attr]
-                    stream.write(blob)
+                    stream.write(self._serialize(record))
                     stream.flush()
                     os.fsync(stream.fileno())
-            except Exception as exc:
+            except Exception:
                 raise ValidationError("corpus_registry: append_failed") from None
-            self._by_id[record.source_id] = record
-            self._by_hash[record.content_hash] = record
-        return record
+            self._index_record(record)
+            return record
 
     def register_source_with_blob(
         self,
@@ -227,14 +210,9 @@ class CorpusSourceRegistry:
         sensitivity: str = SourceSensitivity.INTERNAL.value,
         lifecycle_status: str = SourceLifecycle.OBSERVED.value,
         custom_meta: Optional[Mapping[str, Any]] = None,
+        provenance: Optional[Mapping[str, Any]] = None,
         blob_store: Optional[CorpusBlobStore] = None,
     ) -> CorpusSourceRecord:
-        """Register a source AND persist its bytes in the blob store (M10.2).
-
-        The source bytes live ONLY in the blob store (never in memory JSONL);
-        the returned record carries ``blob_ref`` = the content-address so the
-        canonical source artifact is recoverable and extraction is rebuildable.
-        """
         record = self.register_source(
             content=content,
             external_ref=external_ref,
@@ -245,24 +223,20 @@ class CorpusSourceRegistry:
             sensitivity=sensitivity,
             lifecycle_status=lifecycle_status,
             custom_meta=custom_meta,
+            provenance=provenance,
         )
         if record.blob_ref is not None:
             return record
         store = blob_store or CorpusBlobStore(root=self._root)
         if not store.available:
-            # Blob store unavailable => keep registry entry but no blob bound.
-            # Source bytes are NOT stored anywhere; M10.4 may add derived store.
             return record
         digest = store.put(content=content, source_ref=record.source_id)
-        # Update the persisted record's blob_ref in place (append-first replay).
-        updated = CorpusSourceRecord(
-            **{**record.as_dict(), "blob_ref": digest}
-        )
+        updated = CorpusSourceRecord(**{**record.as_dict(), "blob_ref": digest})
         self._update_record(updated)
         return updated
 
     def _update_record(self, record: CorpusSourceRecord) -> None:
-        """Rewrite the single line for ``record.source_id`` (idempotent identity)."""
+        """Rebind one version without overwriting prior source history."""
         if not self.available or self._path is None:
             return
         with self._lock:
@@ -271,46 +245,57 @@ class CorpusSourceRegistry:
             replaced = False
             for line in lines:
                 try:
-                    rec = json.loads(line.decode("utf-8"))
+                    raw = json.loads(line.decode("utf-8"))
                 except Exception:
                     new_lines.append(line)
                     continue
-                if rec.get("source_id") == record.source_id:
+                same_source = raw.get("source_id") == record.source_id
+                same_version = raw.get("source_version_id") == record.source_version_id
+                legacy_single = record.source_version_id is None and "source_version_id" not in raw
+                if same_source and (same_version or legacy_single) and not replaced:
                     new_lines.append(self._serialize(record))
                     replaced = True
                 else:
                     new_lines.append(line)
             if not replaced:
                 new_lines.append(self._serialize(record))
-            # ``_serialize`` already terminates each record with "\n" while
-            # ``splitlines()`` yields unterminated lines. Normalize to exactly
-            # one terminator per record so the append-first JSONL never gains a
-            # blank line (a blank line makes the canonical registry unreadable
-            # on replay -- see the M10.7 regression).
             data = b"".join(line.rstrip(b"\n") + b"\n" for line in new_lines)
             tmp = self._path.with_suffix(".tmp")
             tmp.write_bytes(data)
             os.chmod(tmp, 0o600)
             os.replace(tmp, self._path)
+            self._records = [
+                record if r.source_id == record.source_id and r.source_version_id == record.source_version_id else r
+                for r in self._records
+            ]
             self._by_id[record.source_id] = record
-            self._by_hash[record.content_hash] = record
+            matches = self._by_hash.setdefault(record.content_hash, [])
+            for index, existing in enumerate(matches):
+                if existing.source_id == record.source_id and existing.source_version_id == record.source_version_id:
+                    matches[index] = record
+                    break
+            else:
+                matches.append(record)
 
-    # -- read (deterministic, authorization is the caller's responsibility) --
     def get_by_source_id(self, source_id: str) -> Optional[CorpusSourceRecord]:
         return self._by_id.get(source_id)
 
     def get_by_content_hash(self, content_hash: str) -> Optional[CorpusSourceRecord]:
-        return self._by_hash.get(content_hash)
+        matches = self._by_hash.get(content_hash, [])
+        return matches[-1] if matches else None
+
+    def get_all_by_content_hash(self, content_hash: str) -> List[CorpusSourceRecord]:
+        return list(self._by_hash.get(content_hash, []))
 
     def get_by_external_ref(self, external_ref: str) -> List[CorpusSourceRecord]:
-        return [r for r in self._by_id.values() if r.external_ref == external_ref]
+        return [r for r in self._records if r.external_ref == external_ref]
 
     def get_by_external_ref_first(self, external_ref: str) -> Optional[CorpusSourceRecord]:
         matches = self.get_by_external_ref(external_ref)
         return matches[0] if matches else None
 
     def all_records(self) -> List[CorpusSourceRecord]:
-        return list(self._by_id.values())
+        return list(self._records)
 
 
 __all__ = [

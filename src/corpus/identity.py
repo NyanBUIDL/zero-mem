@@ -1,8 +1,14 @@
-"""M10.1 — deterministic corpus source identity.
+"""Deterministic corpus identity primitives.
 
-Reuses ``src.m8.identity.content_hash`` so corpus hashing shares the exact
-deterministic sha256 materialization already used by the verified M8 derived
-store. Zero LLM, zero network.
+Corpus identity has deliberately separate axes:
+
+* content identity is derived from source bytes only;
+* logical source identity is derived from the stable descriptor only; and
+* version identity combines the logical source, content, scope, and
+  normalization contract.
+
+The registry owns the first two axes. Version-chain code consumes them without
+using content as a logical-source or authorization key.
 """
 from __future__ import annotations
 
@@ -11,12 +17,10 @@ from typing import Any, Mapping, Optional
 
 from src.m8.identity import content_hash
 
-#: Corpus source descriptor domain for the shared content-hash materialization.
-_DOMAIN = "corpus_source"
+_CONTENT_DOMAIN = "zm10.corpus_source_content"
+_LOGICAL_SOURCE_DOMAIN = "zm10.corpus_logical_source"
 
-#: Closed lifecycle enum for corpus sources (subset of the M1 closed lifecycle;
-#: corpus reuses the same permanent values so downstream authorization/graph
-#: can carry them through unchanged). Unknown values fail closed.
+
 class SourceLifecycle(str, Enum):
     RAW = "raw"
     OBSERVED = "observed"
@@ -47,12 +51,11 @@ def source_descriptor(
     knowledge_space_id: Optional[str] = None,
     custom_meta: Optional[Mapping[str, Any]] = None,
 ) -> dict:
-    """Build the canonical, deterministic descriptor used for source identity.
+    """Build the stable logical-source descriptor.
 
-    The descriptor is the identity basis only (NOT the blob bytes). It includes
-    scope + a stable custom-meta map so identical external sources under the
-    same scope resolve to the same identity, while unchanged-source detection
-    keys off the authoritative content_hash supplied separately.
+    ``external_ref`` is location/provenance. It therefore makes a renamed copy
+    a new logical source unless a separately approved relocation operation is
+    introduced. Source bytes are intentionally absent.
     """
     desc: dict = {
         "external_ref": external_ref,
@@ -66,41 +69,48 @@ def source_descriptor(
     return desc
 
 
-def compute_source_hash(content: bytes, descriptor: Mapping[str, Any]) -> str:
-    """Deterministic content hash over (source bytes + descriptor).
-
-    Identity is content-addressed: identical bytes + identical descriptor =>
-    identical hash => unchanged-source detection and idempotent append.
-    """
-    payload = {
-        "domain": _DOMAIN,
-        "descriptor": dict(descriptor),
-        "content_bytes_sha256": _raw_sha256(content),
-    }
-    return content_hash(payload)
-
-
 def _raw_sha256(data: bytes) -> str:
     import hashlib
 
     return hashlib.sha256(data).hexdigest()
 
 
-def derive_source_id(content_hash_value: str, descriptor: Mapping[str, Any]) -> str:
-    """Derive a stable source_id from the content hash + scope.
+def compute_content_identity(content: bytes) -> str:
+    """Return content identity derived from source bytes only."""
+    return content_hash({"domain": _CONTENT_DOMAIN, "bytes_sha256": _raw_sha256(content)})
 
-    Append-only: re-registering identical (content, scope) yields the same
-    source_id; a changed source later yields a new version row, never a silent
-    overwrite.
+
+def compute_source_hash(content: bytes, descriptor: Mapping[str, Any] | None = None) -> str:
+    """Backward-compatible bytes-only content identity API.
+
+    ``descriptor`` remains accepted for pre-R3 callers but is deliberately
+    ignored. Location and authorization metadata must not alter content ID.
     """
-    scope_key = "|".join([
-        descriptor.get("profile_id") or "",
-        descriptor.get("project_id") or "",
-        descriptor.get("knowledge_space_id") or "",
-    ])
-    payload = {
-        "domain": _DOMAIN,
-        "content_hash": content_hash_value,
-        "scope": scope_key,
-    }
-    return content_hash(payload)
+    return compute_content_identity(content)
+
+
+def compute_logical_source_id(descriptor: Mapping[str, Any]) -> str:
+    """Derive logical source identity from the stable descriptor only."""
+    return content_hash({"domain": _LOGICAL_SOURCE_DOMAIN, "descriptor": dict(descriptor)})
+
+
+def derive_source_id(
+    content_hash_value: str | None,
+    descriptor: Mapping[str, Any],
+) -> str:
+    """Derive stable logical ``source_id`` from ``descriptor``.
+
+    The first argument is retained solely for source compatibility with the
+    pre-R3 function signature. It is not used in the calculation.
+    """
+    return compute_logical_source_id(descriptor)
+
+
+__all__ = [
+    "SourceLifecycle",
+    "source_descriptor",
+    "compute_content_identity",
+    "compute_source_hash",
+    "compute_logical_source_id",
+    "derive_source_id",
+]

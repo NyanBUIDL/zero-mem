@@ -4,8 +4,8 @@ M10.1: corpus source registry + M5 authorization boundary (corpus_source /
 corpus_unit resource types). M10.2: multi-format ingestion + structural
 extraction (PDF + TXT adapters), content-addressed blob store, fail-closed
 redaction boundary. MEMORY != CORPUS: corpus records/bytes never enter memory
-JSONL. No LLM, no network. Schema remains v9 (canonical = blob store +
-corpus_sources.jsonl).
+JSONL. No LLM, no network. Current SQLite schema is v10; canonical corpus
+identity remains the blob store plus corpus_sources.jsonl.
 """
 from .contracts import (
     CORPUS_SOURCE_RESOURCE_TYPE,
@@ -14,7 +14,13 @@ from .contracts import (
     SourceSensitivity,
     ValidationError,
 )
-from .identity import compute_source_hash, derive_source_id
+from .identity import (
+    compute_content_identity,
+    compute_logical_source_id,
+    compute_source_hash,
+    derive_source_id,
+)
+from .compatibility import CompatibilityError, CompatibilityReport, convert_legacy_registry
 from .registry import CorpusSourceRegistry
 from .blob_store import CorpusBlobStore
 from .extract import (
@@ -106,7 +112,12 @@ __all__ = [
     "SourceSensitivity",
     "ValidationError",
     "compute_source_hash",
+    "compute_content_identity",
+    "compute_logical_source_id",
     "derive_source_id",
+    "CompatibilityError",
+    "CompatibilityReport",
+    "convert_legacy_registry",
     "CorpusSourceRegistry",
     "CorpusBlobStore",
     "ExtractionError",

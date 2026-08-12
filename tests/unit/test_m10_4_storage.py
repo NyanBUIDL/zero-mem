@@ -378,24 +378,28 @@ class TestVersioning:
         )
         first_source = recs[0].source_id
         first_hash = recs[0].content_hash
-        # Change content -> new source registry entry (M10.1 idempotence is by
-        # content hash, so a changed source is a new source_id + new version).
+        # Change content -> same logical source with a new immutable version.
         recs2, _ = _register_and_project(
             tmp_path, registry, blob_store, store,
             [(b"Completely different content after revision.", {"profile_id": "p1", "project_id": "proj-x"})],
         )
         new_source = recs2[0].source_id
         new_hash = recs2[0].content_hash
-        assert new_source != first_source
+        assert new_source == first_source
         assert new_hash != first_hash
         cur = store._conn.cursor()
-        # Historical (first) source row retained; new row added.
+        # The derived source projection is latest-state; canonical registry
+        # history retains both immutable versions and their supersession link.
         rows = cur.execute(
-            "SELECT source_id FROM zm_corpus_sources ORDER BY source_id"
+            "SELECT source_id, content_hash FROM zm_corpus_sources ORDER BY source_id"
         ).fetchall()
-        ids = {r["source_id"] for r in rows}
-        assert first_source in ids
-        assert new_source in ids
+        assert len(rows) == 1
+        assert rows[0]["source_id"] == first_source
+        assert rows[0]["content_hash"] == new_hash
+        history = registry.all_records()
+        assert len(history) == 2
+        assert history[1].source_id == history[0].source_id
+        assert history[1].supersedes == history[0].source_version_id
 
 
 # ---------------------------------------------------------------------------

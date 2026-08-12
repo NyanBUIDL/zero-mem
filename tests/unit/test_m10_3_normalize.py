@@ -309,6 +309,16 @@ def test_changed_source_creates_new_version_with_supersedes():
     assert chain.get_versions("src1")[0].content_hash == "ch_v1"
 
 
+def test_real_registry_output_builds_one_superseding_version_chain(tmp_path):
+    reg = CorpusSourceRegistry(root=tmp_path)
+    first = reg.register_source(content=b"v1", external_ref="docs/a.txt", kind="txt", project_id="P")
+    second = reg.register_source(content=b"v2", external_ref="docs/a.txt", kind="txt", project_id="P")
+    chain = build_version_chain(reg.all_records())
+    versions = chain.get_versions(first.source_id)
+    assert [v.content_hash for v in versions] == [first.content_hash, second.content_hash]
+    assert versions[1].supersedes == versions[0].source_version_id
+
+
 def test_no_silent_overwrite_version_chain_deterministic():
     rec_v1 = _make_record(b"first", "s", "P", "h1")
     rec_v2 = _make_record(b"second", "s", "P", "h2")

@@ -8,11 +8,13 @@ historical provenance. A changed source produces:
         -> version N+1 (content_hash_2, supersedes=version N)
 
 The version chain is DERIVED and rebuildable from the source registry (canonical)
-+ extraction/normalization. It is NOT a corpus system of record and introduces no
-schema change (schema stays v9; M10.4 owns the derived SQLite store).
+plus extraction/normalization. It is NOT a corpus system of record and introduces
+no SQLite schema change; the current derived store remains schema v10.
 
 Identity rules (mirror M10.1/M8 determinism discipline):
-- ``source_id``      : from M10.1 (content-addressed; identical bytes+scope => same id).
+- ``source_id``      : stable logical-source identity from the descriptor
+  (external reference, kind, stable metadata, and explicit scope); it is not a
+  content hash and remains stable across source-byte changes.
 - ``source_version_id`` : hash over (source_id, content_hash, scope,
   normalization_version). Identical content re-ingested => identical version id
   => NO new version (idempotent re-ingest). A changed source => new version id.
@@ -130,7 +132,7 @@ class CorpusSourceVersion:
 class CorpusVersionChain:
     """In-memory, deterministic source version chain (DERIVED; rebuildable).
 
-    Tracks versions per source_id in registration order. Registration is
+    Tracks immutable versions per logical source_id in registration order. Registration is
     idempotent by content version id, so unchanged re-ingest produces no new
     version. A changed content under the same source_id links the new version to
     its predecessor via ``supersedes`` (history preserved, never overwritten).
