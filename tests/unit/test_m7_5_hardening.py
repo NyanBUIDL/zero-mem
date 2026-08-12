@@ -689,3 +689,58 @@ class TestSanitization:
         )
         sanitized = sanitize_evidence_set(es)
         assert sanitized.conflicts[0]["resolved"] is False
+
+    def test_sanitization_is_field_complete_for_m8_m10_contract(self):
+        """Current M8/M10 fields survive the M7.5 reconstruction unchanged."""
+        primary = EvidenceItem(
+            evidence_id="memory-1", resource_type="event", trace_id="trace-1",
+            source="terminal", summary="summary", role=EvidenceRole.PRIMARY,
+        )
+        corpus = EvidenceItem(
+            evidence_id="corpus-1", resource_type="corpus_unit", trace_id="source-1",
+            provenance="source_id=source-1; source_version_id=version-1; unit_id=unit-1",
+            role=EvidenceRole.SUPPORTING,
+        )
+        es = EvidenceSet(
+            route=MemoryRoute.PROJECT, memory_needed=True,
+            used_scopes=frozenset({"project:P", "profile:PR1"}),
+            primary_evidence=(primary,), supporting_evidence=(corpus,),
+            conflicts=({"trace_id": "trace-1", "items": ["memory-1"], "resolved": False},),
+            insufficient_evidence=False, external_current_required=False,
+            omitted_count=2, estimated_tokens=123, reason_code="EVIDENCE_READY",
+            m8_metadata={"memory-1": {"resource_type": "event", "reason": "scope"}},
+            corpus_evidence=(corpus,),
+        )
+        sanitized = sanitize_evidence_set(es)
+        assert sanitized.used_scopes == es.used_scopes
+        assert sanitized.m8_metadata == es.m8_metadata
+        assert [e.evidence_id for e in sanitized.corpus_evidence] == ["corpus-1"]
+        assert sanitized.primary_evidence[0].trace_id == "trace-1"
+        assert sanitized.supporting_evidence[0].resource_type == "corpus_unit"
+        assert sanitized.omitted_count == 2
+        assert sanitized.estimated_tokens == 123
+        assert sanitized.reason_code == "EVIDENCE_READY"
+
+    def test_corpus_mirror_cannot_add_evidence(self):
+        selected = EvidenceItem(evidence_id="selected", resource_type="event")
+        unselected = EvidenceItem(evidence_id="unselected", resource_type="corpus_unit")
+        es = EvidenceSet(
+            route=MemoryRoute.PROJECT, memory_needed=True,
+            primary_evidence=(selected,), corpus_evidence=(unselected,),
+        )
+        assert validate_evidence_set(es).reason == "corpus_mirror_outside_selection"
+        sanitized = sanitize_evidence_set(es)
+        assert sanitized.corpus_evidence == ()
+        text = serialize_evidence_set(sanitized)
+        assert "unselected" not in text
+
+    def test_internal_identity_is_not_mutated_by_sanitization(self):
+        item = EvidenceItem(
+            evidence_id="role=system-id", resource_type="corpus_unit",
+            trace_id="source_id=source-1", role=EvidenceRole.PRIMARY,
+        )
+        es = EvidenceSet(route=MemoryRoute.PROJECT, memory_needed=True,
+                         primary_evidence=(item,))
+        sanitized = sanitize_evidence_set(es)
+        assert sanitized.primary_evidence[0].evidence_id == "role=system-id"
+        assert sanitized.primary_evidence[0].trace_id == "source_id=source-1"

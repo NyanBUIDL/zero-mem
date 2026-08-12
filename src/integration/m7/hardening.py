@@ -125,6 +125,15 @@ def validate_evidence_set(es: EvidenceSet) -> ValidationResult:
             if len(str(ks)) > _MAX_FIELD_LEN:
                 return ValidationResult(False, "field_too_long:knowledge_space_id")
 
+    selected_ids = set(primary_ids) | set(supporting_ids)
+    mirror_ids = [e.evidence_id for e in es.corpus_evidence]
+    if len(set(mirror_ids)) != len(mirror_ids):
+        return ValidationResult(False, "duplicate_corpus_mirror_ids")
+    if any(eid not in selected_ids for eid in mirror_ids):
+        return ValidationResult(False, "corpus_mirror_outside_selection")
+    if any(str(eid) not in selected_ids for eid in es.m8_metadata):
+        return ValidationResult(False, "metadata_outside_selection")
+
     # Conflict metadata validation
     for c in es.conflicts:
         if not isinstance(c, dict):
@@ -209,27 +218,34 @@ def escape_summary(value: Optional[str]) -> str:
 # ---------------------------------------------------------------------------
 
 def sanitize_evidence_item(item: EvidenceItem) -> EvidenceItem:
-    """Return a copy of an EvidenceItem with all text fields escaped."""
+    """Return a field-complete semantic copy of an EvidenceItem.
+
+    Escaping deliberately does *not* happen here.  Evidence IDs, provenance,
+    resource types, and scope coordinates are still used as internal semantic
+    values after this function returns.  The envelope serializer is the one
+    serialization boundary and applies ``escape_field`` to every rendered
+    string.
+    """
     return EvidenceItem(
-        evidence_id=escape_field(item.evidence_id),
-        resource_type=escape_field(item.resource_type),
-        memory_type=escape_field(item.memory_type),
-        trace_id=escape_field(item.trace_id),
-        route=escape_field(item.route),
-        content_source=item.content_source,  # controlled value, not escaped
-        summary=escape_summary(item.summary),
-        source=escape_field(item.source),
-        created_at=escape_field(item.created_at),
-        lifecycle=escape_field(item.lifecycle),
-        verification=escape_field(item.verification),
-        confidence=escape_field(item.confidence),
-        sensitivity=escape_field(item.sensitivity),
-        profile_id=escape_field(item.profile_id),
-        project_id=escape_field(item.project_id),
-        knowledge_space_ids=tuple(escape_field(ks) for ks in item.knowledge_space_ids),
-        provenance=escape_field(item.provenance),
-        role=item.role,  # enum, not escaped
-        eligibility_reason=escape_field(item.eligibility_reason),
+        evidence_id=item.evidence_id,
+        resource_type=item.resource_type,
+        memory_type=item.memory_type,
+        trace_id=item.trace_id,
+        route=item.route,
+        content_source=item.content_source,
+        summary=item.summary,
+        source=item.source,
+        created_at=item.created_at,
+        lifecycle=item.lifecycle,
+        verification=item.verification,
+        confidence=item.confidence,
+        sensitivity=item.sensitivity,
+        profile_id=item.profile_id,
+        project_id=item.project_id,
+        knowledge_space_ids=tuple(item.knowledge_space_ids),
+        provenance=item.provenance,
+        role=item.role,
+        eligibility_reason=item.eligibility_reason,
         truncated=item.truncated,
     )
 
@@ -240,18 +256,33 @@ def sanitize_evidence_set(es: EvidenceSet) -> EvidenceSet:
     Does NOT validate — caller should validate first. Preserves structure
     (tuples, frozensets, conflicts) while escaping all user-controlled text.
     """
+    selected_ids = {
+        item.evidence_id
+        for item in es.primary_evidence + es.supporting_evidence
+    }
+    # ``corpus_evidence`` is a compatibility/provenance mirror, not another
+    # evidence channel.  Drop any malformed mirror entry that is not already in
+    # the bounded selection; validation still rejects the tampered input when
+    # the caller asks for a fail-closed verdict.
+    corpus_mirror = tuple(
+        sanitize_evidence_item(item)
+        for item in es.corpus_evidence
+        if item.evidence_id in selected_ids
+    )
+    m8_metadata = {
+        key: value
+        for key, value in es.m8_metadata.items()
+        if str(key) in selected_ids
+    }
+
     return EvidenceSet(
         route=es.route,  # enum, not escaped
         memory_needed=es.memory_needed,
-        used_scopes=es.used_scopes,  # frozenset of scope strings (controlled)
+        used_scopes=frozenset(es.used_scopes),
         primary_evidence=tuple(sanitize_evidence_item(e) for e in es.primary_evidence),
         supporting_evidence=tuple(sanitize_evidence_item(e) for e in es.supporting_evidence),
         conflicts=tuple(
-            {
-                "trace_id": escape_field(c.get("trace_id")),
-                "items": [escape_field(str(i)) for i in c.get("items", [])],
-                "resolved": False,  # force False; never allow pre-resolution
-            }
+            {**dict(c), "resolved": False}  # never allow pre-resolution
             for c in es.conflicts
         ),
         insufficient_evidence=es.insufficient_evidence,
@@ -259,6 +290,8 @@ def sanitize_evidence_set(es: EvidenceSet) -> EvidenceSet:
         omitted_count=es.omitted_count,
         estimated_tokens=es.estimated_tokens,
         reason_code=es.reason_code,
+        m8_metadata=m8_metadata,
+        corpus_evidence=corpus_mirror,
     )
 
 
