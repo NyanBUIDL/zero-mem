@@ -19,18 +19,48 @@ no generated identity).
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Iterable, List, Optional, Union
 
 from .grant_events import AccessGrantEvent, project_grant_event
 from .audit import project_policy_decision
+from .contracts import READ, WRITE
+from src.storage.canonical_replay import CanonicalReplayError, load_strict_jsonl
 
 # Canonical event types that belong to the M5 policy layer.
 _POLICY_EVENT_TYPES = ("access_grant", "policy_decision")
 
 # M5 derived tables managed by this rebuild (narrow scope).
 M5_POLICY_TABLES = ("zm_access_grants", "zm_policy_audit")
+
+
+def _validate_policy_record(record: dict) -> None:
+    """Validate a recognized M5 event without mutating the derived store."""
+    event_type = record.get("event_type")
+    if event_type not in _POLICY_EVENT_TYPES:
+        return
+    m4 = record.get("m4")
+    if not isinstance(m4, dict) or m4.get("domain") != event_type:
+        raise CanonicalReplayError("invalid_policy_event")
+    if event_type == "access_grant":
+        try:
+            event = AccessGrantEvent.from_canonical_dict(record)
+            if event is None:
+                raise ValueError
+            event.validate()
+        except Exception:
+            raise CanonicalReplayError("invalid_access_grant_event") from None
+        return
+    if (
+        not isinstance(m4.get("decision_id"), str) or not m4["decision_id"]
+        or m4.get("operation") not in (READ, WRITE)
+        or not isinstance(m4.get("requester"), str)
+        or not isinstance(m4.get("target_scope"), str)
+        or not isinstance(m4.get("allow"), bool)
+        or not isinstance(m4.get("reason_code"), str)
+        or not isinstance(m4.get("grant_refs"), list)
+    ):
+        raise CanonicalReplayError("invalid_policy_decision")
 
 
 def iter_canonical_policy_events(jsonl_paths: Union[Path, str, Iterable[Union[Path, str]]]) -> List[dict]:
@@ -43,24 +73,8 @@ def iter_canonical_policy_events(jsonl_paths: Union[Path, str, Iterable[Union[Pa
         paths: List[Path] = [Path(jsonl_paths)]
     else:
         paths = [Path(p) for p in jsonl_paths]
-    events: List[dict] = []
-    for path in paths:
-        if not path.exists():
-            continue
-        with path.open("r", encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    rec = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if not isinstance(rec, dict):
-                    continue
-                if rec.get("event_type") in _POLICY_EVENT_TYPES:
-                    events.append(rec)
-    return events
+    events = load_strict_jsonl(paths, validate_record=_validate_policy_record)
+    return [rec for rec in events if rec.get("event_type") in _POLICY_EVENT_TYPES]
 
 
 def _clear_m5_policy_tables(conn) -> None:
@@ -78,21 +92,28 @@ def rebuild_policy_state(conn, jsonl_paths: Union[Path, str, Iterable[Union[Path
     functions are each individually safe.
     """
     events = iter_canonical_policy_events(jsonl_paths)
-    _clear_m5_policy_tables(conn)
+    conn.execute("SAVEPOINT m5_policy_rebuild")
+    try:
+        _clear_m5_policy_tables(conn)
 
-    grant_rows = 0
-    audit_rows = 0
-    for rec in events:
-        etype = rec.get("event_type")
-        if etype == "access_grant":
-            ev = AccessGrantEvent.from_canonical_dict(rec)
-            if ev is None:
-                continue
-            project_grant_event(conn, ev)
-            grant_rows += 1
-        elif etype == "policy_decision":
-            project_policy_decision(conn, rec)
-            audit_rows += 1
+        grant_rows = 0
+        audit_rows = 0
+        for rec in events:
+            etype = rec.get("event_type")
+            if etype == "access_grant":
+                ev = AccessGrantEvent.from_canonical_dict(rec)
+                if ev is None:
+                    raise CanonicalReplayError("invalid_access_grant_event")
+                project_grant_event(conn, ev)
+                grant_rows += 1
+            elif etype == "policy_decision":
+                project_policy_decision(conn, rec)
+                audit_rows += 1
+        conn.execute("RELEASE SAVEPOINT m5_policy_rebuild")
+    except Exception:
+        conn.execute("ROLLBACK TO SAVEPOINT m5_policy_rebuild")
+        conn.execute("RELEASE SAVEPOINT m5_policy_rebuild")
+        raise
     return {
         "grant_events": grant_rows,
         "audit_events": audit_rows,

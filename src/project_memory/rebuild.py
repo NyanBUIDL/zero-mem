@@ -40,9 +40,8 @@ explicit ``m4`` block are skipped (no inference, no invention).
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-from typing import List, Optional
+import sqlite3
+from typing import Iterable, Optional
 
 from src.project_memory.projector import (
     project_charter,
@@ -66,10 +65,10 @@ from src.project_memory.contracts import (
     StateOp,
     VerificationOp,
     ArtifactOp,
-    M4ProjectionError,
     ConflictError,
     InvalidTransitionError,
 )
+from src.storage.canonical_replay import CanonicalReplayError, load_strict_jsonl
 
 # The six M4 derived tables (dropped/recreated on a full rebuild).
 M4_TABLES = (
@@ -97,6 +96,10 @@ _OP_CLASSES = {
     CLASSIFY_STATE: StateOp,
     CLASSIFY_VERIFICATION: VerificationOp,
     CLASSIFY_PROJECT_ARTIFACT: ArtifactOp,
+}
+
+_M4_DOMAINS = {
+    "charter", "requirement", "decision", "state", "verification", "artifact",
 }
 
 
@@ -172,6 +175,48 @@ def _project_event(conn, event: dict) -> Optional[str]:
     return kind
 
 
+def _validate_m4_record(event: dict) -> None:
+    """Validate an authoritative M4 record without touching derived state."""
+    m4 = event.get("m4")
+    if not isinstance(m4, dict) or m4.get("domain") not in _M4_DOMAINS:
+        return
+    kind = classify_event_for_m4(event)
+    if kind not in _PROJECTORS:
+        raise CanonicalReplayError("invalid_m4_event")
+    try:
+        event_to_op(event).validate()
+    except Exception:
+        raise CanonicalReplayError("invalid_m4_event") from None
+
+
+def _load_m4_events(jsonl_path) -> list[dict]:
+    return load_strict_jsonl(jsonl_path, validate_record=_validate_m4_record)
+
+
+def _replay_m4_events(
+    conn,
+    events: Iterable[dict],
+    project_id: Optional[str] = None,
+) -> dict:
+    by_domain: dict = {}
+    projected = 0
+    skipped = 0
+    for event in events:
+        kind = classify_event_for_m4(event)
+        if kind not in _PROJECTORS:
+            skipped += 1
+            continue
+        m4 = event["m4"]
+        if project_id is not None and m4.get("project_id") != project_id:
+            skipped += 1
+            continue
+        before = by_domain.get(kind, 0)
+        _project_event(conn, event)
+        by_domain[kind] = before + 1
+        projected += 1
+    return {"projected": projected, "skipped": skipped, "by_domain": by_domain}
+
+
 def _recreate_m4_tables(conn) -> None:
     """Idempotently (re)create the six M4 derived tables.
 
@@ -207,38 +252,9 @@ def rebuild_project_memory(store, jsonl_path, project_id: Optional[str] = None) 
 
     Returns a summary dict: {projected, skipped, by_domain}.
     """
-    path = Path(jsonl_path)
     conn = store._conn
-    by_domain: dict = {}
-    projected = 0
-    skipped = 0
-    with path.open("r", encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                event = json.loads(line)
-            except Exception:
-                skipped += 1
-                continue
-            if not isinstance(event, dict):
-                skipped += 1
-                continue
-            kind = classify_event_for_m4(event)
-            if kind not in _PROJECTORS:
-                skipped += 1
-                continue
-            m4 = event["m4"]
-            if project_id is not None and m4.get("project_id") != project_id:
-                skipped += 1
-                continue
-            before = by_domain.get(kind, 0)
-            _project_event(conn, event)
-            # Recoverable conflict/idempotent ops still count as processed.
-            by_domain[kind] = before + 1
-            projected += 1
-    return {"projected": projected, "skipped": skipped, "by_domain": by_domain}
+    events = _load_m4_events(jsonl_path)
+    return _replay_m4_events(conn, events, project_id=project_id)
 
 
 def rebuild_all_project_memory(store, jsonl_path, project_id: Optional[str] = None) -> dict:
@@ -249,17 +265,36 @@ def rebuild_all_project_memory(store, jsonl_path, project_id: Optional[str] = No
     directly so it works even though the schema ledger already records v7
     (``ensure_schema`` would otherwise be a no-op). Returns the per-event summary.
     """
+    # Read and validate the complete canonical snapshot before any destructive
+    # derived-state operation. This is the AUD-003 fail-closed boundary.
+    events = _load_m4_events(jsonl_path)
     conn = store._conn
-    conn.execute("BEGIN")
+
+    # Existing projectors commit each operation independently. A connection
+    # backup gives the full rebuild an equivalent rollback boundary without
+    # changing the verified incremental projector contract.
+    snapshot = sqlite3.connect(":memory:")
     try:
-        for table in M4_TABLES:
-            conn.execute(f"DROP TABLE IF EXISTS {table}")
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    _recreate_m4_tables(conn)
-    return rebuild_project_memory(store, jsonl_path, project_id=project_id)
+        conn.backup(snapshot)
+        try:
+            for table in M4_TABLES:
+                conn.execute(f"DROP TABLE IF EXISTS {table}")
+            conn.commit()
+            _recreate_m4_tables(conn)
+            return _replay_m4_events(conn, events, project_id=project_id)
+        except Exception:
+            try:
+                conn.rollback()
+                snapshot.backup(conn)
+                conn.commit()
+            except Exception:
+                # Preserve the original failure as the public result. The
+                # snapshot restore is best-effort and is separately exercised
+                # by the rebuild preservation regressions.
+                pass
+            raise
+    finally:
+        snapshot.close()
 
 
 __all__ = [

@@ -28,6 +28,7 @@ sys.path.insert(0, str(ROOT))
 
 import pytest
 from src.storage.sqlite_store import SQLiteStore, SQLiteStoreConfig
+from src.storage.canonical_replay import CanonicalReplayError
 from src.retrieval.db import open_readonly, _readonly_conn_is_query_only
 from src.retrieval.models import QueryError
 from src.project_memory import (
@@ -217,6 +218,106 @@ def test_rebuild_entrypoint_reconstructs_all_six_tables(tmp_path: Path) -> None:
     for table in ("zm_project_charters", "zm_requirements", "zm_decisions",
                   "zm_project_state", "zm_verifications", "zm_project_artifacts"):
         assert len(snap[table]) > 0, table
+    store.close()
+
+
+@pytest.mark.parametrize("malformed_first", [False, True])
+def test_full_rebuild_malformed_json_blocks_and_preserves_prior_state(
+    tmp_path: Path, malformed_first: bool
+) -> None:
+    store = _open(tmp_path)
+    prior = tmp_path / "prior.jsonl"
+    prior_events = [
+        _ev("R1E", "requirement", "R1", "create", statement="one",
+            state="accepted", lifecycle_status="active"),
+        _ev("R2E", "requirement", "R2", "create", statement="two",
+            state="accepted", lifecycle_status="active"),
+    ]
+    prior.write_text("\n".join(json.dumps(e) for e in prior_events) + "\n")
+    rebuild_project_memory(store, prior, project_id="P")
+    before = _store_snapshot(store._conn)
+
+    replay = tmp_path / "malformed.jsonl"
+    valid = json.dumps(prior_events[0])
+    lines = ["{malformed canonical line", valid]
+    if not malformed_first:
+        lines.reverse()
+    replay.write_text("\n".join(lines) + "\n")
+    with pytest.raises(CanonicalReplayError, match="malformed_json"):
+        rebuild_all_project_memory(store, replay, project_id="P")
+    _assert_parity(before, _store_snapshot(store._conn))
+    store.close()
+
+
+def test_valid_rebuild_survives_close_new_instance_and_reopen(tmp_path: Path) -> None:
+    corpus = tmp_path / "valid.jsonl"
+    event = _ev("R1E", "requirement", "R1", "create", statement="stable",
+                state="accepted", lifecycle_status="active")
+    corpus.write_text(json.dumps(event) + "\n")
+    store = _open(tmp_path)
+    rebuild_all_project_memory(store, corpus, project_id="P")
+    expected = _store_snapshot(store._conn)
+    store._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    store._conn.commit()
+    path = store.path
+    store.close()
+
+    reopened = SQLiteStore(SQLiteStoreConfig(path=path))
+    reopened.ensure_schema()
+    _assert_parity(expected, _store_snapshot(reopened._conn))
+    reopened.close()
+
+
+@pytest.mark.parametrize(
+    ("contents", "error_code"),
+    [
+        ("[]\n", "invalid_top_level"),
+        ('{"event_id":', "truncated_line"),
+    ],
+)
+def test_full_rebuild_rejects_invalid_canonical_framing(
+    tmp_path: Path, contents: str, error_code: str
+) -> None:
+    corpus = tmp_path / "invalid-framing.jsonl"
+    corpus.write_text(contents)
+    store = _open(tmp_path)
+    with pytest.raises(CanonicalReplayError, match=error_code):
+        rebuild_all_project_memory(store, corpus, project_id="P")
+    store.close()
+
+
+def test_valid_unrelated_domain_event_remains_skippable_in_m4_replay(tmp_path: Path) -> None:
+    corpus = tmp_path / "mixed.jsonl"
+    unrelated = {"event_id": "UNRELATED", "event_type": "policy_decision"}
+    valid = _ev("R1E", "requirement", "R1", "create", statement="one",
+                state="accepted", lifecycle_status="active")
+    corpus.write_text(json.dumps(unrelated) + "\n" + json.dumps(valid) + "\n")
+    store = _open(tmp_path)
+    result = rebuild_all_project_memory(store, corpus, project_id="P")
+    assert result["projected"] == 1 and result["skipped"] == 1
+    store.close()
+
+
+def test_replay_failure_restores_prior_m4_state(tmp_path: Path) -> None:
+    from src.project_memory.contracts import MissingIdentityError
+
+    prior = tmp_path / "prior.jsonl"
+    prior_event = _ev("R1E", "requirement", "R1", "create", statement="stable",
+                       state="accepted", lifecycle_status="active")
+    prior.write_text(json.dumps(prior_event) + "\n")
+    failing = tmp_path / "failing.jsonl"
+    failing_event = _ev(
+        "A1E", "artifact", "MISSING", "create", artifact_type="report",
+        safe_reference="artifacts/missing.md",
+    )
+    failing.write_text(json.dumps(failing_event) + "\n")
+
+    store = _open(tmp_path)
+    rebuild_project_memory(store, prior, project_id="P")
+    before = _store_snapshot(store._conn)
+    with pytest.raises(MissingIdentityError):
+        rebuild_all_project_memory(store, failing, project_id="P")
+    _assert_parity(before, _store_snapshot(store._conn))
     store.close()
 
 

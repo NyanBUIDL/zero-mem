@@ -18,6 +18,7 @@ from src.access.audit import record_decision, project_policy_decision, _should_a
 from src.access.grant_events import AccessGrantEvent, project_grant_event
 from src.storage.migrations import CURRENT_SCHEMA_VERSION, migrate_8
 from src.storage.sqlite_store import SQLiteStore, SQLiteStoreConfig
+from src.storage.canonical_replay import CanonicalReplayError
 
 SECRET = "SK-M5R-DONTLEAK-3c4d5e6f"
 SECRET_B = "secret-B-" + SECRET
@@ -126,6 +127,68 @@ class TestRebuild:
         assert summary["grant_events"] == 6
         assert inc == reb
         conn.close(); conn2.close()
+
+    @pytest.mark.parametrize("malformed_first", [False, True])
+    def test_malformed_policy_replay_blocks_and_preserves_prior_state(self, malformed_first):
+        conn, jl = _build_corpus("-bad")
+        before_grants = rebuild.normalize_grants(conn)
+        before_audit = rebuild.normalize_audit(conn)
+        valid = json.loads(jl.read_text().splitlines()[0])
+        bad = jl.parent / "malformed-policy.jsonl"
+        lines = ["{malformed policy event", json.dumps(valid)]
+        if not malformed_first:
+            lines.reverse()
+        bad.write_text("\n".join(lines) + "\n")
+        with pytest.raises(CanonicalReplayError, match="malformed_json"):
+            rebuild.rebuild_policy_state(conn, bad)
+        assert rebuild.normalize_grants(conn) == before_grants
+        assert rebuild.normalize_audit(conn) == before_audit
+        conn.close()
+
+    def test_valid_unrelated_domain_event_remains_skippable(self):
+        conn, jl = _build_corpus("-mixed")
+        valid_policy = json.loads(jl.read_text().splitlines()[0])
+        unrelated = {
+            "event_id": "M4-UNRELATED",
+            "event_type": "m4_charter",
+            "m4": {"domain": "charter", "identity": "C1", "op": "create"},
+        }
+        mixed = jl.parent / "mixed-policy.jsonl"
+        mixed.write_text(json.dumps(unrelated) + "\n" + json.dumps(valid_policy) + "\n")
+        events = rebuild.iter_canonical_policy_events(mixed)
+        assert len(events) == 1 and events[0]["event_type"] == "access_grant"
+        conn.close()
+
+    def test_policy_rebuild_survives_close_new_instance_and_reopen(self):
+        store, jl = _build_full_corpus("-reopen")
+        rebuild.rebuild_policy_state(store._conn, jl)
+        store._conn.commit()
+        expected = rebuild.normalize_grants(store._conn), rebuild.normalize_audit(store._conn)
+        store._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        store._conn.commit()
+        path = store.path
+        store.close()
+
+        reopened = SQLiteStore(SQLiteStoreConfig(path=path))
+        reopened.ensure_schema()
+        actual = rebuild.normalize_grants(reopened._conn), rebuild.normalize_audit(reopened._conn)
+        assert actual == expected
+        reopened.close()
+
+    @pytest.mark.parametrize(
+        ("contents", "error_code"),
+        [
+            ("[]\n", "invalid_top_level"),
+            ('{"event_type": "access_grant"', "truncated_line"),
+        ],
+    )
+    def test_policy_rebuild_rejects_invalid_canonical_framing(self, contents, error_code):
+        conn, _jl = _build_corpus("-framing")
+        bad = Path(tempfile.mkdtemp(prefix="zt-m56-framing-")) / "bad.jsonl"
+        bad.write_text(contents)
+        with pytest.raises(CanonicalReplayError, match=error_code):
+            rebuild.rebuild_policy_state(conn, bad)
+        conn.close()
 
     def test_incremental_vs_rebuild_audit(self):
         d = Path(tempfile.mkdtemp(prefix="zt-m56-aud-"))
