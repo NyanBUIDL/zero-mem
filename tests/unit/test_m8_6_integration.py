@@ -318,8 +318,11 @@ class TestGraph:
                                   relation_seed=("event", "E1"))
         # Distances (if any) only reference ids that already passed M5.
         visible = {e.evidence_id for e in out.primary_evidence + out.supporting_evidence}
+        assert out.m8_metadata
+        assert set(out.m8_metadata) == visible
         for meta in out.m8_metadata.values():
-            assert meta["graph_relation_distance"] is None or True
+            distance = meta["graph_relation_distance"]
+            assert distance is None or (isinstance(distance, int) and distance >= 0)
         assert "E4" not in visible
 
 

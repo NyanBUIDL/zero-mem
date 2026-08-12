@@ -23,8 +23,10 @@ authorization identities remain distinct."
 
 Deduplication layers implemented (exact only; NO fuzzy/semantic/embedding dedup,
 no LLM):
-  A. Exact source duplicate      -> same source_id / content_hash.
-  B. Renamed copy                -> different external_ref, same content_hash/source_id.
+  A. Exact logical source duplicate -> same source_id / content_hash when the
+                                    stable source descriptor and bytes match.
+  B. Renamed copy                -> different external_ref, same content_hash,
+                                    different source_id.
   C. Exact normalized unit dup   -> same content_hash, same scope -> one retained,
                                     others carry ``duplicate_of`` (provenance kept,
                                     located in their own source — no grant bleed).
@@ -35,8 +37,9 @@ no LLM):
                                     but each source/unit keeps its own logical identity.
 
 Only class C is "within-corpus unit dedup". A/B are at the source registry level
-(M10.1 already provides idempotent content-hash source identity). D/E are handled
-by identity + versioning, not by collapsing authorization objects.
+(M10.1 derives logical source identity from the stable descriptor, not content
+hash). D/E are handled by identity + versioning, not by collapsing authorization
+objects.
 """
 from __future__ import annotations
 
