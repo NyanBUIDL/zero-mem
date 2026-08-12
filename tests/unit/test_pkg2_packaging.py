@@ -201,3 +201,16 @@ def test_pypdf_remains_optional(bundle: Path, tmp_path: Path) -> None:
     python = home / "data root with spaces" / "zero-mem" / "current" / "venv" / "bin" / "python"
     result = _run([str(python), "-c", "import importlib.util; print(importlib.util.find_spec('pypdf'))"], env=_env(home), cwd=tmp_path)
     assert result.stdout.strip() == "None"
+
+
+def test_installed_runtime_exposes_pkg3_setup_and_doctor(bundle: Path, tmp_path: Path) -> None:
+    assert _install(bundle, tmp_path).returncode == 0
+    home = tmp_path / "home with spaces"
+    env = _env(home)
+    cli = home / "bin root with spaces" / "zero-mem"
+    setup = _run([str(cli), "setup"], env=env, cwd=tmp_path)
+    assert setup.stdout.strip() == "READY"
+    doctor = _run([str(cli), "doctor", "--json"], env=env, cwd=tmp_path)
+    report = json.loads(doctor.stdout)
+    assert report["overall"] == "READY"
+    assert any(check["id"] == "hermes" and check["status"] == "WARN" for check in report["checks"])

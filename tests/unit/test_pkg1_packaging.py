@@ -99,5 +99,7 @@ def test_release_layer_does_not_register_later_phase_commands() -> None:
         capture_output=True,
         text=True,
     ).stdout
-    for unfinished in ("setup", "doctor", "status", "rebuild", "backup", "restore", "upgrade"):
+    for supported in ("setup", "doctor"):
+        assert f" {supported}" in parser_output
+    for unfinished in ("status", "rebuild", "backup", "restore", "upgrade"):
         assert f" {unfinished}" not in parser_output
