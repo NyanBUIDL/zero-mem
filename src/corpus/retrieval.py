@@ -45,6 +45,7 @@ from .query_planner import (
     CorpusQueryPlan,
     _match_metadata,
 )
+from src.storage.migrations import migrate_10 as _migrate_10
 
 
 # Conservative lexical scoring ceiling so scores stay bounded/deterministic.
@@ -297,6 +298,22 @@ def _authorize_and_filter(
     return hits
 
 
+_UNIT_COLUMNS = (
+    "unit_id, source_ref, source_location_id, content_hash, normalized_text, "
+    "kind, profile_id, project_id, knowledge_space_id, lifecycle_status, "
+    "sensitivity, page, unit_order"
+)
+
+
+def _read_all_units(cur) -> list:
+    """Read all derived units for the explicit non-FTS capability path.
+
+    This is only candidate discovery. Callers must pass the rows through
+    ``_authorize_and_filter`` before lexical scoring or limiting.
+    """
+    return cur.execute(f"SELECT {_UNIT_COLUMNS} FROM zm_corpus_units").fetchall()
+
+
 def retrieve_corpus(
     conn,
     scope: AuthorizedCorpusScope,
@@ -321,16 +338,13 @@ def retrieve_corpus(
     cur = conn.cursor()
     query_tokens = plan.text.split()
 
-    # Step 1: lexical discovery (FTS only). If no lexical text, every authorized
-    # unit is a candidate (metadata-only retrieval).
+    # Step 1: lexical discovery. If no lexical text, every unit is a candidate
+    # (metadata-only retrieval). Without FTS5, the derived unit relation is the
+    # explicit O(N) candidate source; authorization/filtering still precedes
+    # every lexical influence.
     if plan.is_metadata_only:
         try:
-            rows = cur.execute(
-                "SELECT unit_id, source_ref, source_location_id, content_hash, "
-                "normalized_text, kind, profile_id, project_id, "
-                "knowledge_space_id, lifecycle_status, sensitivity, page, unit_order "
-                "FROM zm_corpus_units"
-            ).fetchall()
+            rows = _read_all_units(cur)
         except Exception as exc:  # pragma: no cover - defensive
             raise CorpusQueryError(f"corpus_query_failed: {type(exc).__name__}") from None
     else:
@@ -338,12 +352,12 @@ def retrieve_corpus(
         if not fts_expr:
             # Nothing lexical to match: fall back to metadata-only discovery.
             try:
-                rows = cur.execute(
-                    "SELECT unit_id, source_ref, source_location_id, content_hash, "
-                    "normalized_text, kind, profile_id, project_id, "
-                    "knowledge_space_id, lifecycle_status, sensitivity, page, unit_order "
-                    "FROM zm_corpus_units"
-                ).fetchall()
+                rows = _read_all_units(cur)
+            except Exception as exc:  # pragma: no cover - defensive
+                raise CorpusQueryError(f"corpus_query_failed: {type(exc).__name__}") from None
+        elif not _migrate_10.FTS5_AVAILABLE:
+            try:
+                rows = _read_all_units(cur)
             except Exception as exc:  # pragma: no cover - defensive
                 raise CorpusQueryError(f"corpus_query_failed: {type(exc).__name__}") from None
         else:

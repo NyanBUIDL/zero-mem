@@ -44,6 +44,7 @@ from src.integration.m7 import RouterRequest, build_evidence_set, route
 from src.integration.m7.contracts import EvidenceRole
 from src.integration.m7.eligibility import is_eligible
 from src.retrieval.db import open_readonly
+from src.storage.migrations import migrate_10
 from src.storage.sqlite_store import SQLiteStore, SQLiteStoreConfig
 
 # --- fixtures ---------------------------------------------------------------
@@ -167,6 +168,105 @@ def test_lexical_no_match_returns_empty(tmp_path):
     )
     assert res.allowed
     assert res.items == []
+
+
+def test_fts5_unavailable_uses_authorized_lexical_fallback(tmp_path, monkeypatch):
+    """FTS5 absence is a supported capability state for the public facade."""
+    original_flag = migrate_10.FTS5_AVAILABLE
+    monkeypatch.setattr(migrate_10, "_detect_fts5", lambda conn: False)
+    try:
+        ro = _project(
+            tmp_path,
+            [(AUTH_DOC, {"profile_id": "p1", "project_id": "P"})],
+            tag="no_fts",
+        )
+        before_tables = {
+            row[0]
+            for row in ro.conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+        assert migrate_10.FTS5_AVAILABLE is False
+        assert "zm_corpus_fts" not in before_tables
+
+        result = _svc(ro).corpus_unit_search(
+            AccessRequest(
+                operation="READ",
+                requesting_profile_id="p1",
+                target_profile_ids=["p1"],
+                project_ids=["P"],
+                resource_type="corpus_unit",
+                include_global=True,
+            ),
+            "quantum superposition wavefunction",
+            metadata={"project_id": "P"},
+        )
+        assert result.allowed is True
+        assert len(result.items) == 1
+        assert result.items[0].resource_type == "corpus_unit"
+        assert "OperationalError" not in (result.reason_code or "")
+
+        after_tables = {
+            row[0]
+            for row in ro.conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+        assert after_tables == before_tables
+        ro.close()
+    finally:
+        migrate_10.FTS5_AVAILABLE = original_flag
+
+
+def test_fts5_unavailable_hidden_candidate_has_zero_influence(tmp_path, monkeypatch):
+    """Fallback authorization precedes score, order, and result limiting."""
+    original_flag = migrate_10.FTS5_AVAILABLE
+    monkeypatch.setattr(migrate_10, "_detect_fts5", lambda conn: False)
+    try:
+        base = [(AUTH_DOC, {"profile_id": "p1", "project_id": "P"})]
+        req = AccessRequest(
+            operation="READ",
+            requesting_profile_id="p1",
+            target_profile_ids=["p1"],
+            project_ids=["P"],
+            resource_type="corpus_unit",
+            include_global=True,
+        )
+        ro1 = _project(tmp_path, base, tag="fallback_base")
+        before = _svc(ro1).corpus_unit_search(
+            req,
+            "quantum superposition wavefunction",
+            metadata={"project_id": "P"},
+            limit=1,
+        )
+        before_signature = [
+            (hit.unit_id, round(hit.combined_score, 6)) for hit in before.items
+        ]
+
+        ro2 = _project(
+            tmp_path,
+            base + [
+                (UNAUTH_STRONG, {"profile_id": "p2", "project_id": "P2"})
+                for _ in range(10)
+            ],
+            tag="fallback_hidden",
+        )
+        after = _svc(ro2).corpus_unit_search(
+            req,
+            "quantum superposition wavefunction",
+            metadata={"project_id": "P"},
+            limit=1,
+        )
+        after_signature = [
+            (hit.unit_id, round(hit.combined_score, 6)) for hit in after.items
+        ]
+
+        assert after_signature == before_signature
+        assert all(hit.project_id == "P" for hit in after.items)
+        ro1.close()
+        ro2.close()
+    finally:
+        migrate_10.FTS5_AVAILABLE = original_flag
 
 
 def test_empty_query_is_deterministic(tmp_path):
