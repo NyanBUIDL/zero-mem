@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zero-mem"
+dynamic = ["version"]
+description = "Local-first Zero-Mem evidence and memory sidecar"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = "MIT"
+authors = [{name = "Zero-Mem contributors"}]
+dependencies = []
+
+[project.optional-dependencies]
+pdf = ["pypdf"]
+
+[project.scripts]
+zero-mem = "zero_mem.cli:main"
+
+[tool.setuptools]
+include-package-data = false
+
+[tool.setuptools.dynamic]
+version = {attr = "zero_mem.version.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["zero_mem*", "src*"]
+exclude = ["tests*", "benchmarks*", "config*", "scripts*", "output*", "build*", "dist*"]
+namespaces = true
