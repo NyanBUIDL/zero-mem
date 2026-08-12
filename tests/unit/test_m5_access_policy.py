@@ -18,7 +18,7 @@ the network, or M3/M4 stores.
 import sys
 from pathlib import Path
 
-ROOT = Path("/home/brian-nguyen/Hermes Workplace/Zero-mem")
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 import pytest

@@ -274,7 +274,7 @@ class TestReadOnlyBoundaries:
 
     def test_no_forbidden_writable_imports(self):
         import ast as _ast
-        base = Path("src/integration/m6")
+        base = Path(__file__).resolve().parents[2] / "src" / "integration" / "m6"
         forbidden = {"src.access.admin", "src.access.authorized_write",
                      "src.access.grant_events", "src.storage.migrations",
                      "src.storage.ingest"}
@@ -303,7 +303,7 @@ class TestReadOnlyBoundaries:
         # AST-based: ensure no import of writable M5 modules. Deny-list *words*
         # (e.g. "admin") legitimately appear in our own deny-lists, so we inspect
         # actual import statements only.
-        base = Path("src/integration/m6")
+        base = Path(__file__).resolve().parents[2] / "src" / "integration" / "m6"
         forbidden_modules = {
             "src.access.admin", "src.access.authorized_write",
             "src.access.grant_events", "src.storage.migrations",
@@ -362,7 +362,7 @@ class TestDeterminism:
 # --------------------------------------------------------------------------
 class TestZeroExternal:
     def test_no_llm_or_network_imports(self):
-        base = Path("src/integration/m6")
+        base = Path(__file__).resolve().parents[2] / "src" / "integration" / "m6"
         forbidden = {"openai", "requests", "httpx", "socket", "aiohttp",
                      "urllib", "http", "llm"}
         for f in base.glob("*.py"):

@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 from pathlib import Path
 
 
-ROOT = Path(__file__).parents[2]
+ROOT = Path(__file__).resolve().parents[2]
 
 #: M9 state-binding keys whose EFFECTIVE parsed value gates milestone progress.
 #: Each must appear exactly once at the top level of ``project-state.yaml``.
@@ -93,6 +94,25 @@ def test_master_spec_and_derived_agents_exist() -> None:
     agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
     assert "SQLite + JSONL" in agents
     assert "Redact or reject secrets before persistence" in agents
+
+
+def test_tracked_tests_reject_audited_checkout_root() -> None:
+    """Test sources must not embed the audited operator checkout root."""
+    audited_root = "/" + "/".join(
+        ("home", "brian-nguyen", "Hermes Workplace", "Zero-mem")
+    )
+    listed = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files", "--", "tests"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    offenders = []
+    for relative in listed.stdout.splitlines():
+        path = ROOT / relative
+        if path.suffix == ".py" and audited_root in path.read_text(encoding="utf-8"):
+            offenders.append(relative)
+    assert offenders == [], f"audited checkout root found in tracked tests: {offenders}"
 
 
 def test_implementation_plan_is_machine_readable_and_gated() -> None:

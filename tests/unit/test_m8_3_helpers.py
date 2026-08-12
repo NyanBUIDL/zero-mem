@@ -24,7 +24,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-ROOT = Path("/home/brian-nguyen/Hermes Workplace/Zero-mem")
+ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in __import__("sys").path:
     __import__("sys").path.insert(0, str(ROOT))
 

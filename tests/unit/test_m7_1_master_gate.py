@@ -21,9 +21,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-REPO_ROOT = Path(
-    subprocess.check_output(["git", "rev-parse", "--show-toplevel"]).decode().strip()
-)
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 from src.integration.bridge_config import BridgeConfig
 from src.integration.zero_mem_runtime import (
@@ -319,7 +317,7 @@ class TestRuntimeAudit:
     def test_no_independent_automatic_runtime_path(self):
         out = subprocess.run(
             ["grep", "-rn", "while True\\|schedule\\|Timer(\\|threading.Timer\\|sleep(",
-             "src", "--include=*.py"],
+             str(REPO_ROOT / "src"), "--include=*.py"],
             capture_output=True, text=True, check=False,
         )
         # grep exit 1 == no matches == good. Exit 0 == matches found == bad.

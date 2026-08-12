@@ -30,9 +30,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-REPO_ROOT = Path(
-    subprocess.check_output(["git", "rev-parse", "--show-toplevel"]).decode().strip()
-)
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 from src.integration.m7 import (
     MemoryRoute, ReasonCode, RouterRequest, MemoryRouteDecision,

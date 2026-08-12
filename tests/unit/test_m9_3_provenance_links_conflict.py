@@ -18,7 +18,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-ROOT = Path("/home/brian-nguyen/Hermes Workplace/Zero-mem")
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from src.projection import render as R  # noqa: E402

@@ -37,7 +37,7 @@ import json
 import sys
 from pathlib import Path
 
-ROOT = Path("/home/brian-nguyen/Hermes Workplace/Zero-mem")
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 import pytest
@@ -1050,7 +1050,7 @@ class TestScopeBoundaries:
     def test_no_m6_behavior(self):
         # M6 (final rebuild/acceptance) is not part of M5.4.
         import os
-        assert not os.path.exists("src/access/m6.py")
+        assert not os.path.exists(ROOT / "src" / "access" / "m6.py")
 
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@ import pathlib
 
 import pytest
 
-MODULE = pathlib.Path("src/m8/graph_access.py")
+MODULE = pathlib.Path(__file__).resolve().parents[2] / "src" / "m8" / "graph_access.py"
 SOURCE = MODULE.read_text()
 TREE = ast.parse(SOURCE)
 

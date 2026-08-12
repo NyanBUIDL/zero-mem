@@ -350,7 +350,7 @@ class TestAuditSafety:
 class TestZeroExternal:
     def test_no_network_in_rebuild(self):
         import ast
-        src = open("src/access/rebuild.py").read()
+        src = (Path(__file__).resolve().parents[2] / "src" / "access" / "rebuild.py").read_text()
         tree = ast.parse(src)
         imported = set()
         for node in ast.walk(tree):

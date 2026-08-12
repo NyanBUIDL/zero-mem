@@ -19,10 +19,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 # Resolve repo root dynamically (no hard-coded /home/<user> paths).
-REPO_ROOT = Path(
-    __import__("subprocess").check_output(["git", "rev-parse", "--show-toplevel"])
-    .decode().strip()
-)
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 from src.storage.sqlite_store import SQLiteStore, SQLiteStoreConfig
 from src.storage.ingest import ingest_file
@@ -403,7 +400,7 @@ class TestPathSafety:
                 assert tok not in src, f"{f.name}: hard-coded user path '{tok}'"
 
     def test_repo_root_dynamic(self):
-        assert REPO_ROOT.name == "Zero-mem"
+        assert REPO_ROOT.is_dir()
         assert (REPO_ROOT / "src" / "integration" / "m6").exists()
 
     def test_committed_paths_resolve_under_repo_root(self, rt):

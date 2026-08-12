@@ -484,7 +484,9 @@ class TestZeroLlmNetwork:
     def test_module_reaches_no_forbidden_imports(self):
         import ast
         import pathlib
-        src = pathlib.Path("src/m8/graph_access.py").read_text()
+        src = pathlib.Path(__file__).resolve().parents[2].joinpath(
+            "src", "m8", "graph_access.py"
+        ).read_text()
         tree = ast.parse(src)
         forbidden = {"openai", "anthropic", "http", "requests", "socket",
                      "urllib", "embedding", "llm"}
