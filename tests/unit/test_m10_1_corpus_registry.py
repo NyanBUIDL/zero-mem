@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+import threading
 from pathlib import Path
 
 import pytest
@@ -131,6 +132,79 @@ def test_registry_unchanged_reingest_is_idempotent(tmp_path):
     second = reg.register_source(content=b"same", external_ref="docs/a.txt", kind="txt", project_id="P")
     assert second == first
     assert len(reg.all_records()) == 1
+
+
+def test_same_instance_concurrent_registration_is_atomic_through_reopen(
+    tmp_path, monkeypatch
+):
+    """AUD-005 regression: one locked check-and-append survives replay.
+
+    The probe around ``_next_version_fields`` creates meaningful overlap for
+    the historical check-before-lock implementation: both callers can pass
+    its unlocked existence check while the first caller is paused before its
+    append.  With the current implementation, the first caller owns the
+    instance lock while paused, so the second caller cannot pass the
+    definitive check and must return the committed record.
+    """
+    reg = CorpusSourceRegistry(root=tmp_path / "registry")
+    start = threading.Barrier(2)
+    overlap = threading.Barrier(2)
+    results = []
+    errors = []
+
+    original_next_version_fields = reg._next_version_fields
+
+    def synchronized_next_version_fields(*args, **kwargs):
+        try:
+            overlap.wait(timeout=0.5)
+        except threading.BrokenBarrierError:
+            # The correct under-lock implementation invokes this only once;
+            # the timeout is bounded so the test cannot deadlock on the lock.
+            pass
+        return original_next_version_fields(*args, **kwargs)
+
+    monkeypatch.setattr(reg, "_next_version_fields", synchronized_next_version_fields)
+
+    def register_equivalent_source():
+        try:
+            start.wait(timeout=0.5)
+            results.append(
+                reg.register_source(
+                    content=b"same concurrent source",
+                    external_ref="docs/concurrent.txt",
+                    kind="txt",
+                    profile_id="p1",
+                    project_id="P1",
+                )
+            )
+        except BaseException as exc:  # surface worker failures in the test
+            errors.append(exc)
+
+    threads = [threading.Thread(target=register_equivalent_source) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=2)
+        assert not thread.is_alive(), "registration worker did not finish"
+
+    assert not errors
+    assert len(results) == 2
+    assert results[0].source_id == results[1].source_id
+    assert results[0].content_hash == results[1].content_hash
+
+    assert reg.path is not None
+    canonical_lines = reg.path.read_bytes().splitlines()
+    assert len(canonical_lines) == 1
+    assert canonical_lines[0]
+    assert len(reg.all_records()) == 1
+
+    # Discard the original instance and prove the canonical record is the
+    # durable identity source for a new registry instance.
+    expected_source_id = results[0].source_id
+    del reg
+    reopened = CorpusSourceRegistry(root=tmp_path / "registry")
+    assert len(reopened.all_records()) == 1
+    assert reopened.all_records()[0].source_id == expected_source_id
 
 
 def test_renamed_same_bytes_share_content_only(tmp_path):
