@@ -308,6 +308,7 @@ class TestGraph:
 
     def test_explicit_seed_enriches_without_leak(self):
         store = _build_store()
+        hidden_id = "E4"  # _build_store seeds E4 as PR2's unauthorized decision.
         # With an explicit authorized seed, M8.3 relation distances are computed
         # but only for ALREADY-authorized nodes. We assert the enrichment runs
         # and returns distances keyed to existing authorized items, never E4.
@@ -318,12 +319,13 @@ class TestGraph:
                                   relation_seed=("event", "E1"))
         # Distances (if any) only reference ids that already passed M5.
         visible = {e.evidence_id for e in out.primary_evidence + out.supporting_evidence}
+        assert hidden_id not in visible
         assert out.m8_metadata
+        assert hidden_id not in out.m8_metadata
         assert set(out.m8_metadata) == visible
         for meta in out.m8_metadata.values():
             distance = meta["graph_relation_distance"]
             assert distance is None or (isinstance(distance, int) and distance >= 0)
-        assert "E4" not in visible
 
 
 # ---------------------------------------------------------------------------
