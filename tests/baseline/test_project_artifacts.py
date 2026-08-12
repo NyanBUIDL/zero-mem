@@ -25,9 +25,8 @@ ROOT = Path(__file__).resolve().parents[2]
 #: state binding and was invisible to the substring gate. Structural key counting
 #: plus effective-value assertions is the only form that catches it.
 #:
-#: Scope is deliberately limited to the M9 binding: a repository-wide duplicate
-#: gate would pull unrelated, separately-tracked historical duplicates
-#: (``m2_current_version`` and the ``m1_*`` pairs) into this contract.
+#: The M9 binding has its own required-key set. AUD-007 has a dedicated target-key
+#: assertion so unrelated historical state entries remain outside R9's scope.
 M9_STATE_BINDING_KEYS: tuple[str, ...] = (
     "m9_plan_status",
     "m9_overall_status",
@@ -41,6 +40,25 @@ M9_STATE_BINDING_KEYS: tuple[str, ...] = (
     "m9_increment_4_status",
     "m9_increment_5_status",
 )
+
+# Historical duplicate top-level entries that predate AUD-007 and are retained
+# as governance history. The whole-file gate below makes this inventory closed:
+# any new duplicate or changed historical value is a structural regression.
+KNOWN_HISTORICAL_DUPLICATES: dict[str, list[str]] = {
+    "m1_increment_4_2_status": ["verified", "verified"],
+    "m1_increment_4_3_status": ["verified", "verified"],
+    "m1_increment_4_4_status": ["verified", "verified"],
+    "m1_increment_4_4_evidence": [
+        "acceptance-m1-increment-4-4.md",
+        "acceptance-m1-increment-4-4.md",
+    ],
+    "m1_increment_4_status": ["in_progress", "verified"],
+    "m3_increment_1_plan_commit": ["46be195", "46be195"],
+    "m1_increment_4_4_plan": [
+        ".hermes/plans/2026-08-05_000000-m1-increment-4-4-verified-hook-registration.md",
+        ".hermes/plans/2026-08-05_000000-m1-increment-4-4-verified-hook-registration.md",
+    ],
+}
 
 
 def _state_text() -> str:
@@ -87,6 +105,14 @@ def _effective_state(text: str) -> dict[str, str]:
     for m in _TOP_KEY_RE.finditer(text):
         eff[m.group(1)] = _strip_scalar(m.group(2))
     return eff
+
+
+def _top_level_key_values(text: str) -> dict[str, list[str]]:
+    """Collect every top-level scalar value before YAML last-wins parsing."""
+    values: dict[str, list[str]] = {}
+    for m in _TOP_KEY_RE.finditer(text):
+        values.setdefault(m.group(1), []).append(_strip_scalar(m.group(2)))
+    return values
 
 
 def test_master_spec_and_derived_agents_exist() -> None:
@@ -325,3 +351,20 @@ def test_m9_duplicate_key_shadowing_is_detected() -> None:
         if counts.get(key, 0) > 1
     }
     assert duplicated, "duplicate-key gate failed to detect a shadowed M9 key"
+
+
+def test_project_state_has_one_m2_current_version() -> None:
+    """Reject AUD-007 shadowing without broadening R9 to other history entries."""
+    state = _state_text()
+    counts = _top_level_key_counts(state)
+    values = _top_level_key_values(state)
+    assert counts["m2_current_version"] == 1
+    assert values["m2_current_version"] == ["6"]
+    assert _effective_state(state)["m2_current_version"] == "6"
+
+
+def test_project_state_has_no_unexpected_top_level_duplicate_keys() -> None:
+    """Scan the whole artifact while preserving classified legacy entries."""
+    values = _top_level_key_values(_state_text())
+    duplicates = {key: entries for key, entries in values.items() if len(entries) > 1}
+    assert duplicates == KNOWN_HISTORICAL_DUPLICATES
