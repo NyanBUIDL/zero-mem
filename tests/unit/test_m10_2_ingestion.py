@@ -22,6 +22,7 @@ from src.corpus import (
     TxtAdapter,
     select_adapter,
 )
+from src.corpus.blob_store import BlobStoreError
 from src.corpus.extract import ExtractionResult, ExtractionUnit
 from src.corpus.redact import CorpusRedactionError, scan_extracted_text, require_safe
 
@@ -199,6 +200,59 @@ def test_blob_store_roundtrip_and_idempotent(tmp_path):
     assert store.get(digest) == b"hello corpus"
     # idempotent: second put returns same digest, single physical file
     assert store.put(content=b"hello corpus", source_ref="src1") == digest
+
+
+@pytest.mark.parametrize(
+    "digest",
+    [
+        "",
+        "abc123",
+        "g" * 64,
+        "../foo",
+        "/tmp/foo",
+        "A" * 64,
+    ],
+    ids=["empty", "short", "non_hex", "parent_path", "absolute_path", "uppercase"],
+)
+def test_blob_store_rejects_invalid_digest_references(tmp_path, digest):
+    store = CorpusBlobStore(root=tmp_path / "corpus")
+
+    with pytest.raises(BlobStoreError):
+        store.exists(digest)
+    with pytest.raises(BlobStoreError):
+        store.get(digest)
+
+
+def test_blob_store_valid_missing_digest_has_distinct_semantics(tmp_path):
+    store = CorpusBlobStore(root=tmp_path / "corpus")
+    digest = "0" * 64
+
+    assert store.exists(digest) is False
+    with pytest.raises(BlobStoreError, match="missing_blob"):
+        store.get(digest)
+
+
+def test_blob_store_directory_target_is_not_a_blob(tmp_path):
+    store = CorpusBlobStore(root=tmp_path / "corpus")
+    digest = "d" * 64
+    target = store._path_for(digest)
+    target.mkdir(parents=True)
+
+    assert store.exists(digest) is False
+    with pytest.raises(BlobStoreError, match="invalid_blob_target"):
+        store.get(digest)
+
+
+def test_blob_store_roundtrip_survives_new_instance(tmp_path):
+    root = tmp_path / "corpus"
+    payload = b"persisted corpus bytes"
+    first = CorpusBlobStore(root=root)
+    digest = first.put(content=payload, source_ref="reopen")
+    del first
+
+    reopened = CorpusBlobStore(root=root)
+    assert reopened.exists(digest) is True
+    assert reopened.get(digest) == payload
 
 
 def test_blob_store_path_escape_rejected(tmp_path):

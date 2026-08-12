@@ -89,8 +89,20 @@ class CorpusBlobStore:
     def _sha256(content: bytes) -> str:
         return hashlib.sha256(content).hexdigest()
 
+    @staticmethod
+    def _validate_digest(digest: str) -> str:
+        """Validate the closed, lowercase SHA-256 blob-reference contract."""
+        if (
+            not isinstance(digest, str)
+            or len(digest) != 64
+            or any(character not in "0123456789abcdef" for character in digest)
+        ):
+            raise BlobStoreError("blob_store: invalid_digest")
+        return digest
+
     def _path_for(self, digest: str) -> Path:
         assert self._blob_dir is not None
+        digest = self._validate_digest(digest)
         return self._blob_dir / digest[:2] / digest
 
     def put(self, *, content: bytes, source_ref: str) -> str:
@@ -101,7 +113,10 @@ class CorpusBlobStore:
         target = self._path_for(digest)
         self._assert_within_root(target)
         with self._lock:
-            if not target.exists():
+            if target.exists() or target.is_symlink():
+                if target.is_symlink() or not target.is_file():
+                    raise BlobStoreError("blob_store: invalid_blob_target")
+            else:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 tmp = target.with_suffix(".part")
                 tmp.write_bytes(content)
@@ -112,20 +127,31 @@ class CorpusBlobStore:
         return digest
 
     def get(self, digest: str) -> bytes:
+        self._validate_digest(digest)
         if not self.available:
             raise BlobStoreError("blob_store: root_not_configured")
         target = self._path_for(digest)
         self._assert_within_root(target)
         if not target.exists():
             raise BlobStoreError("blob_store: missing_blob")
-        return target.read_bytes()
+        if target.is_symlink() or not target.is_file():
+            raise BlobStoreError("blob_store: invalid_blob_target")
+        try:
+            return target.read_bytes()
+        except FileNotFoundError:
+            raise BlobStoreError("blob_store: missing_blob") from None
+        except IsADirectoryError:
+            raise BlobStoreError("blob_store: invalid_blob_target") from None
+        except OSError:
+            raise BlobStoreError("blob_store: read_failed") from None
 
     def exists(self, digest: str) -> bool:
+        self._validate_digest(digest)
         if not self.available:
             return False
         target = self._path_for(digest)
         self._assert_within_root(target)
-        return target.exists()
+        return target.exists() and not target.is_symlink() and target.is_file()
 
     def _assert_within_root(self, path: Path) -> None:
         assert self._blob_dir is not None

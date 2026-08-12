@@ -19,6 +19,7 @@ Uses tmp_path only; never writes to the real ~/.hermes or ingests real documents
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -461,6 +462,26 @@ class TestRebuild:
         rebuild_from_corpus(store._conn, registry, blob_store=blob_store)
         rows = store._conn.execute("SELECT event_id FROM zm_meta ORDER BY event_id").fetchall()
         assert [r["event_id"] for r in rows] == ["evt-memory-1"]
+
+    def test_malformed_canonical_blob_ref_is_classified_during_projection(
+        self, store, registry, blob_store, corpus_root
+    ):
+        registry.register_source_with_blob(
+            content=b"canonical bytes",
+            external_ref="malformed-ref.txt",
+            kind="txt",
+            profile_id="p1",
+        )
+        path = corpus_root / "corpus_sources.jsonl"
+        record = json.loads(path.read_text(encoding="utf-8"))
+        record["blob_ref"] = ""
+        path.write_text(json.dumps(record) + "\n", encoding="utf-8")
+
+        reopened = CorpusSourceRegistry(root=corpus_root)
+        report = project_corpus(store._conn, reopened, blob_store=CorpusBlobStore(root=corpus_root))
+
+        assert report.sources_projected == 1
+        assert report.extractions_failed == 1
 
 
 # ---------------------------------------------------------------------------
