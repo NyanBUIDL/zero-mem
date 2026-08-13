@@ -15,7 +15,8 @@
 
 - Two release-blocking findings were identified: `PKG7-AUD-001` and `PKG7-AUD-002`.
 - No schema migration, version change, dependency addition, feature work, real-corpus mutation, or `package-lock.json` change is warranted.
-- The corrective scope is limited to canonical artifact integrity verification and its regression coverage.
+- The corrective scope is limited to canonical artifact integrity verification,
+  reproducible wheel timestamps, and their permanent regression coverage.
 
 ## Final disposition
 

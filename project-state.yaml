@@ -1226,3 +1226,26 @@ m10_7_large_corpus_rollout_benchmark_final_acceptance:
   packaging: "NOT STARTED"
   final_head: "2e6213700022581a37673cc0bab4a0aaa4facfcd"
   finalhead_canonical: "HISTORICAL canonical-tested HEAD 2e6213700022581a37673cc0bab4a0aaa4facfcd: 3001 passed, 4 skipped, 0 failed (isolated HOME). Later state/acceptance commit 6224292e453c2392f3a8121b1f1b578006c9768f; canonical at that exact HEAD NOT PROVEN."
+pkg7_release_candidate:
+  status: "COMPLETE_PENDING_OWNER_ACCEPTANCE"
+  phase: "PKG-7"
+  name: "Final Release Audit & Release Candidate Freeze"
+  release_candidate: true
+  accepted_baseline: "e4cd5a626fa083a260d0c7f23cd04770759aebfd"
+  audit_findings: 2
+  open_release_blockers: 0
+  schema_version: 10
+  schema_changed: false
+  migrations_changed: false
+  runtime_dependencies_changed: false
+  real_corpus: "NOT MUTATED"
+  package_lock_json: "UNTOUCHED"
+  security_matrix: "981 passed, 1 skipped, 0 failed, 0 errors"
+  lifecycle_matrix: "83 passed, 0 skipped, 0 failed, 0 errors"
+  canonical: "3139 passed, 4 skipped, 0 failed, 0 errors, no deselection"
+  wheel_repeatability: "PASS with SOURCE_DATE_EPOCH=315532800; byte-identical SHA-256 ce574ba48b2ace71e4d18b94dd5d307b543526069962a8f900a750793cdf65c8"
+  clean_machine: "PASS: fresh external venv, no PYTHONPATH, isolated spaced XDG roots, setup/doctor/backup/restore/upgrade/reinstall/second-root portability"
+  github_published: false
+  release_created: false
+  next_phase: "PKG-8_PUBLICATION_PENDING_OWNER_DEFINITION"
+  next_authorized_phase: "NONE"
