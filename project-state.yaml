@@ -1232,7 +1232,7 @@ pkg7_release_candidate:
   name: "Final Release Audit & Release Candidate Freeze"
   release_candidate: true
   accepted_baseline: "e4cd5a626fa083a260d0c7f23cd04770759aebfd"
-  audit_findings: 2
+  audit_findings: 4
   open_release_blockers: 0
   schema_version: 10
   schema_changed: false
@@ -1240,10 +1240,10 @@ pkg7_release_candidate:
   runtime_dependencies_changed: false
   real_corpus: "NOT MUTATED"
   package_lock_json: "UNTOUCHED"
-  security_matrix: "981 passed, 1 skipped, 0 failed, 0 errors"
+  security_matrix: "1276 passed, 0 skipped, 0 failed, 0 errors"
   lifecycle_matrix: "83 passed, 0 skipped, 0 failed, 0 errors"
   canonical: "3139 passed, 4 skipped, 0 failed, 0 errors, no deselection"
-  wheel_repeatability: "PASS with SOURCE_DATE_EPOCH=315532800; byte-identical SHA-256 ce574ba48b2ace71e4d18b94dd5d307b543526069962a8f900a750793cdf65c8"
+  wheel_repeatability: "PASS with SOURCE_DATE_EPOCH=315532800; byte-identical SHA-256 b8caf1fbb8e1d53154829d201b1f44c6ed08da2df1c08b5b8763db4da86b9d0e"
   clean_machine: "PASS: fresh external venv, no PYTHONPATH, isolated spaced XDG roots, setup/doctor/backup/restore/upgrade/reinstall/second-root portability"
   github_published: false
   release_created: false
