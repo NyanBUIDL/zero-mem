@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 from pathlib import Path
 
 import pytest
@@ -130,14 +131,79 @@ def test_corpus_registry_and_blob_are_verified_and_restored(monkeypatch, tmp_pat
     ]
 
 
-def test_tampered_corpus_blob_is_rejected(monkeypatch, tmp_path: Path) -> None:
+def test_corpus_artifact_payload_round_trip_and_tamper_is_fail_closed(
+    monkeypatch, tmp_path: Path
+) -> None:
     _fixture(monkeypatch, tmp_path, corpus=True)
-    backup = create_backup(tmp_path / "tampered corpus blob")
-    blob = next(path for path in (backup / "canonical/corpus/blobs").rglob("*") if path.is_file())
-    blob.write_bytes(blob.read_bytes() + b"tamper")
+    active_data_root = data_root()
+    active_corpus_root = Path(os.environ["ZERO_MEM_CORPUS_ROOT"])
+    artifact_bytes = b"synthetic canonical source"
+    original_sha256 = hashlib.sha256(artifact_bytes).hexdigest()
+    source_record = CorpusSourceRegistry(root=active_corpus_root).all_records()[0]
+    digest = source_record.blob_ref
+    assert digest is not None
+    assert digest == original_sha256
+    assert CorpusBlobStore(root=active_corpus_root).get(digest) == artifact_bytes
+
+    backup = create_backup(tmp_path / "artifact payload backup")
+    manifest = json.loads((backup / "manifest.json").read_text(encoding="utf-8"))
+    artifact_path = f"canonical/corpus/blobs/{digest[:2]}/{digest}"
+    artifact_entry = next(entry for entry in manifest["files"] if entry["path"] == artifact_path)
+    assert artifact_entry["category"] == "canonical"
+    assert artifact_entry["size"] == len(artifact_bytes)
+    assert artifact_entry["sha256"] == original_sha256
+    assert verify_backup(backup)["status"] == "VALID"
+
+    # Mutate the active payload, then restore the same backup into different roots.
+    active_blob = active_corpus_root / "blobs" / original_sha256[:2] / original_sha256
+    active_blob.write_bytes(b"active mutation")
+    target_data_root = tmp_path / "different data root"
+    target_corpus_root = tmp_path / "different corpus root"
+    restore_backup(
+        backup,
+        yes=True,
+        target_data_root=target_data_root,
+        target_corpus_root=target_corpus_root,
+    )
+    monkeypatch.setenv("ZERO_MEM_DATA_ROOT", str(target_data_root))
+    monkeypatch.setenv("ZERO_MEM_CORPUS_ROOT", str(target_corpus_root))
+    restored_record = CorpusSourceRegistry(root=target_corpus_root).get_by_source_id(
+        source_record.source_id
+    )
+    assert restored_record is not None
+    restored_digest = restored_record.blob_ref
+    assert restored_digest is not None
+    assert restored_digest == original_sha256
+    restored_blob = CorpusBlobStore(root=target_corpus_root).get(restored_digest)
+    assert restored_blob == artifact_bytes
+    assert hashlib.sha256(restored_blob).hexdigest() == original_sha256
+    assert memory_stream().read_bytes() == (backup / "canonical/memory/events-v1.jsonl").read_bytes()
+
+    # A separately copied backup with only the artifact payload tampered must not
+    # verify or replace the still-valid active state.
+    monkeypatch.setenv("ZERO_MEM_DATA_ROOT", str(active_data_root))
+    monkeypatch.setenv("ZERO_MEM_CORPUS_ROOT", str(active_corpus_root))
+    active_memory_before = memory_stream().read_bytes()
+    active_blob_before = active_blob.read_bytes()
+    tampered = tmp_path / "tampered artifact backup"
+    shutil.copytree(backup, tampered)
+    tampered_blob = tampered / artifact_path
+    tampered_bytes = bytearray(tampered_blob.read_bytes())
+    tampered_bytes[0] ^= 1
+    tampered_blob.write_bytes(bytes(tampered_bytes))
     with pytest.raises(BackupError) as exc_info:
-        verify_backup(backup)
+        verify_backup(tampered)
     assert exc_info.value.code == "CHECKSUM_MISMATCH"
+    with pytest.raises(BackupError) as exc_info:
+        restore_backup(
+            tampered,
+            yes=True,
+            target_data_root=active_data_root,
+            target_corpus_root=active_corpus_root,
+        )
+    assert exc_info.value.code == "CHECKSUM_MISMATCH"
+    assert memory_stream().read_bytes() == active_memory_before
+    assert active_blob.read_bytes() == active_blob_before
 
 
 @pytest.mark.parametrize("tamper", ["memory", "manifest", "missing"])
