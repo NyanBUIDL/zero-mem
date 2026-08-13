@@ -118,5 +118,5 @@ def test_setup_doctor_commands_are_exposed_but_later_commands_are_not(tmp_path: 
     assert " rebuild" not in help_result.stdout
     assert " backup" in help_result.stdout
     assert " integrate" in help_result.stdout
-    assert " upgrade" not in help_result.stdout
+    assert " upgrade" in help_result.stdout
     assert " start" not in help_result.stdout

@@ -50,3 +50,41 @@ stores only a Zero-Mem-owned descriptor under the configured XDG config root;
 it does not edit Hermes files, install Hermes, contact the network, or expose
 write/admin/raw-storage tools. `ZERO_MEM_ENABLED` remains the sole master
 switch, and Hermes remains operational when Zero-Mem is unavailable.
+
+## Upgrade and data lifecycle
+
+Application code and user data have separate lifecycles. Reinstalling or
+uninstalling the managed runtime does not remove canonical Memory JSONL, the
+canonical corpus registry and blobs, artifacts, profiles/grants, configuration,
+or backups. The PKG-2 default uninstaller removes only the managed runtime and
+its owned CLI shim.
+
+PKG-6 provides a local, no-network upgrade lifecycle:
+
+```text
+zero-mem upgrade --check --json
+zero-mem upgrade --json
+```
+
+`upgrade --check` is read-only. It reports installed package/data format and
+SQLite schema compatibility, canonical readability, backup readiness, and
+doctor readiness. A future derived schema is refused; Zero-Mem never silently
+downgrades data. For the current v10 schema, a compatible installation reports
+`NO_MIGRATION_REQUIRED`.
+
+`upgrade` validates canonical data, builds disposable SQLite/FTS/graph/temporal
+state in a sibling staging directory, and activates it only after the staged
+rebuild and doctor checks succeed. Canonical JSONL, corpus registry/blobs,
+artifact payloads, profiles/grants, and configuration are never migrated or
+rewritten by this operation. A staging failure leaves the prior active derived
+state in place. Create and verify a local PKG-5 backup before a significant
+upgrade when recovery assurance is desired:
+
+```text
+zero-mem backup create --output /absolute/backup-directory
+zero-mem backup verify /absolute/backup-directory --json
+```
+
+There is intentionally no `zero-mem data remove` command in PKG-6. Persistent
+data deletion is a separate, explicitly authorized lifecycle operation; OS
+package removal is not data deletion.

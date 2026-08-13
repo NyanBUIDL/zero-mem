@@ -34,6 +34,16 @@ Zero-Mem-owned integration descriptor below the configured XDG config root and
 uses the existing external Hermes plugin-context boundary. Hermes is not a
 runtime dependency of the Zero-Mem wheel.
 
-This is a **PKG-3 SETUP + DOCTOR ACCEPTANCE BUNDLE**, not the final v1.0.0
-release artifact. It does not provide status, rebuild, integration, backup,
-restore, upgrade, rollback, service, or GitHub publication commands.
+This is a local release-layer acceptance bundle, not a public v1.0.0 release
+artifact. It does not provide status, a manual rebuild command, rollback,
+service, GitHub publication, or data-purge commands.
+
+PKG-6 extends the installed lifecycle with `zero-mem upgrade --check` and
+`zero-mem upgrade`. The compatibility check is read-only. Upgrade refreshes
+only disposable derived SQLite/FTS/graph/temporal state through sibling staging
+and atomic activation; it never rewrites canonical Memory JSONL, corpus
+registry/blobs, artifact payloads, profiles/grants, or configuration. A failed
+staged refresh leaves the previously active derived state usable. Application
+uninstall remains separate from user-data deletion: the supplied uninstaller
+removes managed runtime code and the owned shim only. No data-purge command is
+provided by this release layer.

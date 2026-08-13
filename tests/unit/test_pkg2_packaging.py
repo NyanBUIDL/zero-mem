@@ -254,3 +254,27 @@ def test_installed_runtime_exposes_pkg3_setup_and_doctor(bundle: Path, tmp_path:
     report = json.loads(doctor.stdout)
     assert report["overall"] == "READY"
     assert any(check["id"] == "hermes" and check["status"] == "WARN" for check in report["checks"])
+
+
+def test_installed_runtime_upgrade_check_and_same_version_reinstall_preserve_state(bundle: Path, tmp_path: Path) -> None:
+    assert _install(bundle, tmp_path).returncode == 0
+    home = tmp_path / "home with spaces"
+    env = _env(home)
+    cli = home / "bin root with spaces" / "zero-mem"
+    assert _run([str(cli), "setup"], env=env, cwd=tmp_path).returncode == 0
+    data_root = home / "data root with spaces" / "zero-mem"
+    canonical = data_root / "data" / "memory" / "traces" / "events-v1.jsonl"
+    canonical.write_text('{"event_id":"pkg6-installed","event_type":"user_statement"}\n', encoding="utf-8")
+    before = canonical.read_bytes()
+
+    checked = json.loads(_run([str(cli), "upgrade", "--check", "--json"], env=env, cwd=tmp_path).stdout)
+    assert checked["status"] == "READY"
+    assert checked["compatibility"] == "NO_MIGRATION_REQUIRED"
+    assert canonical.read_bytes() == before
+    upgraded = json.loads(_run([str(cli), "upgrade", "--json"], env=env, cwd=tmp_path).stdout)
+    assert upgraded["status"] == "SUCCESS"
+    assert canonical.read_bytes() == before
+    assert _install(bundle, tmp_path).returncode == 0
+    assert canonical.read_bytes() == before
+    report = json.loads(_run([str(cli), "doctor", "--json"], env=env, cwd=tmp_path).stdout)
+    assert report["overall"] == "READY"

@@ -118,7 +118,10 @@ def _validate_config(value: object) -> dict[str, Any]:
     }
     if set(value) != required | {"schema_version"}:
         raise ConfigurationError("unsupported configuration fields")
-    if value.get("version") != __version__ or value.get("capture_mode") != "observation_only":
+    # The descriptor preserves a recorded application version for diagnostics;
+    # it is not a data-format authority.  A new wheel must be able to inspect
+    # and safely rebuild the same canonical state without rewriting it first.
+    if not isinstance(value.get("version"), str) or not value["version"] or value.get("capture_mode") != "observation_only":
         raise ConfigurationError("invalid configuration values")
     for key in ("canonical_memory_root", "derived_store", "capture_stream"):
         candidate = value.get(key)

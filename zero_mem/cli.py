@@ -49,6 +49,10 @@ def build_parser() -> argparse.ArgumentParser:
     restore_parser.add_argument("--corpus-root", type=str, help="explicit target corpus root")
     restore_parser.add_argument("--json", action="store_true", help="emit machine-readable output")
     restore_parser.set_defaults(_backup_restore=True)
+    upgrade_parser = subparsers.add_parser("upgrade", help="check and safely refresh disposable derived state")
+    upgrade_parser.add_argument("--check", action="store_true", help="inspect upgrade compatibility without changing state")
+    upgrade_parser.add_argument("--json", action="store_true", help="emit machine-readable output")
+    upgrade_parser.set_defaults(_upgrade=True)
     return parser
 
 
@@ -119,6 +123,16 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         except BackupError as exc:
             print(f"zero-mem: backup restore failed: {exc.code}", file=sys.stderr)
+            return 2
+    elif getattr(args, "_upgrade", False):
+        from .upgrade import UpgradeError, check, upgrade
+
+        try:
+            result = check() if args.check else upgrade()
+            print(json.dumps(result, sort_keys=True, separators=(",", ":")) if args.json else result["status"])
+            return 0 if result["status"] in {"READY", "SUCCESS"} else 2
+        except UpgradeError as exc:
+            print(f"zero-mem: upgrade failed: {exc.code}", file=sys.stderr)
             return 2
     return 0
 
