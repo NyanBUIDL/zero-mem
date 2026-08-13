@@ -16,3 +16,14 @@
 - Two release-blocking findings were identified: `PKG7-AUD-001` and `PKG7-AUD-002`.
 - No schema migration, version change, dependency addition, feature work, real-corpus mutation, or `package-lock.json` change is warranted.
 - The corrective scope is limited to canonical artifact integrity verification and its regression coverage.
+
+## Final disposition
+
+- `PKG7-AUD-001` — **RESOLVED** by `d085224`: normal blob reads, idempotent reuse,
+  and existence checks now verify the content address; the permanent tamper
+  regression is in `tests/unit/test_m10_2_ingestion.py`.
+- `PKG7-AUD-002` — **RESOLVED** by the PKG-7 deterministic-wheel regression:
+  the accepted offline build environment pins `SOURCE_DATE_EPOCH=315532800` and
+  asserts complete wheel digest equality across repeated builds.
+- Open release blockers: **0**. No LOW or quality-only observations warrant an
+  RC exception.
