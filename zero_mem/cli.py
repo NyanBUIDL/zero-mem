@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from .version import __version__
 
@@ -31,6 +32,23 @@ def build_parser() -> argparse.ArgumentParser:
     hermes_parser.add_argument("--check", action="store_true", help="inspect without changing state")
     hermes_parser.add_argument("--remove", action="store_true", help="remove only Zero-Mem-owned integration state")
     hermes_parser.set_defaults(_integrate_hermes=True)
+    backup_parser = subparsers.add_parser("backup", help="create and recover local Zero-Mem backups")
+    backup_subparsers = backup_parser.add_subparsers(dest="backup_command", required=True)
+    create_parser = backup_subparsers.add_parser("create", help="create a verified local backup")
+    create_parser.add_argument("--output", type=str, help="final backup directory")
+    create_parser.add_argument("--json", action="store_true", help="emit machine-readable output")
+    create_parser.set_defaults(_backup_create=True)
+    verify_parser = backup_subparsers.add_parser("verify", help="verify a backup without changing state")
+    verify_parser.add_argument("backup", type=str)
+    verify_parser.add_argument("--json", action="store_true", help="emit machine-readable output")
+    verify_parser.set_defaults(_backup_verify=True)
+    restore_parser = backup_subparsers.add_parser("restore", help="restore a verified backup")
+    restore_parser.add_argument("backup", type=str)
+    restore_parser.add_argument("--yes", action="store_true", help="confirm replacement of active data")
+    restore_parser.add_argument("--data-root", type=str, help="explicit target data root")
+    restore_parser.add_argument("--corpus-root", type=str, help="explicit target corpus root")
+    restore_parser.add_argument("--json", action="store_true", help="emit machine-readable output")
+    restore_parser.set_defaults(_backup_restore=True)
     return parser
 
 
@@ -66,6 +84,42 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(json.dumps(result, sort_keys=True, separators=(",", ":")))
         return code
+    elif getattr(args, "_backup_create", False):
+        from .backup import BackupError, create_backup
+
+        try:
+            path = create_backup(Path(args.output) if args.output else None)
+            result = {"status": "SUCCESS", "backup": str(path)}
+            print(json.dumps(result, sort_keys=True, separators=(",", ":")) if args.json else f"Backup created:\n{path}")
+            return 0
+        except BackupError as exc:
+            print(f"zero-mem: backup create failed: {exc.code}", file=sys.stderr)
+            return 2
+    elif getattr(args, "_backup_verify", False):
+        from .backup import BackupError, verify_backup
+
+        try:
+            result = verify_backup(Path(args.backup))
+            print(json.dumps(result, sort_keys=True, separators=(",", ":")) if args.json else "Backup verification:\nVALID")
+            return 0
+        except BackupError as exc:
+            print(f"zero-mem: backup verify failed: {exc.code}", file=sys.stderr)
+            return 2
+    elif getattr(args, "_backup_restore", False):
+        from .backup import BackupError, restore_backup
+
+        try:
+            result = restore_backup(
+                Path(args.backup),
+                yes=args.yes,
+                target_data_root=Path(args.data_root) if args.data_root else None,
+                target_corpus_root=Path(args.corpus_root) if args.corpus_root else None,
+            )
+            print(json.dumps(result, sort_keys=True, separators=(",", ":")) if args.json else "Restore:\nSUCCESS")
+            return 0
+        except BackupError as exc:
+            print(f"zero-mem: backup restore failed: {exc.code}", file=sys.stderr)
+            return 2
     return 0
 
 

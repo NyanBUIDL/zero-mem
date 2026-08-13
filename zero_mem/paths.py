@@ -29,6 +29,12 @@ def _xdg_path(name: str, fallback: Path) -> Path:
 
 
 def data_root() -> Path:
+    explicit = os.environ.get("ZERO_MEM_DATA_ROOT")
+    if explicit:
+        candidate = Path(explicit).expanduser()
+        if not candidate.is_absolute():
+            raise ConfigurationError("data root must be absolute")
+        return candidate
     return _xdg_path("XDG_DATA_HOME", Path.home() / ".local" / "share") / "zero-mem"
 
 

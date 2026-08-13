@@ -116,7 +116,7 @@ def test_setup_doctor_commands_are_exposed_but_later_commands_are_not(tmp_path: 
     assert " doctor" in help_result.stdout
     assert " status" not in help_result.stdout
     assert " rebuild" not in help_result.stdout
-    assert " backup" not in help_result.stdout
+    assert " backup" in help_result.stdout
     assert " integrate" in help_result.stdout
     assert " upgrade" not in help_result.stdout
     assert " start" not in help_result.stdout
