@@ -1,42 +1,87 @@
-# Hermes External Zero-Mem
+# Zero-Mem Agent Guide
 
-## Authority
+## Project State
 
-The authoritative specification is `Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx` in this repository. Read the relevant section before implementing a milestone. Generated summaries, assistant claims, and Obsidian projections never replace the master document or canonical evidence.
+- Released baseline: **v1.0.0**, annotated tag `v1.0.0` at commit `79989f34ce3578f275a7b910c8a189896ce9ad57`.
+- Reconciliation point: `origin/master` at `78c4bb46b88b8ce9987c6882b24201e08b82a7f0`, verified 2026-08-14.
+- Target: **v1.1.0**.
+- Current phase: **V1.1.0 RE-PLANNING**.
+- Current work package: **WP-00 — Baseline Reconciliation and Delta Audit**.
+- Source modification: **NOT AUTHORIZED**.
+- Git publication: **WAITING FOR MAINTAINER APPROVAL**.
 
-## Architecture constraints
+The reconciliation point is one commit after the v1.0.0 tag. That commit reorganizes repository documentation and updates references to the moved paths. It does not remediate F-001 through F-014; all source blobs named by those findings are identical at the tag and reconciliation point.
 
-- Hermes remains the orchestration and final-action layer.
-- The sidecar captures, redacts, classifies, indexes, retrieves, and calibrates evidence.
-- SQLite + JSONL are canonical trace storage; artifacts are separate and versioned.
-- Obsidian is a human-facing Knowledge Workspace and curated, rebuildable projection—not raw storage or the retrieval engine.
-- Memory operations use deterministic/local mechanisms by default and make zero LLM calls; only final reasoning/response may use an LLM.
-- Preserve raw traces append-first with provenance; updates create linked traces, never silent overwrite.
-- Verified state outranks assistant self-report. Unverified claims must not become active facts.
-- Reads are global by default but profile-first and evidence-bounded; isolated/source-restricted modes must not leak scope.
-- Cross-profile writes require explicit authorization and review/verification gates.
-- Redact or reject secrets before persistence; never persist raw secrets.
-- Conflicts remain visible with source traces and resolution records.
-- Indexes and projections must be rebuildable from canonical traces, artifacts, and approved write-back records.
+## Source Freeze
 
-## Delivery protocol
+Treat implementation and executable artifacts at the exact reconciliation point as read-only. Findings, plans, approval of planning text, merge of a planning PR, or a request to “continue” do not authorize a fix.
 
-1. Inspect the repository and verified state.
-2. Read the applicable master-spec section and state the change scope.
-3. Implement one smallest complete milestone only.
-4. Run unit, integration, security, benchmark, and acceptance checks applicable to it.
-5. Record exact changed files and sanitized command evidence.
-6. Update project state only after acceptance criteria pass.
-7. Create a checkpoint before destructive changes; never install system-wide packages or perform destructive operations without explicit approval.
+During V1.1.0 RE-PLANNING, do not modify `zero_mem/`, `src/`, `tests/`, `benchmarks/`, `packaging/`, scripts, migrations, schemas, dependency metadata, runtime configuration, CI, tags, or releases. The only writable area is `AGENTS.md` and `docs/`.
 
-## Required quality gates
+Implementation begins only after a maintainer names one work package, its objective, its exact implementation write scope, required tests/benchmarks, and branch/PR workflow.
 
-Every module needs schema/migration coverage, unit and failure tests, structured logs/metrics, provenance output, security/redaction tests where content is handled, and runbook/rollback documentation. Do not claim completion without executable evidence.
+## Authority Order
 
-## Prohibited shortcuts
+Authority is domain-specific; a later status record does not rewrite product intent, and a specification does not override observed source behavior.
 
-Do not replace canonical stores with Obsidian, inject memory automatically before controlled-injection gates pass, ingest the full corpus before the basic pipeline is validated, silently resolve conflicts, delete raw traces/superseded decisions, or modify Hermes core deeply before the sidecar is proven.
+| Domain | Authority | Rule |
+|---|---|---|
+| Product specification | `Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx` at the reconciliation point | Defines product goals and invariants. Where v1.1.0 narrows or defers an objective, the approved ADR and master plan must say so explicitly. |
+| Implementation truth | Source, tests, schemas, migrations, packaging, configuration, and Git history at exact `origin/master` | Read the code and executable evidence. Do not infer behavior from plans or acceptance prose. |
+| Historical implementation/acceptance evidence | `project-state.yaml`, `implementation-plan.json`, and `docs/acceptance/` at exact `origin/master` | Records milestone evidence and prior approvals; it does not authorize v1.1.0 work or prove current behavior beyond its bound commit/environment. |
+| Observed audit truth | `docs/audit/` | Records findings, measurements, reconciliation status, and uncertainty. A finding is never implementation authorization. |
+| Planned v1.1.0 truth | `docs/v1.1.0/MASTER_PLAN.md`, approved ADRs, `TRACEABILITY.md`, and work packages | Defines proposed target behavior and release gates. Proposed write scope is not current authorization. |
+| Operational v1.1.0 status | `docs/v1.1.0/STATUS.md` | Names the one active WP and current authorization state. Historical milestone status files cannot mark a v1.1.0 WP active. |
+| Implementation authorization | Explicit maintainer instruction plus the corresponding `STATUS.md`/WP update | Must name the WP and file scope. Chat history, prior plan approval, a commit, or a merged planning PR is insufficient by itself. |
 
-## Current workflow
+If authorities conflict, preserve the conflict in audit/planning documentation and ask the maintainer. Do not silently choose an implementation outcome. Chat history is not project truth; it can provide the current instruction or authorization, which must be recorded in the repository governance documents before implementation.
 
-Planning and environment inspection are in progress. Do not begin milestone implementation until the user approves `implementation-plan.json` and the open questions recorded there.
+## Product Invariants to Preserve
+
+- Hermes remains an optional orchestration/adapter layer; the core must stay agent-agnostic.
+- Sanitized canonical trace data remains append-first; SQLite/FTS indexes and projections remain rebuildable unless an approved ADR explicitly changes that model.
+- Obsidian is a human-facing curated projection, not canonical raw storage or the retrieval engine.
+- Authorization precedes influence; isolated or source-restricted reads must not leak scope.
+- Verified state outranks assistant self-report; conflicts and provenance remain visible.
+- Secrets are redacted or rejected before persistence.
+- Normal memory operations use deterministic/local mechanisms and make no mandatory LLM call.
+
+## Mandatory Reading Order
+
+1. This file.
+2. `docs/baseline/V1.0.0_BASELINE.md`.
+3. `docs/v1.1.0/STATUS.md`.
+4. `docs/v1.1.0/MASTER_PLAN.md`.
+5. `docs/audit/FINDINGS_INDEX.md` and its current reconciliation record.
+6. The active work package in `docs/v1.1.0/work-packages/`.
+7. ADRs named by that work package.
+8. Only then, the source/test/evidence files listed by that package at the exact reconciliation commit.
+
+## Work Package Protocol
+
+- The active work package is the single `Current Work Package` named in `STATUS.md`.
+- Valid statuses: `NOT STARTED`, `IN REVIEW`, `APPROVED`, `IN PROGRESS`, `BLOCKED`, `READY FOR REVIEW`, `VERIFIED`.
+- During re-planning, `APPROVED` means design-approved only. It never authorizes implementation.
+- Update `STATUS.md`, the active WP, traceability, and any affected ADR together when planning status changes.
+- `Proposed Implementation Write Scope` is a future proposal. Only explicit maintainer authorization converts a subset of it into an allowed scope.
+- WP-00 must be `VERIFIED` by a maintainer before any implementation WP can be approved for implementation.
+
+## Findings and Uncertainty
+
+- Finding IDs are stable. Record new observed issues with the next unused `F-###` ID; never reuse a resolved identifier.
+- Reconciliation states are `CONFIRMED OPEN`, `PARTIALLY RESOLVED`, `RESOLVED`, `SUPERSEDED`, and `NEEDS VERIFICATION`.
+- Do not reopen the resolved PKG-7 findings without regression evidence or proof that the closure evidence is insufficient.
+- Do not turn limitations or uncertainty into defects or decisions. Use `NEEDS VERIFICATION` and route architectural choices through ADRs.
+- Every planned change must trace to a finding or an approved product/release goal in `TRACEABILITY.md`.
+
+## Git and Publication Gate
+
+Reconciliation may edit only `AGENTS.md` and `docs/**`. Before any commit or push, present the assessment, findings table, files changed, critical path, validation results, and proposed branch/commit/PR to the maintainer. Do not create a branch, stage, commit, push, tag, release, or PR until the maintainer explicitly authorizes that Git mutation.
+
+Default publication proposal after approval:
+
+- Branch: `codex/v1.1-planning`
+- Commit: `docs: add reconciled v1.1 development plan`
+- Draft PR: `docs: reconcile Zero-Mem v1.1 development plan`
+
+Merging the planning PR does not authorize any implementation WP.

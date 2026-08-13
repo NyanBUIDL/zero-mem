@@ -1,0 +1,199 @@
+# Work Package: WP-09 — Compatibility and Portability
+
+**ID:** WP-09
+
+**Title:** Compatibility and Portability
+
+
+**Status:** NOT STARTED
+
+**Priority:** P1
+
+**Categories:** Compatibility, Portability, Platform Support
+
+## Related Findings
+
+F-005, F-012. Related ADR: ADR-004.
+
+## Read Scope
+
+Read only the packaging, doctor, path, bridge configuration, and test modules named in **Files / Modules to Inspect**, plus ADR-004.
+
+## Planning Write Scope
+
+V1.1.0 RE-PLANNING: documentation only — this work package, platform matrix drafts under `docs/v1.1.0/benchmarks/`, and `TRACEABILITY.md`. No installer, metadata, or runtime-configuration write scope exists.
+
+## Planning Files Allowed to Modify
+
+This work package, `TRACEABILITY.md`, and platform-matrix Markdown under `docs/v1.1.0/benchmarks/` only.
+
+## Proposed Implementation Write Scope
+
+**PROPOSED FOR A FUTURE AUTHORIZATION ONLY.** A maintainer may authorize only the minimum subset of the entries under **Files / Modules to Inspect**, plus directly associated tests and benchmarks required by this package's acceptance criteria. Every allowed path must be named explicitly when implementation is authorized; all other paths remain forbidden.
+
+## Forbidden Scope
+
+`zero_mem/`, `src/`, `tests/`, `packaging/`, migrations, schemas, dependency metadata, runtime configuration, CI, and git tags.
+
+## Objective
+
+Define and verify the operating-system, Python-runtime, filesystem, and execution-environment compatibility contract for Zero-Mem v1.1.0.
+
+## Why This Exists
+
+The package declares Python `>=3.11,<3.14`, while the audited Windows/CPython 3.14 environment could still install enough of the repository to expose 59 failures and 11 errors. The installer also assumes a POSIX virtual-environment layout. A release cannot claim portability until its support boundary and failure behavior are explicit and tested.
+
+## Current State on master
+
+- [`pyproject.toml`](https://github.com/NyanBUIDL/zero-mem/blob/78c4bb46b88b8ce9987c6882b24201e08b82a7f0/pyproject.toml) declares the Python range.
+- [`packaging/install.sh`](https://github.com/NyanBUIDL/zero-mem/blob/78c4bb46b88b8ce9987c6882b24201e08b82a7f0/packaging/install.sh) and related setup scripts are shell-first.
+- [`zero_mem/commands_doctor.py`](https://github.com/NyanBUIDL/zero-mem/blob/78c4bb46b88b8ce9987c6882b24201e08b82a7f0/zero_mem/commands_doctor.py) provides partial environment checks.
+- [`zero_mem/paths.py`](https://github.com/NyanBUIDL/zero-mem/blob/78c4bb46b88b8ce9987c6882b24201e08b82a7f0/zero_mem/paths.py) applies XDG/home-based defaults.
+- The audited Windows/CPython 3.14 run is outside the declared runtime range, but it demonstrates that unsupported environments are not rejected early or explained consistently.
+
+## Evidence
+
+- Audit finding **F-005**: Windows installer paths assume `venv/bin`; Python 3.14 is outside the declared range.
+- Audit finding **F-012**: path defaults and bridge safety validation can conflict, especially on Windows.
+- Audit test run on Windows/CPython 3.14: **3,068 passed, 59 failed, 11 errors, 5 skipped** in 74.05 seconds. This is diagnostic evidence, not the canonical release baseline.
+- Linux, macOS, WSL, and Docker results for the v1.1.0 design: **Needs verification**.
+
+## Problems Found
+
+- **F-005 — P1 — Compatibility:** platform-specific virtual-environment paths are hard-coded.
+- **F-005 — P1 — Runtime support:** unsupported Python versions are not rejected with a single actionable message.
+- **F-012 — P2 — Filesystem compatibility:** configuration defaults can select paths later rejected by another component.
+- There is no committed compatibility matrix or platform-specific test ownership.
+
+## Affected Components
+
+- Packaging metadata and installers
+- Path and configuration resolution
+- Doctor and setup commands
+- SQLite/FTS capability detection
+- Hermes integration installation
+- CI and release qualification
+
+## Files / Modules to Inspect
+
+- [`pyproject.toml`](https://github.com/NyanBUIDL/zero-mem/blob/78c4bb46b88b8ce9987c6882b24201e08b82a7f0/pyproject.toml)
+- [`packaging/install.sh`](https://github.com/NyanBUIDL/zero-mem/blob/78c4bb46b88b8ce9987c6882b24201e08b82a7f0/packaging/install.sh)
+- [`zero_mem/commands_doctor.py`](https://github.com/NyanBUIDL/zero-mem/blob/78c4bb46b88b8ce9987c6882b24201e08b82a7f0/zero_mem/commands_doctor.py)
+- [`zero_mem/paths.py`](https://github.com/NyanBUIDL/zero-mem/blob/78c4bb46b88b8ce9987c6882b24201e08b82a7f0/zero_mem/paths.py)
+- [`src/integration/bridge_config.py`](https://github.com/NyanBUIDL/zero-mem/blob/78c4bb46b88b8ce9987c6882b24201e08b82a7f0/src/integration/bridge_config.py)
+- [`tests/`](https://github.com/NyanBUIDL/zero-mem/tree/78c4bb46b88b8ce9987c6882b24201e08b82a7f0/tests)
+
+## Desired State
+
+- A published support matrix covers Linux, macOS, Windows, WSL, and Docker.
+- Every supported operating system is paired with supported Python versions and SQLite/FTS requirements.
+- Unsupported combinations fail before data mutation and explain the supported alternatives.
+- Paths, permissions, executable discovery, line endings, and virtual environments use platform-aware APIs.
+- “Supported,” “best effort,” and “unsupported” are distinct release terms.
+
+## Constraints
+
+- Python support must remain consistent with `pyproject.toml` and dependency constraints.
+- SQLite FTS availability varies by Python distribution and platform.
+- Windows does not guarantee POSIX path, executable, symlink, or permission behavior.
+- This work package defines requirements; it does not authorize broad platform-specific feature divergence.
+
+## Required Changes
+
+1. Approve a v1.1.0 support matrix for OS, architecture, Python, and SQLite/FTS.
+2. Centralize runtime and capability validation.
+3. Replace POSIX-only path assumptions with platform-aware resolution.
+4. Add supported-platform CI jobs and explicit unsupported-runtime tests.
+5. Define WSL and Docker volume/path semantics.
+6. Document native Windows installation or explicitly classify it as unsupported.
+
+## Recommended Direction
+
+Use capability-based startup checks in addition to version checks. Keep one platform-neutral implementation where possible, with thin adapters only for executable paths and native data/config directories. Treat Python 3.11–3.13 as the provisional supported range because that matches current metadata; final matrix approval is **Needs verification**.
+
+## Alternatives Considered
+
+- **Linux-only support:** simpler, but conflicts with current user expectations and observed Windows usage.
+- **Allow any Python version:** avoids early rejection but shifts failures into setup and runtime.
+- **Separate implementations per OS:** maximizes local control but creates excessive maintenance and behavioral drift.
+
+## Risks
+
+- CI success can hide filesystem or permission differences on real machines.
+- FTS may be unavailable despite a nominally supported Python version.
+- Ambiguous WSL/Windows path conversion can split one logical profile across two stores.
+
+## Compatibility Impact
+
+This work may intentionally reject environments that previously failed later and less clearly. Such rejection is a compatibility improvement but must be called out in release notes.
+
+## Performance Impact
+
+Startup capability checks should be bounded and cached for the process lifetime. The target is no repeated filesystem or database probing on each retrieval; exact startup budget is set by WP-16 after supported-platform baselines.
+
+## Migration Impact
+
+Users moving between native Windows, WSL, and Docker need explicit path mapping and a supported copy procedure. Existing data must not be silently relocated.
+
+## Tests Required
+
+### Existing Tests
+
+- Current setup, doctor, path, packaging, and integration tests under [`tests/`](https://github.com/NyanBUIDL/zero-mem/tree/78c4bb46b88b8ce9987c6882b24201e08b82a7f0/tests).
+
+### Missing Tests
+
+- Fresh install on each supported OS/Python pair.
+- Unsupported Python rejection before writes.
+- FTS unavailable/capability failure behavior.
+- Windows executable and virtual-environment discovery.
+- WSL and Docker bind-volume path handling.
+- Native path, Unicode path, and space-containing path cases.
+
+### Regression Tests
+
+- Existing Linux setup remains valid.
+- Default paths accepted by configuration are also accepted by bridge validation.
+- Environment overrides resolve identically across setup, runtime, doctor, and uninstall.
+
+## Benchmarks Required
+
+- Setup and doctor elapsed time on every supported platform.
+- First-open and warm-open database time.
+- Retrieval benchmark comparison across supported SQLite builds.
+- Report results separately; do not average away a slow platform.
+
+## Acceptance Criteria
+
+- The support matrix is approved and linked from package metadata and user documentation.
+- Every “supported” matrix row passes install, setup, doctor, capture, ingest, retrieval, upgrade, and uninstall tests.
+- Every “unsupported” tested row exits non-zero before data mutation and prints the supported range.
+- No supported-platform script contains a hard-coded `venv/bin` or equivalent single-platform assumption.
+- Default and overridden paths pass the same validation in all components.
+
+## Definition of Done
+
+- CI enforces the approved matrix.
+- Platform-specific known limitations have owners and release-note entries.
+- WP-10, WP-16, and WP-19 consume the same compatibility definition.
+- Evidence links and test artifacts replace all relevant **Needs verification** markers.
+
+## Dependencies
+
+- WP-02 Core Boundaries
+- WP-08 Agent-Agnostic API
+- WP-13 Configuration
+
+## Blocks
+
+- WP-10 Installation and Packaging
+- WP-16 Testing and Benchmarks
+- WP-17 Migration
+- WP-19 Release Readiness
+
+## Out of Scope
+
+- Mobile platforms
+- Browser/WASM execution
+- Network filesystems unless separately qualified
+- Supporting Python 3.14 without dependency and test evidence

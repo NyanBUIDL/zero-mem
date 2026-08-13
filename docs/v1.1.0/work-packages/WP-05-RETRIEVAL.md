@@ -1,0 +1,161 @@
+# Work Package: WP-05 — Bounded Authorized Retrieval
+
+**ID:** WP-05
+
+**Title:** Bounded Authorized Retrieval
+
+
+**Status:** NOT STARTED
+
+**Priority:** P1
+
+
+**Categories:** PERFORMANCE, ARCHITECTURE, RELIABILITY
+
+## Related Findings
+
+F-008, F-009. Related ADR: ADR-005.
+
+## Read Scope
+
+Read only the retrieval, access, corpus-query, and evidence-builder modules named in **Files / Modules to Inspect**, their policy contracts, and ADR-005.
+
+## Planning Write Scope
+
+V1.1.0 RE-PLANNING: documentation only — this work package, ADR-005, and `TRACEABILITY.md`. No query, index, or policy implementation write scope exists.
+
+## Planning Files Allowed to Modify
+
+This work package, ADR-005, and `TRACEABILITY.md` only.
+
+## Proposed Implementation Write Scope
+
+**PROPOSED FOR A FUTURE AUTHORIZATION ONLY.** A maintainer may authorize only the minimum subset of the entries under **Files / Modules to Inspect**, plus directly associated tests and benchmarks required by this package's acceptance criteria. Every allowed path must be named explicitly when implementation is authorized; all other paths remain forbidden.
+
+## Forbidden Scope
+
+`zero_mem/`, `src/`, `tests/`, migrations, schemas, dependency metadata, runtime configuration, CI, and git tags.
+
+## Objective
+
+Make context-facing retrieval bounded, authorization-safe, deterministic, and explicit about ordering/freshness without replacing existing raw query primitives unnecessarily.
+
+## Why This Exists
+
+Memory FTS is chronological, not relevance/current-state ranked. Corpus retrieval fetches all FTS matches or all units in fallback, then filters/scores/sorts in Python. Final EvidenceSet limits do not bound candidate work.
+
+## Current State on master
+
+`src/retrieval/search.py::search_text` joins FTS and metadata, excludes deleted rows, then orders ascending by creation time. `src/access/authorized_read.py` decomposes effective scopes and merges materialized results. `src/corpus/retrieval.py::retrieve_corpus` fetches candidates then authorizes/filters/scores.
+
+## Evidence
+
+F-008 and F-009; audit FTS p95 scales from 1.648 ms at 1k to 22.198 ms at 10k for broad terms. Authorization-before-influence is a verified invariant and must remain intact.
+
+## Problems Found
+
+- PERFORMANCE P1: unbounded candidate materialization.
+- ARCHITECTURE P2: raw chronological search is reused near context selection.
+- PERFORMANCE P2: multi-scope queries can fetch all rows per scope then sort globally.
+- Retrieval quality at 100k/1M: `Needs verification`.
+
+## Affected Components
+
+M3 retrieval, M5 authorized reads, M6 tools, M7 evidence, corpus FTS, cursor semantics.
+
+## Files / Modules to Inspect
+
+- [`src/retrieval/search.py`](https://github.com/NyanBUIDL/zero-mem/blob/78c4bb46b88b8ce9987c6882b24201e08b82a7f0/src/retrieval/search.py)
+- [`src/retrieval/query.py`](https://github.com/NyanBUIDL/zero-mem/blob/78c4bb46b88b8ce9987c6882b24201e08b82a7f0/src/retrieval/query.py)
+- [`src/access/authorized_read.py`](https://github.com/NyanBUIDL/zero-mem/blob/78c4bb46b88b8ce9987c6882b24201e08b82a7f0/src/access/authorized_read.py)
+- [`src/corpus/retrieval.py`](https://github.com/NyanBUIDL/zero-mem/blob/78c4bb46b88b8ce9987c6882b24201e08b82a7f0/src/corpus/retrieval.py)
+- [`src/corpus/query_planner.py`](https://github.com/NyanBUIDL/zero-mem/blob/78c4bb46b88b8ce9987c6882b24201e08b82a7f0/src/corpus/query_planner.py)
+- [`src/integration/m7/evidence_builder.py`](https://github.com/NyanBUIDL/zero-mem/blob/78c4bb46b88b8ce9987c6882b24201e08b82a7f0/src/integration/m7/evidence_builder.py)
+
+## Desired State
+
+Raw chronological APIs remain available when explicitly requested. Context-facing APIs use a versioned deterministic selection policy with bounded authorized candidates, current lifecycle handling, conflict visibility, and stable pagination.
+
+## Constraints
+
+Authorization must occur before unauthorized content can affect ranking. No mandatory semantic model. Do not silently choose winners in conflicts or treat assistant claims as verified facts.
+
+## Required Changes
+
+1. Separate raw chronological search from context candidate retrieval.
+2. Push scope/lifecycle/metadata predicates into indexed SQL.
+3. Define bounded candidate windows and deterministic tie-breaks.
+4. Define relevance/currentness/verification signals for context-facing ranking.
+5. Preserve explicit conflict and provenance fields.
+6. Diagnose FTS-unavailable fallback instead of silently scanning large stores.
+
+## Recommended Direction
+
+Use indexed SQL to fetch a bounded authorized candidate window, then apply a small deterministic Python ranker. Keep lexical scoring simple; semantic adapters remain optional and operate only on authorized bounded candidates.
+
+## Alternatives Considered
+
+- Global ANN/vector database: rejected for V1.1.0.
+- Continue ordering all FTS by oldest first: retained only as explicit raw mode.
+- Apply authorization after global ranking: rejected for security/influence reasons.
+
+## Risks
+
+Ranking changes alter returned context and cursor compatibility. Predicate pushdown across grants must preserve cross-profile semantics.
+
+## Compatibility Impact
+
+Existing raw query tools should retain documented behavior or receive a versioned mode. Context API behavior can be new/additive.
+
+## Performance Impact
+
+Should reduce candidate RAM/CPU. Additional ranking signals add bounded local compute.
+
+## Migration Impact
+
+New indexes, if needed, are derived schema changes and require WP-17 rebuild/compatibility planning.
+
+## Tests Required
+
+### Existing Tests
+
+M3 search/pagination/verification, M5 authorization/cross-profile, M6 tools, M10 retrieval, M7 evidence bounds.
+
+### Missing Tests
+
+Large broad-match candidate ceiling, newest/current state visibility, conflict preservation, multi-scope bounded merge, FTS-unavailable large-store behavior.
+
+### Regression Tests
+
+Unauthorized rows cannot change authorized scores/order; old matches cannot indefinitely hide current active state in context mode.
+
+## Benchmarks Required
+
+Exact lookup, selective/broad FTS, metadata-only corpus, multi-scope grants, cold/warm retrieval at 1k/10k/100k/1M with candidate count and peak RAM.
+
+## Acceptance Criteria
+
+- Context retrieval processes no more than the approved candidate ceiling per request.
+- Authorization is applied in or before candidate discovery and verified by influence tests.
+- Ordering mode is explicit and deterministic.
+- Active/current evidence is not hidden solely by older matching rows.
+- FTS-unavailable large-store fallback is bounded or returns a typed capability state.
+
+## Definition of Done
+
+- Retrieval policy implemented and versioned.
+- Security, cursor, regression, and performance tests pass.
+- Benchmark records candidate counts and latency.
+- Tool/context documentation distinguishes raw and context modes.
+
+## Dependencies
+
+WP-01, WP-02, WP-04 freshness contract.
+
+## Blocks
+
+WP-06, retrieval portions of WP-07/WP-08, WP-16.
+
+## Out of Scope
+
+Mandatory embeddings, domain-specific ranking, external search services, and automatic truth resolution.
