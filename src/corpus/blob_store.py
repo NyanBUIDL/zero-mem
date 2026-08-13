@@ -90,6 +90,13 @@ class CorpusBlobStore:
             if target.exists() or target.is_symlink():
                 if target.is_symlink() or not target.is_file():
                     raise BlobStoreError("blob_store: invalid_blob_target")
+                try:
+                    if self._sha256(target.read_bytes()) != digest:
+                        raise BlobStoreError("blob_store: content_hash_mismatch")
+                except BlobStoreError:
+                    raise
+                except OSError:
+                    raise BlobStoreError("blob_store: read_failed") from None
             else:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 tmp = target.with_suffix(".part")
@@ -111,13 +118,16 @@ class CorpusBlobStore:
         if target.is_symlink() or not target.is_file():
             raise BlobStoreError("blob_store: invalid_blob_target")
         try:
-            return target.read_bytes()
+            content = target.read_bytes()
         except FileNotFoundError:
             raise BlobStoreError("blob_store: missing_blob") from None
         except IsADirectoryError:
             raise BlobStoreError("blob_store: invalid_blob_target") from None
         except OSError:
             raise BlobStoreError("blob_store: read_failed") from None
+        if self._sha256(content) != digest:
+            raise BlobStoreError("blob_store: content_hash_mismatch")
+        return content
 
     def exists(self, digest: str) -> bool:
         self._validate_digest(digest)
@@ -125,7 +135,12 @@ class CorpusBlobStore:
             return False
         target = self._path_for(digest)
         self._assert_within_root(target)
-        return target.exists() and not target.is_symlink() and target.is_file()
+        if not target.exists() or target.is_symlink() or not target.is_file():
+            return False
+        try:
+            return self._sha256(target.read_bytes()) == digest
+        except OSError:
+            return False
 
     def _assert_within_root(self, path: Path) -> None:
         assert self._blob_dir is not None

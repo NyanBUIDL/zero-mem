@@ -255,6 +255,16 @@ def test_blob_store_roundtrip_survives_new_instance(tmp_path):
     assert reopened.get(digest) == payload
 
 
+def test_blob_store_rejects_tampered_payload_at_read_boundary(tmp_path):
+    """Canonical blob identity must be verified before bytes can influence a rebuild."""
+    store = CorpusBlobStore(root=tmp_path / "corpus")
+    digest = store.put(content=b"original canonical payload", source_ref="integrity")
+    store._path_for(digest).write_bytes(b"tampered canonical payload")
+
+    with pytest.raises(BlobStoreError, match="content_hash_mismatch"):
+        store.get(digest)
+
+
 def test_blob_store_path_escape_rejected(tmp_path):
     store = CorpusBlobStore(root=tmp_path / "corpus")
     assert store._blob_dir is not None
