@@ -1,11 +1,11 @@
 """M8.3 — authorization-first bounded graph reads over the deterministic M8.2 projection.
 
 This module is INTERNAL request-time infrastructure. It is NOT a new Hermes/M6
-tool surface (plan-m8.md keeps M6 read tools unchanged; M8.6 owns final
+tool surface (docs/plans/plan-m8.md keeps M6 read tools unchanged; M8.6 owns final
 EvidenceSet integration). It provides an internal primitive later increments
 may wire up.
 
-AUTHORITATIVE FLOW (plan-m8.md, mandatory order)
+AUTHORITATIVE FLOW (docs/plans/plan-m8.md, mandatory order)
 ------------------------------------------------
     request
     -> normalize scope / resource request
@@ -24,7 +24,7 @@ What is NEVER done
 -------------------
 * Traverse first, authorize after ("discover hidden node, then check it").
 * Derive authorization from graph connectivity, shared entity text, relation
-  type, degree, provenance, calibration, or timestamps (per plan-m8.md).
+  type, degree, provenance, calibration, or timestamps (per docs/plans/plan-m8.md).
 * Treat graph topology as truth, as conflict resolution, or as a score.
 * Mutate any store, JSONL, grant, verification, lifecycle, or calibration state.
   Every query runs on a ``mode="ro"`` + ``query_only`` connection.

@@ -3,7 +3,7 @@
 Every derived M8 record must be traceable back to the canonical substrate that
 produced it, and must be reproducible by replaying that substrate. A record
 whose provenance is incomplete is NOT eligible to exist in the derived index
-(plan-m8.md §7 "An edge without sufficient provenance is not eligible").
+(docs/plans/plan-m8.md §7 "An edge without sufficient provenance is not eligible").
 
 Required provenance fields (frozen):
 

@@ -6,7 +6,7 @@ in the M10.4 derived corpus store (``zm_corpus_units`` / ``zm_corpus_sources``)
 using the closed M8 relation vocabulary (``src/m8/vocabulary.py``). The graph is
 NOT canonical, NOT memory, and fully rebuildable from the derived corpus store.
 
-Closed edge contract (plan-m10.md §M10.6 + v10 schema reality)
+Closed edge contract (docs/plans/plan-m10.md §M10.6 + v10 schema reality)
 ---------------------------------------------------------------
 The plan's prose edge list referenced ``references`` / ``section_of`` members
 that do NOT exist in the frozen M8 ``RelationType`` enum or the v10 unit DDL,

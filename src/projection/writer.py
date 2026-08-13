@@ -1,7 +1,7 @@
 """M9.2 — safe atomic writing of rendered notes into the managed root.
 
 Every write goes through the VERIFIED M9.1 path layer before a single byte
-touches the filesystem (plan-m9.md §10.1, §25.1):
+touches the filesystem (docs/plans/plan-m9.md §10.1, §25.1):
 
     fully-rendered note (in memory)
         -> deterministic managed target from closed vocabularies

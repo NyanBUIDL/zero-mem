@@ -6,7 +6,7 @@ pipeline. It performs NO projection of its own: it only resolves configuration,
 opens the canonical store strictly read-only, and delegates to the VERIFIED
 :func:`~src.projection.engine.project_to_vault`.
 
-Safety properties (plan-m9.md §2, §5, §24, §26.1, §28):
+Safety properties (docs/plans/plan-m9.md §2, §5, §24, §26.1, §28):
 
 * **Dry-run by default.** Without ``--apply``, nothing is written. ``--apply``
   additionally requires ``--yes`` and an explicit ``--project`` so a real vault
@@ -48,7 +48,7 @@ from src.projection.manifest import MANIFEST_RELATIVE_PATH  # noqa: E402
 from src.projection.writer import WriteStatus  # noqa: E402
 from src.retrieval.db import open_readonly  # noqa: E402
 
-# Content-level secret backstop forwarded to the engine (plan-m9.md §11.3).
+# Content-level secret backstop forwarded to the engine (docs/plans/plan-m9.md §11.3).
 # The engine ALWAYS applies its built-in baseline (DEFAULT_SECRET_PATTERNS),
 # so even an empty list here never disables the backstop. Operators may add
 # more patterns; they are appended, not a replacement.

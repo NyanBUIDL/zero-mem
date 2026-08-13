@@ -11,7 +11,7 @@ projection is:
   derived rows; we never read ``now()``, never randomize identity, never
   depend on rowid/insertion order.
 
-Two temporal dimensions are kept strictly distinct, exactly as plan-m8.md
+Two temporal dimensions are kept strictly distinct, exactly as docs/plans/plan-m8.md
 requires:
 
 1. **Transaction / history time** - represented by the source's ``created_at``

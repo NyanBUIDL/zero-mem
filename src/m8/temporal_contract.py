@@ -1,7 +1,7 @@
 """M8.1 — frozen temporal metadata contract.
 
 Freezes the representation of the two time dimensions M8 is permitted to use
-(plan-m8.md §8), and nothing more:
+(docs/plans/plan-m8.md §8), and nothing more:
 
 - **Transaction / history time** — when the system recorded or observed a fact.
   Sourced from existing canonical fields (``created_at``, ``observed_at``) and
@@ -125,7 +125,7 @@ class TemporalMetadata:
 
     This object is metadata. It expresses no precedence, no winner, and no
     truth: possessing a newer ``valid_from`` gives a record no authority over
-    another (plan-m8.md §8 "Supersession and conflict").
+    another (docs/plans/plan-m8.md §8 "Supersession and conflict").
     """
 
     created_at: Optional[NormalizedTimestamp] = None

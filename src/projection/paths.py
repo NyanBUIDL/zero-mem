@@ -2,7 +2,7 @@
 
 The projector eventually writes into a real Obsidian vault the operator uses
 daily, so every rule here is treated as a security boundary. The load-bearing
-invariant (plan-m9.md §10.1) is:
+invariant (docs/plans/plan-m9.md §10.1) is:
 
     the PHYSICAL target must be inside the approved managed root
 
@@ -50,7 +50,7 @@ from .identity import (
 #: ``--<suffix>.md`` identity tail that ``note_filename`` appends.
 MAX_COMPONENT_LENGTH: Final[int] = MAX_SLUG_LENGTH + 32
 
-#: Maximum length in bytes of a managed-root-relative path (plan-m9.md §10.1.6).
+#: Maximum length in bytes of a managed-root-relative path (docs/plans/plan-m9.md §10.1.6).
 #: Bounded well inside the common 255-byte per-component and 4096-byte total
 #: filesystem limits so a deep vault path can never fail mid-write.
 MAX_RELATIVE_PATH_BYTES: Final[int] = 240
@@ -128,7 +128,7 @@ def _validate_relative_components(components: Iterable[str]) -> tuple[str, ...]:
 def resolve_managed_root(vault_root: Path, managed_dir_name: str) -> Path:
     """Resolve the dedicated managed subtree beneath a configured vault root.
 
-    SUBTREE ownership (plan-m9.md §6.1 / §29 Q2-Q3): M9 owns
+    SUBTREE ownership (docs/plans/plan-m9.md §6.1 / §29 Q2-Q3): M9 owns
     ``<vault_root>/<managed_dir_name>`` and nothing else. The vault root itself,
     ``.obsidian/``, and every other human path stay outside M9's write universe.
 
@@ -165,7 +165,7 @@ def resolve_managed_root(vault_root: Path, managed_dir_name: str) -> Path:
 
 def _assert_no_symlink_on_chain(managed_root: Path, target: Path) -> None:
     """Reject if ANY component from the managed root down to the final parent
-    is a symlink (plan-m9.md §10.1.4).
+    is a symlink (docs/plans/plan-m9.md §10.1.4).
 
     Prevents ``managed_root/Decisions -> /etc`` style escapes, and also refuses
     a symlink that happens to point back inside the managed root: a symlinked

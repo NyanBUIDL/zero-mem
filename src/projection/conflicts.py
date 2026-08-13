@@ -3,7 +3,7 @@
 M4 is the sole conflict authority. This module does not *detect* conflicts: it
 groups records that M4 already marked ``lifecycle_status='conflicted'`` so the
 projection can present them together. Nothing here creates, resolves, ranks, or
-scores a conflict (plan-m9.md §19).
+scores a conflict (docs/plans/plan-m9.md §19).
 
 The distinction that makes this honest:
 

@@ -8,7 +8,7 @@
 # product constant: no username, home directory, or `~/Obsidian` guess appears
 # anywhere in `src/projection/`.
 #
-# Resolution order (plan-m9.md §2.2), highest precedence first:
+# Resolution order (docs/plans/plan-m9.md §2.2), highest precedence first:
 #   1. explicit argument   -> ProjectionConfig(vault_root=...) / load_projection_config(...)
 #   2. environment         -> ZERO_MEM_OBSIDIAN_VAULT=/absolute/path/to/YourVault
 #   3. this file           -> vault_root below

@@ -2,7 +2,7 @@
 stale retirement, three-signal ownership, and path/symlink safety.
 
 Every projection write/retirement under test targets a fresh OS-safe temporary
-vault under ``tmp_path`` (plan-m9.md §11, §23). The real operator vault is never
+vault under ``tmp_path`` (docs/plans/plan-m9.md §11, §23). The real operator vault is never
 touched; one test snapshots it read-only and asserts non-modification.
 
 The M9.4 contract is exercised at two layers:

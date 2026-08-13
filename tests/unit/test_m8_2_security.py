@@ -221,7 +221,7 @@ class TestNonScope:
         # These module names were never part of any approved increment and must
         # never appear. ``calibration.py`` was on this list until M8.5, which
         # legitimately introduces it as the approved deterministic calibration
-        # engine (plan-m8.md §22.1); the M8.2 boundary is now enforced by
+        # engine (docs/plans/plan-m8.md §22.1); the M8.2 boundary is now enforced by
         # test_m8_2_modules_do_not_reach_m8_5_calibration below.
         for banned in ("graph_read_service.py", "graph_reader.py", "traversal.py",
                        "temporal_query.py"):

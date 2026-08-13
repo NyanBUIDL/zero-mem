@@ -2,7 +2,7 @@
 
 A link is **navigation only**. Rendering one asserts nothing: not authorization,
 not truth, not verification, not conflict resolution, and not supersession. The
-vault confers nothing (plan-m9.md §5, §21).
+vault confers nothing (docs/plans/plan-m9.md §5, §21).
 
 Two invariants make that safe rather than merely stated:
 
@@ -13,7 +13,7 @@ Two invariants make that safe rather than merely stated:
    unresolvable reference renders *byte-identically* to a reference whose target
    simply does not exist. A reader therefore cannot distinguish "hidden from you"
    from "not recorded", which is the same existence-leak safety M8.3 established
-   (plan-m9.md §7.1, §18 of the M9.3 brief).
+   (docs/plans/plan-m9.md §7.1, §18 of the M9.3 brief).
 
 2. **A link target is never built from hostile human text.** Targets are
    assembled from the VERIFIED M9.1 primitives only — a closed category map, a
@@ -185,7 +185,7 @@ def wiki_link(target: LinkTarget, *, display: object = None) -> str:
     generators: the target from M9.1 identity/path primitives, the label from
     :func:`safe_link_display` (which falls back to the machine identity rather
     than escaping anything questionable). Content therefore never determines a
-    link target, an alias, or the link's boundaries (plan-m9.md §22.1, §22.2).
+    link target, an alias, or the link's boundaries (docs/plans/plan-m9.md §22.1, §22.2).
     """
     if not isinstance(target, LinkTarget):
         raise ProjectionVocabularyError("link_target")

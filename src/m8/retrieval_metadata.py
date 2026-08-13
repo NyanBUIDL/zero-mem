@@ -25,7 +25,7 @@ the explicitly authorized scope is EXCLUDED before any factor is computed, an
 unauthorized or hidden record cannot influence a visible score, factor value,
 ordering position, tie-break, count, or explanation.
 
-Order of operations (plan-m8.md §22.1.8)::
+Order of operations (docs/plans/plan-m8.md §22.1.8)::
 
     request
       -> M5 authorization                (upstream; consumed here, never made)

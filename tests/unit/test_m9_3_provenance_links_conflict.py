@@ -1,6 +1,6 @@
 """M9.3 — focused verification of provenance, links, conflict, supersession.
 
-Scope is exactly M9.3 (plan-m9.md §M9.3, the M9.3 brief): present authorized
+Scope is exactly M9.3 (docs/plans/plan-m9.md §M9.3, the M9.3 brief): present authorized
 M4 conflict/supersession state and safe cross-note provenance/links. It must not
 invent, resolve, rank, or infer. Every assertion below maps to a required focused
 test or a STOP condition in the brief.
@@ -377,7 +377,7 @@ def test_conflict_insertion_order_irrelevant():
 def test_conflict_index_lists_only_authorized():
     # The M9.3 "Conflict Queue" deliverable is the unresolved-conflict INDEX,
     # represented as an aggregate Conflict note (NoteType.CONFLICT), NOT a new
-    # public note type. (plan-m9.md §29 Q1 approves only the eight curated
+    # public note type. (docs/plans/plan-m9.md §29 Q1 approves only the eight curated
     # types, of which `conflict` is the sole conflict projection type.)
     d1 = _Rec(decision_id="D1", project_id="P", scope="project:P", decision_key="K",
               statement="pick A", lifecycle_status="conflicted", state="accepted",

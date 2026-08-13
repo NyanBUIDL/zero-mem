@@ -2,9 +2,9 @@
 
 This module freezes the SHAPE of calibration data. It deliberately implements
 no factor weights, no formula, no ranking, and no ordering. Scoring is M8.5 and
-requires separate approval of the exact factors/weights (plan-m8.md M8-OQ-7).
+requires separate approval of the exact factors/weights (docs/plans/plan-m8.md M8-OQ-7).
 
-What calibration IS (plan-m8.md §9): deterministic, bounded, explainable
+What calibration IS (docs/plans/plan-m8.md §9): deterministic, bounded, explainable
 evidence-ordering METADATA over candidates that have ALREADY passed
 authorization and eligibility.
 
@@ -253,7 +253,7 @@ def describe_calibration_contract() -> dict[str, Any]:
 
     M8.1 froze structure only. ``scoring_implemented`` became ``True`` when the
     approved M8.5 engine landed the explicit factors and formula recorded in
-    plan-m8.md §22.1; the SHAPE described here is unchanged, and this module
+    docs/plans/plan-m8.md §22.1; the SHAPE described here is unchanged, and this module
     still implements no scoring itself (see :mod:`src.m8.calibration`).
     """
     return {

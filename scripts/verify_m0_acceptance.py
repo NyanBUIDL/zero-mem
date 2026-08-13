@@ -19,7 +19,7 @@ def read(path: str) -> str:
 
 
 def verify_m0_a() -> None:
-    architecture = read("ARCHITECTURE.md")
+    architecture = read("docs/architecture/ARCHITECTURE.md")
     required = (
         "Hermes Agent",
         "Zero-Mem sidecar",

@@ -12,7 +12,7 @@ Authoritative boundary (load-bearing):
   ``zm_corpus_fts`` / ``zm_corpus_relations`` / ``zm_corpus_entities``. Fully
   rebuildable from canonical state via :func:`rebuild_from_corpus`.
 
-Rebuild invariant (plan-m10.md §11): destroy the derived corpus SQLite state,
+Rebuild invariant (docs/plans/plan-m10.md §11): destroy the derived corpus SQLite state,
 read the canonical registry + blobs, re-run the frozen M10.2 extractor and
 M10.3 normalizer/dedup, and recreate the M10.4 derived state. The rebuilt state
 must be equivalent to the originally projected state given identical canonical

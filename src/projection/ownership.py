@@ -6,7 +6,7 @@ touching a byte:
     for this managed-root-relative path, what is the CURRENT ownership and
     edit state of whatever is on disk right now?
 
-It is the single place the three-signal ownership rule (plan-m9.md §12.1) is
+It is the single place the three-signal ownership rule (docs/plans/plan-m9.md §12.1) is
 evaluated against a live file, and it is deliberately decision-free: it
 classifies, and the reconcile engine decides. Nothing here creates, opens for
 writing, renames, truncates, or removes anything.
@@ -73,7 +73,7 @@ from .paths import MAX_COMPONENT_LENGTH, safe_managed_path
 #: because a genuine generated note carries its frontmatter at byte 0.
 FRONTMATTER_HEAD_LIMIT: Final[int] = 4096
 
-#: Suffix of the non-destructive conflict copy (plan-m9.md §13.3 step 2). The
+#: Suffix of the non-destructive conflict copy (docs/plans/plan-m9.md §13.3 step 2). The
 #: human's file keeps its own name and its own bytes; the newly-rendered
 #: authoritative version is placed BESIDE it under this fixed suffix. There is
 #: no counter, no timestamp, and no numbering: the same conflict always yields
@@ -123,7 +123,7 @@ class OwnershipAssessment:
     diff, never an absolute path, and never any authoritative source text. That
     is what makes it safe to place in a report, a log line, or an exception:
     when authorization or sensitivity no longer permits the source material,
-    this record still reveals nothing about it (plan-m9.md §11.3).
+    this record still reveals nothing about it (docs/plans/plan-m9.md §11.3).
     """
 
     note_id: str
@@ -214,7 +214,7 @@ def conflict_sibling_relative_path(relative_path: str) -> str:
     """Deterministic sibling path for the newly-rendered conflict copy.
 
     ``<name>.md`` -> ``<name>.zero-mem-new.md`` in the SAME managed directory
-    (plan-m9.md §13.3 step 2). The human's file is never renamed, never moved,
+    (docs/plans/plan-m9.md §13.3 step 2). The human's file is never renamed, never moved,
     and never touched; the sibling is additive.
 
     For a title long enough that the sibling name would exceed the M9.1

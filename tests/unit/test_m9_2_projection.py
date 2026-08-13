@@ -581,7 +581,7 @@ def test_sensitivity_unknown_ceiling_fails_closed():
 
 def test_sensitivity_malformed_value_fails_closed():
     # PERMANENT REGRESSION. A record that CARRIES a sensitivity it cannot parse
-    # is unparseable, and plan-m9.md §11.2 requires unparseable -> fail closed.
+    # is unparseable, and docs/plans/plan-m9.md §11.2 requires unparseable -> fail closed.
     # A previous revision folded every non-string to None and then treated None
     # as "field absent", so sensitivity=123 / b"secret" / ["secret"] / True all
     # PROJECTED. That is a fail-open hole of the same class as the M7.3 defect.

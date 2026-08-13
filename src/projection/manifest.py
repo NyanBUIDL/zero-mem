@@ -1,12 +1,12 @@
 """M9.4 — the deterministic projection manifest.
 
-``managed_root/_meta/manifest.json`` (plan-m9.md §15.1, §29 Q7) is the ONLY
+``managed_root/_meta/manifest.json`` (docs/plans/plan-m9.md §15.1, §29 Q7) is the ONLY
 place projection lifecycle state lives. It is a plain file inside the vault, not
 a SQLite table, because it must live and die with the vault: a table would
 describe a filesystem that no longer matches the moment the vault is moved,
 deleted, or restored from the operator's backup. Schema stays at v9 — no
 migration, no ``projection_links``/``projection_manifest``/``projection_state``
-table (plan-m9.md §23).
+table (docs/plans/plan-m9.md §23).
 
 **The manifest is derived, rebuildable, and NOT authority** (§15.2). It records
 what was projected. It never establishes truth, authorization, verification,
@@ -60,7 +60,7 @@ from .paths import (
     validate_path_component,
 )
 
-#: Manifest envelope-format version (plan-m9.md §15.1). Distinct from
+#: Manifest envelope-format version (docs/plans/plan-m9.md §15.1). Distinct from
 #: ``PROJECTION_VERSION``: this versions the JSON container, that versions the
 #: rendered-note contract. Neither is derived from a clock or a run counter.
 MANIFEST_VERSION: Final[int] = 1
@@ -110,7 +110,7 @@ ENTRY_KEYS: Final[Tuple[str, ...]] = (
 #: rejected, so a tampered manifest cannot smuggle state past the validator.
 #:
 #: ``observed_fingerprint`` records the fingerprint of the bytes a human left on
-#: disk for an ``edit_conflict``/``human_modified`` note (plan-m9.md §13.3 step
+#: disk for an ``edit_conflict``/``human_modified`` note (docs/plans/plan-m9.md §13.3 step
 #: 3, "with both fingerprints"). It is a hash, never content: it explains that
 #: the file diverged without revealing a single byte of either version.
 OPTIONAL_ENTRY_KEYS: Final[Tuple[str, ...]] = ("observed_fingerprint",)
@@ -179,7 +179,7 @@ def validate_manifest_relative_path(value: Any) -> str:
 
 @dataclass(frozen=True)
 class ManifestEntry:
-    """One managed note as recorded in the manifest (plan-m9.md §15.1).
+    """One managed note as recorded in the manifest (docs/plans/plan-m9.md §15.1).
 
     Carries the minimum needed to make the create/update/skip/retire decision
     and to satisfy the manifest signal of the three-signal ownership test:
@@ -246,7 +246,7 @@ class ManifestEntry:
 
     @property
     def casefolded_path(self) -> str:
-        """Path key for case-collision detection (plan-m9.md §10.1 item 7)."""
+        """Path key for case-collision detection (docs/plans/plan-m9.md §10.1 item 7)."""
         return self.relative_path.casefold()
 
     def to_json(self) -> Dict[str, Any]:
@@ -350,7 +350,7 @@ class ManifestEntry:
 # Edit conflict record (M9.5)
 # ---------------------------------------------------------------------------
 
-#: Closed key set for a single M9.5 edit-conflict record (plan-m9.md §13.3).
+#: Closed key set for a single M9.5 edit-conflict record (docs/plans/plan-m9.md §13.3).
 #: ``resolved`` is the only optional key; everything else is required, so a
 #: tampered or partially-understood conflict record is refused rather than
 #: trusted to authorize anything.
@@ -390,7 +390,7 @@ class EditConflict:
     makes it safe to store in the manifest, surface in a projection report, or
     carry in an exception: when authorization or sensitivity no longer permits
     the source material, this record still reveals nothing about it
-    (plan-m9.md §11.3, §13.3 step 3 "with both fingerprints").
+    (docs/plans/plan-m9.md §11.3, §13.3 step 3 "with both fingerprints").
 
     **Resolution is always a human action.** M9.5 never resolves a conflict: it
     records that one exists and, when the desired source also changed, writes
@@ -479,7 +479,7 @@ class EditConflict:
 
 @dataclass(frozen=True)
 class ProjectionManifest:
-    """The whole deterministic manifest (plan-m9.md §15.1).
+    """The whole deterministic manifest (docs/plans/plan-m9.md §15.1).
 
     Entries are stored in a canonical order derived from ``note_id`` alone, so
     two runs that discovered the same notes in opposite orders serialize to
@@ -837,7 +837,7 @@ def store_manifest(managed_root: Path, manifest: ProjectionManifest,
         # rebuildable from canonical traces + on-disk notes, so a failed store is
         # a soft condition: the run completes with manifest_stored=False and the
         # next reconcile re-derives it. Raising here would abort the whole run
-        # and risk leaving the vault in a half-written state (plan-m9.md §28
+        # and risk leaving the vault in a half-written state (docs/plans/plan-m9.md §28
         # failure-isolation: every failure fails closed and leaves the vault
         # consistent).
         return False

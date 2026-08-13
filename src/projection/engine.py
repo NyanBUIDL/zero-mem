@@ -188,7 +188,7 @@ def _build_link_registry(*,
 
     The registry is populated ONLY from records this request already authorized
     and the eligibility filter already admitted. A record absent here is simply
-    unaddressable as a link — it cannot be named, counted, or implied (plan-m9.md
+    unaddressable as a link — it cannot be named, counted, or implied (docs/plans/plan-m9.md
     §5, §21). Targets are assembled from the verified M9.1 primitives and
     re-validated by the link layer, so a target can never escape ``managed_root``
     or embed hostile path/link syntax.
@@ -514,7 +514,7 @@ def project_to_vault(
     dry_run: bool = False,
     secret_patterns: Tuple[str, ...] = (),
 ) -> "ReconcileResult":
-    """M9.4 deterministic projection into a managed vault (plan-m9.md §14).
+    """M9.4 deterministic projection into a managed vault (docs/plans/plan-m9.md §14).
 
     Authorization-first (§22): the desired note set is produced by the closed
     M9.2 pipeline (M5 authorization -> M6.6 resource_type -> M7 sensitivity/

@@ -145,7 +145,7 @@ class TestFormulaExactness:
 
 
 # ---------------------------------------------------------------------------
-# Each approved factor mapping (plan-m8.md §22.1.3)
+# Each approved factor mapping (docs/plans/plan-m8.md §22.1.3)
 # ---------------------------------------------------------------------------
 
 
@@ -374,7 +374,7 @@ class TestDeterminism:
 
 
 # ---------------------------------------------------------------------------
-# Deterministic tie-break (plan-m8.md §22.1.5)
+# Deterministic tie-break (docs/plans/plan-m8.md §22.1.5)
 # ---------------------------------------------------------------------------
 
 

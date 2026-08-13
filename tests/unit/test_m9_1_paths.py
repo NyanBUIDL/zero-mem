@@ -1,6 +1,6 @@
 """M9.1 — path-safety and symlink-escape tests (security boundary).
 
-The full plan-m9.md §10 attack matrix. Every case must fail CLOSED, inside an
+The full docs/plans/plan-m9.md §10 attack matrix. Every case must fail CLOSED, inside an
 OS-safe temporary vault. The operator's real vault is never referenced.
 
 The load-bearing property under test is PHYSICAL containment: a rejection must

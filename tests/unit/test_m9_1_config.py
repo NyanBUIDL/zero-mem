@@ -1,7 +1,7 @@
 """M9.1 — configuration boundary and vault-root resolution tests.
 
 Every test uses an OS-safe temporary vault. The operator's real vault is never
-constructed, written, or referenced (plan-m9.md §26.1).
+constructed, written, or referenced (docs/plans/plan-m9.md §26.1).
 """
 
 from __future__ import annotations

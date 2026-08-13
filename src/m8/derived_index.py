@@ -22,7 +22,7 @@ Invariants enforced here:
 - A partial index version is never published. The registry moves
   ``building -> published`` only on explicit success, and ``building ->
   failed`` otherwise, so an interrupted rebuild leaves no row claiming to be
-  usable (plan-m8.md §6 "no partial version is published").
+  usable (docs/plans/plan-m8.md §6 "no partial version is published").
 - No authorization logic. No M5 policy import, no grant access, no LLM, no
   network.
 """

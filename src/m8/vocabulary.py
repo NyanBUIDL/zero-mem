@@ -3,7 +3,7 @@
 Every vocabulary here is CLOSED. An unknown value fails closed: it is rejected,
 never coerced, never mapped to a nearest neighbour, and never admitted as a
 trusted graph semantic. Arbitrary caller- or content-controlled strings must not
-become graph vocabulary (plan-m8.md §7 "Unsupported relation types fail closed").
+become graph vocabulary (docs/plans/plan-m8.md §7 "Unsupported relation types fail closed").
 
 The lifecycle and verification vocabularies are NOT redefined here. They are
 imported from the existing authoritative M1 contract
@@ -46,7 +46,7 @@ RESOURCE_TYPES: Final[FrozenSet[str]] = frozenset({
 
 
 class EntityType(str, enum.Enum):
-    """Closed entity-type vocabulary (plan-m8.md §6, M8-OQ-2).
+    """Closed entity-type vocabulary (docs/plans/plan-m8.md §6, M8-OQ-2).
 
     Entities are created ONLY from explicit structured input in later approved
     increments. No deterministic text rule, NLP extractor, or LLM may mint an
@@ -64,7 +64,7 @@ class EntityType(str, enum.Enum):
 
 
 class RelationType(str, enum.Enum):
-    """Closed relation vocabulary approved in plan-m8.md §7 (M8-OQ-3).
+    """Closed relation vocabulary approved in docs/plans/plan-m8.md §7 (M8-OQ-3).
 
     Every member must be materialized from an explicit canonical source record
     or an approved deterministic projection. None of these may be inferred from
@@ -109,7 +109,7 @@ class RelationSource(str, enum.Enum):
     #: Explicit M4 verification record subject linkage.
     M4_VERIFICATION = "m4_verification"
     #: Explicit M10 corpus-extraction structural link (source_ref / duplicate_of).
-    #: Authoritative per plan-m10.md §4 ("RelationSource gains a corpus_extraction
+    #: Authoritative per docs/plans/plan-m10.md §4 ("RelationSource gains a corpus_extraction
     #: member"); the v10 migration's zm_corpus_relations CHECK already hard-codes
     #: 'corpus_extraction'. Deterministic, never inferred/LLM.
     CORPUS_EXTRACTION = "corpus_extraction"

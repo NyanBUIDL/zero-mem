@@ -1,7 +1,7 @@
 """M9.1 — deterministic note identity, slug totality, and filename tests.
 
 Identity must be reproducible from canonical inputs alone, across processes and
-``PYTHONHASHSEED`` values (plan-m9.md §9 / §16.2).
+``PYTHONHASHSEED`` values (docs/plans/plan-m9.md §9 / §16.2).
 """
 
 from __future__ import annotations

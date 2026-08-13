@@ -4,7 +4,7 @@ Identity must be reproducible from canonical inputs alone: the same canonical
 state plus the same config must yield byte-identical identifiers on every
 process, machine, and ``PYTHONHASHSEED``.
 
-Explicitly forbidden as identity inputs (plan-m9.md §9, §16.2):
+Explicitly forbidden as identity inputs (docs/plans/plan-m9.md §9, §16.2):
 
 - a display title (titles change, collide, and carry hostile characters);
 - ``uuid4()``, ``random``, or ``os.urandom``;
@@ -48,7 +48,7 @@ NOTE_ID_PREFIX: Final[str] = "zm-"
 #: Length of the truncated digest carried in a note id / filename suffix.
 NOTE_ID_DIGEST_CHARS: Final[int] = 16
 
-#: Maximum slug length in the generated filename (plan-m9.md §9 / §10.1).
+#: Maximum slug length in the generated filename (docs/plans/plan-m9.md §9 / §10.1).
 MAX_SLUG_LENGTH: Final[int] = 80
 
 #: Separator between the display slug and the stable identity suffix.
@@ -243,7 +243,7 @@ def slug(value: Optional[str], *, fallback: str = "note") -> str:
 def note_filename(*, note_id: str, display_title: Optional[str]) -> str:
     """Build the deterministic generated filename for a note.
 
-    ``slug(display_title)[:80] + "--" + <stable suffix> + ".md"`` (plan-m9.md
+    ``slug(display_title)[:80] + "--" + <stable suffix> + ".md"`` (docs/plans/plan-m9.md
     §9 / §29 Q13). Two notes with identical or empty titles can never collide,
     because the suffix comes from canonical identity; and renaming a note's
     title changes only the display half, never its identity.

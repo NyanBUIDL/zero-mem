@@ -29,7 +29,7 @@ relation_source      what it reads
 Deliberately NOT projected:
 
 - ``m2_scope``. ``profile_id`` / ``project_id`` / ``knowledge_space_id`` are
-  authorization scope coordinates, not content-bearing nodes (plan-m8.md §7).
+  authorization scope coordinates, not content-bearing nodes (docs/plans/plan-m8.md §7).
   They are preserved as scope METADATA on every derived row; turning them into
   graph nodes would invite "shares a project, therefore reachable" reasoning,
   which is exactly the cross-scope inference M8.2 must not enable.
@@ -60,7 +60,7 @@ from .vocabulary import RelationSource, RelationType
 
 #: Tables an M8.2 source read is allowed to touch. Read-only, and canonical
 #: JSONL is not among them: projection consumes the M2/M4 derived projections
-#: of canonical data, exactly as the M8.1 foundation and plan-m8.md §14 specify.
+#: of canonical data, exactly as the M8.1 foundation and docs/plans/plan-m8.md §14 specify.
 APPROVED_SOURCE_TABLES: Final[tuple[str, ...]] = (
     "zm_meta",
     "zm_lifecycle",

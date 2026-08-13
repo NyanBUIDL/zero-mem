@@ -20,7 +20,7 @@ Boundaries deliberately preserved:
 - **Closed relation vocabulary only.** A source relation name with no approved
   mapping is NOT projected under a nearest-neighbour name. It is reported as an
   unmapped source relation and dropped from the derived index. In particular
-  the M2 ``child_of`` class has no approved M8 counterpart (plan-m8.md §7
+  the M2 ``child_of`` class has no approved M8 counterpart (docs/plans/plan-m8.md §7
   freezes the vocabulary and M8-OQ-3 defers new mappings to explicit approval),
   so mapping it to ``related_to`` or ``references`` would be inventing
   semantics.
@@ -203,7 +203,7 @@ class EdgeSourceRecord:
 class EntitySourceRecord:
     """One explicitly supplied structured entity.
 
-    Entities are created ONLY from explicit structured input (plan-m8.md §7,
+    Entities are created ONLY from explicit structured input (docs/plans/plan-m8.md §7,
     M8-OQ-2). There is no text extractor and no linker here: if a caller does
     not explicitly assert an entity, no entity exists.
     """

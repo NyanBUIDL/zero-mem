@@ -3,7 +3,7 @@
 Identity must be reproducible from canonical inputs alone. A rebuild that
 replays the same canonical sources must produce byte-identical identifiers.
 
-Explicitly forbidden as identity inputs (plan-m8.md §6, §14):
+Explicitly forbidden as identity inputs (docs/plans/plan-m8.md §6, §14):
 
 - Python object identity (``id()``), memory addresses, or ``hash()``;
 - insertion order, ``rowid``, or ``AUTOINCREMENT`` sequence;

@@ -84,7 +84,7 @@ def _req(**kw) -> RetrievalMetadataRequest:
 
 
 # ---------------------------------------------------------------------------
-# Scope classification (plan-m8.md §22.1.3)
+# Scope classification (docs/plans/plan-m8.md §22.1.3)
 # ---------------------------------------------------------------------------
 
 
@@ -226,7 +226,7 @@ class TestAuthorizationFirst:
 
 
 # ---------------------------------------------------------------------------
-# Zero-influence rule (plan-m8.md §22.1.9)
+# Zero-influence rule (docs/plans/plan-m8.md §22.1.9)
 # ---------------------------------------------------------------------------
 
 

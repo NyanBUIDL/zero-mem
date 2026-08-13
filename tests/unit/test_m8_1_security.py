@@ -256,7 +256,7 @@ class TestNonScope:
         # earlier M8 module, which would mean M8.5's scoring surface leaked
         # backwards into M8.1/M8.2/M8.3/M8.4. FACTOR_WEIGHTS stays banned
         # everywhere: the approved M8.5 formula is a multiplicative product
-        # with NO independent weights (plan-m8.md §22.1.2).
+        # with NO independent weights (docs/plans/plan-m8.md §22.1.2).
         _M8_5_MODULES = {"calibration.py", "retrieval_metadata.py"}
         for path in _m8_files():
             source = _strip_docstrings(ast.parse(path.read_text(encoding="utf-8")))

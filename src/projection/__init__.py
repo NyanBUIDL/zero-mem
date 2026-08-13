@@ -7,7 +7,7 @@ links (M9.3), the manifest and incremental updates (M9.4), the human-ownership
 and edit-conflict policy (M9.5), and hardening plus the single controlled
 real-vault smoke test (M9.6).
 
-Architectural invariants (AGENTS.md, plan-m9.md §5, §11, §23):
+Architectural invariants (AGENTS.md, docs/plans/plan-m9.md §5, §11, §23):
 
 - **Canonical authority is unchanged.** Append-only JSONL traces, approved
   project-state records, and the versioned artifact store remain the source of

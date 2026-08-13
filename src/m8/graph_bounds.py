@@ -1,10 +1,10 @@
 """M8.3 — frozen traversal bounds for authorization-first graph reads.
 
-The values here are the EXACT defaults approved in plan-m8.md §7 ("Bounds and
+The values here are the EXACT defaults approved in docs/plans/plan-m8.md §7 ("Bounds and
 cycles"). They are fixed ceilings, not caller-negotiable suggestions:
 
 ===============================  =====  ==================================
-bound                            value  plan-m8.md wording
+bound                            value  docs/plans/plan-m8.md wording
 ===============================  =====  ==================================
 ``MAX_TRAVERSAL_DEPTH``              2  maximum traversal depth: 2 relation
                                         hops

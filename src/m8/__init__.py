@@ -6,7 +6,7 @@ bounded graph read layer (INTERNAL; not a new Hermes/M6 tool surface). M8.4
 (temporal), M8.5 (calibration), and M8.6 (EvidenceSet integration) are NOT
 implemented here yet.
 
-Architectural invariants (AGENTS.md, ARCHITECTURE.md, plan-m8.md §5/§7/§8/§9):
+Architectural invariants (AGENTS.md, docs/architecture/ARCHITECTURE.md, docs/plans/plan-m8.md §5/§7/§8/§9):
 
 - Canonical storage is append-only JSONL plus versioned artifacts. Every M8
   structure defined here is DERIVED, disposable, and rebuildable. No M8 table

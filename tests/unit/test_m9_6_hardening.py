@@ -1,7 +1,7 @@
 """M9.6 focused tests — hardening, performance, determinism, dependency
 boundary, and the REAL-vault read-only preflight.
 
-Scope (plan-m9.md §28 M9.6, §26.2 test matrix, §27 performance):
+Scope (docs/plans/plan-m9.md §28 M9.6, §26.2 test matrix, §27 performance):
 
 * **Hardening / failure isolation** — explicit (unconfigured UNAVAILABLE),
   read-only vault, permission-denied, and zero-directory-creation under
@@ -79,7 +79,7 @@ def _project(tmp_path, *, vault=None, name="vault", project_id="P",
     svc = fx.make_service(store, "PR1")
     cfg = ProjectionConfig(vault_root=vault, sensitivity_ceiling=ceiling)
     # Block any ambient ZERO_MEM_OBSIDIAN_VAULT so a real vault can never leak
-    # into a test run (plan-m9.md §26.1 session guard).
+    # into a test run (docs/plans/plan-m9.md §26.1 session guard).
     old_env = os.environ.get("ZERO_MEM_OBSIDIAN_VAULT")
     if env is not None:
         if "ZERO_MEM_OBSIDIAN_VAULT" in env:

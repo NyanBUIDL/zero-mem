@@ -40,7 +40,7 @@ from .contracts import (
     validate_sensitivity_ceiling,
 )
 
-#: Lifecycle states that are PROJECTED (owner-approved policy, plan-m9.md §4).
+#: Lifecycle states that are PROJECTED (owner-approved policy, docs/plans/plan-m9.md §4).
 #: ``raw``/``observed``/``candidate`` are excluded from generated projection.
 #: ``deleted`` must never appear as current/active projected truth.
 PROJECTED_LIFECYCLE: Final[set[str]] = {
@@ -74,7 +74,7 @@ def is_authorized_resource_type(resource_type: str, ceiling: str) -> bool:
 #: Sentinel for "the record does not carry this dimension at all". It is kept
 #: strictly distinct from "the record carries a value we cannot parse": the
 #: former is a known property of the sensitivity-agnostic M4 substrate, the
-#: latter is exactly the unknown/unparseable case plan-m9.md §11.2 requires to
+#: latter is exactly the unknown/unparseable case docs/plans/plan-m9.md §11.2 requires to
 #: fail closed. Collapsing the two is a fail-open hole.
 _ABSENT: Final[object] = object()
 
@@ -111,7 +111,7 @@ def is_eligible(record, *, ceiling: str, resource_type: str) -> bool:
       * a record that CARRIES a sensitivity value is checked; ``secret``,
         above-ceiling, unknown, AND malformed (non-string) values are all
         excluded. A malformed value is unparseable, and an unparseable
-        sensitivity is exactly the case plan-m9.md §11.2 requires to fail
+        sensitivity is exactly the case docs/plans/plan-m9.md §11.2 requires to fail
         closed — it is never treated as "no sensitivity";
       * a record that carries NO sensitivity field (the M4 project-memory
         substrate is sensitivity-agnostic and does not persist per-record
@@ -163,7 +163,7 @@ def safe_artifact_refs(record) -> tuple[str, ...]:
     """Artifact references passing the VERIFIED M4 safe-reference guard.
 
     An absolute path, a traversal fragment, a raw transcript, or a
-    secret-shaped value never reaches the vault as a reference (plan-m9.md
+    secret-shaped value never reaches the vault as a reference (docs/plans/plan-m9.md
     §11.3.3). Reuses ``is_safe_reference`` rather than reimplementing it.
     """
     raw = getattr(record, "linked_artifact_ids", None)

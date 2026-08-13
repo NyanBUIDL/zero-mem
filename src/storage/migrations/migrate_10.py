@@ -4,7 +4,7 @@ Every table created here is DERIVED, disposable, and fully rebuildable from the
 canonical corpus registry (``corpus_sources.jsonl``) plus the content-addressed
 blob store via the frozen M10.2 extractor / M10.3 normalizer. None of them is
 canonical truth. Dropping all of them and re-running the corpus projection must
-reproduce an equivalent derived state (plan-m10.md §5.2, §11).
+reproduce an equivalent derived state (docs/plans/plan-m10.md §5.2, §11).
 
 Scope discipline (additive, mirrors migrate_9 foundation discipline):
 
@@ -61,7 +61,7 @@ _RESOURCE_TYPE_ENUM = (
     "'verification','artifact','project_artifact','corpus_source','corpus_unit'"
 )
 
-# Closed M8 relation vocabulary (plan-m8.md §7). Mirrors
+# Closed M8 relation vocabulary (docs/plans/plan-m8.md §7). Mirrors
 # src/m8/vocabulary.py::RelationType.
 _RELATION_ENUM = (
     "'supports','contradicts','verifies','supersedes','derived_from',"
@@ -77,7 +77,7 @@ _ENTITY_TYPE_ENUM = (
 )
 
 # Closed relation-source vocabulary. Mirrors src/m8/vocabulary.py::RelationSource
-# plus the M10 corpus-extraction member (plan-m10.md §4: "RelationSource gains a
+# plus the M10 corpus-extraction member (docs/plans/plan-m10.md §4: "RelationSource gains a
 # corpus_extraction member"). There is deliberately no 'inferred' / 'llm' member.
 _RELATION_SOURCE_ENUM = (
     "'m2_relation','m2_scope','m2_artifact','m4_project_link',"

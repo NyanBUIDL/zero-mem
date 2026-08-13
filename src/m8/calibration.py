@@ -1,7 +1,7 @@
 """M8.5 — deterministic calibration engine (pure; no I/O, no authorization).
 
 This module implements the calibration formula approved by the owner and
-recorded in ``plan-m8.md`` §22.1 (resolution of M8-OQ-6 and M8-OQ-7). It
+recorded in ``docs/plans/plan-m8.md`` §22.1 (resolution of M8-OQ-6 and M8-OQ-7). It
 computes deterministic, bounded, explainable ORDERING METADATA for candidates
 that have ALREADY passed M5 authorization and lifecycle/sensitivity
 eligibility upstream.
@@ -35,7 +35,7 @@ What this module is NOT
   repetition input. ``relation_relevance`` reflects only the distance of an
   explicitly requested, already-authorized M8.3 relation.
 
-The approved formula (plan-m8.md §22.1.2), multiplicative, no weights::
+The approved formula (docs/plans/plan-m8.md §22.1.2), multiplicative, no weights::
 
     final_score = retrieval_match
                 * scope_priority
@@ -93,7 +93,7 @@ _NEGATIVE_INFINITY: Final[float] = float("-inf")
 
 
 # ---------------------------------------------------------------------------
-# Closed input vocabularies (plan-m8.md §22.1.3)
+# Closed input vocabularies (docs/plans/plan-m8.md §22.1.3)
 # ---------------------------------------------------------------------------
 
 #: How the candidate's own scope relates to the authorized request scope.
@@ -350,7 +350,7 @@ def _bounded_unit_value(value: Any, field_name: str) -> float:
 
 
 # ---------------------------------------------------------------------------
-# Factor derivation (plan-m8.md §22.1.3) — pure, one candidate at a time
+# Factor derivation (docs/plans/plan-m8.md §22.1.3) — pure, one candidate at a time
 # ---------------------------------------------------------------------------
 
 
@@ -660,7 +660,7 @@ def calibrate_candidates(
 
 
 # ---------------------------------------------------------------------------
-# Deterministic ordering (plan-m8.md §22.1.5)
+# Deterministic ordering (docs/plans/plan-m8.md §22.1.5)
 # ---------------------------------------------------------------------------
 
 

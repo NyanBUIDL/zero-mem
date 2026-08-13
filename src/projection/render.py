@@ -6,7 +6,7 @@ already-authorized, already-eligible authoritative record into an immutable
 :class:`~src.projection.contracts.ProjectedNote` value.
 
 Two structural rules make the "memory is DATA" guarantee real rather than
-best-effort (plan-m9.md §22.2):
+best-effort (docs/plans/plan-m9.md §22.2):
 
 1. **Content never chooses structure.** Every heading, label, frontmatter key,
    note category, and path component comes from a closed literal in this module
@@ -33,12 +33,12 @@ Two authority rules govern the M9.3 surface and are load-bearing:
 * **Links are navigation only.** A rendered link asserts no authorization, no
   truth, no verification, no conflict resolution, and no supersession. A
   reference whose target this request did not authorize renders exactly like a
-  reference to something that was never recorded (plan-m9.md §5, §21).
+  reference to something that was never recorded (docs/plans/plan-m9.md §5, §21).
 * **M4 is the only conflict/supersession authority.** This layer PRESENTS
   ``lifecycle_status='conflicted'`` and the explicit ``supersedes`` /
   ``replaced_by`` fields. It never creates, resolves, ranks, or infers them —
   not from recency, insertion order, file mtime, calibration, or graph
-  structure (plan-m9.md §19, §20).
+  structure (docs/plans/plan-m9.md §19, §20).
 
 Zero LLM calls, zero network calls, zero embeddings.
 """
@@ -67,11 +67,11 @@ from .links import LinkRegistry, LinkTarget, note_relative_path, wiki_link
 # Closed rendering constants
 # ---------------------------------------------------------------------------
 
-#: Value of the ``generated_by`` provenance field (plan-m9.md §8).
+#: Value of the ``generated_by`` provenance field (docs/plans/plan-m9.md §8).
 GENERATED_BY: Final[str] = "zero-mem/m9"
 
 #: Per-field length cap, mirroring the verified M7 ``_MAX_FIELD_LEN`` discipline
-#: (plan-m9.md §22.1 "Length/DoS"). A 10 MB memory field cannot bloat a note.
+#: (docs/plans/plan-m9.md §22.1 "Length/DoS"). A 10 MB memory field cannot bloat a note.
 MAX_FIELD_LENGTH: Final[int] = 2000
 
 #: Appended verbatim (never escaped) when a field was truncated.
@@ -81,7 +81,7 @@ TRUNCATION_MARKER: Final[str] = "…[truncated]"
 #: explicitly absent rather than invented, guessed, or silently omitted.
 NONE_MARKER: Final[str] = "(none)"
 
-#: Frontmatter keys, in the exact fixed order of plan-m9.md §8. The set is
+#: Frontmatter keys, in the exact fixed order of docs/plans/plan-m9.md §8. The set is
 #: CLOSED: rendering fails closed if a key is missing or unexpected, so record
 #: content can never introduce, rename, or remove a frontmatter field.
 FRONTMATTER_FIELDS: Final[Tuple[str, ...]] = (
@@ -268,7 +268,7 @@ def _identifier_list(raw: Any) -> Tuple[str, ...]:
 def _safe_artifact_refs(raw: Any) -> Tuple[str, ...]:
     """Artifact references that pass the VERIFIED M4 safe-reference guard.
 
-    Reuses ``is_safe_reference`` (plan-m9.md §11.3.3) rather than reimplementing
+    Reuses ``is_safe_reference`` (docs/plans/plan-m9.md §11.3.3) rather than reimplementing
     it, so an absolute path, a traversal fragment, a raw transcript, or a
     secret-shaped value never reaches the vault as a reference.
     """
@@ -288,7 +288,7 @@ def _join_field(records: Optional[Sequence[Any]], field: str) -> Optional[str]:
 
     A ``None`` record sequence means "this resource type was not in scope" and
     is kept distinguished from an empty sequence ("in scope, nothing recorded")
-    by returning ``None`` rather than ``""`` (plan-m9.md §7.1).
+    by returning ``None`` rather than ``""`` (docs/plans/plan-m9.md §7.1).
     """
     if records is None:
         return None
@@ -306,7 +306,7 @@ def _needs_rebuild(record: Any) -> bool:
 
     The relation must be EXPLICIT in canonical data — never inferred from
     recency, mtime, note version, calibration score, insertion order, or graph
-    structure (plan-m9.md §20).
+    structure (docs/plans/plan-m9.md §20).
     """
     for name in ("replaced_by", "superseded_by", "supersedes", "supersedes_id"):
         if _attribute(record, name):
@@ -383,7 +383,7 @@ def _provenance_block(*,
                       source_trace_ids: Sequence[str],
                       session_id: Any = None,
                       artifact_refs: Sequence[str] = ()) -> str:
-    """The audit block carried by EVERY projected note (plan-m9.md §M9.3).
+    """The audit block carried by EVERY projected note (docs/plans/plan-m9.md §M9.3).
 
     Contains only fields the request already authorized and the record itself
     carries. Deterministic: fixed label order from a closed literal list, and
@@ -418,7 +418,7 @@ def _provenance_block(*,
 
 def _status_callouts(lifecycle_status: Optional[str],
                      replaced_by: Optional[str]) -> Tuple[str, ...]:
-    """Minimal, honest status banners (plan-m9.md §19/§20 boundary for M9.2).
+    """Minimal, honest status banners (docs/plans/plan-m9.md §19/§20 boundary for M9.2).
 
     A conflicted record must never read as a clean current fact, and a
     superseded record must never read as current. M9.2 states the recorded
@@ -481,7 +481,7 @@ def _build_note(
     """Assemble one note: identity, path, frontmatter, body, fingerprint.
 
     ``content_fingerprint`` in the FRONTMATTER is the fingerprint of the rendered
-    BODY (plan-m9.md §14.1: "hash of the rendered managed body"); it must exclude
+    BODY (docs/plans/plan-m9.md §14.1: "hash of the rendered managed body"); it must exclude
     the frontmatter because it lives inside it. The fingerprint carried on the
     :class:`ProjectedNote` value is the M9.1 contract's whole-file fingerprint.
     Both are deterministic and neither carries truth semantics.
@@ -566,7 +566,7 @@ def render_project_home(
     A collection argument of ``None`` means "this resource type was not part of
     the request, or its authorized read produced nothing to show", and its
     section is omitted entirely — a denial leaves no stub, no count, and no
-    placeholder (plan-m9.md §7.1).
+    placeholder (docs/plans/plan-m9.md §7.1).
 
     Identity is bound to the PROJECT (``resource_id=project_id``), not to the
     versioned charter row: a Home note must stay stable across charter versions,
@@ -1148,7 +1148,7 @@ def _position_block(record: Any) -> str:
 
 
 def render_conflict(group: ConflictGroup) -> ProjectedNote:
-    """Render one Conflict note for an AUTHORIZED conflict group (plan-m9.md §19).
+    """Render one Conflict note for an AUTHORIZED conflict group (docs/plans/plan-m9.md §19).
 
     Every position present is from the already-authorized record set, so a
     hidden position cannot appear, change the count, change the key, or imply a
@@ -1214,11 +1214,11 @@ def render_conflict(group: ConflictGroup) -> ProjectedNote:
 
 def render_conflict_index(*, resource_type: str,
                           groups: Sequence[ConflictGroup]) -> ProjectedNote:
-    """Render the per-resource-type UNRESOLVED Conflict index (plan-m9.md §19).
+    """Render the per-resource-type UNRESOLVED Conflict index (docs/plans/plan-m9.md §19).
 
     This is the M9.3 "Conflict Queue" deliverable, represented WITHOUT a new
     public note type: it is an aggregate Conflict note (NoteType.CONFLICT), the
-    only owner-approved conflict projection type (plan-m9.md §29 Q1). Its
+    only owner-approved conflict projection type (docs/plans/plan-m9.md §29 Q1). Its
     note_id is a stable aggregate identity, so M9.1 identity/filename contracts
     still apply and M9.4's manifest will treat it as a single managed note.
 

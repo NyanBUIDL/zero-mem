@@ -3,9 +3,9 @@
 The operator's vault path is RUNTIME CONFIGURATION, never a product constant.
 No username, no home directory, no ``~/Obsidian`` guess, and no repository-local
 default appears anywhere in this module. Product code RECEIVES a vault root; it
-never discovers one (plan-m9.md §2.1).
+never discovers one (docs/plans/plan-m9.md §2.1).
 
-Resolution order (deterministic, explicit-only — plan-m9.md §2.2), mirroring the
+Resolution order (deterministic, explicit-only — docs/plans/plan-m9.md §2.2), mirroring the
 explicit-value-then-environment discipline already used by
 ``BridgeConfig._resolve_identity``:
 
@@ -67,7 +67,7 @@ def _read_config_file(path: Path) -> Optional[str]:
     """Read ``vault_root`` from the optional project-local config file.
 
     A deliberately minimal, stdlib-only reader for a flat ``key: value`` file:
-    no new third-party dependency is introduced for one scalar (plan-m9.md
+    no new third-party dependency is introduced for one scalar (docs/plans/plan-m9.md
     §26.2 "no new dependency"). Supported syntax is exactly:
 
     * blank lines and whole-line ``#`` comments;

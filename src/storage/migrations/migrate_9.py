@@ -3,14 +3,14 @@
 Every table created here is DERIVED, disposable, and fully rebuildable from
 canonical JSONL plus approved M4/project operation records. None of them is
 canonical truth. Dropping all of them and re-running the projection must
-reproduce an equivalent derived state (plan-m8.md §5, §14).
+reproduce an equivalent derived state (docs/plans/plan-m8.md §5, §14).
 
 Scope discipline (M8.1 is a FOUNDATION increment):
 
 - Created here: the minimal structures the frozen M8.1 contracts describe.
 - NOT created here: any table that exists only to serve behavior deferred to a
   later increment. In particular ``zm_calibration_factors`` is deliberately
-  ABSENT — plan-m8.md §6 item 6 makes it conditional ("only if request-time
+  ABSENT — docs/plans/plan-m8.md §6 item 6 makes it conditional ("only if request-time
   decomposition cannot remain entirely in memory") and M8-OQ-6 recommends
   request-time-only calibration. Adding it now would be speculative schema.
 
@@ -39,7 +39,7 @@ _LIFECYCLE_ENUM = (
     "'superseded','conflicted','archived','deleted'"
 )
 
-# Closed M8 relation vocabulary (plan-m8.md §7). Mirrors
+# Closed M8 relation vocabulary (docs/plans/plan-m8.md §7). Mirrors
 # src/m8/vocabulary.py::RelationType; a focused test asserts they stay in sync.
 _RELATION_ENUM = (
     "'supports','contradicts','verifies','supersedes','derived_from',"

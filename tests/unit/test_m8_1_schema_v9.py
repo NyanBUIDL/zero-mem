@@ -223,7 +223,7 @@ class TestNoSpeculativeSchema:
         assert m8_like == set(M8_DERIVED_TABLES)
 
     def test_no_calibration_table_in_m8_1(self, db):
-        # plan-m8.md makes zm_calibration_factors conditional; M8.1 must not
+        # docs/plans/plan-m8.md makes zm_calibration_factors conditional; M8.1 must not
         # create speculative schema for deferred behavior.
         assert not db.table_exists("zm_calibration_factors")
 

@@ -16,7 +16,7 @@ No search-then-authorize. A denied resource contributes nothing: no row, no
 count, no earliest/latest timestamp, no revision count, no bound. Unauthorized
 history does not exist as far as the result is concerned.
 
-Temporal semantics (plan-m8.md §340, §342–§364):
+Temporal semantics (docs/plans/plan-m8.md §340, §342–§364):
 
 - **Transaction / history time** = ``created_at`` — when the system recorded
   the resource. This is the ``transaction`` temporal dimension.
@@ -69,7 +69,7 @@ from .vocabulary import RESOURCE_TYPES, validate_resource_type
 from src.access import AccessRequest, AuthorizedReadService
 from src.access.contracts import READ
 
-#: Bounded temporal read limits (plan-m8.md §7: "maximum historical versions
+#: Bounded temporal read limits (docs/plans/plan-m8.md §7: "maximum historical versions
 #: per resource for an as-of response: 20"). These are module constants and not
 #: negotiable; any caller-supplied value above the ceiling fails closed.
 MAX_HISTORY_VERSIONS: Final[int] = 20
@@ -89,7 +89,7 @@ class TemporalReadError(RuntimeError):
         self.reason = reason
 
 
-# Closed temporal dimension vocabulary (plan-m8.md §340). No other dimension is
+# Closed temporal dimension vocabulary (docs/plans/plan-m8.md §340). No other dimension is
 # invented.
 class TemporalDimension(str):
     TRANSACTION = "transaction"   # created_at

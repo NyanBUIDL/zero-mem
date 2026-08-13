@@ -5,7 +5,7 @@ implements no rendering, no writing, no manifest behaviour, and no
 authorization. There is intentionally no ``project()``, ``render()``,
 ``write()``, ``retire()``, or ``authorize()`` anywhere in this package at M9.1.
 
-Authority boundaries baked into these contracts (plan-m9.md §5, §7.1, §11):
+Authority boundaries baked into these contracts (docs/plans/plan-m9.md §5, §7.1, §11):
 
 - **Obsidian is a curated derived projection.** Canonical authority remains the
   append-only JSONL traces, the approved project-state records, and the
@@ -43,7 +43,7 @@ from src.m8.vocabulary import RESOURCE_TYPES
 # Contract versions
 # ---------------------------------------------------------------------------
 
-#: Renderer-contract version (plan-m9.md §14.1). Bumped ONLY when the generated
+#: Renderer-contract version (docs/plans/plan-m9.md §14.1). Bumped ONLY when the generated
 #: note layout / frontmatter field set / section structure changes. It never
 #: changes per run and carries no truth semantics.
 PROJECTION_VERSION: Final[int] = 1
@@ -96,7 +96,7 @@ class ProjectionVocabularyError(ProjectionError):
 # ---------------------------------------------------------------------------
 
 class NoteType(str, Enum):
-    """Closed curated note-type vocabulary approved in plan-m9.md §29 Q1.
+    """Closed curated note-type vocabulary approved in docs/plans/plan-m9.md §29 Q1.
 
     Exactly the owner-approved M9 curated types, one member each. M9.1 defines
     the vocabulary and the directory mapping only; it renders none of them.
@@ -115,7 +115,7 @@ class NoteType(str, Enum):
     KNOWLEDGE_INDEX = "knowledge_index"  # Knowledge Index
 
 
-#: Deterministic category directory for each curated note type (plan-m9.md §6.2).
+#: Deterministic category directory for each curated note type (docs/plans/plan-m9.md §6.2).
 #: Categories come from THIS closed map — never from caller- or content-supplied
 #: text — which is what makes "content can never choose a parent directory"
 #: structural rather than best-effort. ``Research/`` is the smallest consistent
@@ -142,7 +142,7 @@ MANAGED_CATEGORY_DIRECTORIES: Final[FrozenSet[str]] = frozenset(
 
 
 class NoteStatus(str, Enum):
-    """Closed per-note manifest status vocabulary (plan-m9.md §15.1)."""
+    """Closed per-note manifest status vocabulary (docs/plans/plan-m9.md §15.1)."""
 
     CURRENT = "current"
     RETIRED = "retired"
@@ -153,7 +153,7 @@ class NoteStatus(str, Enum):
 class ProjectionStatus(str, Enum):
     """Closed run-status vocabulary.
 
-    ``UNAVAILABLE`` is a NORMAL, safe, silent state (plan-m9.md §2.4): no vault
+    ``UNAVAILABLE`` is a NORMAL, safe, silent state (docs/plans/plan-m9.md §2.4): no vault
     configured means nothing is written anywhere and no exception escapes.
     """
 
@@ -178,7 +178,7 @@ SENSITIVITY_ORDER: Final[Mapping[str, int]] = {
 #: Unknown/malformed values rank above every real class, so they always fail closed.
 UNKNOWN_SENSITIVITY_RANK: Final[int] = 99
 
-#: M9 default projection ceiling (plan-m9.md §11.2 / §29 Q18). Deliberately
+#: M9 default projection ceiling (docs/plans/plan-m9.md §11.2 / §29 Q18). Deliberately
 #: STRICTER than the M7 retrieval default (``private``): a projected note is
 #: plaintext at rest in a vault the operator may sync, whereas M7 evidence is
 #: transient and in-process. M9 may narrow visibility; it must never widen it.
@@ -308,13 +308,13 @@ def _identifier_tuple(values: Optional[Iterable[Any]], field_name: str) -> Tuple
 # Ownership (three-signal test; path containment alone is NEVER enough)
 # ---------------------------------------------------------------------------
 
-#: Frontmatter key that marks a note as Zero-Mem generated (plan-m9.md §12.1).
+#: Frontmatter key that marks a note as Zero-Mem generated (docs/plans/plan-m9.md §12.1).
 MANAGED_MARKER_KEY: Final[str] = "zero_mem_managed"
 
 
 @dataclass(frozen=True)
 class OwnershipSignals:
-    """The three independent ownership signals (plan-m9.md §12.1).
+    """The three independent ownership signals (docs/plans/plan-m9.md §12.1).
 
     A file is Zero-Mem-managed only when ALL THREE hold. Each alone fails in a
     different direction, which is exactly why one is never sufficient:

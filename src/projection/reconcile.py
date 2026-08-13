@@ -3,7 +3,7 @@
 This is the engine that turns the rendered DESIRED set and the loaded PAST
 manifest into a minimal, safe set of filesystem operations, then records the
 resulting manifest. It is the single place where the create/update/skip/retire
-decision (plan-m9.md §14.3, §14.5) is made, and the only place where
+decision (docs/plans/plan-m9.md §14.3, §14.5) is made, and the only place where
 :func:`~src.projection.writer.overwrite_note` and
 :func:`~src.projection.writer.retire_note` are ever called.
 
@@ -105,7 +105,7 @@ def _note_index(notes: Iterable[ProjectedNote]) -> Mapping[str, ProjectedNote]:
 
 @dataclass(frozen=True)
 class ReconcileResult:
-    """The full deterministic outcome of one reconcile pass (plan-m9.md §14.5).
+    """The full deterministic outcome of one reconcile pass (docs/plans/plan-m9.md §14.5).
 
     ``written`` counts only bytes-actually-changed operations (CREATED + UPDATED
     + RETIRED). ``skipped`` counts the safe no-ops. This split is what proves the
@@ -235,7 +235,7 @@ def reconcile(
     # -- 3. retire previously-managed notes no longer desired, OR moved ----
     # Skip any note_id with an active M9.5 human boundary: a human-edited note
     # is preserved even if it is also stale, so human protection wins over
-    # stale-retirement convenience (plan-m9.md).
+    # stale-retirement convenience (docs/plans/plan-m9.md).
     retired_entries: list[ManifestEntry] = []
     for entry in prior_manifest.active_entries():
         if entry.note_id in status_overrides:
@@ -359,7 +359,7 @@ def _reconcile_desired(
     observed_fingerprint_or_none)``. The three trailing values are recorded DATA
     only and are never used to authorize a destructive operation.
 
-    The decision tree (plan-m9.md §13.3, §14.3):
+    The decision tree (docs/plans/plan-m9.md §13.3, §14.3):
 
     M9.5 FIRST classifies the CURRENT on-disk file with the full three-signal
     ownership test (containment + frontmatter marker + manifest listing +
@@ -500,7 +500,7 @@ def _reconcile_desired(
     # prove the human has NOT edited this file since the last projection: the
     # on-disk content fingerprint must still equal what the prior manifest
     # recorded. If it differs, the human changed a managed note; M9.4 must NOT
-    # silently overwrite that edit (plan-m9.md §16.5 / §19). M9.5 owns the real
+    # silently overwrite that edit (docs/plans/plan-m9.md §16.5 / §19). M9.5 owns the real
     # edit-resolution workflow. We record and leave the bytes intact.
     if prior_entry is not None:
         try:

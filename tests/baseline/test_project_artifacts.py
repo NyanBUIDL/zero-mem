@@ -49,8 +49,8 @@ KNOWN_HISTORICAL_DUPLICATES: dict[str, list[str]] = {
     "m1_increment_4_3_status": ["verified", "verified"],
     "m1_increment_4_4_status": ["verified", "verified"],
     "m1_increment_4_4_evidence": [
-        "acceptance-m1-increment-4-4.md",
-        "acceptance-m1-increment-4-4.md",
+        "docs/acceptance/m1/acceptance-m1-increment-4-4.md",
+        "docs/acceptance/m1/acceptance-m1-increment-4-4.md",
     ],
     "m1_increment_4_status": ["in_progress", "verified"],
     "m3_increment_1_plan_commit": ["46be195", "46be195"],
@@ -160,11 +160,11 @@ def test_implementation_plan_is_machine_readable_and_gated() -> None:
     assert plan["m9_overall_status"] == "verified"
     assert plan["m9_increment_1_status"] == "verified"
     assert plan["m9_increment_2_status"] == "verified"
-    assert plan["m9_increment_2_evidence"] == "acceptance-m9.2.md"
+    assert plan["m9_increment_2_evidence"] == "docs/acceptance/m9/acceptance-m9.2.md"
     assert plan["m9_increment_3_status"] == "verified"
     assert plan["m9_increment_4_status"] == "verified"
     assert plan["m9_increment_5_status"] == "verified"
-    assert plan["m9_increment_5_evidence"] == "acceptance-m9.5.md"
+    assert plan["m9_increment_5_evidence"] == "docs/acceptance/m9/acceptance-m9.5.md"
     assert plan["m9_increment_6_status"] == "verified"
     assert plan["m9_next_incomplete_increment"] == "none"
     assert plan["m9_schema_version"] == 9
@@ -212,10 +212,10 @@ def test_project_state_reflects_verified_m9_binding() -> None:
     assert "m9_increment_6_status: \"verified\"" in state
     assert "m9_next_incomplete_increment: \"none\"" in state
     assert "m9_schema: \"v9\"" in state
-    assert "m9_increment_1_evidence: acceptance-m9.1.md" in state
-    assert "m9_increment_2_evidence: acceptance-m9.2.md" in state
-    assert "m9_increment_5_evidence: acceptance-m9.5.md" in state
-    assert "m9_increment_6_evidence: acceptance-m9.6.md" in state
+    assert "m9_increment_1_evidence: docs/acceptance/m9/acceptance-m9.1.md" in state
+    assert "m9_increment_2_evidence: docs/acceptance/m9/acceptance-m9.2.md" in state
+    assert "m9_increment_5_evidence: docs/acceptance/m9/acceptance-m9.5.md" in state
+    assert "m9_increment_6_evidence: docs/acceptance/m9/acceptance-m9.6.md" in state
     assert "next_incomplete_milestone: none" in state
     assert "next_milestone_status: feature_freeze_active" in state
     assert "feature_freeze_status: active" in state
