@@ -5,6 +5,10 @@ user-local virtual environment. It is offline after bundle acquisition:
 `pip` is invoked with `--no-index`, `--no-deps`, and a bundle-local
 `--find-links` directory.
 
+Release-wheel builds use the standard reproducible-build input
+`SOURCE_DATE_EPOCH=315532800`. This fixes ZIP metadata timestamps, so repeated
+builds from the same committed source and build toolchain are byte-identical.
+
 The tested interpreter policy is existing CPython `>=3.11,<3.14`. The
 installer does not install Python, require root, contact PyPI, use Git, or
 modify a system interpreter.

@@ -29,6 +29,10 @@ def _env(home: Path) -> dict[str, str]:
             "XDG_CACHE_HOME": str(home / "cache root with spaces"),
             "XDG_BIN_HOME": str(home / "bin root with spaces"),
             "PYTHONNOUSERSITE": "1",
+            # A release wheel must have stable ZIP timestamps as well as a
+            # stable payload.  The build backend honors this standard
+            # reproducible-build input without requiring a new dependency.
+            "SOURCE_DATE_EPOCH": "315532800",
         }
     )
     env.pop("PYTHONPATH", None)
@@ -98,6 +102,7 @@ def bundle(tmp_path_factory: pytest.TempPathFactory) -> Path:
     assert repeated.name == build.name
     with zipfile.ZipFile(build) as first, zipfile.ZipFile(repeated) as second:
         assert first.namelist() == second.namelist()
+    assert hashlib.sha256(build.read_bytes()).digest() == hashlib.sha256(repeated.read_bytes()).digest()
     output = root / "bundle with spaces"
     _run([sys.executable, str(BUNDLE_BUILDER), str(repeated), str(output)], env=dict(os.environ))
     return output
