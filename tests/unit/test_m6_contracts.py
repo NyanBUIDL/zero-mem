@@ -176,9 +176,13 @@ class TestIdentitySecurity:
         assert resp.status is ResponseStatus.INVALID_REQUEST
 
     def test_session_id_not_authority(self):
-        resp = dispatch({"tool": "memory_query", "session_id": "S1", "operation": "READ"})
-        # session alone does not grant access; reaches capability-unavailable (no handler yet)
-        assert resp.status in (ResponseStatus.CAPABILITY_UNAVAILABLE,)
+        # Session alone is not authority. Use an explicit unwired dispatcher so
+        # this contract cannot depend on another test's runtime configuration.
+        resp = dispatch(
+            {"tool": "memory_query", "session_id": "S1", "operation": "READ"},
+            dispatcher=Dispatcher(),
+        )
+        assert resp.status is ResponseStatus.CAPABILITY_UNAVAILABLE
 
 
 # --------------------------------------------------------------------------
@@ -213,8 +217,11 @@ class TestResponse:
         assert "sqlite" not in str(out).lower()
 
     def test_unavailable_sanitized(self):
-        # valid tool, no handler wired yet -> capability unavailable (not an error leak)
-        resp = dispatch({"tool": "memory_query", "requesting_profile_id": "PR1"})
+        # The unwired-tool envelope must remain sanitized.
+        resp = dispatch(
+            {"tool": "memory_query", "requesting_profile_id": "PR1"},
+            dispatcher=Dispatcher(),
+        )
         assert resp.status is ResponseStatus.CAPABILITY_UNAVAILABLE
         assert SECRET not in str(resp.to_dict())
 
@@ -260,7 +267,11 @@ class TestTransport:
 
     def test_local_transport_only_no_network(self):
         # handle_call performs no network; pure in-process dispatch
-        out = mcp_wrapper.handle_call("memory_query", {"tool": "memory_query", "requesting_profile_id": "PR1"})
+        out = mcp_wrapper.handle_call(
+            "memory_query",
+            {"tool": "memory_query", "requesting_profile_id": "PR1"},
+            dispatcher=Dispatcher(),
+        )
         assert out["status"] == "CAPABILITY_UNAVAILABLE"
 
 
@@ -377,8 +388,11 @@ class TestZeroExternal:
                     assert mod not in forbidden, f"{f.name} imports external module '{mod}'"
 
     def test_dispatch_no_network_call(self):
-        # A dispatch that hits capability-unavailable must not perform I/O.
-        resp = dispatch({"tool": "memory_query", "requesting_profile_id": "PR1"})
+        # An unwired local dispatch must not perform network I/O.
+        resp = dispatch(
+            {"tool": "memory_query", "requesting_profile_id": "PR1"},
+            dispatcher=Dispatcher(),
+        )
         assert resp.status is ResponseStatus.CAPABILITY_UNAVAILABLE
 
 
