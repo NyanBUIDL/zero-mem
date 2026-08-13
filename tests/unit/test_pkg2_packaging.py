@@ -4,9 +4,9 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import shutil
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -39,27 +39,67 @@ def _run(cmd: list[str], *, env: dict[str, str], cwd: Path = ROOT, check: bool =
     return subprocess.run(cmd, cwd=cwd, env=env, check=check, capture_output=True, text=True)
 
 
+def _build_wheel(
+    build_python: Path,
+    wheel_dir: Path,
+    *,
+    env: dict[str, str],
+) -> Path:
+    wheel_dir.mkdir(parents=True, exist_ok=True)
+    result = _run(
+        [
+            str(build_python),
+            "-m",
+            "pip",
+            "wheel",
+            "--no-index",
+            "--no-deps",
+            "--no-build-isolation",
+            "--wheel-dir",
+            str(wheel_dir),
+            str(ROOT),
+        ],
+        env=env,
+        check=False,
+    )
+    if result.returncode:
+        raise AssertionError(f"wheel build failed: {result.stderr[-2000:]}")
+    wheels = sorted(wheel_dir.glob("zero_mem-*.whl"))
+    assert len(wheels) == 1
+    return wheels[0]
+
+
 @pytest.fixture(scope="session")
 def bundle(tmp_path_factory: pytest.TempPathFactory) -> Path:
     root = tmp_path_factory.mktemp("pkg2-bundle-build")
-    wheel_dir = root / "wheel"
+    builder = root / "build environment with spaces"
     build_home = root / "build home with spaces"
     build_env = _env(build_home)
-    uv = os.environ.get("UV") or shutil.which("uv")
-    if uv is not None:
-        command = [uv, "build", "--wheel", "--out-dir", str(wheel_dir), "--python", sys.executable, "--no-build-logs"]
-    else:
-        command = [sys.executable, "-m", "pip", "wheel", "--no-deps", "--no-build-isolation", "--wheel-dir", str(wheel_dir), str(ROOT)]
-    build = _run(command, env=build_env, check=False)
-    if build.returncode:
-        fallback = [sys.executable, "-m", "build", "--wheel", "--outdir", str(wheel_dir), str(ROOT)]
-        build = _run(fallback, env=build_env, check=False)
-    if build.returncode:
-        raise AssertionError(f"wheel build failed: {build.stderr[-2000:]}")
-    wheels = sorted(wheel_dir.glob("zero_mem-*.whl"))
-    assert len(wheels) == 1
+    build_env["UV"] = str(root / "uv must not be used")
+    _run([sys.executable, "-m", "venv", str(builder)], env=build_env)
+    build_python = builder / "bin" / "python"
+    tooling = _run(
+        [
+            str(build_python),
+            "-c",
+            "import importlib.util; "
+            "assert importlib.util.find_spec('pip') is not None; "
+            "assert importlib.util.find_spec('setuptools') is not None; "
+            "assert importlib.util.find_spec('build') is None; "
+            "assert importlib.util.find_spec('wheel') is None",
+        ],
+        env=build_env,
+        cwd=builder,
+    )
+    assert tooling.returncode == 0
+    build = _build_wheel(build_python, root / "first wheel", env=build_env)
+    assert (ROOT / "build").is_dir()
+    repeated = _build_wheel(build_python, root / "second wheel", env=build_env)
+    assert repeated.name == build.name
+    with zipfile.ZipFile(build) as first, zipfile.ZipFile(repeated) as second:
+        assert first.namelist() == second.namelist()
     output = root / "bundle with spaces"
-    _run([sys.executable, str(BUNDLE_BUILDER), str(wheels[0]), str(output)], env=dict(os.environ))
+    _run([sys.executable, str(BUNDLE_BUILDER), str(repeated), str(output)], env=dict(os.environ))
     return output
 
 
