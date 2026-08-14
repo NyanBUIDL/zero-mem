@@ -18,6 +18,8 @@ Treat implementation and executable artifacts at the exact reconciliation point 
 
 During V1.1.0 RE-PLANNING, do not modify `zero_mem/`, `src/`, `tests/`, `benchmarks/`, `packaging/`, scripts, migrations, schemas, dependency metadata, runtime configuration, CI, tags, or releases. The only writable area is `AGENTS.md` and `docs/`.
 
+**Maintainer-approved documentation exception (2026-08-14):** `README.md` at the repository root may be created or revised to provide a Vietnamese project introduction, download guidance, current-state notice, terminal usage, and V1.1.0 roadmap. This exception is documentation-only: it does not authorize any executable artifact change, Git publication beyond this approved documentation change, work-package lifecycle transition, or implementation work.
+
 Implementation begins only after a maintainer names one work package, its objective, its exact implementation write scope, required tests/benchmarks, and branch/PR workflow.
 
 ## Authority Order
