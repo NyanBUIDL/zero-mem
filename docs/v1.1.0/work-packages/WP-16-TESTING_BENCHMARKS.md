@@ -13,7 +13,11 @@
 
 ## Related Findings
 
-F-001 through F-014. Related ADRs: ADR-001 through ADR-005.
+F-001 through F-014. Related ADRs: ADR-001 through ADR-008.
+
+## Canonical Requirements
+
+REQ-TEST-001 through REQ-TEST-008 plus every acceptance/test column in `SPEC_TRACEABILITY.md`; canonical DOCX §§16.4, 17.1–17.3, 18, Appendix D–F; ADR-001 through ADR-008.
 
 ## Read Scope
 
@@ -158,6 +162,10 @@ Migration tests must preserve source fixtures, compare logical records before/af
 - Multi-process, async cancellation, fault injection, and recovery.
 - Large-corpus bounded-memory and incremental-ingest behavior.
 - Status privacy/redaction and resource leak tests.
+- Four-capability API/MCP conformance; generic-agent and Hermes parity; local endpoint threat tests.
+- Full profile/knowledge-space mode positive/negative/leakage matrix.
+- Obsidian required views, projection idempotency/rebuild, and write-back approved/rejected/conflict/duplicate/stale/concurrent/unauthorized/malformed matrix.
+- Canonical conflict taxonomy, retention/delete, and composite canonical replay equivalence.
 
 ### Regression Tests
 
@@ -184,6 +192,16 @@ Migration tests must preserve source fixtures, compare logical records before/af
 - No release benchmark shows an unexplained regression beyond the approved budget.
 - Capture/retrieval steady-state memory does not scale by materializing the entire canonical corpus; proof includes memory profiles at 1k, 5k, and 10k records.
 - Test retries are not used to turn a deterministic failure into a pass.
+- Mandatory `SPEC_TRACEABILITY.md` rows have passing evidence; `PARTIAL`, `MISSING`, or `CONFLICT` is a release-test failure.
+- Canonical targets are measured: supported capture harness ≥99%, task continuation ≥90%, evidence provenance 100%, memory-operation LLM calls 0, and local retrieval p95 against the approved machine-specific budget (initial canonical proposal <2 s).
+
+## Security / Privacy, Observability, and Rollback
+
+Fixtures are synthetic and include adversarial secrets, hidden scopes, path/symlink, local caller, prompt-injection, and write-boundary cases. Raw results record safe environment/version/watermark metadata. Harness and threshold changes are versioned/reversible; rollback preserves prior raw evidence and never reclassifies a failing run as passing.
+
+## Exit Gate and Traceability
+
+Exit requires exact-wheel zero-failure supported-matrix results; all F-001–F-014 regressions; all mandatory canonical acceptance rows; reproducible raw benchmark/fault/migration artifacts; and no unexplained skip, waiver, or regression.
 
 ## Definition of Done
 
@@ -209,6 +227,9 @@ Migration tests must preserve source fixtures, compare logical records before/af
 - WP-14 Reliability and Recovery
 - WP-15 Observability
 - WP-17 Migration for final migration suite
+- WP-20 Profiles and Knowledge Spaces
+- WP-21 Local Sidecar and MCP Interface
+- WP-22 Obsidian Knowledge Workspace
 
 ## Blocks
 

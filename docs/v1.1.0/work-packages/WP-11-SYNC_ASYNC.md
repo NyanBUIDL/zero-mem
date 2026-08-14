@@ -15,6 +15,10 @@
 
 F-003, F-010, F-014. Related ADRs: ADR-001 and ADR-003.
 
+## Canonical Requirements
+
+Execution/deadline portions of REQ-API-001/002/004-008, REQ-PERF-003, and REQ-TEST-006 in `SPEC_TRACEABILITY.md`; canonical DOCX §§13, 16–17; ADR-001/003/006.
+
 ## Read Scope
 
 Read only the capture, storage, retrieval, adapter, and proposed public API boundaries named in **Files / Modules to Inspect**.
@@ -170,6 +174,15 @@ Async consumers can migrate operation-by-operation. Existing synchronous consume
 - Cancellation outcomes identify whether canonical capture committed.
 - Repeated create/use/close cycles return threads, tasks, and database connections to baseline counts.
 - Sync/async conformance tests pass for all shared operations and error cases.
+- Local sidecar deadlines, backpressure, cancellation, and shutdown use the same commit-state/error semantics as embedded API calls; no transport creates unbounded background work.
+
+## Security / Privacy, Observability, and Rollback
+
+Worker/queue boundaries preserve caller/profile context and cannot leak state across requests; cancellation never broadens fallback or hides commit outcome. Status exposes queue/worker/deadline counts without payloads. Async wrappers are additive and removable; rollback uses synchronous/public semantics and drains safely without canonical loss.
+
+## Exit Gate and Traceability
+
+Exit requires sync/async/direct/transport conformance, bounded queue/timeout/cancellation/shutdown/leak benchmarks, and all mapped execution requirements `COVERED`.
 
 ## Definition of Done
 

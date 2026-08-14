@@ -2,6 +2,8 @@
 
 Every v1.1.0 implementation change must trace to at least one reconciled finding or an approved goal. “Refactor” alone is not a valid reason. Each finding has exactly one primary closure owner; supporting WPs may supply prerequisites or shared validation but cannot independently close it.
 
+Canonical product requirements are mapped separately and normatively in [SPEC_TRACEABILITY.md](SPEC_TRACEABILITY.md). A change may be justified by a stable finding below, a canonical requirement ID, or both. Finding closure cannot substitute for canonical parity.
+
 | Finding / Goal | Reconciled status | ADR | Primary closure owner | Supporting WPs | Required validation | Release criterion |
 |---|---|---|---|---|---|---|
 | F-001 | CONFIRMED OPEN | [ADR-002](decisions/ADR-002-HERMES_ADAPTER_BOUNDARY.md) | WP-07 | WP-04, WP-08, WP-15 | Installed Hermes capture lifecycle with missing-writer diagnostic | Registration success guarantees a persistence path and declared freshness behavior |
@@ -19,8 +21,11 @@ Every v1.1.0 implementation change must trace to at least one reconciled finding
 | F-013 | CONFIRMED OPEN | [ADR-003](decisions/ADR-003-CANONICAL_STORAGE_AND_FRESHNESS.md), [ADR-004](decisions/ADR-004-CONFIGURATION_RUNTIME_OWNERSHIP.md) | WP-15 | WP-07, WP-14 | Content-safe health schema and failure/lag fault injection | Operators distinguish disabled, empty, stale, degraded, and failed states |
 | F-014 | NEEDS VERIFICATION | [ADR-001](decisions/ADR-001-AGENT_AGNOSTIC_CORE.md), [ADR-003](decisions/ADR-003-CANONICAL_STORAGE_AND_FRESHNESS.md) | WP-11 | WP-03, WP-16 | Connection ownership, handle stability, latency, cancellation, event-loop responsiveness | Read-session ownership and sync/async behavior are explicit and bounded |
 | Agent-agnostic product goal | Planned goal | [ADR-001](decisions/ADR-001-AGENT_AGNOSTIC_CORE.md) | WP-08 | WP-02, WP-18 | Public API lifecycle E2E | Generic agent uses only the stable public API |
+| Local sidecar/MCP product goal | Canonical goal | [ADR-006](decisions/ADR-006-LOCAL_SIDECAR_INTERFACE.md) | WP-21 | WP-08, WP-11, WP-13, WP-15 | Four-capability transport conformance/security/lifecycle | At least one supported local binding exposes the canonical contract |
+| Profile/knowledge-space product goal | Canonical goal | [ADR-007](decisions/ADR-007-PROFILE_KNOWLEDGE_SPACE_POLICY.md) | WP-20 | WP-05, WP-08, WP-12, WP-13 | Five-mode positive/negative/leakage conformance | Default profile-first global read and restrictive modes match canonical semantics |
+| Obsidian workspace/write-back product goal | Canonical goal | [ADR-008](decisions/ADR-008-OBSIDIAN_PROJECTION_WRITEBACK.md) | WP-22 | WP-04, WP-14, WP-15, WP-17 | Required views, projection, review/write-back/conflict/rebuild matrix | Obsidian is a safe rebuildable workspace with reviewed append-first write-back |
 | Release quality goal | Planned goal | Governed by [MASTER_PLAN.md](MASTER_PLAN.md) | WP-19 | WP-00, WP-16, WP-17, WP-18 | Exact-wheel matrix, migration/rollback, docs execution, benchmark suite | No open release blocker; every declared gate passes at the candidate SHA |
 
 ## Update Rule
 
-When a finding status, owner, or approved goal changes, update this file, the findings reconciliation, its WP, any needed ADR, required tests/benchmarks, and the release criterion together before implementation begins.
+When a finding status, owner, canonical requirement, or approved goal changes, update this file, `SPEC_TRACEABILITY.md`, the findings reconciliation where applicable, its WP, any needed ADR, required tests/benchmarks, and the release criterion together before implementation begins.

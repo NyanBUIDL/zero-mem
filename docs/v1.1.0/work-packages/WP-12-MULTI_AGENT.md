@@ -15,6 +15,10 @@
 
 F-004, F-006, F-012. Related ADRs: ADR-001, ADR-003, ADR-004.
 
+## Canonical Requirements
+
+Physical runtime/process isolation portions of REQ-ARCH-005, REQ-PROF-003/005/010, REQ-SEC-003/004, and REQ-STORE-001 in `SPEC_TRACEABILITY.md`; canonical DOCX §§8, 13–14; ADR-001, ADR-003, ADR-004, ADR-007.
+
 ## Read Scope
 
 Read only the capture, runtime, configuration, storage, and integration modules named in **Files / Modules to Inspect** and the related ADRs.
@@ -86,7 +90,7 @@ The current capture writer uses only an in-process `threading.RLock`, while runt
 ## Desired State
 
 - Each runtime instance owns immutable effective configuration and explicit resources.
-- Per-agent isolated profiles are fully supported.
+- Per-agent isolated runtimes/data roots are fully supported without changing the canonical retrieval default.
 - Shared-memory operation has one documented writer policy: either process-safe serialization or deterministic single-writer rejection.
 - Readers have a documented freshness model relative to canonical writes.
 - Profile identifiers cannot escape configured roots or alias unintentionally.
@@ -107,6 +111,7 @@ The current capture writer uses only an in-process `threading.RLock`, while runt
 4. Define profile naming, root resolution, ownership, and lock locations.
 5. Define ingestion leadership and reader freshness semantics.
 6. Add multi-thread, multi-process, crash, and contention tests on supported platforms.
+7. Keep physical isolation/writer ownership separate from WP-20 access modes: authorized `profile_first` global reads remain the canonical default, while cross-profile writes stay explicitly authorized/reviewed.
 
 ## Recommended Direction
 
@@ -199,4 +204,12 @@ Existing single-profile users can be mapped to one default runtime/profile. Host
 - Multi-host consensus
 - Cloud-managed shared databases
 - Network-filesystem guarantees without separate qualification
-- Cross-profile retrieval by default
+- Unbounded or unauthorized cross-profile retrieval. Authorized global/profile-first reads are required and owned by WP-20.
+
+## Security / Privacy, Observability, and Rollback
+
+Runtime isolation cannot be used to infer or bypass profile policy; shared local service callers remain explicitly identified/authorized. Status exposes runtime/profile/lease/lock/reader mode and lag without memory content. Rollback returns hosts to isolated per-runtime mode and restores prior leases/configuration without rewriting canonical data.
+
+## Exit Gate and Traceability
+
+Exit requires supported-mode stress/crash/isolation tests on every platform, WP-20 mode conformance under concurrency, deterministic rejection for unsupported modes, and mapped requirements `COVERED`.

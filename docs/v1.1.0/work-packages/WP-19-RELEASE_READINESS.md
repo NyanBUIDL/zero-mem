@@ -13,7 +13,11 @@
 
 ## Related Findings
 
-F-001 through F-014. Related ADRs: ADR-001 through ADR-005.
+F-001 through F-014. Related ADRs: ADR-001 through ADR-008.
+
+## Canonical Requirements
+
+Every mandatory row in `SPEC_TRACEABILITY.md`; canonical DOCX §§16.4, 17–18, 20–21 and Appendices D–F; ADR-001 through ADR-008. WP-19 remains the final release gate even though canonical-gap WPs WP-20–WP-22 were added later during re-planning.
 
 ## Read Scope
 
@@ -41,7 +45,7 @@ Provide the final evidence-based go/no-go gate for releasing Zero-Mem v1.1.0.
 
 ## Why This Exists
 
-Twenty coordinated work packages span architecture, persistence, retrieval, integrations, compatibility, packaging, concurrency, recovery, observability, testing, migration, and documentation. A release needs one authoritative decision record proving that required outcomes are complete and that every audit finding is closed, accepted with rationale, or explicitly blocks release.
+Twenty-three coordinated work packages span architecture, persistence, retrieval, profiles, interfaces, integrations, Obsidian, compatibility, packaging, concurrency, recovery, observability, testing, migration, and documentation. A release needs one authoritative decision record proving canonical parity and that every audit finding is closed, accepted with rationale, or explicitly blocks release.
 
 ## Current State on master
 
@@ -100,7 +104,7 @@ Twenty coordinated work packages span architecture, persistence, retrieval, inte
 2. Verify work-package status/evidence and dependency completion.
 3. Execute exact-artifact qualification from WP-16.
 4. Execute install, upgrade, migration, rollback, and uninstall lifecycle.
-5. Review traceability for F-001–F-014 and all release objectives.
+5. Review traceability for F-001–F-014 and every row in `SPEC_TRACEABILITY.md`; any mandatory `MISSING`, `PARTIAL`, or `CONFLICT` is NO-GO.
 6. Review security/privacy, data integrity, performance, compatibility, and known limitations.
 7. Produce signed go/no-go and rollback decision records.
 8. Tag/publish only after GO approval.
@@ -142,7 +146,7 @@ Migration and rollback must pass with the exact candidate and representative v1.
 
 ### Missing Tests
 
-- Any test still marked missing in WP-00 through WP-18 blocks entry unless formally out of scope or an approved P2 waiver.
+- Any test still marked missing in WP-00 through WP-18 or WP-20 through WP-22 blocks entry unless formally out of scope or an approved P2 waiver.
 - Final artifact integrity, version, metadata, clean-environment, and documentation sample checks.
 
 ### Regression Tests
@@ -161,12 +165,23 @@ Migration and rollback must pass with the exact candidate and representative v1.
 ## Acceptance Criteria
 
 - WP-00 through WP-18 required acceptance criteria are VERIFIED with linked evidence.
+- WP-20 through WP-22 required acceptance criteria are VERIFIED with linked evidence.
 - Traceability covers 100% of F-001–F-014 with no orphan finding or duplicate closure owner.
+- `SPEC_TRACEABILITY.md` covers 100% of mandatory canonical requirements with no `MISSING`, `PARTIAL`, or `CONFLICT`; `DEFERRED` appears only where the canonical specification explicitly says after MVP.
 - Supported matrix runs show **0 failures and 0 unexpected errors** against the exact artifact.
 - There are **0 open P0 or P1 defects** and **0 unexplained performance regressions beyond approved budgets**.
 - V1.0.0 → v1.1.0 migration and rollback pass all golden fixtures with no lost or duplicated logical records.
 - Release-facing documentation has zero broken links, zero private-import examples, and zero unapproved **Needs verification** statements.
 - Artifact hashes, provenance, source revision, test results, and decision sign-offs are recorded.
+- Composite canonical/derived invariants, four API/MCP capabilities, Hermes and generic-agent parity, all profile modes, Obsidian required views, write-back/review/conflict handling, migration/rollback, and canonical rebuild are independently verified.
+
+## Security / Privacy, Observability, and Rollback
+
+GO requires redaction-before-persist, profile/source isolation, local API and Obsidian write-boundary tests, content-safe status, and zero unresolved boundary violation. Release/rollback owners verify backup, migration, compensating-record and service/adapter removal procedures; rollback never deletes user memory or hides conflicts.
+
+## Exit Gate and Traceability
+
+GO is allowed only when all P1 WPs including WP-20/WP-21/WP-22 are VERIFIED, every mandatory spec row is covered by passing evidence, all canonical release gates pass on the exact artifact, and no open blocker/conflict remains.
 
 ## Definition of Done
 
@@ -196,6 +211,9 @@ Migration and rollback must pass with the exact candidate and representative v1.
 - WP-16 Testing and Benchmarks
 - WP-17 Migration
 - WP-18 Documentation and Developer Experience
+- WP-20 Profiles and Knowledge Spaces
+- WP-21 Local Sidecar and MCP Interface
+- WP-22 Obsidian Knowledge Workspace
 
 ## Blocks
 

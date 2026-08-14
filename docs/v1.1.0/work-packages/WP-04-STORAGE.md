@@ -16,6 +16,10 @@
 
 F-002, F-003, F-004, F-010. Related ADR: ADR-003.
 
+## Canonical Requirements
+
+REQ-STORE-001 through REQ-STORE-006, REQ-LIFE-001 through REQ-LIFE-006, and REQ-CAP-001/003/004 in `SPEC_TRACEABILITY.md`; canonical DOCX §§6–7, 9–10, 14.3–14.4, 16.4; ADR-003.
+
 ## Read Scope
 
 Read only the storage, setup, backup, and upgrade modules named in **Files / Modules to Inspect**, their direct contracts, and ADR-003.
@@ -38,7 +42,7 @@ This work package, ADR-003, `TRACEABILITY.md`, and design notes under `docs/v1.1
 
 ## Objective
 
-Define and implement a safe canonical writer plus explicit JSONL-to-SQLite consistency lifecycle while preserving V1.0.0 canonical data and rebuildability.
+Define and implement the composite canonical trace contract plus explicit raw-record/canonical-metadata/derived-index consistency lifecycle while preserving V1.0.0 data, append-first provenance, and rebuildability.
 
 ## Why This Exists
 
@@ -76,11 +80,11 @@ Capture, adapters, setup/doctor, ingest, backup/restore, upgrade, retrieval fres
 
 ## Desired State
 
-A public runtime always owns a writer when capture is enabled. It declares one consistency mode and exposes last canonical sequence, last derived sequence, lag, sync, and rebuild health. V1.0.0 JSONL remains readable. Shared writer behavior is safe or deterministically refused.
+A public runtime always owns a writer when capture is enabled. It declares one consistency mode and exposes raw append sequence, canonical SQLite metadata watermark, derived index watermark, projection watermark, lag, sync, and rebuild health. V1.0.0 JSONL/SQLite remain discoverable and migratable. Shared writer behavior is safe or deterministically refused. Retention/delete and approved write-back create auditable append/tombstone/supersession records across all layers.
 
 ## Constraints
 
-JSONL and corpus registry/blobs remain canonical. SQLite remains disposable. No silent canonical rewrite, no loss of redaction/retention/tombstone semantics, no source-of-truth inversion.
+Sanitized append-first JSONL, versioned artifacts/corpus sources, approved write-back records, and canonical SQLite metadata/lifecycle follow ADR-003. FTS/vector/graph/cache/projection tables remain disposable. No silent raw rewrite, no loss of redaction/retention/tombstone semantics, no stale-state source-of-truth inversion.
 
 ## Required Changes
 
@@ -91,6 +95,8 @@ JSONL and corpus registry/blobs remain canonical. SQLite remains disposable. No 
 5. Define segment/rotation policy and sequence identity.
 6. Expose freshness diagnostics to WP-15.
 7. Verify backup/restore/upgrade across V1.0.0 and V1.1.0 formats.
+8. Separate canonical SQLite tables from disposable indexes and prove full replay equivalence.
+9. Implement retention/delete/tombstone behavior across canonical records, artifacts, indexes, and projections.
 
 ## Recommended Direction
 
@@ -98,7 +104,7 @@ For minimum risk, enforce one writer per data root in V1.1.0 with a portable loc
 
 ## Alternatives Considered
 
-- Make SQLite canonical: rejected.
+- Make derived FTS/index/projection tables canonical or make SQLite the only raw source: rejected.
 - Allow undocumented best-effort multi-process append: rejected.
 - Introduce a daemon by default: rejected unless single-process integration cannot meet requirements.
 
@@ -140,9 +146,19 @@ Single write, 100 sequential, 100 concurrent attempts, 10k replay, suffix sync, 
 
 - Every successful public observe call has a canonical persistence result.
 - Freshness state is measurable and deterministic.
-- V1.0.0 JSONL rebuilds schema-v10/V1.1 derived state equivalently.
+- V1.0.0 JSONL/SQLite migrate to the ADR-003 contract and replay produces equivalent canonical metadata plus derived state.
 - Supported writer mode passes process contention and crash-recovery tests.
 - No canonical record is silently rewritten or dropped.
+- Deleting FTS/vector/graph/projection state leaves canonical data intact and the state rebuilds completely.
+- Retention/delete/write-back tests prove authorized append/tombstone behavior and absence of orphaned indexes/projections.
+
+## Security / Privacy, Observability, and Rollback
+
+Redaction/rejection completes before any canonical write; `never_store` never reaches disk; delete/write-back requires explicit authorization. Status exposes watermarks, lag, writer/lock and rebuild/delete state without content. Rollback restores versioned schema/config/metadata backups, preserves append-only raw records, and rebuilds disposable state.
+
+## Exit Gate and Traceability
+
+Exit requires ADR-003 approval, replay/rebuild/concurrency/retention/delete/write-back/migration/fault tests, benchmark evidence, and all mapped REQ-STORE/REQ-LIFE/REQ-CAP rows `COVERED`.
 
 ## Definition of Done
 

@@ -15,6 +15,10 @@
 
 F-005, F-007, F-011. Related ADRs: ADR-001, ADR-002, ADR-004.
 
+## Canonical Requirements
+
+Installation/lifecycle portions of REQ-API-001/002, REQ-OBS-001, REQ-MIG-001/004/006, and REQ-TEST-003/004 in `SPEC_TRACEABILITY.md`; canonical DOCX §§4.2, 13, 16, 18–19.
+
 ## Read Scope
 
 Read only package metadata, packaging scripts, CLI modules, integration descriptor material, and tests named in **Files / Modules to Inspect**.
@@ -176,6 +180,15 @@ The v1.1.0 installer must detect v1.0.0 state, invoke the WP-17 migration path, 
 - Uninstall leaves user data intact unless an explicit, separately confirmed purge command is used.
 - Artifact inspection confirms all required modules, migrations, descriptors, licenses, and typing metadata are present.
 - All documented examples import only supported package paths.
+- Installation can configure/verify/remove the local sidecar, optional Hermes adapter, profile policies, and Obsidian managed workspace without making them hidden mandatory dependencies or deleting user state.
+
+## Security / Privacy, Observability, and Rollback
+
+Install/setup validates endpoint/path/permissions before mutation and never stores secrets in descriptors/logs. Doctor reports component versions/readiness safely. Upgrade creates a verified checkpoint; uninstall/rollback removes owned runtime/service/adapter artifacts only and preserves canonical data and human Vault content.
+
+## Exit Gate and Traceability
+
+Exit requires reproducible exact-wheel artifacts and supported-matrix install/setup/doctor/service/Hermes/Obsidian/upgrade/rollback/uninstall evidence with all mapped requirements `COVERED`.
 
 ## Definition of Done
 
@@ -191,6 +204,8 @@ The v1.1.0 installer must detect v1.0.0 state, invoke the WP-17 migration path, 
 - WP-09 Compatibility and Portability
 - WP-13 Configuration
 - WP-17 Migration for final upgrade implementation
+- WP-21 Local Sidecar and MCP Interface
+- WP-22 Obsidian Knowledge Workspace
 
 ## Blocks
 

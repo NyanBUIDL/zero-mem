@@ -16,6 +16,10 @@
 
 F-002, F-003, F-004, F-006, F-008, F-011, F-012. Related ADRs: ADR-001 through ADR-005.
 
+## Canonical Requirements
+
+REQ-ARCH-001 through REQ-ARCH-007 and REQ-STORE-001 through REQ-STORE-004 in `SPEC_TRACEABILITY.md`; canonical DOCX §§2.3, 3.3, 5, 9, 13, and 16; ADR-001 through ADR-008.
+
 ## Read Scope
 
 Read only the modules named in **Files / Modules to Inspect**, their direct contracts, and the baseline architecture/data-flow maps.
@@ -78,7 +82,7 @@ Release package, capture, storage, retrieval, context, Hermes adapter, generic a
 
 ## Desired State
 
-One public runtime/client owns configuration resolution, canonical writer, projector consistency policy, read sessions, health, and shutdown. Adapters translate host events and call that API. Core modules import no Hermes-specific code. Canonical JSONL/corpus remain authoritative; SQLite remains derived and rebuildable.
+One public runtime/client owns configuration resolution, the composite canonical trace contract, projector/index consistency policy, read sessions, health, and shutdown. Adapters translate host events and call that API. A supported local sidecar binding exposes the same capabilities. Core modules import no Hermes-specific or transport-specific code. Append-first JSONL/artifacts/approved write-back records preserve replay provenance; canonical SQLite metadata/lifecycle is queryable; FTS/vector/graph/cache/Obsidian state is rebuildable.
 
 ## Constraints
 
@@ -92,6 +96,7 @@ No V2 rewrite. Preserve local-first operation, deterministic behavior, no mandat
 4. Define public API and adapter version boundaries.
 5. Define health/freshness semantics.
 6. Update architecture diagrams and ADRs before implementation.
+7. Define profile/knowledge-space, local sidecar, Obsidian projection/write-back, and conflict ownership without duplicate contracts.
 
 ## Recommended Direction
 
@@ -99,9 +104,9 @@ Add a thin facade over existing modules first. Move code only when import-bounda
 
 ## Alternatives Considered
 
-- Rewrite into a service: rejected as unnecessary for V1.1.0.
+- Remote/cloud service rewrite: rejected. A small local sidecar binding required by the canonical specification is in scope through WP-21.
 - Keep host-owned composition undocumented: rejected because it caused F-001/F-002.
-- Make SQLite canonical: rejected; it violates established recovery invariants.
+- Make SQLite/derived indexes the only canonical source and discard append-first replay provenance: rejected; it violates ADR-003 and recovery invariants.
 
 ## Risks
 
@@ -142,8 +147,17 @@ Facade overhead versus direct V1.0.0 calls for capture, sync, and retrieval.
 - Approved architecture identifies owner/interface/state for every major component.
 - Zero-Mem core imports no Hermes-specific module.
 - A single lifecycle object has explicit initialize/observe/sync/retrieve/health/shutdown ownership.
-- Canonical and derived state invariants remain unchanged.
+- The composite canonical and derived-state distinctions in ADR-003 are explicit, replayable, and migration-safe.
+- WP-08/WP-21 own one agent interface; WP-07 owns only Hermes mapping; WP-20 owns profile modes; WP-22 owns Obsidian projection/write-back; WP-14 owns canonical conflict lifecycle.
 - No unresolved circular dependency exists among work packages or modules.
+
+## Security / Privacy, Observability, and Rollback
+
+Architecture review must prove authorization-before-influence, redaction-before-persist, local-endpoint distrust, bounded evidence, and no cross-profile write escalation. Health ownership covers canonical/derived/projection watermarks and adapter/service readiness without content. Rollback restores the prior public/configuration/adapter contract and rebuilds disposable state without rewriting raw canonical history.
+
+## Exit Gate and Traceability
+
+Exit requires ADR-001 through ADR-008 reviewed together, an acyclic component/WP graph, complete canonical requirement ownership in `SPEC_TRACEABILITY.md`, negative boundary tests planned, and no unresolved BLOCKER in the alignment gap analysis.
 
 ## Definition of Done
 

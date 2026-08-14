@@ -19,6 +19,7 @@ This resolves the configuration boundary underlying F-005, F-006, and F-012.
 ## Consequences
 
 - WP-13 owns schema/precedence/runtime configuration design.
+- The schema includes profile/knowledge-space policy, local endpoint/transport, deadlines/limits, Obsidian managed root/review policy, and secret classification without hidden adapter defaults.
 - WP-09/WP-10 consume the approved support and installation contract.
 - Configuration migration is part of WP-17.
 

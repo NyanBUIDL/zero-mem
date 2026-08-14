@@ -15,6 +15,10 @@
 
 F-001, F-002, F-013, F-014. Related ADRs: ADR-003 and ADR-004.
 
+## Canonical Requirements
+
+Operational metrics portions of REQ-RETR-009/010, REQ-OBS-001/006/008/009, REQ-API-001/002, REQ-PERF-003/004, and REQ-SEC-008 in `SPEC_TRACEABILITY.md`; canonical DOCX §§4.2, 11.5, 12.7, 15.3, 17–19.
+
 ## Read Scope
 
 Read only doctor, capture, ingestion, storage, injection adapter, and proposed public status/API material named in **Files / Modules to Inspect**.
@@ -107,6 +111,7 @@ The existing doctor does not adequately expose capture failure or canonical-to-d
 5. Add runtime/connection/worker lifecycle counters.
 6. Add redaction, cardinality, and diagnostic-overhead tests.
 7. Extend doctor with actionable remediation and exit codes.
+8. Add local sidecar and Obsidian projection/write-back/review/conflict health: contract/transport version, endpoint class, readiness, deadlines/overload, projection/canonical watermark, pending review/conflict count, last safe result/error.
 
 ## Recommended Direction
 
@@ -172,6 +177,15 @@ Existing logs remain readable but are not required for new health state. Configu
 - Automated adversarial tests find zero memory payloads, prompts, or configured secrets in default logs/status.
 - Status collection performs no full JSONL read and remains independent of corpus size except constant-size metadata reads.
 - Runtime lifecycle tests return open connection, worker, and queue counts to baseline after close.
+- Status distinguishes sidecar disabled/unavailable/denied/overloaded, projection stale/failed, and review queue pending/conflicted without exposing note content, hidden scope IDs, endpoint secrets, or source paths.
+
+## Security / Privacy and Rollback
+
+All telemetry is local by default, content-free, secret-redacted, bounded-cardinality, and non-probing. Schema versions are backward-compatible for the documented window; rollback restores the previous status schema/export settings without changing product state.
+
+## Exit Gate and Traceability
+
+Exit requires every WP-14/WP-21/WP-22 health state, adversarial content/secret tests, constant-size status reads, overhead/cardinality/resource-leak benchmarks, and all mapped observability requirements `COVERED`.
 
 ## Definition of Done
 

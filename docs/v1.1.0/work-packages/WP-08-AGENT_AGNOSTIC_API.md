@@ -16,6 +16,10 @@
 
 F-002, F-006, F-011, F-014. Related ADR: ADR-001.
 
+## Canonical Requirements
+
+REQ-ARCH-001/004/005, REQ-RETR-009/010, and REQ-API-001 through REQ-API-011 in `SPEC_TRACEABILITY.md`; canonical DOCX §§2.3, 5.1, 11.5, 13.1–13.3, 16.1, 18; ADR-001 and ADR-006; `INTERFACE_CONTRACT.md`.
+
 ## Read Scope
 
 Read only the existing public package and internal components listed in **Files / Modules to Inspect**, their direct contracts, and ADR-001.
@@ -38,7 +42,7 @@ This work package, ADR-001, `TRACEABILITY.md`, and API design Markdown under `do
 
 ## Objective
 
-Provide a small versioned public API through which generic synchronous agents can initialize, observe, sync, retrieve, inspect health, and shut down without importing `src.*`.
+Provide the small versioned transport-neutral lifecycle and capability API through which any agent can initialize, observe, sync, call the four canonical read capabilities, inspect health, and shut down without importing `src.*` or depending on Hermes.
 
 ## Why This Exists
 
@@ -84,11 +88,11 @@ client.health()
 client.shutdown()
 ```
 
-Exact names require API review; lifecycle semantics are mandatory.
+The lifecycle method names require API review; the external capability names and semantics in `INTERFACE_CONTRACT.md` are mandatory: `zero_mem.search`, `zero_mem.get_trace`, `zero_mem.get_task_state`, and `zero_mem.get_decisions`.
 
 ## Constraints
 
-No host-specific event names in core API. Explicit identity only. Typed sanitized errors. No mandatory async runtime, daemon, network, LLM, or third-party dependency.
+No host-specific event names in core API. Explicit identity only. Typed sanitized errors. No mandatory async runtime, remote network, LLM, or heavyweight third-party dependency. A supported local sidecar binding is mandatory through WP-21 and must be a thin semantic peer, not a second implementation.
 
 ## Required Changes
 
@@ -97,6 +101,8 @@ No host-specific event names in core API. Explicit identity only. Typed sanitize
 3. Wrap existing redaction/validation/storage/access/context paths.
 4. Publish API version and compatibility policy.
 5. Deprecate direct internal operational imports without immediate forced removal.
+6. Freeze every purpose/input/output/scope/authorization/profile/space/provenance/error/empty/timeout/determinism/compatibility/test field in `INTERFACE_CONTRACT.md`.
+7. Reserve the three canonical post-MVP capability names and return typed unavailable status until separately implemented.
 
 ## Recommended Direction
 
@@ -105,7 +111,7 @@ Start with one synchronous client and context manager. WP-11 adds async wrappers
 ## Alternatives Considered
 
 - CLI subprocess as only API: rejected for embedded agents.
-- MCP/local HTTP as mandatory: rejected for V1.1 simplicity.
+- Remote HTTP/cloud service as mandatory: rejected. The canonical local sidecar/MCP binding is required and owned by WP-21.
 - Expose all internal classes publicly: rejected due to instability/complexity.
 
 ## Risks
@@ -149,6 +155,16 @@ Direct internal versus public API capture/sync/retrieve overhead; cold/warm clie
 - No public operation requires knowledge of canonical file paths or SQLite schema.
 - Public API version is independent from package patch version.
 - Resource closure and fail-open/fail-closed behavior are tested.
+- All four canonical capabilities pass direct/API/local-transport conformance and expose complete provenance, conflict, insufficiency, freshness, omitted-count, timeout, and deterministic-order semantics.
+- Replacing Hermes with a generic fixture requires no core/storage/retrieval rewrite.
+
+## Security / Privacy, Observability, and Rollback
+
+The API accepts no caller-supplied grant/admin/raw-storage authority; explicit identity and WP-20 scope fields are validated, and authorization precedes influence. Health exposes lifecycle/watermarks/resources without content. Contract versions and compatibility aliases are reversible for the published window; rollback does not rewrite canonical data.
+
+## Exit Gate and Traceability
+
+Exit requires `INTERFACE_CONTRACT.md` approval, public-only generic lifecycle, four-capability conformance, negative/security/timeout/resource/performance tests, version/migration docs, and all mandatory REQ-API rows `COVERED`.
 
 ## Definition of Done
 
@@ -167,4 +183,4 @@ WP-07, WP-09, WP-11, WP-12, WP-18, WP-19.
 
 ## Out of Scope
 
-Framework-specific adapters, remote service protocol, broad admin APIs, and mandatory async implementation.
+Framework-specific adapters, remote/cloud service protocol, broad admin APIs, post-MVP write/project capabilities, and mandatory native-async implementation. The local sidecar/MCP binding is in scope through WP-21.

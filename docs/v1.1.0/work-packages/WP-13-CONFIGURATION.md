@@ -15,6 +15,10 @@
 
 F-005, F-006, F-007, F-012. Related ADR: ADR-004.
 
+## Canonical Requirements
+
+Configuration portions of REQ-PROF-001/002/009/010, REQ-API-001/002, REQ-OBS-002/004, REQ-SEC-001/003/006, and REQ-MIG-004 in `SPEC_TRACEABILITY.md`; canonical DOCX §§8.2–8.5, 12.2–12.6, 13–14, 21.1; ADR-004/006/007/008.
+
 ## Read Scope
 
 Read only the path, bridge configuration, runtime, setup, doctor, and integration configuration modules named in **Files / Modules to Inspect**, plus ADR-004.
@@ -108,6 +112,7 @@ Configuration currently spans environment variables, path helpers, bridge config
 4. Route setup, doctor, API, and integrations through the same loader.
 5. Add redacted configuration inspection and provenance output.
 6. Define v1.0.0 alias/deprecation and migration behavior.
+7. Include local transport/endpoint/deadline/size limits, profile/knowledge-space policies, privacy/evidence/write policies, and Obsidian managed-root/review settings in the one schema; adapters may not invent hidden defaults.
 
 ## Recommended Direction
 
@@ -172,6 +177,15 @@ V1.0.0 configuration must be detected, translated, previewed, and backed up befo
 - Setup, doctor, runtime, and adapters report the same normalized paths for the same input.
 - Unknown fields fail with field name, source, and corrective action.
 - Redaction tests prove designated secrets never appear in diagnostic output.
+- The schema represents every field used by the public API, local service, Hermes adapter, profile resolver, and Obsidian workspace, with one owner/default/precedence and no contradictory alias.
+
+## Security / Privacy, Observability, and Rollback
+
+Endpoint, path, identity, privacy/write policy, and secret-bearing fields are validation/redaction boundaries. Effective configuration reports version and non-secret provenance once per runtime. Migration backs up and previews configuration; rollback restores the prior version/paths without moving or deleting canonical data.
+
+## Exit Gate and Traceability
+
+Exit requires complete machine-readable field inventory, precedence/unknown/deprecated/path/secret/two-runtime tests, migrations for every legacy form, and all mapped configuration requirements `COVERED`.
 
 ## Definition of Done
 

@@ -15,6 +15,10 @@
 
 F-001, F-002, F-003, F-004, F-013. Related ADRs: ADR-002, ADR-003.
 
+## Canonical Requirements
+
+REQ-LIFE-001 through REQ-LIFE-006, REQ-SEC-008, REQ-STORE-003/005/006, and recovery portions of REQ-OBS-006/012 in `SPEC_TRACEABILITY.md`; canonical DOCX §§6–7, 9.3, 12.6, 14.3–14.4, 16.4, 20; ADR-003 and ADR-008.
+
 ## Read Scope
 
 Read only the capture, ingestion, storage, backup, upgrade, doctor, and Hermes boundary modules named in **Files / Modules to Inspect**.
@@ -95,6 +99,7 @@ The current Hermes boundary can register capture hooks without a backing store, 
 - Recovery procedures cover stale derived data, malformed tails, lock contention, disk full, permission loss, interrupted migration, and schema mismatch.
 - Errors have stable codes, safe messages, retry guidance, and commit-state metadata.
 - Repair never mutates canonical data without backup and explicit authorization.
+- Canonical source, decision, profile-policy, concurrent-update, and stale-information conflicts have stable typed records; all positions/provenance remain visible and no last-writer-wins or silent overwrite is allowed.
 
 ## Constraints
 
@@ -112,6 +117,8 @@ The current Hermes boundary can register capture hooks without a backing store, 
 5. Add backup-before-migration and rollback verification.
 6. Implement a read-only diagnosis mode and explicit repair commands.
 7. Add fault-injection and crash-recovery tests.
+8. Define the canonical conflict taxonomy/detection/resolution audit contract consumed by retrieval and WP-22; keep projection/edit-conflict detection in WP-22.
+9. Cover retention/delete/tombstone recovery, approved write-back recovery, and conflict replay.
 
 ## Recommended Direction
 
@@ -120,7 +127,7 @@ Treat canonical append as the primary durability boundary and derived SQLite as 
 ## Alternatives Considered
 
 - **Hide failures and continue:** maximizes availability appearance but risks silent memory loss.
-- **Make SQLite canonical:** may simplify reads but is a schema/data-model change beyond the audited v1.0.0 contract.
+- **Make SQLite/derived indexes the only canonical source:** rejected; ADR-003 requires append-first replay provenance plus explicit canonical metadata and rebuildable indexes.
 - **Always auto-rebuild:** convenient, but expensive and unsafe when the canonical source itself is ambiguous.
 
 ## Risks
@@ -179,6 +186,16 @@ Before v1.1.0 migration, canonical data, configuration, descriptor state, and sc
 - Every fault-injection test yields a documented error code and commit-state classification.
 - Interrupted migration restores the pre-migration state through the documented rollback procedure.
 - Diagnosis mode is proven read-only by before/after hashes or equivalent metadata checks.
+- Source/decision/profile/concurrent/stale conflict fixtures preserve all canonical positions, return no silent winner, and reproduce through replay/rebuild.
+- Interrupted approved write-back or delete either commits exactly once with a known outcome or remains recovery-required; it never partially overwrites raw history.
+
+## Security / Privacy, Observability, and Rollback
+
+Recovery/conflict/delete operations require explicit authority and preserve forensic evidence without secret payloads. Status exposes safe conflict/backlog/recovery classes and commit outcome. Rollback restores verified backups/versioned metadata and appends compensating/superseding records; it never deletes raw history to hide a conflict.
+
+## Exit Gate and Traceability
+
+Exit requires the full failure/conflict/retention/delete/write-back matrix, replay/rebuild and backup/rollback proof on supported platforms, no P1 silent-loss/staleness/overwrite path, and all mapped requirements `COVERED`.
 
 ## Definition of Done
 

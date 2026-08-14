@@ -15,6 +15,10 @@
 
 F-005, F-012. Related ADR: ADR-004.
 
+## Canonical Requirements
+
+Compatibility portions of REQ-API-001/002/008, REQ-PROF, REQ-OBS, REQ-MIG, and REQ-TEST in `SPEC_TRACEABILITY.md`; canonical DOCX §§13, 16–19; ADR-004/006/007/008.
+
 ## Read Scope
 
 Read only the packaging, doctor, path, bridge configuration, and test modules named in **Files / Modules to Inspect**, plus ADR-004.
@@ -170,6 +174,15 @@ Users moving between native Windows, WSL, and Docker need explicit path mapping 
 - Every “unsupported” tested row exits non-zero before data mutation and prints the supported range.
 - No supported-platform script contains a hard-coded `venv/bin` or equivalent single-platform assumption.
 - Default and overridden paths pass the same validation in all components.
+- The four-capability local interface, five access modes, Hermes/generic clients, and Obsidian managed-root/review contract pass on every claimed supported environment or are explicitly unsupported before mutation.
+
+## Security / Privacy, Observability, and Rollback
+
+Platform differences cannot weaken endpoint/path/symlink/profile/source/secret/write boundaries. Capability checks and matrix status are content-safe. Rollback restores prior package/config/descriptor/projection compatibility and preserves data paths without silent relocation.
+
+## Exit Gate and Traceability
+
+Exit requires the exact supported/unsupported matrix, zero-failure lifecycle on supported rows, early safe rejection elsewhere, and all mapped compatibility requirements `COVERED`.
 
 ## Definition of Done
 

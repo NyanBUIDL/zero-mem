@@ -10,7 +10,7 @@ The audited Hermes boundary can register capture without a configured writer, an
 
 ## Decision
 
-Hermes will remain an optional adapter over the public lifecycle API. Registration must either own a configured persistence path or fail explicitly. Descriptor compatibility will be based on a versioned adapter/boundary contract, with package version retained for diagnostics.
+Hermes will remain an optional client/adapter over the public lifecycle and capability API. It maps verified Hermes hooks to generic observations, invokes the four canonical read capabilities through the same embedded/local interface used by other agents, and never defines a competing contract. Registration must either own a configured persistence path or fail explicitly. Descriptor compatibility will be based on versioned adapter/boundary/capability contracts, with package version retained for diagnostics.
 
 ## Why
 
@@ -19,10 +19,12 @@ This closes F-001 and F-007 without making Hermes a core dependency for other ag
 ## Consequences
 
 - WP-07 owns host mapping, registration, and descriptor migration.
-- WP-08 must expose the required public lifecycle operations.
+- WP-08 must expose the required lifecycle/capability operations; WP-21 owns local transport behavior.
 - Optional integration failure must be visible without crashing unrelated agent work.
+- Read timeout/unavailable behavior fails open for Hermes control flow, while unauthorized reads and writes fail closed at the Zero-Mem boundary.
 
 ## Rejected Alternatives
 
 - Allow registered hooks to silently drop events when a store is absent.
 - Bind descriptor validity solely to package patch version.
+- Add Hermes-specific storage, ranking, authorization, or MCP semantics to the core.

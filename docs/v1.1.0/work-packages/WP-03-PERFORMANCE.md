@@ -16,6 +16,10 @@
 
 F-003, F-008, F-010, F-014. Related ADRs: ADR-003 and ADR-005.
 
+## Canonical Requirements
+
+REQ-PERF-001 through REQ-PERF-007 and performance portions of REQ-STORE/REQ-RETR/REQ-API/REQ-OBS in `SPEC_TRACEABILITY.md`; canonical DOCX §§15–17 and 19.
+
 ## Read Scope
 
 Read only the modules and benchmark fixtures named in **Files / Modules to Inspect**, plus the audit measurements.
@@ -146,6 +150,15 @@ For 1k/10k/100k/1M: startup wall time/peak RSS, single and burst writes, suffix 
 - Candidate materialization is bounded or emits a deterministic capability warning.
 - 1k/10k metrics improve or remain within approved budgets with no invariant regression.
 - 100k/1M results are recorded or marked `Needs verification` in release notes.
+- Local sidecar, profile-mode unions/fallbacks, Obsidian projection/write-back, migration, startup, write, index rebuild, memory/disk, and context/token costs have measured baselines or explicit `benchmark required` plans.
+
+## Security / Privacy, Observability, and Rollback
+
+Performance changes cannot weaken durability, authorization, sensitivity, provenance, conflict visibility, or evidence budgets. Measurements expose stage/candidate/queue/resource counts without content. Every optimization is independently reversible and uses versioned derived indexes/configuration; rollback preserves canonical data.
+
+## Exit Gate and Traceability
+
+Exit requires reproducible 1k/10k results, 100k/1M measurement or honest disposition, no unexplained regression, bounded steady-state paths, and all mapped performance requirements `COVERED`.
 
 ## Definition of Done
 

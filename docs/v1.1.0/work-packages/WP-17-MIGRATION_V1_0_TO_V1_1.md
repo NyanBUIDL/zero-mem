@@ -15,6 +15,10 @@
 
 F-002, F-007, F-011, F-012. Related ADRs: ADR-001 through ADR-004.
 
+## Canonical Requirements
+
+REQ-MIG-001 through REQ-MIG-006 and REQ-STORE-005/006 in `SPEC_TRACEABILITY.md`; canonical DOCX §§9.3, 14.3–14.4, 16.4, 19; ADR-001 through ADR-008.
+
 ## Read Scope
 
 Read only upgrade, backup, path, configuration, storage, public package, descriptor, and test material named in **Files / Modules to Inspect**.
@@ -95,6 +99,7 @@ V1.1.0 changes architectural boundaries, configuration ownership, public APIs, s
 - Configuration and paths are translated without silently moving data.
 - Integration descriptors and API imports have explicit compatibility/deprecation handling.
 - Rollback is tested with populated, empty, stale-derived, and partially damaged fixtures.
+- Existing profile/grant/access-mode configuration, local service/Hermes descriptors, M9 projection manifests/human edits, review candidates/write-back records, and Vault managed-root ownership migrate without silent scope or file changes.
 
 ## Constraints
 
@@ -113,6 +118,7 @@ V1.1.0 changes architectural boundaries, configuration ownership, public APIs, s
 6. Rebuild or migrate derived state and compare logical record counts/identities.
 7. Add rollback and interrupted-migration recovery.
 8. Document internal-import deprecations and compatibility shims.
+9. Migrate/validate the composite canonical contract, local interface contract version, profile modes, Obsidian projection/review state, and exact-master M6/M9 compatibility.
 
 ## Recommended Direction
 
@@ -164,6 +170,16 @@ This work package is the migration contract. It covers data, derived indexes, co
 - Logical record count and stable identities match before/after.
 - Running migration twice produces no duplicate records or repeated descriptor entries.
 - Existing non-default profile paths remain selected unless explicitly changed.
+- Existing M9 managed/human files remain preserved; human edits become review candidates/conflicts rather than overwrite; projection can be rebuilt after migration.
+- Local service/Hermes and generic clients negotiate the documented contract/alias window; unsupported versions fail before mutation.
+
+## Security / Privacy, Observability, and Rollback
+
+Preflight validates path/endpoint/profile/write/Vault boundaries and never logs secret configuration or note content. Progress exposes stage/watermark/counts safely. Rollback restores v1.0-readable canonical/config/descriptor/projection state and keeps approved append records; it never silently downgrades or purges user data.
+
+## Exit Gate and Traceability
+
+Exit requires populated/empty/stale/missing/corrupt/non-default/interrupted fixtures covering data, indexes, config, profiles, clients, Hermes, projection, review/write-back and rollback, with all REQ-MIG rows `COVERED`.
 
 ## Benchmarks Required
 
@@ -197,6 +213,9 @@ This work package is the migration contract. It covers data, derived indexes, co
 - WP-09 Compatibility and Portability
 - WP-13 Configuration
 - WP-14 Reliability and Recovery
+- WP-20 Profiles and Knowledge Spaces
+- WP-21 Local Sidecar and MCP Interface
+- WP-22 Obsidian Knowledge Workspace design
 
 ## Blocks
 

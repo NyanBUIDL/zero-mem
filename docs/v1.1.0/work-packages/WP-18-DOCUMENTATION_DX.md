@@ -15,6 +15,10 @@
 
 F-005, F-007, F-011, F-013. Related ADRs: ADR-001, ADR-002, ADR-004.
 
+## Canonical Requirements
+
+Documentation/operator portions of every group in `SPEC_TRACEABILITY.md`, especially REQ-API, REQ-PROF, REQ-OBS, REQ-MIG, and REQ-TEST; canonical DOCX §§16.2–16.4, 18–21 and Appendices D–F.
+
 ## Read Scope
 
 Read public-facing documentation, package metadata, approved WPs, ADRs, CLI/API contracts, and named source modules only to verify claims.
@@ -108,6 +112,7 @@ The v1.1.0 program introduces a stable API, generic agent contracts, explicit ru
 6. Add health, failure, recovery, migration, rollback, and uninstall runbooks.
 7. Add contributor test/benchmark instructions.
 8. Execute and link-check all examples in CI.
+9. Document the four canonical capabilities, transport selection/local threat boundary, five access modes, required Obsidian views, review/write-back/conflict lifecycle, and canonical-vs-derived terminology exactly once with owner links.
 
 ## Recommended Direction
 
@@ -170,6 +175,16 @@ Migration documentation must include preflight, backup location, expected durati
 - Documentation contains separate pages for install, API, generic integration, Hermes, sync/async, multi-agent, configuration, health, recovery, migration, rollback, and uninstall.
 - Every documented command and configuration key is validated against the release candidate.
 - Search/link checks report zero broken internal links and zero unapproved **Needs verification** claims in release-facing pages.
+- A fresh integration author can replace Hermes with the generic client and complete the same capability workflow without interpreting internal M6 names.
+- Obsidian documentation covers projection, ownership, required pages, review queue, every write-back outcome, backup/rebuild, and no-direct-overwrite guarantees.
+
+## Security / Privacy, Observability, and Rollback
+
+Examples use synthetic content and safe local endpoint/path/profile settings; no secret or private import appears. Documentation versions and deprecation pages are preserved for rollback, and every operational guide states how to diagnose and reverse its changes without deleting user data.
+
+## Exit Gate and Traceability
+
+Exit requires every required guide/example executed against the exact wheel, canonical terminology/source links, zero broken links/private imports/unapproved uncertainty, and documentation evidence for every mandatory `SPEC_TRACEABILITY.md` row.
 
 ## Definition of Done
 
@@ -190,6 +205,9 @@ Migration documentation must include preflight, backup location, expected durati
 - WP-14 Reliability and Recovery
 - WP-15 Observability
 - WP-17 Migration
+- WP-20 Profiles and Knowledge Spaces
+- WP-21 Local Sidecar and MCP Interface
+- WP-22 Obsidian Knowledge Workspace
 
 ## Blocks
 

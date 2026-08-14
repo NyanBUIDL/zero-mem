@@ -16,6 +16,10 @@
 
 F-001, F-007, F-013. Related ADR: ADR-002.
 
+## Canonical Requirements
+
+REQ-ARCH-002/003/005, REQ-CAP-001/002, and REQ-API-001 through REQ-API-008 in `SPEC_TRACEABILITY.md`; canonical DOCX §§2.3, 5.1, 10.1–10.2, 13.1–13.3, 18 stage 6; ADR-002 and ADR-006.
+
 ## Read Scope
 
 Read only the Hermes integration modules named in **Files / Modules to Inspect**, public API contract material, and ADR-002.
@@ -75,7 +79,7 @@ Hermes descriptor, plugin registration, capture, read tools, injection, doctor, 
 
 ## Desired State
 
-Hermes adapter imports only the public Zero-Mem API. Installation exposes a documented supported plugin entry point. Registration reports per-surface readiness; capture cannot be “registered” without a writer. Descriptor compatibility uses adapter schema/boundary version, not exact package version.
+Hermes adapter imports only the public Zero-Mem API/client. Installation exposes a documented supported plugin entry point. Registration reports per-surface readiness; capture cannot be “registered” without a writer. Read tools call the same four canonical capabilities as a generic client through the embedded/local interface. Descriptor compatibility uses adapter, capability, and boundary versions, not exact package version.
 
 ## Constraints
 
@@ -89,6 +93,8 @@ No Hermes core edits, no secret reads, no identity inference, no raw SQL/JSONL/a
 4. Version descriptor by contract and provide migration/revalidation.
 5. Verify supported hook signatures against target Hermes versions.
 6. Persist content-safe adapter diagnostics through WP-15.
+7. Map every canonical capture class (session, message, tool, file, skill, task, decision/artifact/verification where observable) to a verified hook or an explicit public-observation fallback/capability-unavailable state; never claim unsupported coverage.
+8. Define the integration matrix: capture/write path, read path, optional controlled-injection path, caller identity/authorization, deadline, retry, fail-open host behavior, fail-closed policy behavior, fallback, shutdown, and compatibility.
 
 ## Recommended Direction
 
@@ -141,6 +147,18 @@ Session start, pre/post tool, session end, read tool, no-memory pre-LLM, memory-
 - Hermes continues unchanged when every Zero-Mem surface is unavailable.
 - Adapter operational code imports only public Zero-Mem API modules.
 - Descriptor survives compatible V1.0→V1.1 package upgrade.
+- `zero_mem.search`, `zero_mem.get_trace`, `zero_mem.get_task_state`, and `zero_mem.get_decisions` produce the same results through Hermes and the generic client.
+- Read timeout/unavailability performs no unsafe context injection and returns the documented empty/unavailable fallback; denial never falls back to broader scope.
+- Enabled capture covers every declared canonical event class or emits an explicit unsupported-hook diagnostic; registration success never means silent drop.
+- Hermes core source remains unchanged unless a future maintainer authorization explicitly names the minimum unavoidable file scope.
+
+## Security / Privacy, Observability, and Rollback
+
+Hermes supplies explicit caller/profile/project identity but cannot supply grants, trust flags, raw paths, or verification. Redaction precedes capture; read/write authorization remains core-owned. Per-surface readiness, hook/tool versions, last safe error, timeout/fallback, and capture/retrieval watermark are content-safe. Rollback unregisters/removes the adapter descriptor and restores compatible config while preserving all user data.
+
+## Exit Gate and Traceability
+
+Exit requires installed-wheel real activation, event-class coverage, capture→canonical→sync→read, four-capability parity, timeout/failure/security/migration/performance tests, no Hermes-core dependency in core, and all mapped requirements `COVERED`.
 
 ## Definition of Done
 
@@ -151,7 +169,7 @@ Session start, pre/post tool, session end, read tool, no-memory pre-LLM, memory-
 
 ## Dependencies
 
-WP-02, WP-04, WP-06, WP-08, WP-13, WP-15.
+WP-02, WP-04, WP-06, WP-08, WP-13, WP-15, WP-20, WP-21.
 
 ## Blocks
 

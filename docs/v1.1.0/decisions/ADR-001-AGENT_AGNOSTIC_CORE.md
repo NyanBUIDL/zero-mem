@@ -10,7 +10,7 @@ V1.0.0 exposes operational behavior through internal modules and uses mutable pr
 
 ## Decision
 
-V1.1.0 will define a small, versioned public lifecycle API with explicitly constructed runtime instances. Host adapters receive runtime handles; they do not mutate a process-global master runtime.
+V1.1.0 will define the small, versioned transport-neutral lifecycle and capability contract in [`INTERFACE_CONTRACT.md`](../INTERFACE_CONTRACT.md), with explicitly constructed runtime instances. Host adapters and local transports receive runtime handles; they do not mutate a process-global master runtime. An embedded Python facade and the MCP/local sidecar binding must be semantic peers over the same core contract; neither Hermes nor one transport owns core behavior.
 
 ## Why
 
@@ -19,6 +19,7 @@ This directly addresses F-006 and F-011 and enables a generic agent integration 
 ## Consequences
 
 - Public lifecycle, error, consistency, and close semantics must be documented and tested.
+- A generic client must pass the same four-capability conformance suite as Hermes without core changes.
 - Existing internal imports require a migration/deprecation plan.
 - Adapter construction changes are scoped to WP-08 and dependent packages only after authorization.
 
@@ -26,3 +27,4 @@ This directly addresses F-006 and F-011 and enables a generic agent integration 
 
 - Keep internal `src.*` modules as the external contract.
 - Retain mutable module-global runtime as the universal configuration path.
+- Use an embedded-only API and omit the canonical local sidecar interface.

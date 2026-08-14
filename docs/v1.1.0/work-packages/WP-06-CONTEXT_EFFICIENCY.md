@@ -16,6 +16,10 @@
 
 F-008, F-009. Related ADR: ADR-005.
 
+## Canonical Requirements
+
+REQ-RETR-008 through REQ-RETR-010 and REQ-PERF-001 through REQ-PERF-004 in `SPEC_TRACEABILITY.md`; canonical DOCX §§11.4–11.5 and 15.1–15.3.
+
 ## Read Scope
 
 Read only the M7/M8 context-selection modules named in **Files / Modules to Inspect**, their retrieval contracts, and ADR-005.
@@ -139,6 +143,16 @@ Context bytes/tokens, selection latency, duplicate rate, and useful-evidence hit
 - Freshness/insufficient states are explicit.
 - Repeat suppression, if enabled, is deterministic and session-isolated.
 - Token/cost claims include measured baselines and methodology.
+- Default evidence begins from 5 primary, at most 3 supporting, and 3,000–6,000 tokens; any change requires benchmark-backed approval and never raises a caller above profile/server policy.
+- Conflict, insufficient, freshness, omitted count, provenance, verification, and status survive serialization through every adapter/transport.
+
+## Security / Privacy, Observability, and Rollback
+
+Context assembly rechecks scope/sensitivity and treats evidence as data, not instruction. Metrics expose route, selected/omitted units, estimated/actual tokens, freshness, conflict/insufficiency, and truncation reason without content. Budget/fingerprint policy versions are reversible; rollback disables new suppression/ranking while preserving bounded canonical behavior.
+
+## Exit Gate and Traceability
+
+Exit requires no-memory, route, repeat, leakage, prompt-injection, budget, provenance, stale/conflict/insufficient, and token-baseline tests with all mapped REQ-RETR/REQ-PERF rows `COVERED`.
 
 ## Definition of Done
 
@@ -149,7 +163,7 @@ Context bytes/tokens, selection latency, duplicate rate, and useful-evidence hit
 
 ## Dependencies
 
-WP-04, WP-05, WP-08 API contract.
+WP-04, WP-05, WP-08 API contract, WP-20 profile/knowledge-space contract.
 
 ## Blocks
 

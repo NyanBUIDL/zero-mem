@@ -16,6 +16,10 @@
 
 F-001, F-002, F-006, F-007, F-011. Related ADRs: ADR-001 and ADR-002.
 
+## Canonical Requirements
+
+REQ-ARCH-001 through REQ-ARCH-005 and REQ-API-001 through REQ-API-003 in `SPEC_TRACEABILITY.md`; canonical DOCX §§2.3, 5.1, 13.1; ADR-001, ADR-002, ADR-006.
+
 ## Read Scope
 
 Read only the modules named in **Files / Modules to Inspect**, public package metadata, and the relevant ADRs.
@@ -76,7 +80,7 @@ Hermes-specific modules are concentrated under `src/integration/hermes_*`, `payl
 
 ## Desired State
 
-Dependencies flow `adapter -> public API -> core -> storage/retrieval`; never `core -> adapter`. Runtime/configuration is immutable and client-owned. Hermes payloads are translated to public observations before reaching core logic.
+Dependencies flow `Hermes/generic adapter or local transport -> public API -> core -> storage/retrieval`; never `core -> adapter/transport`. Runtime/configuration is immutable and client-owned. Hermes payloads are translated to public observations before reaching core logic; MCP/HTTP/UDS framing is translated to public capability requests before policy/retrieval.
 
 ## Constraints
 
@@ -158,4 +162,12 @@ WP-04, WP-07, WP-08, WP-11, WP-12, WP-13.
 
 ## Out of Scope
 
-Storage algorithm changes, ranking redesign, remote service boundaries, and non-Hermes ecosystem adapters.
+Storage algorithm changes, ranking redesign, remote/cloud service boundaries, and non-Hermes framework adapters. The canonical local sidecar boundary is owned by WP-21 and is not out of scope.
+
+## Security / Privacy, Observability, and Rollback
+
+Boundary tests must reject host/transport authority injection, identity inference, raw storage access, and adapter-owned authorization. Each adapter/transport reports readiness/version without payload content. Rollback keeps compatibility shims for one documented window and restores prior adapter wiring without canonical mutation.
+
+## Exit Gate and Traceability
+
+Exit requires import/dependency tests for core, Hermes, and transport boundaries; two independent runtimes; public-only generic and local-service fixtures; and all mapped REQ-ARCH/REQ-API rows `COVERED`.

@@ -16,6 +16,10 @@
 
 F-008, F-009. Related ADR: ADR-005.
 
+## Canonical Requirements
+
+REQ-RETR-001 through REQ-RETR-010 and the ranking/application portions of REQ-PROF-003 through REQ-PROF-007 in `SPEC_TRACEABILITY.md`; canonical DOCX §§11.1–11.5, 15, 17; ADR-005 and ADR-007.
+
 ## Read Scope
 
 Read only the retrieval, access, corpus-query, and evidence-builder modules named in **Files / Modules to Inspect**, their policy contracts, and ADR-005.
@@ -74,11 +78,11 @@ M3 retrieval, M5 authorized reads, M6 tools, M7 evidence, corpus FTS, cursor sem
 
 ## Desired State
 
-Raw chronological APIs remain available when explicitly requested. Context-facing APIs use a versioned deterministic selection policy with bounded authorized candidates, current lifecycle handling, conflict visibility, and stable pagination.
+Raw chronological APIs remain available when explicitly requested. Context-facing APIs consume WP-20's authorized scope and use a versioned deterministic dual-view selection policy: lexical/FTS plus local dense capability when configured, fused with temporal, relational, hierarchy, verification, current-state, and conflict signals. Candidates, expansions, context, and pagination are bounded and provenance-preserving.
 
 ## Constraints
 
-Authorization must occur before unauthorized content can affect ranking. No mandatory semantic model. Do not silently choose winners in conflicts or treat assistant claims as verified facts.
+Authorization must occur before unauthorized content can affect ranking. No mandatory remote model/service and no LLM call. The canonical dense-retrieval capability is a local replaceable adapter with explicit `CAPABILITY_UNAVAILABLE`/lexical behavior; it never widens scope. Do not silently choose winners in conflicts or treat assistant claims as verified facts.
 
 ## Required Changes
 
@@ -88,6 +92,8 @@ Authorization must occur before unauthorized content can affect ranking. No mand
 4. Define relevance/currentness/verification signals for context-facing ranking.
 5. Preserve explicit conflict and provenance fields.
 6. Diagnose FTS-unavailable fallback instead of silently scanning large stores.
+7. Define lexical+dense+temporal+relational fusion, optional-capability behavior, provenance, and stable score/tie-break semantics.
+8. Consume the five access modes from WP-20; do not duplicate profile authorization.
 
 ## Recommended Direction
 
@@ -95,7 +101,7 @@ Use indexed SQL to fetch a bounded authorized candidate window, then apply a sma
 
 ## Alternatives Considered
 
-- Global ANN/vector database: rejected for V1.1.0.
+- Mandatory external/global ANN/vector service: rejected. A bounded local dense adapter remains part of the canonical dual-view contract.
 - Continue ordering all FTS by oldest first: retained only as explicit raw mode.
 - Apply authorization after global ranking: rejected for security/influence reasons.
 
@@ -140,6 +146,16 @@ Exact lookup, selective/broad FTS, metadata-only corpus, multi-scope grants, col
 - Ordering mode is explicit and deterministic.
 - Active/current evidence is not hidden solely by older matching rows.
 - FTS-unavailable large-store fallback is bounded or returns a typed capability state.
+- Local dense results are authorization-filtered before influence, preserve provenance, and cannot widen candidates/budgets; unavailable dense capability leaves deterministic documented lexical behavior.
+- `profile_first`, `explicit_union`, `isolated`, `global`, and `source_restricted` conformance passes through the same retrieval path.
+
+## Security / Privacy, Observability, and Rollback
+
+Authorization precedes lexical/dense fusion, counts, graph/neighbor expansion, and caching. Diagnostics report candidate counts, stages, mode, freshness, conflict/insufficiency, and capability state without payloads or hidden scope IDs. Ranking/index changes are versioned; rollback selects the prior policy/index version and rebuilds derived state without canonical mutation.
+
+## Exit Gate and Traceability
+
+Exit requires gold-evidence quality, authorization-influence, access-mode, conflict/stale, bounded-candidate, fallback, pagination, and 1k/10k/large-scale benchmarks with all REQ-RETR rows `COVERED`.
 
 ## Definition of Done
 
