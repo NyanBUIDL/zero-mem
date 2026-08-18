@@ -273,7 +273,7 @@
         "artifacts/handoffs/WP-12-HANDOFF.md"
       ],
       "scope_status": "MATERIALIZED_ALL_TASKS",
-      "checkpoint_commit": "PENDING_WP12_COMMIT",
+      "checkpoint_commit": "baae599abe6f3ac69a488d70f27b5cfa72bb96e6",
       "evidence": "artifacts/evidence/WP-12-CLOSURE.md"
     },
     {
