@@ -11,6 +11,11 @@
 | `artifacts/evidence/WP-01-CLOSURE.md` | WP-01 VERIFIED | current durable evidence |
 | `artifacts/evidence/WP-02-CLOSURE.md` | WP-02 VERIFIED | current durable evidence |
 | `artifacts/handoffs/WP-02-HANDOFF.md` | WP-02 boundary handoff | next-phase context |
+| `artifacts/evidence/WP-13-CLOSURE.md` | WP-13 configuration closure | current durable evidence |
+| `artifacts/evidence/WP-04-CLOSURE.md` | WP-04 storage closure | current durable evidence |
+| `artifacts/evidence/WP-03-CLOSURE.md` | WP-03 performance closure | current durable evidence |
+| `artifacts/evidence/WP-08-CLOSURE.md` | WP-08 API closure | current durable evidence |
+| `artifacts/evidence/PHASE-B-CLOSURE.md` | Phase B closure | phase checkpoint evidence |
 | `artifacts/control/runner-state.yaml` | current phase/WP selection | runner compatibility |
 | `artifacts/control/PHASE-OVERLAY.yaml` | phases, mapping, closure model | canonical derived sequencing overlay |
 

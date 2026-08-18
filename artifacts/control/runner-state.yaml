@@ -1,8 +1,8 @@
 runner: MASTER-AUTONOMOUS-RUNNER
 lifecycle: PHASE_OVERLAY_ESTABLISHED
-phase: B
+phase: C
 phase_state: IN_PROGRESS
-current_task: WP-08
+current_task: WP-05
 completed_tasks:
   - WP-00
   - WP-01
@@ -18,9 +18,9 @@ completed_verified_wps:
   - WP-04
   - WP-03
 active_authorizations: []
-last_checkpoint: 014c3c92da7946f6b43848c978c2612351b77a32
-last_action: WP-03 verified with 1k/10k real rollout performance evidence
-next_action: execute WP-08 after dependency validation
+last_checkpoint: 6ff2a7920275511fdfaf254b8ec13498cf32ab76
+last_action: Phase B closure gates passed over four mapped WPs
+next_action: materialize Phase C scopes and execute WP-05
 phase_overlay: artifacts/control/PHASE-OVERLAY.yaml
 wp_authority: artifacts/tasks/task-manifest.json
 selection_model: current durable state -> incomplete WPs -> WP dependencies -> legal phase -> eligible WP/task

@@ -3,7 +3,7 @@
 | Phase | WPs | State | Evidence basis | Next gate |
 |---|---|---|---|---|
 | A | WP-00, WP-01, WP-02 | VERIFIED | WP-02 evidence, isolated regression, governance review | Phase B scope materialization |
-| B | WP-13, WP-04, WP-03, WP-08 | NOT_STARTED | no current durable WP evidence | Phase A VERIFIED + checkpoint |
+| B | WP-13, WP-04, WP-03, WP-08 | VERIFIED | Phase B closure, focused evidence, isolated full regression | Phase C scope materialization |
 | C | WP-05, WP-20, WP-06, WP-09, WP-11, WP-12 | NOT_STARTED | no current durable WP evidence | Phase B VERIFIED + checkpoint |
 | D | WP-14, WP-15 | NOT_STARTED | no current durable WP evidence | Phase C VERIFIED + checkpoint |
 | E | WP-21, WP-07, WP-22 | NOT_STARTED | no current durable WP evidence | Phase D VERIFIED + checkpoint |
@@ -19,6 +19,6 @@
 
 Phase state is derived from current WP evidence. Historical lost Phase A–E labels are not current evidence.
 
-**Current durable phase:** A
-**Next incomplete WP:** WP-13
-**Implementation authorization:** Phase B remains inactive until its exact task scopes are materialized.
+**Current durable phase:** C
+**Next incomplete WP:** WP-05
+**Implementation authorization:** Phase C scopes must be materialized before implementation.
