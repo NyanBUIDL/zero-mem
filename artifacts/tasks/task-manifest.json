@@ -161,7 +161,7 @@
         "artifacts/handoffs/WP-06-HANDOFF.md"
       ],
       "scope_status": "MATERIALIZED_ALL_TASKS",
-      "checkpoint_commit": "PENDING_WP06_COMMIT",
+      "checkpoint_commit": "bc39eb694a16736446549ecadb7bcdf2f8e55b98",
       "evidence": "artifacts/evidence/WP-06-CLOSURE.md"
     },
     {

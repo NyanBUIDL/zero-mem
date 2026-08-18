@@ -2,7 +2,7 @@ runner: MASTER-AUTONOMOUS-RUNNER
 lifecycle: PHASE_OVERLAY_ESTABLISHED
 phase: C
 phase_state: IN_PROGRESS
-current_task: WP-06
+current_task: WP-09
 completed_tasks:
   - WP-00
   - WP-01
@@ -22,9 +22,9 @@ completed_verified_wps:
   - WP-05
   - WP-20
 active_authorizations: []
-last_checkpoint: 18738850074936c41948a8ea40c87b5459e68152
-last_action: WP-20 verified with profile and knowledge-space isolation evidence
-next_action: execute WP-06 after dependency validation
+last_checkpoint: bc39eb694a16736446549ecadb7bcdf2f8e55b98
+last_action: WP-09 blocked on unapproved compatibility matrix
+next_action: maintainer decision required for WP-09 support matrix
 phase_overlay: artifacts/control/PHASE-OVERLAY.yaml
 wp_authority: artifacts/tasks/task-manifest.json
 selection_model: current durable state -> incomplete WPs -> WP dependencies -> legal phase -> eligible WP/task
