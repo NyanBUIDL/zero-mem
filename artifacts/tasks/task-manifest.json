@@ -442,7 +442,19 @@
         "WP-14",
         "WP-15"
       ],
-      "status": "NOT_STARTED"
+      "status": "VERIFIED",
+      "authorized_scope": [
+        "artifacts/tasks/WP-21.md",
+        "zero_mem/sidecar.py",
+        "zero_mem/api.py",
+        "tests/unit/test_wp21_sidecar.py",
+        "benchmarks/wp21_sidecar.py",
+        "docs/v1.1.0/INTERFACE_CONTRACT.md",
+        "artifacts/evidence/WP-21-CLOSURE.md",
+        "artifacts/handoffs/WP-21-HANDOFF.md"
+      ],
+      "checkpoint_commit": "PENDING_WP21_COMMIT",
+      "evidence": "artifacts/evidence/WP-21-CLOSURE.md"
     },
     {
       "id": "WP-22",
