@@ -21,4 +21,4 @@ No blocker remains. The earlier regression caused by replacing the historical pr
 
 `PASS — WP-00 VERIFIED`
 
-A local checkpoint commit is required before WP-01 activation. Remote publication remains denied.
+A local checkpoint was created before WP-01 activation: `f8e1e59f25c12d60c2ada18a7948bc53c68d24f0`. Remote publication remains denied.
