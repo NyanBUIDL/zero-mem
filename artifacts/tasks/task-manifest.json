@@ -214,7 +214,9 @@
         "zero_mem/commands_doctor.py",
         "tests/unit/test_wp13_configuration.py",
         "tests/integration/test_wp13_configuration_integration.py",
-        "benchmarks/wp13_configuration.py"
+        "benchmarks/wp13_configuration.py",
+        "artifacts/evidence/WP-13-PROGRESS.md",
+        "artifacts/handoffs/WP-13-HANDOFF.md"
       ],
       "scope_status": "MATERIALIZED_ALL_TASKS"
     },

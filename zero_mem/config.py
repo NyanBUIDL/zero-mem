@@ -9,6 +9,17 @@ from typing import Any, Mapping
 
 from .paths import CONFIG_SCHEMA_VERSION, ConfigurationError, data_root, config_path
 
+SUPPORTED_ENVIRONMENT_INPUTS = (
+    "ZERO_MEM_ENABLED",
+    "ZERO_MEM_DATA_ROOT",
+    "ZERO_MEM_CAPTURE_ROOT",
+    "HERMES_PROJECT_ID",
+    "HERMES_PROFILE_ID",
+    "HERMES_HOME",
+    "ZERO_MEM_OBSIDIAN_VAULT",
+    "ZERO_MEM_OBSIDIAN_MANAGED_DIR",
+)
+
 
 class EffectiveConfigurationError(ConfigurationError):
     """Sanitized configuration validation failure."""
@@ -19,6 +30,12 @@ class EffectiveConfig:
     schema_version: int
     enabled: bool
     data_root: Path
+    project_id: str | None
+    profile_id: str | None
+    capture_root: Path
+    hermes_home: Path | None
+    obsidian_vault: Path | None
+    managed_dir_name: str
     source: Mapping[str, str]
 
     def diagnostics(self) -> dict[str, Any]:
@@ -80,7 +97,50 @@ def load_effective_config(*, explicit: Mapping[str, object] | None = None) -> Ef
         raise EffectiveConfigurationError("data_root must be absolute")
     if "schema_version" in descriptor and descriptor["schema_version"] != CONFIG_SCHEMA_VERSION:
         raise EffectiveConfigurationError("unsupported configuration schema")
-    return EffectiveConfig(CONFIG_SCHEMA_VERSION, enabled, root.resolve(), source)
+    def optional_path(env_name: str) -> Path | None:
+        value = os.environ.get(env_name)
+        if not value:
+            return None
+        candidate = Path(value).expanduser()
+        if not candidate.is_absolute():
+            raise EffectiveConfigurationError(f"{env_name} must be absolute")
+        return candidate.resolve()
+
+    def optional_id(env_name: str) -> str | None:
+        value = os.environ.get(env_name)
+        if value is None:
+            return None
+        value = value.strip()
+        return value or None
+
+    managed_dir_name = os.environ.get("ZERO_MEM_OBSIDIAN_MANAGED_DIR", "Zero-Mem").strip()
+    if not managed_dir_name or "/" in managed_dir_name or "\\" in managed_dir_name:
+        raise EffectiveConfigurationError("invalid ZERO_MEM_OBSIDIAN_MANAGED_DIR")
+    capture_root = optional_path("ZERO_MEM_CAPTURE_ROOT") or (root / "data" / "traces")
+    return EffectiveConfig(
+        CONFIG_SCHEMA_VERSION,
+        enabled,
+        root.resolve(),
+        optional_id("HERMES_PROJECT_ID"),
+        optional_id("HERMES_PROFILE_ID"),
+        capture_root,
+        optional_path("HERMES_HOME"),
+        optional_path("ZERO_MEM_OBSIDIAN_VAULT"),
+        managed_dir_name,
+        source,
+    )
 
 
-__all__ = ["EffectiveConfig", "EffectiveConfigurationError", "load_effective_config"]
+def configuration_contract() -> dict[str, object]:
+    """Return the non-secret compatibility contract for configuration inputs."""
+    return {
+        "schema_version": CONFIG_SCHEMA_VERSION,
+        "precedence": ["explicit", "environment", "descriptor", "default"],
+        "supported_environment_inputs": list(SUPPORTED_ENVIRONMENT_INPUTS),
+        "unknown_fields": "reject",
+        "unsupported_schema": "reject_without_mutation",
+        "secrets": "not_supported_in_configuration_contract",
+    }
+
+
+__all__ = ["EffectiveConfig", "EffectiveConfigurationError", "SUPPORTED_ENVIRONMENT_INPUTS", "configuration_contract", "load_effective_config"]

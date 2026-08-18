@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from .config import EffectiveConfigurationError, load_effective_config
 from .paths import (
     ConfigurationError,
     config_path,
@@ -106,6 +107,14 @@ def collect() -> dict[str, Any]:
 
     sqlite_status, sqlite_message = _sqlite_check()
     checks.append(_check("sqlite", sqlite_status, sqlite_message))
+
+    try:
+        effective = load_effective_config()
+        if effective.data_root != effective.data_root.resolve():
+            raise EffectiveConfigurationError("effective data root is not normalized")
+        checks.append(_check("effective_configuration", "PASS", "effective configuration converged"))
+    except EffectiveConfigurationError as exc:
+        checks.append(_check("effective_configuration", "FAIL", str(exc)))
 
     try:
         load_config()
