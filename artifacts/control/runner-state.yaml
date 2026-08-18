@@ -22,7 +22,7 @@ completed_verified_wps:
   - WP-05
   - WP-20
 active_authorizations: []
-last_checkpoint: bc39eb694a16736446549ecadb7bcdf2f8e55b98
+last_checkpoint: 750bc6cdbb64eb4089cabda5fc41c2a0da7182ff
 last_action: WP-09 blocked on unapproved compatibility matrix
 next_action: maintainer decision required for WP-09 support matrix
 phase_overlay: artifacts/control/PHASE-OVERLAY.yaml
