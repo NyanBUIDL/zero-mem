@@ -7,9 +7,9 @@ This is a governance/control-plane index, not Product Memory.
 - Canonical spec SHA-256: `85b66cbfd380a756eba9266ec8021b331dfee232ab95bd030f287766ba628b9a`
 - Durable worktree: `/home/lenovo/Hermes Workspace/zero-mem-v1.1`
 - Local branch: `NyanBUIDL-Zero-mem`
-- Local checkpoint: `f8e1e59f25c12d60c2ada18a7948bc53c68d24f0`
-- Lifecycle: `WP-00_VERIFIED_AND_CHECKPOINTED`
-- Current WP/task: `WP-01` / scope materialization pending
+- Local checkpoint: `0cbfa6d3d86845346591d99ee75acf6e9f2f448a`
+- Lifecycle: `WP-01_VERIFIED`
+- Current WP/task: `WP-02` / scope materialization pending
 - Roadmap: WP-00..WP-22 DAG from surviving planning authority
 - Product Memory boundary: prompts, handoffs, Graphify, Development Memory, secrets, credentials, and governance evidence are excluded
 - Baseline: 3138 passed, 5 skipped, 0 failed

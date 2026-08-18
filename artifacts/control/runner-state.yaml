@@ -1,12 +1,12 @@
 runner: MASTER-AUTONOMOUS-RUNNER
-lifecycle: WP-01_IN_PROGRESS
+lifecycle: WP-01_VERIFIED_AND_CHECKPOINTED
 phase: WP-01
-current_task: architecture-contract
+current_task: WP-02
 completed_tasks:
   - WP-00
-active_authorizations:
-  - WP-01 control-plane architecture scope
-last_checkpoint: e85891630435f570e64b0d41c5dae523a63b72c4
-last_action: WP-01 scope and production call graph materialized
-next_action: run WP-01 closure and create local checkpoint
+  - WP-01
+active_authorizations: []
+last_checkpoint: 0cbfa6d3d86845346591d99ee75acf6e9f2f448a
+last_action: WP-01 verified and locally checkpointed
+next_action: materialize WP-02 exact scope and production call graph
 remote_publication: DENIED

@@ -17,4 +17,4 @@ Only the WP-01 control-plane packet, codemap, prompt, evidence/handoff, and name
 
 ## Decision
 
-WP-01 control-plane architecture contract is ready for local checkpoint. Runtime implementation remains a separate exact-scope task and is not silently claimed here.
+WP-01 control-plane architecture contract is ready for local checkpoint `0cbfa6d3d86845346591d99ee75acf6e9f2f448a`.
