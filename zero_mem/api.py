@@ -1,6 +1,8 @@
 """Versioned, transport-neutral public Zero-Mem lifecycle API."""
 from __future__ import annotations
 
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -18,6 +20,14 @@ class ClientClosedError(ZeroMemAPIError):
 
 
 class InvalidRequestError(ZeroMemAPIError):
+    pass
+
+
+class AsyncQueueFullError(ZeroMemAPIError):
+    pass
+
+
+class AsyncTimeoutError(ZeroMemAPIError):
     pass
 
 
@@ -122,7 +132,81 @@ class PublicClient:
         self.shutdown()
 
 
+class AsyncClient:
+    """Bounded async wrapper; blocking work runs on one owned worker."""
+
+    def __init__(self, sync_client: PublicClient, *, queue_capacity: int = 16) -> None:
+        if not isinstance(queue_capacity, int) or queue_capacity < 1:
+            raise InvalidRequestError("queue_capacity_invalid")
+        self._sync = sync_client
+        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="zero-mem")
+        self._slots = asyncio.BoundedSemaphore(queue_capacity)
+        self._closed = False
+
+    @classmethod
+    def open(cls, config: CoreConfig | None = None, *, writer: EventWriter | None = None,
+             consistency_policy: str | None = None, queue_capacity: int = 16) -> "AsyncClient":
+        return cls(PublicClient.open(config, writer=writer, consistency_policy=consistency_policy), queue_capacity=queue_capacity)
+
+    async def _call(self, operation: Any, *, deadline: float | None = None) -> Any:
+        if self._closed:
+            raise ClientClosedError("client_closed")
+        try:
+            acquire = self._slots.acquire()
+            if deadline is None:
+                await acquire
+            else:
+                await asyncio.wait_for(acquire, timeout=deadline)
+        except asyncio.TimeoutError:
+            raise AsyncQueueFullError("async_queue_full") from None
+        try:
+            loop = asyncio.get_running_loop()
+            future = loop.run_in_executor(self._executor, operation)
+            if deadline is None:
+                return await future
+            return await asyncio.wait_for(future, timeout=deadline)
+        except asyncio.TimeoutError:
+            raise AsyncTimeoutError("async_operation_timeout") from None
+        finally:
+            self._slots.release()
+
+    async def session_start(self, session_id: str, *, deadline: float | None = None) -> str:
+        return await self._call(lambda: self._sync.session_start(session_id), deadline=deadline)
+
+    async def observe_message(self, payload: object, *, deadline: float | None = None) -> CaptureResult:
+        return await self._call(lambda: self._sync.observe_message(payload), deadline=deadline)
+
+    async def observe_tool_call(self, payload: object, *, deadline: float | None = None) -> CaptureResult:
+        return await self._call(lambda: self._sync.observe_tool_call(payload), deadline=deadline)
+
+    async def sync(self, *, deadline: float | None = None) -> str:
+        return await self._call(self._sync.sync, deadline=deadline)
+
+    async def health(self) -> Health:
+        if self._closed:
+            raise ClientClosedError("client_closed")
+        return self._sync.health()
+
+    async def aclose(self) -> str:
+        if self._closed:
+            return "ALREADY_SHUTDOWN"
+        self._closed = True
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(self._executor, self._sync.shutdown)
+        self._executor.shutdown(wait=True)
+        return result
+
+    async def __aenter__(self) -> "AsyncClient":
+        if self._closed:
+            raise ClientClosedError("client_closed")
+        return self
+
+    async def __aexit__(self, *_args: object) -> None:
+        await self.aclose()
+
+
 __all__ = [
-    "API_VERSION", "CapabilityResult", "ClientClosedError", "Health",
-    "InvalidRequestError", "PublicClient", "ZeroMemAPIError",
+    "API_VERSION", "AsyncClient", "AsyncQueueFullError", "AsyncTimeoutError",
+    "CapabilityResult", "ClientClosedError", "Health", "InvalidRequestError",
+    "PublicClient", "ZeroMemAPIError",
 ]

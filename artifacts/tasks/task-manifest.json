@@ -242,7 +242,7 @@
       "depends_on": [
         "WP-08"
       ],
-      "status": "READY_FOR_EXECUTION",
+      "status": "VERIFIED",
       "authorized_scope": [
         "artifacts/tasks/WP-11.md",
         "zero_mem/api.py",
@@ -251,7 +251,9 @@
         "artifacts/evidence/WP-11-CLOSURE.md",
         "artifacts/handoffs/WP-11-HANDOFF.md"
       ],
-      "scope_status": "MATERIALIZED_ALL_TASKS"
+      "scope_status": "MATERIALIZED_ALL_TASKS",
+      "checkpoint_commit": "PENDING_WP11_COMMIT",
+      "evidence": "artifacts/evidence/WP-11-CLOSURE.md"
     },
     {
       "id": "WP-12",
