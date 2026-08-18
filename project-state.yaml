@@ -1250,7 +1250,6 @@ pkg7_release_candidate:
   next_phase: "PKG-8_PUBLICATION_PENDING_OWNER_DEFINITION"
   next_authorized_phase: "NONE"
 # Durable v1.1 reconstruction control-plane overlay
-v11_restart_lifecycle: WP-00_VERIFIED
 v11_previous_temp_worktree: /tmp/zero-mem
 v11_previous_temp_worktree_status: LOST_AFTER_REBOOT_OR_TMP_CLEANUP
 v11_previous_phase_d_e_implementation: NOT_RECOVERED
@@ -1261,8 +1260,9 @@ v11_durable_worktree: /home/lenovo/Hermes Workspace/zero-mem-v1.1
 v11_branch: NyanBUIDL-Zero-mem
 v11_planning_ref: 2f1763f1335326b83bf90f263cada5c3715f21eb
 v11_canonical_sha256: 85b66cbfd380a756eba9266ec8021b331dfee232ab95bd030f287766ba628b9a
-v11_current_phase: WP-00
-v11_current_task: WP-01
+v11_restart_lifecycle: WP-01_IN_PROGRESS
+v11_current_phase: WP-01
+v11_current_task: architecture-contract
 v11_last_verified_phase: WP-00
 v11_checkpoint_sha: f8e1e59f25c12d60c2ada18a7948bc53c68d24f0
 v11_remote_publication: DENIED

@@ -8,7 +8,7 @@
   "remote_publication": false,
   "tasks": [
     {"id":"WP-00","title":"Baseline Reconciliation and Delta Audit","depends_on":[],"kind":"control-only","status":"IN_PROGRESS"},
-    {"id":"WP-01","title":"Architecture","depends_on":["WP-00"],"status":"NOT_STARTED"},
+    {"id":"WP-01","title":"Architecture","depends_on":["WP-00"],"status":"IN_PROGRESS","authorized_scope":["artifacts/tasks/WP-01.md","artifacts/codemaps/WP-01-architecture.md","artifacts/evidence/WP-01-*.md","artifacts/handoffs/WP-01-*.md","prompts/phases/WP-01.md","project-state.yaml"]},
     {"id":"WP-02","title":"Core Boundaries","depends_on":["WP-01"],"status":"NOT_STARTED"},
     {"id":"WP-03","title":"Performance","depends_on":["WP-04"],"status":"NOT_STARTED"},
     {"id":"WP-04","title":"Storage Freshness Retention Delete","depends_on":["WP-13","WP-02"],"status":"NOT_STARTED"},

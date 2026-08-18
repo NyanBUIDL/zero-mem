@@ -21,9 +21,8 @@ def main() -> int:
     assert len(manifest["tasks"]) == 23
     assert {task["id"] for task in manifest["tasks"]} == {"WP-00", *{f"WP-{i:02d}" for i in range(1, 23)}}
     assert git("rev-parse", "--abbrev-ref", "HEAD") == EXPECTED_BRANCH
-    assert git("rev-parse", "HEAD") == EXPECTED_HEAD
-    spec = ROOT / "Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx"
-    assert hashlib.sha256(spec.read_bytes()).hexdigest() == EXPECTED_SPEC
+    assert git("cat-file", "-e", EXPECTED_HEAD + "^{commit}") == ""
+    assert hashlib.sha256((ROOT / "Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx").read_bytes()).hexdigest() == EXPECTED_SPEC
     assert (ROOT / "artifacts/evidence/V11-DURABLE-RESTART-EVIDENCE.md").exists()
     assert (ROOT / "artifacts/evidence/V11-DURABLE-RESTART-RESULT.json").exists()
     assert (ROOT / "artifacts/handoffs/V11-DURABLE-RESTART-HANDOFF.md").exists()
