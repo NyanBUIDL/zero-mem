@@ -1,7 +1,7 @@
 runner: MASTER-AUTONOMOUS-RUNNER
-lifecycle: PHASE_OVERLAY_ESTABLISHED
+lifecycle: FINAL_VERIFICATION_COMPLETE
 phase: G
-phase_state: IN_PROGRESS
+phase_state: VERIFIED
 current_task: FINAL_INTEGRATED_VERIFICATION
 completed_tasks:
   - WP-00
@@ -50,7 +50,7 @@ completed_verified_wps:
   - WP-16
   - WP-19
 active_authorizations: []
-last_checkpoint: aaae1ae53cc4c6539ccbea0611cca63a48891e2b
+last_checkpoint: 0162d8f6c9c65fd65ebc9ec0d88b113df7a42b56
 last_action: WP-19 verified; all WPs and phases ready for final checkpoint
 next_action: create final local durable checkpoint
 phase_overlay: artifacts/control/PHASE-OVERLAY.yaml
