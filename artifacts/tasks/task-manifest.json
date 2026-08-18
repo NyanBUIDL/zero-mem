@@ -205,17 +205,24 @@
       "depends_on": [
         "WP-08"
       ],
-      "status": "READY_FOR_EXECUTION",
+      "status": "VERIFIED",
       "authorized_scope": [
         "artifacts/tasks/WP-09.md",
+        "artifacts/control/COMPATIBILITY-MATRIX.yaml",
+        "docs/v1.1.0/benchmarks/WP-09-COMPATIBILITY-MATRIX.md",
         "zero_mem/__init__.py",
         "zero_mem/api.py",
         "zero_mem/version.py",
+        "zero_mem/commands_doctor.py",
+        "zero_mem/paths.py",
+        "src/integration/bridge_config.py",
         "tests/unit/test_wp09_compatibility.py",
         "artifacts/evidence/WP-09-CLOSURE.md",
         "artifacts/handoffs/WP-09-HANDOFF.md"
       ],
-      "scope_status": "MATERIALIZED_ALL_TASKS"
+      "scope_status": "MATERIALIZED_ALL_TASKS",
+      "checkpoint_commit": "PENDING_WP09_COMMIT",
+      "evidence": "artifacts/evidence/WP-09-CLOSURE.md"
     },
     {
       "id": "WP-10",

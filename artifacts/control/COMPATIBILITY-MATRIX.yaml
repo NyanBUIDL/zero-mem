@@ -1,0 +1,100 @@
+schema_version: "1.0"
+release: "1.1.0"
+python:
+  minimum: "3.11"
+  maximum_exclusive: "3.14"
+sqlite:
+  minimum_behavior: "project SQLite migrations and locking behavior"
+  fts5: REQUIRED
+rows:
+  - platform: Linux
+    os_runtime: Linux
+    architecture: x86_64
+    python_range: ">=3.11,<3.14"
+    sqlite_requirement: "project required SQLite behavior"
+    fts5_requirement: REQUIRED
+    path_semantics: "POSIX paths and permissions; Linux-side state is authoritative"
+    locking_process_behavior: "SQLite/process locking qualified on current host"
+    local_transport_behavior: "local-only; no network transport required"
+    support_classification: SUPPORTED
+    qualification_status: VERIFIED
+    evidence: "current executor: Linux x86_64, Python 3.11.16, SQLite 3.53.1, FTS5=true"
+    known_limitations: "Only this exact environment is verified"
+  - platform: Linux
+    os_runtime: Linux
+    architecture: arm64
+    python_range: ">=3.11,<3.14"
+    sqlite_requirement: "project required SQLite behavior"
+    fts5_requirement: REQUIRED
+    path_semantics: "POSIX paths and permissions"
+    locking_process_behavior: QUALIFICATION_PENDING
+    local_transport_behavior: QUALIFICATION_PENDING
+    support_classification: SUPPORTED_IF_QUALIFIED
+    qualification_status: QUALIFICATION_PENDING
+    evidence: null
+    known_limitations: "No arm64 executor evidence"
+  - platform: macOS
+    os_runtime: macOS
+    architecture: arm64
+    python_range: ">=3.11,<3.14"
+    sqlite_requirement: "project required SQLite behavior"
+    fts5_requirement: REQUIRED
+    path_semantics: "native macOS paths and permissions require qualification"
+    locking_process_behavior: QUALIFICATION_PENDING
+    local_transport_behavior: QUALIFICATION_PENDING
+    support_classification: SUPPORTED_IF_QUALIFIED
+    qualification_status: QUALIFICATION_PENDING
+    evidence: null
+    known_limitations: "No macOS executor evidence"
+  - platform: macOS
+    os_runtime: macOS
+    architecture: x86_64
+    python_range: ">=3.11,<3.14"
+    sqlite_requirement: "project required SQLite behavior"
+    fts5_requirement: REQUIRED
+    path_semantics: "native macOS paths require qualification"
+    locking_process_behavior: QUALIFICATION_PENDING
+    local_transport_behavior: QUALIFICATION_PENDING
+    support_classification: BEST_EFFORT_UNVERIFIED
+    qualification_status: QUALIFICATION_PENDING
+    evidence: null
+    known_limitations: "No macOS executor evidence"
+  - platform: Windows
+    os_runtime: native Windows
+    architecture: x86_64
+    python_range: ">=3.11,<3.14"
+    sqlite_requirement: "not claimed"
+    fts5_requirement: REQUIRED
+    path_semantics: "not supported in v1.1.0"
+    locking_process_behavior: NOT_APPLICABLE
+    local_transport_behavior: NOT_APPLICABLE
+    support_classification: NOT_SUPPORTED
+    qualification_status: NOT_SUPPORTED
+    evidence: "maintainer policy"
+    known_limitations: "No native Windows architecture or installer claim"
+  - platform: WSL2
+    os_runtime: Linux runtime under WSL2
+    architecture: x86_64
+    python_range: ">=3.11,<3.14"
+    sqlite_requirement: "project required SQLite behavior"
+    fts5_requirement: REQUIRED
+    path_semantics: "Linux-side paths are authoritative; Windows-mounted paths are not assumed equivalent"
+    locking_process_behavior: QUALIFICATION_PENDING
+    local_transport_behavior: QUALIFICATION_PENDING
+    support_classification: SUPPORTED_IF_QUALIFIED
+    qualification_status: QUALIFICATION_PENDING
+    evidence: null
+    known_limitations: "No WSL2 executor evidence"
+  - platform: Docker
+    os_runtime: Linux container
+    architecture: host-dependent
+    python_range: ">=3.11,<3.14"
+    sqlite_requirement: "project required SQLite behavior"
+    fts5_requirement: REQUIRED
+    path_semantics: "durable state requires an explicitly mounted persistent volume"
+    locking_process_behavior: QUALIFICATION_PENDING
+    local_transport_behavior: QUALIFICATION_PENDING
+    support_classification: SUPPORTED_IF_QUALIFIED
+    qualification_status: QUALIFICATION_PENDING
+    evidence: null
+    known_limitations: "Container-local ephemeral filesystem is not durable product storage"
