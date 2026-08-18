@@ -90,7 +90,9 @@
         "artifacts/evidence/WP-03-CLOSURE.md",
         "artifacts/handoffs/WP-03-HANDOFF.md"
       ],
-      "scope_status": "MATERIALIZED_ALL_TASKS"
+      "scope_status": "MATERIALIZED_ALL_TASKS",
+      "checkpoint_commit": "014c3c92da7946f6b43848c978c2612351b77a32",
+      "evidence": "artifacts/evidence/WP-03-CLOSURE.md"
     },
     {
       "id": "WP-04",
