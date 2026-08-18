@@ -2,16 +2,15 @@
 
 ## CONFIRMED
 
-Effective configuration now has one immutable typed object for enabled state, data root, project/profile identity, capture root, Hermes home, Obsidian vault, and managed directory name. Explicit values and approved environment inputs are normalized once; setup and doctor consume the same loader.
+WP-13 is verified. `EffectiveConfig` is immutable, source-labelled, normalized, and shared by setup/doctor configuration validation. Runtime, Hermes identity/capture inputs, and Obsidian workspace inputs have explicit representations without hidden defaults.
 
 ## VERIFIED
 
-`3153 passed, 5 skipped, 0 failed`; WP-13 focused/integration tests passed; benchmark and path-safety evidence are recorded in `artifacts/evidence/WP-13-PROGRESS.md`.
-
-## NOT CLAIMED
-
-WP-13 final closure is pending migration/deprecation evidence and final governance binding. No WP-04/WP-03/WP-08 implementation has started.
+- Focused/integration/setup: 13 passed.
+- Full regression: 3154 passed, 5 skipped.
+- Benchmark and closure evidence: `artifacts/evidence/WP-13-CLOSURE.md`.
+- Implementation checkpoint: `6628cb8427e72260b08c38412c01d7e599ba269c`.
 
 ## NEXT
 
-Complete the supported legacy-input migration/deprecation contract and closure evidence, then mark WP-13 VERIFIED and continue to WP-04.
+WP-04 is now dependency-ready. Its remaining execution must preserve append-first JSONL/SQLite canonical-versus-derived boundaries, writer ownership, freshness, rebuild, retention/delete, and recovery semantics.

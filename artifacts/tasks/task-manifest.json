@@ -202,7 +202,7 @@
       "depends_on": [
         "WP-02"
       ],
-      "status": "IN_PROGRESS",
+      "status": "VERIFIED",
       "authorized_scope": [
         "artifacts/tasks/WP-13.md",
         "zero_mem/config.py",
@@ -216,9 +216,12 @@
         "tests/integration/test_wp13_configuration_integration.py",
         "benchmarks/wp13_configuration.py",
         "artifacts/evidence/WP-13-PROGRESS.md",
-        "artifacts/handoffs/WP-13-HANDOFF.md"
+        "artifacts/handoffs/WP-13-HANDOFF.md",
+        "artifacts/evidence/WP-13-CLOSURE.md"
       ],
-      "scope_status": "MATERIALIZED_ALL_TASKS"
+      "scope_status": "MATERIALIZED_ALL_TASKS",
+      "checkpoint_commit": "6628cb8427e72260b08c38412c01d7e599ba269c",
+      "evidence": "artifacts/evidence/WP-13-CLOSURE.md"
     },
     {
       "id": "WP-14",
