@@ -7,8 +7,9 @@ from typing import Any
 
 from .bridge_config import BridgeConfig, BridgeMetrics, VERIFIED_SUPPORTED_HOOKS
 from .capture_adapter import adapt_mapped_event
-from .payload_mapping import map_hook_payload
+from .payload_mapping import MappingResult, map_hook_payload
 from .zero_mem_runtime import configure as configure_zero_mem_runtime, get_runtime
+from zero_mem.core import CoreConfig, ZeroMemClient
 
 
 class RegistrationFailure(RuntimeError):
@@ -35,6 +36,15 @@ class RegistrationAdapter:
         # canonical config value. Master OFF dominates adapter-local enabled state.
         configure_zero_mem_runtime(enabled=bool(config.zero_mem_enabled))
         self._zero_mem = get_runtime()
+        self._client = ZeroMemClient(
+            CoreConfig(
+                enabled=bool(config.zero_mem_enabled),
+                project_id=config.project_id,
+                profile_id=config.profile_id,
+            ),
+            writer=_CaptureWriter(self.store) if self.store is not None else None,
+            consistency_policy="append-only" if self.store is not None else None,
+        )
 
     def register(self, context: Any) -> tuple[str, ...]:
         if not self.enabled:
@@ -84,7 +94,7 @@ class RegistrationAdapter:
             profile_id=self.config.profile_id,
         )
         if self.store is not None:
-            adapt_mapped_event(mapped, store=self.store)
+            self._client.capture(mapped)
 
     def shutdown(self) -> None:
         self.enabled = False
@@ -97,3 +107,13 @@ class RegistrationAdapter:
 
 
 __all__ = ["RegistrationAdapter", "RegistrationDiagnostic", "RegistrationFailure"]
+
+
+class _CaptureWriter:
+    """Translate the generic client append into the existing capture adapter."""
+
+    def __init__(self, store: Any) -> None:
+        self._store = store
+
+    def append(self, event: object) -> None:
+        adapt_mapped_event(event if isinstance(event, MappingResult) else None, store=self._store)
