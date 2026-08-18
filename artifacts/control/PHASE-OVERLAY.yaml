@@ -31,7 +31,7 @@ phases:
     exit_requirements: ["retrieval, scope modes, context budgets, compatibility, async, and process ownership verified", "required negative/security/regression evidence and checkpoint"]
   D:
     WPs: [WP-14, WP-15]
-    state: NOT_STARTED
+    state: VERIFIED
     entry_requirements: ["Phase C VERIFIED and checkpointed"]
     exit_requirements: ["failure/recovery/conflict semantics and operational diagnostics verified", "closure gates and checkpoint"]
   E:
@@ -124,15 +124,15 @@ dependencies:
 closure_model:
   wp_verified_requires: ["requirements satisfied", "implementation or control-plane scope present", "focused/integration/security/negative/benchmark evidence as applicable", "closure review", "full regression", "governance consistency", "local checkpoint"]
   phase_verified_requires: ["every mapped WP VERIFIED", "all phase exit requirements satisfied", "no forbidden later-phase work", "full regression clean", "local durable checkpoint"]
-  current_durable_evidence: {WP-00: VERIFIED, WP-01: VERIFIED, WP-02: VERIFIED, WP-13: VERIFIED, WP-04: VERIFIED, WP-03: VERIFIED, WP-08: VERIFIED, WP-05: VERIFIED, WP-20: VERIFIED, WP-06: VERIFIED, WP-09: VERIFIED, WP-11: VERIFIED, WP-12: VERIFIED}
+  current_durable_evidence: {WP-00: VERIFIED, WP-01: VERIFIED, WP-02: VERIFIED, WP-13: VERIFIED, WP-04: VERIFIED, WP-03: VERIFIED, WP-08: VERIFIED, WP-05: VERIFIED, WP-20: VERIFIED, WP-06: VERIFIED, WP-09: VERIFIED, WP-11: VERIFIED, WP-12: VERIFIED, WP-14: VERIFIED, WP-15: VERIFIED}
   phase_state_rule: "derive from current durable WP evidence; historical Phase labels are ignored"
 checkpoint_policy:
   local_git_allowed: true
   remote_publication: DENIED
   destructive_git: DENIED
   phase_transition: "only after all mapped WPs and closure gates are VERIFIED and checkpointed"
-  current_durable_phase: D
-  next_incomplete_wp: WP-14
-  next_legal_execution: "Phase D / WP-14 scope materialization after Phase C checkpoint"
+  current_durable_phase: E
+  next_incomplete_wp: WP-21
+  next_legal_execution: "Phase E / WP-21 scope materialization after Phase D checkpoint"
 implementation_authorization: NOT_GRANTED_BY_OVERLAY
 product_memory: UNTOUCHED
