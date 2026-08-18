@@ -221,7 +221,7 @@
         "artifacts/handoffs/WP-09-HANDOFF.md"
       ],
       "scope_status": "MATERIALIZED_ALL_TASKS",
-      "checkpoint_commit": "PENDING_WP09_COMMIT",
+      "checkpoint_commit": "5a66b33f800fbcc3a55db8e838eae743cccb9881",
       "evidence": "artifacts/evidence/WP-09-CLOSURE.md"
     },
     {
