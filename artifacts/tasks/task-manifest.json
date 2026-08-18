@@ -126,7 +126,20 @@
       "depends_on": [
         "WP-04"
       ],
-      "status": "NOT_STARTED"
+      "status": "VERIFIED",
+      "authorized_scope": [
+        "artifacts/tasks/WP-05.md",
+        "src/corpus/retrieval.py",
+        "src/corpus/query_planner.py",
+        "src/access/authorized_read.py",
+        "tests/unit/test_m10_5_retrieval.py",
+        "benchmarks/wp05_retrieval.py",
+        "artifacts/evidence/WP-05-CLOSURE.md",
+        "artifacts/handoffs/WP-05-HANDOFF.md"
+      ],
+      "scope_status": "MATERIALIZED_ALL_TASKS",
+      "checkpoint_commit": "PENDING_WP05_COMMIT",
+      "evidence": "artifacts/evidence/WP-05-CLOSURE.md"
     },
     {
       "id": "WP-06",
@@ -136,7 +149,18 @@
         "WP-20",
         "WP-08"
       ],
-      "status": "NOT_STARTED"
+      "status": "READY_FOR_EXECUTION",
+      "authorized_scope": [
+        "artifacts/tasks/WP-06.md",
+        "src/integration/m7/evidence_builder.py",
+        "src/integration/m7/envelope.py",
+        "src/integration/m7/hardening.py",
+        "tests/unit/test_m7_3_evidence_builder.py",
+        "benchmarks/wp06_context.py",
+        "artifacts/evidence/WP-06-CLOSURE.md",
+        "artifacts/handoffs/WP-06-HANDOFF.md"
+      ],
+      "scope_status": "MATERIALIZED_ALL_TASKS"
     },
     {
       "id": "WP-07",
@@ -179,7 +203,17 @@
       "depends_on": [
         "WP-08"
       ],
-      "status": "NOT_STARTED"
+      "status": "READY_FOR_EXECUTION",
+      "authorized_scope": [
+        "artifacts/tasks/WP-09.md",
+        "zero_mem/__init__.py",
+        "zero_mem/api.py",
+        "zero_mem/version.py",
+        "tests/unit/test_wp09_compatibility.py",
+        "artifacts/evidence/WP-09-CLOSURE.md",
+        "artifacts/handoffs/WP-09-HANDOFF.md"
+      ],
+      "scope_status": "MATERIALIZED_ALL_TASKS"
     },
     {
       "id": "WP-10",
@@ -199,7 +233,16 @@
       "depends_on": [
         "WP-08"
       ],
-      "status": "NOT_STARTED"
+      "status": "READY_FOR_EXECUTION",
+      "authorized_scope": [
+        "artifacts/tasks/WP-11.md",
+        "zero_mem/api.py",
+        "tests/unit/test_wp11_sync_async.py",
+        "benchmarks/wp11_async.py",
+        "artifacts/evidence/WP-11-CLOSURE.md",
+        "artifacts/handoffs/WP-11-HANDOFF.md"
+      ],
+      "scope_status": "MATERIALIZED_ALL_TASKS"
     },
     {
       "id": "WP-12",
@@ -207,7 +250,16 @@
       "depends_on": [
         "WP-11"
       ],
-      "status": "NOT_STARTED"
+      "status": "READY_FOR_EXECUTION",
+      "authorized_scope": [
+        "artifacts/tasks/WP-12.md",
+        "src/storage/sqlite_store.py",
+        "src/storage/jsonl_capture.py",
+        "tests/unit/test_wp12_multi_agent.py",
+        "artifacts/evidence/WP-12-CLOSURE.md",
+        "artifacts/handoffs/WP-12-HANDOFF.md"
+      ],
+      "scope_status": "MATERIALIZED_ALL_TASKS"
     },
     {
       "id": "WP-13",
@@ -325,7 +377,19 @@
         "WP-05",
         "WP-08"
       ],
-      "status": "NOT_STARTED"
+      "status": "READY_FOR_EXECUTION",
+      "authorized_scope": [
+        "artifacts/tasks/WP-20.md",
+        "src/access/contracts.py",
+        "src/access/resolver.py",
+        "src/access/policy.py",
+        "src/corpus/retrieval.py",
+        "tests/unit/test_m5_grants.py",
+        "tests/unit/test_m10_5_retrieval.py",
+        "artifacts/evidence/WP-20-CLOSURE.md",
+        "artifacts/handoffs/WP-20-HANDOFF.md"
+      ],
+      "scope_status": "MATERIALIZED_ALL_TASKS"
     },
     {
       "id": "WP-21",
