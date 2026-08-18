@@ -186,7 +186,7 @@
         "artifacts/evidence/WP-07-CLOSURE.md",
         "artifacts/handoffs/WP-07-HANDOFF.md"
       ],
-      "checkpoint_commit": "PENDING_WP07_COMMIT",
+      "checkpoint_commit": "daf873583ad4680d979d02cf03e0b83b9f796a4a",
       "evidence": "artifacts/evidence/WP-07-CLOSURE.md"
     },
     {
@@ -486,7 +486,7 @@
         "artifacts/evidence/WP-22-CLOSURE.md",
         "artifacts/handoffs/WP-22-HANDOFF.md"
       ],
-      "checkpoint_commit": "PENDING_WP22_COMMIT",
+      "checkpoint_commit": "daf873583ad4680d979d02cf03e0b83b9f796a4a",
       "evidence": "artifacts/evidence/WP-22-CLOSURE.md"
     }
   ],
