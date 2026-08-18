@@ -13,8 +13,8 @@ completed_verified_wps:
   - WP-02
 active_authorizations: []
 last_checkpoint: eca843d7e5e3bdd30eb5c5207e96a3fe35b5d916
-last_action: Phase A closure gates passed after WP-02 verification
-next_action: execute WP-13 after production caller and focused test validation
+last_action: WP-13 path-safety repair implemented; focused and full regression green
+next_action: complete WP-13 effective configuration contract, diagnostics, and evidence before closure
 phase_overlay: artifacts/control/PHASE-OVERLAY.yaml
 wp_authority: artifacts/tasks/task-manifest.json
 selection_model: current durable state -> incomplete WPs -> WP dependencies -> legal phase -> eligible WP/task

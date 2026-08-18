@@ -202,7 +202,7 @@
       "depends_on": [
         "WP-02"
       ],
-      "status": "READY_FOR_EXECUTION",
+      "status": "IN_PROGRESS",
       "authorized_scope": [
         "artifacts/tasks/WP-13.md",
         "zero_mem/core.py",

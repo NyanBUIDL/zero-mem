@@ -98,8 +98,12 @@ def _resolve_identity(explicit: str | None, env_name: str) -> str | None:
 
 
 def _safe_root(root: Path) -> Path:
+    # Relative defaults are repository/application-local paths; explicit absolute
+    # paths under the real home remain rejected to avoid accidental user-data
+    # writes. Tilde expansion is treated as explicit and remains rejected.
+    explicit_home_path = root.is_absolute() or str(root).startswith("~")
     resolved = root.expanduser().resolve()
-    if resolved == Path.home() or Path.home() in resolved.parents:
+    if explicit_home_path and (resolved == Path.home() or Path.home() in resolved.parents):
         raise ValueError("capture_root must not be inside the real home directory")
     return resolved
 
