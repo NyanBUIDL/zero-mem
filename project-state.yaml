@@ -1264,7 +1264,7 @@ v11_restart_lifecycle: WP-01_VERIFIED
 v11_current_phase: D
 v11_current_task: WP-14
 v11_last_verified_phase: A
-v11_checkpoint_sha: baae599abe6f3ac69a488d70f27b5cfa72bb96e6
+v11_checkpoint_sha: a84ca945e1182a2e558fbb8d0a99403db11b09d2
 v11_remote_publication: DENIED
 v11_baseline_result: 3138 passed, 5 skipped, 0 failed
 # Durable WP-to-phase execution overlay (derived; WP authority unchanged)

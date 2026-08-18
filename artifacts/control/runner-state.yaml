@@ -30,7 +30,7 @@ completed_verified_wps:
   - WP-11
   - WP-12
 active_authorizations: []
-last_checkpoint: baae599abe6f3ac69a488d70f27b5cfa72bb96e6
+last_checkpoint: a84ca945e1182a2e558fbb8d0a99403db11b09d2
 last_action: Phase C verified after WP-12 and fresh full regression
 next_action: execute WP-14 reliability and recovery
 phase_overlay: artifacts/control/PHASE-OVERLAY.yaml
