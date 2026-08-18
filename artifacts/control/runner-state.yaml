@@ -46,7 +46,7 @@ completed_verified_wps:
   - WP-10
   - WP-18
 active_authorizations: []
-last_checkpoint: 6d5c15383101e00b6aa2850f1e79580cd5e7c652
+last_checkpoint: 0ef5248a3eb0aa3119bea6a76ac56872ff3cb066
 last_action: Phase F verified after WP-18 and focused package evidence
 next_action: execute WP-16 integrated validation and benchmarks
 phase_overlay: artifacts/control/PHASE-OVERLAY.yaml
