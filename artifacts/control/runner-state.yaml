@@ -1,8 +1,11 @@
 runner: MASTER-AUTONOMOUS-RUNNER
-lifecycle: FINAL_VERIFICATION_COMPLETE
-phase: G
+lifecycle: TERMINAL_SUCCESS
+phase: NONE
+active_phase: NONE
 phase_state: VERIFIED
-current_task: FINAL_INTEGRATED_VERIFICATION
+current_task: NONE
+selected_task: NONE
+terminal_state: true
 completed_tasks:
   - WP-00
   - WP-01
@@ -10,6 +13,7 @@ completed_tasks:
   - WP-13
   - WP-04
   - WP-03
+  - WP-08
   - WP-05
   - WP-20
   - WP-06
@@ -33,6 +37,7 @@ completed_verified_wps:
   - WP-13
   - WP-04
   - WP-03
+  - WP-08
   - WP-05
   - WP-20
   - WP-06
@@ -51,8 +56,10 @@ completed_verified_wps:
   - WP-19
 active_authorizations: []
 last_checkpoint: 0162d8f6c9c65fd65ebc9ec0d88b113df7a42b56
-last_action: WP-19 verified; all WPs and phases ready for final checkpoint
-next_action: create final local durable checkpoint
+last_action: final governance remediation verified; all WPs and phases terminally verified
+next_action: maintainer release/publication decision
+next_incomplete_wp: NONE
+next_incomplete_phase: NONE
 phase_overlay: artifacts/control/PHASE-OVERLAY.yaml
 wp_authority: artifacts/tasks/task-manifest.json
 selection_model: current durable state -> incomplete WPs -> WP dependencies -> legal phase -> eligible WP/task

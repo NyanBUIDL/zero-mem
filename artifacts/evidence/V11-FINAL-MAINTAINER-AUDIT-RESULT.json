@@ -1,0 +1,70 @@
+{
+  "audit_id": "V11-FINAL-MAINTAINER-E2E-AUDIT",
+  "blocker_set": "V11-FINAL-MAINTAINER-BLOCKER-SET-001",
+  "decision": "BLOCKED — ZERO-MEM v1.1 FINAL REMEDIATION REQUIRED",
+  "worktree": "/home/lenovo/Hermes Workspace/zero-mem-v1.1",
+  "branch": "NyanBUIDL-Zero-mem",
+  "head": "59baf265431c9fb9b29afcd3c548bef6603d864f",
+  "checkpoint": "0162d8f6c9c65fd65ebc9ec0d88b113df7a42b56",
+  "canonical_spec": {
+    "path": "Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx",
+    "sha256": "85b66cbfd380a756eba9266ec8021b331dfee232ab95bd030f287766ba628b9a",
+    "expected_match": true
+  },
+  "baseline": {
+    "pwd_and_root_verified": true,
+    "git_status_before_audit": "clean",
+    "python_supported": "3.11.16 at /home/lenovo/.local/bin/python3.11 via /tmp/v11-final-audit-venv",
+    "sqlite": "3.53.1",
+    "fts5": true,
+    "control_plane_validator": "PASS",
+    "wp_count": 23,
+    "manifest_all_unique_and_verified": true
+  },
+  "fresh_regression": {
+    "command": "/tmp/v11-final-audit-venv/bin/python -m pytest -q",
+    "environment": "isolated temporary HOME/XDG roots; PYTHONPATH empty",
+    "start": "2026-08-18T20:27:36+07:00",
+    "end": "2026-08-18T20:28:40+07:00",
+    "exit_code": 0,
+    "passed": 3174,
+    "skipped": 5,
+    "failed": 0,
+    "errors": 0,
+    "raw_log": "artifacts/evidence/V11-FINAL-MAINTAINER-REGRESSION-PY311.log",
+    "raw_log_sha256": "f21ea86d59cece9b14a5c2fd0ef94f73784f43ab72ae5b077bb7a4276189c9c6"
+  },
+  "environment_mismatch_probe": {
+    "command": "/usr/bin/pytest -q",
+    "result": "10 failed, 3153 passed, 5 skipped, 11 errors",
+    "classification": "environment_outside_declared_python_range; Python 3.14.4 while project requires >=3.11,<3.14",
+    "raw_log": "artifacts/evidence/V11-FINAL-MAINTAINER-REGRESSION.log",
+    "raw_log_sha256": "8e0b31971e8ce2b44a370ef475494cff65877fd52c559e1893ad094e90484bdb"
+  },
+  "approved_benchmark": {
+    "command": "PYTHONPATH=. /tmp/v11-final-audit-venv/bin/python benchmarks/wp12_multi_agent.py",
+    "result": {"writers": 4, "operations": 10000, "all_exited_zero": true, "seconds": 3.542646}
+  },
+  "graphify": {
+    "mode": "code-only/no-cluster",
+    "before": "/tmp/v11-final-maintainer-graph-before/graphify-out/graph.json",
+    "after": "/tmp/v11-final-maintainer-graph-after/graphify-out/graph.json",
+    "before_nodes": 7047,
+    "before_edges": 23032,
+    "after_nodes": 7047,
+    "after_edges": 23032,
+    "role": "read-only external corroboration; non-canonical and not runtime"
+  },
+  "finding_counts": {"CRITICAL": 0, "HIGH": 2, "MEDIUM": 0, "LOW": 0, "INFORMATIONAL": 1, "FALSE_POSITIVE": 0, "HISTORICAL_SUPERSEDED": 1},
+  "release_blockers": 2,
+  "product_memory": "UNTOUCHED",
+  "remote_publication": "FORBIDDEN_AND_NOT_PERFORMED",
+  "implementation_mutation": false,
+  "audit_artifacts": [
+    "artifacts/audits/V11-FINAL-MAINTAINER-AUDIT.md",
+    "artifacts/audits/V11-FINAL-MAINTAINER-FINDINGS.yaml",
+    "artifacts/evidence/V11-FINAL-MAINTAINER-AUDIT-RESULT.json",
+    "artifacts/evidence/V11-FINAL-MAINTAINER-REGRESSION-PY311.log",
+    "artifacts/evidence/V11-FINAL-MAINTAINER-REGRESSION.log"
+  ]
+}

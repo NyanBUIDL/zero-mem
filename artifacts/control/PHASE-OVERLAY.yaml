@@ -131,8 +131,11 @@ checkpoint_policy:
   remote_publication: DENIED
   destructive_git: DENIED
   phase_transition: "only after all mapped WPs and closure gates are VERIFIED and checkpointed"
-  current_durable_phase: G
+  current_durable_phase: NONE
+  active_phase: NONE
   next_incomplete_wp: NONE
-  next_legal_execution: "final integrated verification and durable checkpoint"
+  next_incomplete_phase: NONE
+  terminal_state: true
+  next_legal_execution: "maintainer release/publication decision"
 implementation_authorization: NOT_GRANTED_BY_OVERLAY
 product_memory: UNTOUCHED

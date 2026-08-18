@@ -1,0 +1,62 @@
+audit_id: V11-FINAL-MAINTAINER-E2E-AUDIT
+blocker_set: V11-FINAL-MAINTAINER-BLOCKER-SET-001
+head: 59baf265431c9fb9b29afcd3c548bef6603d864f
+decision: PASS — ZERO-MEM v1.1 FINAL MAINTAINER AUDIT PASSED AFTER REMEDIATION
+release_blockers: 0
+findings:
+  - id: V11-FINAL-MAINTAINER-BLOCKER-001
+    severity: HIGH
+    classification: RELEASE_BLOCKER
+    disposition: RESOLVED
+    resolution: Authority restored byte-for-byte from planning ref 2f1763f1335326b83bf90f263cada5c3715f21eb; all 23 WP contracts, MASTER_PLAN, ADR-001..ADR-008, and directly required planning contracts resolve in the current worktree.
+    root_cause: The current manifest and phase overlay cite docs/v1.1.0/MASTER_PLAN.md and docs/v1.1.0/work-packages/WP-00..WP-22 as authority, but MASTER_PLAN.md and that contract directory are not present in the current tree.
+    evidence:
+      - artifacts/tasks/task-manifest.json:6
+      - artifacts/control/PHASE-OVERLAY.yaml:6-9
+      - current filesystem check: docs/v1.1.0/MASTER_PLAN.md absent
+      - current filesystem check: docs/v1.1.0/work-packages absent
+    affected_wps: WP-00..WP-22
+    affected_paths:
+      - artifacts/tasks/task-manifest.json
+      - artifacts/control/PHASE-OVERLAY.yaml
+      - docs/v1.1.0/MASTER_PLAN.md
+      - docs/v1.1.0/work-packages/WP-00..WP-22
+    required_tests: Re-run control-plane and release-readiness validation after restoring or explicitly re-binding the authoritative roadmap and all WP contracts; verify every cited path and hash.
+    recommended_repair_boundary: Governance/evidence only; restore the exact approved authority or obtain a maintainer-approved source rebinding. No product source repair was performed.
+  - id: V11-FINAL-MAINTAINER-BLOCKER-002
+    severity: HIGH
+    classification: RELEASE_BLOCKER
+    disposition: RESOLVED
+    resolution: Current manifest, runner, overlay, trackers, project-state projection, traceability, WP/phase closure evidence, and checkpoint lineage now agree on WP-00..WP-22 VERIFIED, Phase A..G VERIFIED, no incomplete item, and terminal runner state.
+    root_cause: The current runner and phase tracker do not describe the same state as the current phase overlay and task manifest.
+    evidence:
+      - artifacts/control/runner-state.yaml: completed_verified_wps omits WP-08 while claiming final verification complete
+      - artifacts/control/runner-state.yaml: current_task is FINAL_INTEGRATED_VERIFICATION and phase G VERIFIED
+      - artifacts/tracking/PHASE-TRACKER.md: Phase C through G remain NOT_STARTED and next incomplete WP is WP-05
+      - artifacts/control/PHASE-OVERLAY.yaml: phases A through G VERIFIED and next_incomplete_wp NONE
+      - artifacts/tasks/task-manifest.json: all 23 tasks status VERIFIED
+    affected_wps: WP-08 and phase completion state A-G
+    affected_paths:
+      - artifacts/control/runner-state.yaml
+      - artifacts/tracking/PHASE-TRACKER.md
+      - artifacts/control/PHASE-OVERLAY.yaml
+      - artifacts/tasks/task-manifest.json
+    required_tests: Run a machine-readable governance reconciliation that validates exact WP set equality across manifest, runner, tracker, overlay, closure evidence, and checkpoint lineage; require zero contradictory current-state claims.
+    recommended_repair_boundary: Governance/evidence only; reconcile current trackers without changing Phase states or product implementation during this audit.
+observations:
+  canonical_sha256: 85b66cbfd380a756eba9266ec8021b331dfee232ab95bd030f287766ba628b9a
+  planning_ref: 2f1763f1335326b83bf90f263cada5c3715f21eb
+  wp_count: 23
+  manifest_unique_and_all_verified: true
+  control_plane_validator: PASS
+  control_plane_validator_scope_gap: It checks manifest count/IDs, branch, baseline object existence, canonical hash, and diff-check, but not current HEAD, phase consistency, runner completeness, or cited authority-file existence.
+  graphify_before_after: identical code-only extraction; 7047 nodes and 23032 edges; external disposable corroboration only
+  product_source_mutated: false
+  product_tests_mutated: false
+  remote_publication: forbidden_and_not_performed
+non_blocking:
+  - severity: INFORMATIONAL
+    classification: HISTORICAL_SUPERSEDED
+    disposition: NO_ACTION
+    title: Historical durable-overlay/restart artifacts contain older reconstruction state
+    note: These are clearly historical in content and were not used to override current source; they remain separate from the two current contradictory governance artifacts above.

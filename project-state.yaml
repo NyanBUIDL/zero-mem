@@ -1261,9 +1261,9 @@ v11_branch: NyanBUIDL-Zero-mem
 v11_planning_ref: 2f1763f1335326b83bf90f263cada5c3715f21eb
 v11_canonical_sha256: 85b66cbfd380a756eba9266ec8021b331dfee232ab95bd030f287766ba628b9a
 v11_restart_lifecycle: WP-01_VERIFIED
-v11_current_phase: G
-v11_current_task: FINAL_INTEGRATED_VERIFICATION
-v11_last_verified_phase: A
+v11_current_phase: NONE
+v11_current_task: NONE
+v11_last_verified_phase: G
 v11_checkpoint_sha: 0162d8f6c9c65fd65ebc9ec0d88b113df7a42b56
 v11_remote_publication: DENIED
 v11_baseline_result: 3138 passed, 5 skipped, 0 failed
@@ -1271,16 +1271,19 @@ v11_baseline_result: 3138 passed, 5 skipped, 0 failed
 v11_phase_overlay: artifacts/control/PHASE-OVERLAY.yaml
 v11_phase_overlay_version: "1.0"
 v11_phase_overlay_status: ESTABLISHED
-v11_current_durable_phase: G
+v11_current_durable_phase: NONE
 v11_current_phase_state: VERIFIED
-v11_current_durable_verified_wps: [WP-00, WP-01, WP-02, WP-13, WP-04, WP-03, WP-08, WP-05, WP-20, WP-06, WP-09, WP-11, WP-12, WP-14, WP-15, WP-21, WP-07, WP-22, WP-17, WP-10, WP-18, WP-16]
+v11_current_durable_verified_wps: [WP-00, WP-01, WP-02, WP-03, WP-04, WP-05, WP-06, WP-07, WP-08, WP-09, WP-10, WP-11, WP-12, WP-13, WP-14, WP-15, WP-16, WP-17, WP-18, WP-19, WP-20, WP-21, WP-22]
 v11_next_incomplete_wp: NONE
-v11_next_legal_execution: "final local durable checkpoint"
-v11_phase_f_started: false
-v11_phase_g_started: false
+v11_next_legal_execution: "maintainer release/publication decision"
+v11_next_incomplete_phase: NONE
+v11_active_phase: NONE
+v11_terminal_state: true
+v11_phase_f_started: true
+v11_phase_g_started: true
 v11_historical_phase_labels_current_authority: false
 v11_product_memory: UNTOUCHED
-v11_overlay_runtime_implementation: WP-02_VERIFIED
+v11_overlay_runtime_implementation: NOT_PERFORMED_BY_FINAL_REMEDIATION
 v11_overlay_remote_publication: DENIED
 
 # v11 execution update — WP-02
@@ -1293,6 +1296,6 @@ v11_wp02_benchmark: "10000 calls in 0.002702s"
 v11_wp02_evidence: artifacts/evidence/WP-02-CLOSURE.md
 v11_wp02_handoff: artifacts/handoffs/WP-02-HANDOFF.md
 v11_phase_a_status: VERIFIED
-v11_phase_a_checkpoint_pending: true
+v11_phase_a_checkpoint_pending: false
 v11_phase_a_evidence: artifacts/evidence/PHASE-A-CLOSURE.md
 v11_phase_a_handoff: artifacts/handoffs/PHASE-A-HANDOFF.md
