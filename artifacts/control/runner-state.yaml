@@ -40,7 +40,7 @@ completed_verified_wps:
   - WP-07
   - WP-22
 active_authorizations: []
-last_checkpoint: daf873583ad4680d979d02cf03e0b83b9f796a4a
+last_checkpoint: 1c0e3577c3a04d3d1ff1c9825c8f1b2154feefab
 last_action: Phase E verified after WP-22 and fresh full regression
 next_action: execute WP-17 migration and rollback
 phase_overlay: artifacts/control/PHASE-OVERLAY.yaml
