@@ -174,7 +174,20 @@
         "WP-20",
         "WP-21"
       ],
-      "status": "NOT_STARTED"
+      "status": "VERIFIED",
+      "authorized_scope": [
+        "artifacts/tasks/WP-07.md",
+        "zero_mem/hermes_integration.py",
+        "tests/unit/test_m6_hermes_adapter.py",
+        "tests/unit/test_m7_4_injection_adapter.py",
+        "tests/unit/test_m7_5_hardening.py",
+        "tests/unit/test_m7_6_end_to_end.py",
+        "benchmarks/wp07_hermes.py",
+        "artifacts/evidence/WP-07-CLOSURE.md",
+        "artifacts/handoffs/WP-07-HANDOFF.md"
+      ],
+      "checkpoint_commit": "PENDING_WP07_COMMIT",
+      "evidence": "artifacts/evidence/WP-07-CLOSURE.md"
     },
     {
       "id": "WP-08",
@@ -453,7 +466,7 @@
         "artifacts/evidence/WP-21-CLOSURE.md",
         "artifacts/handoffs/WP-21-HANDOFF.md"
       ],
-      "checkpoint_commit": "PENDING_WP21_COMMIT",
+      "checkpoint_commit": "048087e66fc3f0874a9db9d4dcec5ff2eeb9503d",
       "evidence": "artifacts/evidence/WP-21-CLOSURE.md"
     },
     {
@@ -464,7 +477,17 @@
         "WP-14",
         "WP-20"
       ],
-      "status": "NOT_STARTED"
+      "status": "VERIFIED",
+      "authorized_scope": [
+        "artifacts/tasks/WP-22.md",
+        "src/m8",
+        "tests/unit/test_m8_*.py",
+        "benchmarks/wp22_workspace.py",
+        "artifacts/evidence/WP-22-CLOSURE.md",
+        "artifacts/handoffs/WP-22-HANDOFF.md"
+      ],
+      "checkpoint_commit": "PENDING_WP22_COMMIT",
+      "evidence": "artifacts/evidence/WP-22-CLOSURE.md"
     }
   ],
   "task_authorization": {
