@@ -2,21 +2,23 @@ runner: MASTER-AUTONOMOUS-RUNNER
 lifecycle: PHASE_OVERLAY_ESTABLISHED
 phase: B
 phase_state: IN_PROGRESS
-current_task: WP-04
+current_task: WP-03
 completed_tasks:
   - WP-00
   - WP-01
   - WP-02
   - WP-13
+  - WP-04
 completed_verified_wps:
   - WP-00
   - WP-01
   - WP-02
   - WP-13
+  - WP-04
 active_authorizations: []
-last_checkpoint: 6628cb8427e72260b08c38412c01d7e599ba269c
-last_action: WP-13 verified with focused, integration, benchmark, and full regression evidence
-next_action: execute WP-04 after dependency validation
+last_checkpoint: 39f3a55220d63ba9094c8055678e5f58da9de02a
+last_action: WP-04 verified with storage, migration, rebuild, security, and backup evidence
+next_action: execute WP-03 after dependency validation
 phase_overlay: artifacts/control/PHASE-OVERLAY.yaml
 wp_authority: artifacts/tasks/task-manifest.json
 selection_model: current durable state -> incomplete WPs -> WP dependencies -> legal phase -> eligible WP/task

@@ -113,7 +113,7 @@
         "artifacts/handoffs/WP-04-HANDOFF.md"
       ],
       "scope_status": "MATERIALIZED_ALL_TASKS",
-      "checkpoint_commit": "PENDING_CLOSURE_COMMIT",
+      "checkpoint_commit": "39f3a55220d63ba9094c8055678e5f58da9de02a",
       "evidence": "artifacts/evidence/WP-04-CLOSURE.md"
     },
     {
