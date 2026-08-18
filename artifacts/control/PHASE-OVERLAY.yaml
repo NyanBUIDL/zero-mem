@@ -21,7 +21,7 @@ phases:
     exit_requirements: ["WP-00, WP-01, WP-02 VERIFIED", "core/adapter boundaries proven", "closure review, regression, governance, local checkpoint"]
   B:
     WPs: [WP-13, WP-04, WP-03, WP-08]
-    state: NOT_STARTED
+    state: IN_PROGRESS
     entry_requirements: ["Phase A VERIFIED and checkpointed"]
     exit_requirements: ["configuration, canonical storage, scale constraints, and public interface contracts verified", "required focused/regression evidence and checkpoint"]
   C:
