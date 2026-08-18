@@ -88,6 +88,13 @@ def configure(*, enabled: bool) -> ZeroMemRuntime:
     return _default_runtime
 
 
+def new_runtime(*, enabled: bool) -> ZeroMemRuntime:
+    """Create an explicit immutable runtime handle without global mutation."""
+    if not isinstance(enabled, bool):
+        raise ZeroMemConfigError("runtime enabled must be bool")
+    return ZeroMemRuntime(enabled=enabled)
+
+
 def get_runtime() -> ZeroMemRuntime:
     if _default_runtime is None:
         raise RuntimeError(
@@ -100,6 +107,7 @@ __all__ = [
     "ZeroMemRuntime",
     "ZeroMemConfigError",
     "configure",
+    "new_runtime",
     "get_runtime",
     "parse_zero_mem_enabled",
 ]

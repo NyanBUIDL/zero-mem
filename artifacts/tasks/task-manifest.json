@@ -252,7 +252,7 @@
         "artifacts/handoffs/WP-11-HANDOFF.md"
       ],
       "scope_status": "MATERIALIZED_ALL_TASKS",
-      "checkpoint_commit": "PENDING_WP11_COMMIT",
+      "checkpoint_commit": "2cdd9a4236f24b40be1fcf8e958e044ec0e37405",
       "evidence": "artifacts/evidence/WP-11-CLOSURE.md"
     },
     {
@@ -261,16 +261,20 @@
       "depends_on": [
         "WP-11"
       ],
-      "status": "READY_FOR_EXECUTION",
+      "status": "VERIFIED",
       "authorized_scope": [
         "artifacts/tasks/WP-12.md",
         "src/storage/sqlite_store.py",
         "src/storage/jsonl_capture.py",
+        "src/integration/zero_mem_runtime.py",
         "tests/unit/test_wp12_multi_agent.py",
+        "benchmarks/wp12_multi_agent.py",
         "artifacts/evidence/WP-12-CLOSURE.md",
         "artifacts/handoffs/WP-12-HANDOFF.md"
       ],
-      "scope_status": "MATERIALIZED_ALL_TASKS"
+      "scope_status": "MATERIALIZED_ALL_TASKS",
+      "checkpoint_commit": "PENDING_WP12_COMMIT",
+      "evidence": "artifacts/evidence/WP-12-CLOSURE.md"
     },
     {
       "id": "WP-13",
