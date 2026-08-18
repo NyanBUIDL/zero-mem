@@ -1,6 +1,7 @@
 """PKG-3 deterministic first-run setup command."""
 from __future__ import annotations
 
+from .config import load_effective_config
 from .paths import (
     ConfigurationError,
     SetupError,
@@ -20,6 +21,7 @@ from .paths import (
 def run() -> int:
     # Validate an existing file before creating or changing any application path.
     try:
+        load_effective_config()
         load_config(required=False)
     except ConfigurationError:
         raise
