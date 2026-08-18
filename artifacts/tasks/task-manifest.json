@@ -402,7 +402,7 @@
         "artifacts/evidence/WP-16-CLOSURE.md",
         "artifacts/handoffs/WP-16-HANDOFF.md"
       ],
-      "checkpoint_commit": "PENDING_WP16_COMMIT",
+      "checkpoint_commit": "aaae1ae53cc4c6539ccbea0611cca63a48891e2b",
       "evidence": "artifacts/evidence/WP-16-CLOSURE.md"
     },
     {
@@ -464,7 +464,16 @@
         "WP-21",
         "WP-22"
       ],
-      "status": "NOT_STARTED"
+      "status": "VERIFIED",
+      "authorized_scope": [
+        "artifacts/tasks/WP-19.md",
+        "artifacts/evidence",
+        "artifacts/handoffs",
+        "project-state.yaml",
+        "artifacts/control/PHASE-OVERLAY.yaml"
+      ],
+      "checkpoint_commit": "PENDING_WP19_COMMIT",
+      "evidence": "artifacts/evidence/WP-19-CLOSURE.md"
     },
     {
       "id": "WP-20",

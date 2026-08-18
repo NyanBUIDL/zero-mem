@@ -46,7 +46,7 @@ phases:
     exit_requirements: ["migration/rollback, packaging, and documentation/DX verified against implemented interfaces", "no future implementation performed by this overlay"]
   G:
     WPs: [WP-16, WP-19]
-    state: NOT_STARTED
+    state: VERIFIED
     entry_requirements: ["Phase F VERIFIED and checkpointed"]
     exit_requirements: ["full validation/benchmarks and release go/no-go verified", "final local durable checkpoint; remote publication remains denied"]
 work_packages:
@@ -124,7 +124,7 @@ dependencies:
 closure_model:
   wp_verified_requires: ["requirements satisfied", "implementation or control-plane scope present", "focused/integration/security/negative/benchmark evidence as applicable", "closure review", "full regression", "governance consistency", "local checkpoint"]
   phase_verified_requires: ["every mapped WP VERIFIED", "all phase exit requirements satisfied", "no forbidden later-phase work", "full regression clean", "local durable checkpoint"]
-  current_durable_evidence: {WP-00: VERIFIED, WP-01: VERIFIED, WP-02: VERIFIED, WP-13: VERIFIED, WP-04: VERIFIED, WP-03: VERIFIED, WP-08: VERIFIED, WP-05: VERIFIED, WP-20: VERIFIED, WP-06: VERIFIED, WP-09: VERIFIED, WP-11: VERIFIED, WP-12: VERIFIED, WP-14: VERIFIED, WP-15: VERIFIED, WP-21: VERIFIED, WP-07: VERIFIED, WP-22: VERIFIED, WP-17: VERIFIED, WP-10: VERIFIED, WP-18: VERIFIED}
+  current_durable_evidence: {WP-00: VERIFIED, WP-01: VERIFIED, WP-02: VERIFIED, WP-13: VERIFIED, WP-04: VERIFIED, WP-03: VERIFIED, WP-08: VERIFIED, WP-05: VERIFIED, WP-20: VERIFIED, WP-06: VERIFIED, WP-09: VERIFIED, WP-11: VERIFIED, WP-12: VERIFIED, WP-14: VERIFIED, WP-15: VERIFIED, WP-21: VERIFIED, WP-07: VERIFIED, WP-22: VERIFIED, WP-17: VERIFIED, WP-10: VERIFIED, WP-18: VERIFIED, WP-16: VERIFIED, WP-19: VERIFIED}
   phase_state_rule: "derive from current durable WP evidence; historical Phase labels are ignored"
 checkpoint_policy:
   local_git_allowed: true
@@ -132,7 +132,7 @@ checkpoint_policy:
   destructive_git: DENIED
   phase_transition: "only after all mapped WPs and closure gates are VERIFIED and checkpointed"
   current_durable_phase: G
-  next_incomplete_wp: WP-16
-  next_legal_execution: "Phase G / WP-16 integrated validation after Phase F checkpoint"
+  next_incomplete_wp: NONE
+  next_legal_execution: "final integrated verification and durable checkpoint"
 implementation_authorization: NOT_GRANTED_BY_OVERLAY
 product_memory: UNTOUCHED
