@@ -394,7 +394,16 @@
         "WP-21",
         "WP-22"
       ],
-      "status": "NOT_STARTED"
+      "status": "VERIFIED",
+      "authorized_scope": [
+        "artifacts/tasks/WP-16.md",
+        "tests",
+        "benchmarks",
+        "artifacts/evidence/WP-16-CLOSURE.md",
+        "artifacts/handoffs/WP-16-HANDOFF.md"
+      ],
+      "checkpoint_commit": "PENDING_WP16_COMMIT",
+      "evidence": "artifacts/evidence/WP-16-CLOSURE.md"
     },
     {
       "id": "WP-17",
