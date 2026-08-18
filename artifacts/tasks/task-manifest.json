@@ -390,7 +390,7 @@
         "artifacts/handoffs/WP-20-HANDOFF.md"
       ],
       "scope_status": "MATERIALIZED_ALL_TASKS",
-      "checkpoint_commit": "PENDING_WP20_COMMIT",
+      "checkpoint_commit": "18738850074936c41948a8ea40c87b5459e68152",
       "evidence": "artifacts/evidence/WP-20-CLOSURE.md"
     },
     {
