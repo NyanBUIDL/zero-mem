@@ -97,7 +97,7 @@
         "WP-13",
         "WP-02"
       ],
-      "status": "READY_FOR_EXECUTION",
+      "status": "VERIFIED",
       "authorized_scope": [
         "artifacts/tasks/WP-04.md",
         "src/storage/capture_boundary.py",
@@ -107,9 +107,14 @@
         "src/storage/sqlite_store.py",
         "zero_mem/commands_setup.py",
         "zero_mem/backup.py",
-        "zero_mem/upgrade.py"
+        "zero_mem/upgrade.py",
+        "benchmarks/wp04_storage.py",
+        "artifacts/evidence/WP-04-CLOSURE.md",
+        "artifacts/handoffs/WP-04-HANDOFF.md"
       ],
-      "scope_status": "MATERIALIZED_ALL_TASKS"
+      "scope_status": "MATERIALIZED_ALL_TASKS",
+      "checkpoint_commit": "PENDING_CLOSURE_COMMIT",
+      "evidence": "artifacts/evidence/WP-04-CLOSURE.md"
     },
     {
       "id": "WP-05",
