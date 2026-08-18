@@ -157,7 +157,7 @@
         "WP-04",
         "WP-02"
       ],
-      "status": "READY_FOR_EXECUTION",
+      "status": "VERIFIED",
       "authorized_scope": [
         "artifacts/tasks/WP-08.md",
         "zero_mem/core.py",
@@ -165,9 +165,13 @@
         "zero_mem/__init__.py",
         "tests/unit/test_wp08_public_api.py",
         "tests/integration/test_wp08_generic_client.py",
-        "benchmarks/wp08_api.py"
+        "benchmarks/wp08_api.py",
+        "artifacts/evidence/WP-08-CLOSURE.md",
+        "artifacts/handoffs/WP-08-HANDOFF.md"
       ],
-      "scope_status": "MATERIALIZED_ALL_TASKS"
+      "scope_status": "MATERIALIZED_ALL_TASKS",
+      "checkpoint_commit": "PENDING_CLOSURE_COMMIT",
+      "evidence": "artifacts/evidence/WP-08-CLOSURE.md"
     },
     {
       "id": "WP-09",
