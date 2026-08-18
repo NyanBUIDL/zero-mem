@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "authority": {
+    "canonical_spec": "Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx",
+    "planning_ref": "2f1763f1335326b83bf90f263cada5c3715f21eb",
+    "roadmap": "WP-00..WP-22 from docs/v1.1.0/MASTER_PLAN.md"
+  },
+  "remote_publication": false,
+  "tasks": [
+    {"id":"WP-00","title":"Baseline Reconciliation and Delta Audit","depends_on":[],"kind":"control-only","status":"IN_PROGRESS"},
+    {"id":"WP-01","title":"Architecture","depends_on":["WP-00"],"status":"NOT_STARTED"},
+    {"id":"WP-02","title":"Core Boundaries","depends_on":["WP-01"],"status":"NOT_STARTED"},
+    {"id":"WP-03","title":"Performance","depends_on":["WP-04"],"status":"NOT_STARTED"},
+    {"id":"WP-04","title":"Storage Freshness Retention Delete","depends_on":["WP-13","WP-02"],"status":"NOT_STARTED"},
+    {"id":"WP-05","title":"Retrieval","depends_on":["WP-04"],"status":"NOT_STARTED"},
+    {"id":"WP-06","title":"Context Efficiency","depends_on":["WP-05","WP-20","WP-08"],"status":"NOT_STARTED"},
+    {"id":"WP-07","title":"Hermes Integration","depends_on":["WP-06","WP-08","WP-15","WP-20","WP-21"],"status":"NOT_STARTED"},
+    {"id":"WP-08","title":"Agent-Agnostic API","depends_on":["WP-04","WP-02"],"status":"NOT_STARTED"},
+    {"id":"WP-09","title":"Compatibility","depends_on":["WP-08"],"status":"NOT_STARTED"},
+    {"id":"WP-10","title":"Installation Packaging","depends_on":["WP-07","WP-09","WP-17","WP-21","WP-22"],"status":"NOT_STARTED"},
+    {"id":"WP-11","title":"Sync Async","depends_on":["WP-08"],"status":"NOT_STARTED"},
+    {"id":"WP-12","title":"Multi Agent Process","depends_on":["WP-11"],"status":"NOT_STARTED"},
+    {"id":"WP-13","title":"Configuration","depends_on":["WP-02"],"status":"NOT_STARTED"},
+    {"id":"WP-14","title":"Reliability Recovery Conflict","depends_on":["WP-04","WP-08","WP-12"],"status":"NOT_STARTED"},
+    {"id":"WP-15","title":"Observability","depends_on":["WP-14"],"status":"NOT_STARTED"},
+    {"id":"WP-16","title":"Testing Benchmarks","depends_on":["WP-03","WP-04","WP-05","WP-06","WP-07","WP-08","WP-09","WP-10","WP-11","WP-12","WP-13","WP-14","WP-15","WP-17","WP-18","WP-20","WP-21","WP-22"],"status":"NOT_STARTED"},
+    {"id":"WP-17","title":"Migration v1.0 to v1.1","depends_on":["WP-07","WP-09","WP-14","WP-20","WP-21","WP-22"],"status":"NOT_STARTED"},
+    {"id":"WP-18","title":"Documentation DX","depends_on":["WP-07","WP-08","WP-10","WP-20","WP-21","WP-22"],"status":"NOT_STARTED"},
+    {"id":"WP-19","title":"Release Readiness","depends_on":["WP-16","WP-17","WP-18","WP-20","WP-21","WP-22"],"status":"NOT_STARTED"},
+    {"id":"WP-20","title":"Profiles Knowledge Spaces","depends_on":["WP-05","WP-08"],"status":"NOT_STARTED"},
+    {"id":"WP-21","title":"Local Sidecar MCP","depends_on":["WP-08","WP-12","WP-14","WP-15"],"status":"NOT_STARTED"},
+    {"id":"WP-22","title":"Obsidian Workspace Writeback","depends_on":["WP-04","WP-14","WP-20"],"status":"NOT_STARTED"}
+  ],
+  "task_authorization": {
+    "WP-00": {"writable": ["project-state.yaml", "artifacts/**", "prompts/**", "tools/autonomy/**"], "forbidden": ["zero_mem/**", "src/**", "tests/**", "packaging/**", "remote Git"]},
+    "default": {"writable": [], "status":"NOT_GRANTED_UNTIL_MATERIALIZED_FROM_WP_CONTRACT"}
+  }
+}

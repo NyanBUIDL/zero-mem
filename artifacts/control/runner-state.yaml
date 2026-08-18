@@ -1,0 +1,10 @@
+runner: MASTER-AUTONOMOUS-RUNNER
+lifecycle: WP_VERIFIED_PENDING_CHECKPOINT
+phase: WP-00
+current_task: none
+completed_tasks:
+  - WP-00
+active_authorizations: []
+last_action: WP-00 closure passed; local checkpoint pending
+next_action: create local WP-00 checkpoint, bind SHA, then materialize WP-01 scope
+remote_publication: DENIED

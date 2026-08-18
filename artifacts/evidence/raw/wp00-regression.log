@@ -1,0 +1,129 @@
+...F.FF.FF.............................................................. [  2%]
+........................................................................ [  4%]
+.......................................ss............................... [  6%]
+........................................................................ [  9%]
+........................................................................ [ 11%]
+....ss....s............................................................. [ 13%]
+........................................................................ [ 16%]
+........................................................................ [ 18%]
+........................................................................ [ 20%]
+........................................................................ [ 22%]
+........................................................................ [ 25%]
+........................................................................ [ 27%]
+........................................................................ [ 29%]
+........................................................................ [ 32%]
+........................................................................ [ 34%]
+........................................................................ [ 36%]
+........................................................................ [ 38%]
+........................................................................ [ 41%]
+........................................................................ [ 43%]
+........................................................................ [ 45%]
+........................................................................ [ 48%]
+........................................................................ [ 50%]
+........................................................................ [ 52%]
+........................................................................ [ 54%]
+........................................................................ [ 57%]
+........................................................................ [ 59%]
+........................................................................ [ 61%]
+........................................................................ [ 64%]
+........................................................................ [ 66%]
+........................................................................ [ 68%]
+........................................................................ [ 71%]
+........................................................................ [ 73%]
+........................................................................ [ 75%]
+........................................................................ [ 77%]
+........................................................................ [ 80%]
+........................................................................ [ 82%]
+........................................................................ [ 84%]
+........................................................................ [ 87%]
+........................................................................ [ 89%]
+........................................................................ [ 91%]
+........................................................................ [ 93%]
+........................................................................ [ 96%]
+........................................................................ [ 98%]
+...............................................                          [100%]
+=================================== FAILURES ===================================
+_______________ test_project_state_reflects_verified_m9_binding ________________
+
+    def test_project_state_reflects_verified_m9_binding() -> None:
+        state = (ROOT / "project-state.yaml").read_text(encoding="utf-8")
+        # M0-M8 VERIFIED; M8.1-M8.6 all verified, M8 complete.
+>       assert "status: verified" in state
+E       AssertionError: assert 'status: verified' in 'schema_version: 2\nproject: hermes-external-zero-mem\nrelease: 1.1.0\nlifecycle: V1.1_RESTART_BOOTSTRAP\nsource_autho... complete bootstrap reconciliation, freeze WP-00 closure gates, then execute only dependency-ready WP-00/WP-01 scope\n'
+
+tests/baseline/test_project_artifacts.py:193: AssertionError
+___________ test_m9_state_binding_keys_are_each_present_exactly_once ___________
+
+    def test_m9_state_binding_keys_are_each_present_exactly_once() -> None:
+        counts = _top_level_key_counts(_state_text())
+        missing = [key for key in M9_STATE_BINDING_KEYS if counts.get(key, 0) == 0]
+>       assert missing == [], f"missing M9 state-binding keys: {missing}"
+E       AssertionError: missing M9 state-binding keys: ['m9_plan_status', 'm9_overall_status', 'm9_status', 'm9_current_increment', 'm9_next_incomplete_increment', 'm9_schema', 'm9_increment_1_status', 'm9_increment_2_status', 'm9_increment_3_status', 'm9_increment_4_status', 'm9_increment_5_status']
+E       assert ['m9_plan_sta..._schema', ...] == []
+E         
+E         Left contains 11 more items, first extra item: 'm9_plan_status'
+E         Use -v to get more diff
+
+tests/baseline/test_project_artifacts.py:267: AssertionError
+__________________ test_m9_effective_parsed_state_is_verified __________________
+
+    def test_m9_effective_parsed_state_is_verified() -> None:
+        """Assert the EFFECTIVE (parsed) M9 binding, not its textual appearance.
+    
+        M9 overall is VERIFIED; M9.1-M9.6 are verified. The M10 plan is APPROVED and
+        M10.1 (Corpus Source Registry + Authorization Boundary), M10.2
+        (Multi-format Ingestion + Structural Extraction), M10.3
+        (Normalization + Deduplication + Versioning), M10.4
+        (Derived Corpus Storage + Indexing, migrate_10 -> schema v10), M10.5
+        (Hybrid Retrieval + EvidenceSet Integration), M10.6
+        (Derived authorization-safe corpus graph + optional enrichment boundary),
+        and M10.7 (Large-Corpus Rollout + Benchmark + Final M10 Acceptance) are
+        VERIFIED -- so M10 overall is VERIFIED.
+        This baseline reflects the genuine post-M10.7 state.
+        """
+        state = _effective_state(_state_text())
+>       assert state["m9_plan_status"] == "approved"
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'm9_plan_status'
+
+tests/baseline/test_project_artifacts.py:285: KeyError
+________________ test_project_state_has_one_m2_current_version _________________
+
+    def test_project_state_has_one_m2_current_version() -> None:
+        """Reject AUD-007 shadowing without broadening R9 to other history entries."""
+        state = _state_text()
+        counts = _top_level_key_counts(state)
+        values = _top_level_key_values(state)
+>       assert counts["m2_current_version"] == 1
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'm2_current_version'
+
+tests/baseline/test_project_artifacts.py:361: KeyError
+________ test_project_state_has_no_unexpected_top_level_duplicate_keys _________
+
+    def test_project_state_has_no_unexpected_top_level_duplicate_keys() -> None:
+        """Scan the whole artifact while preserving classified legacy entries."""
+        values = _top_level_key_values(_state_text())
+        duplicates = {key: entries for key, entries in values.items() if len(entries) > 1}
+>       assert duplicates == KNOWN_HISTORICAL_DUPLICATES
+E       AssertionError: assert {} == {'m1_incremen...4-4.md'], ...}
+E         
+E         Right contains 7 more items:
+E         {'m1_increment_4_2_status': ['verified', 'verified'],
+E          'm1_increment_4_3_status': ['verified', 'verified'],
+E          'm1_increment_4_4_evidence': ['docs/acceptance/m1/acceptance-m1-increment-4-4.md',
+E                                        'docs/acceptance/m1/acceptance-m1-increment-4-4.md'],
+E          'm1_increment_4_4_plan': ['.hermes/plans/2026-08-05_000000-m1-increment-4-4-verified-hook-registration.md',...
+E         
+E         ...Full output truncated (5 lines hidden), use '-vv' to show
+
+tests/baseline/test_project_artifacts.py:370: AssertionError
+=========================== short test summary info ============================
+FAILED tests/baseline/test_project_artifacts.py::test_project_state_reflects_verified_m9_binding
+FAILED tests/baseline/test_project_artifacts.py::test_m9_state_binding_keys_are_each_present_exactly_once
+FAILED tests/baseline/test_project_artifacts.py::test_m9_effective_parsed_state_is_verified
+FAILED tests/baseline/test_project_artifacts.py::test_project_state_has_one_m2_current_version
+FAILED tests/baseline/test_project_artifacts.py::test_project_state_has_no_unexpected_top_level_duplicate_keys
+5 failed, 3133 passed, 5 skipped in 54.96s
+
+WP00_REGRESSION_EXIT=1
