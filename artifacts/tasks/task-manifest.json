@@ -138,7 +138,7 @@
         "artifacts/handoffs/WP-05-HANDOFF.md"
       ],
       "scope_status": "MATERIALIZED_ALL_TASKS",
-      "checkpoint_commit": "PENDING_WP05_COMMIT",
+      "checkpoint_commit": "5aee17886bfa49fce63e328a246d0c4cf3186b35",
       "evidence": "artifacts/evidence/WP-05-CLOSURE.md"
     },
     {
@@ -377,7 +377,7 @@
         "WP-05",
         "WP-08"
       ],
-      "status": "READY_FOR_EXECUTION",
+      "status": "VERIFIED",
       "authorized_scope": [
         "artifacts/tasks/WP-20.md",
         "src/access/contracts.py",
@@ -389,7 +389,9 @@
         "artifacts/evidence/WP-20-CLOSURE.md",
         "artifacts/handoffs/WP-20-HANDOFF.md"
       ],
-      "scope_status": "MATERIALIZED_ALL_TASKS"
+      "scope_status": "MATERIALIZED_ALL_TASKS",
+      "checkpoint_commit": "PENDING_WP20_COMMIT",
+      "evidence": "artifacts/evidence/WP-20-CLOSURE.md"
     },
     {
       "id": "WP-21",
