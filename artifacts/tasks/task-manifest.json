@@ -78,7 +78,7 @@
       "depends_on": [
         "WP-04"
       ],
-      "status": "READY_FOR_EXECUTION",
+      "status": "VERIFIED",
       "authorized_scope": [
         "artifacts/tasks/WP-03.md",
         "src/storage/jsonl_capture.py",
@@ -86,7 +86,9 @@
         "src/storage/sqlite_store.py",
         "src/corpus/retrieval.py",
         "src/integration/m7/injection_adapter.py",
-        "benchmarks/wp03_performance.py"
+        "benchmarks/wp03_performance.py",
+        "artifacts/evidence/WP-03-CLOSURE.md",
+        "artifacts/handoffs/WP-03-HANDOFF.md"
       ],
       "scope_status": "MATERIALIZED_ALL_TASKS"
     },
