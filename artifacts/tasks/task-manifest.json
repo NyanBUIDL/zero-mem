@@ -247,7 +247,19 @@
         "WP-21",
         "WP-22"
       ],
-      "status": "NOT_STARTED"
+      "status": "VERIFIED",
+      "authorized_scope": [
+        "artifacts/tasks/WP-10.md",
+        "pyproject.toml",
+        "zero_mem/commands_setup.py",
+        "tests/unit/test_pkg1_packaging.py",
+        "tests/unit/test_pkg2_packaging.py",
+        "tests/packaging/pkg1_wheel_acceptance.py",
+        "artifacts/evidence/WP-10-CLOSURE.md",
+        "artifacts/handoffs/WP-10-HANDOFF.md"
+      ],
+      "checkpoint_commit": "PENDING_WP10_COMMIT",
+      "evidence": "artifacts/evidence/WP-10-CLOSURE.md"
     },
     {
       "id": "WP-11",
@@ -395,7 +407,19 @@
         "WP-21",
         "WP-22"
       ],
-      "status": "NOT_STARTED"
+      "status": "VERIFIED",
+      "authorized_scope": [
+        "artifacts/tasks/WP-17.md",
+        "zero_mem/backup.py",
+        "zero_mem/upgrade.py",
+        "tests/unit/test_pkg5_backup_restore.py",
+        "tests/unit/test_pkg6_upgrade_lifecycle.py",
+        "docs/v1.1.0/MIGRATION-ROLLBACK.md",
+        "artifacts/evidence/WP-17-CLOSURE.md",
+        "artifacts/handoffs/WP-17-HANDOFF.md"
+      ],
+      "checkpoint_commit": "PENDING_WP17_COMMIT",
+      "evidence": "artifacts/evidence/WP-17-CLOSURE.md"
     },
     {
       "id": "WP-18",
@@ -408,7 +432,17 @@
         "WP-21",
         "WP-22"
       ],
-      "status": "NOT_STARTED"
+      "status": "VERIFIED",
+      "authorized_scope": [
+        "artifacts/tasks/WP-18.md",
+        "docs/v1.1.0/DEVELOPER-OPERATIONS.md",
+        "docs/v1.1.0/INTERFACE_CONTRACT.md",
+        "docs/v1.1.0/MIGRATION-ROLLBACK.md",
+        "artifacts/evidence/WP-18-CLOSURE.md",
+        "artifacts/handoffs/WP-18-HANDOFF.md"
+      ],
+      "checkpoint_commit": "PENDING_WP18_COMMIT",
+      "evidence": "artifacts/evidence/WP-18-CLOSURE.md"
     },
     {
       "id": "WP-19",
