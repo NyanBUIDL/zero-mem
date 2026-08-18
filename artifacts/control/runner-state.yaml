@@ -34,7 +34,7 @@ completed_verified_wps:
   - WP-14
   - WP-15
 active_authorizations: []
-last_checkpoint: a71c3aa1aa76374b8a476673317e6328beb89590
+last_checkpoint: cef1c41f97cde7f6923d0b95567f1c5d565b97e4
 last_action: Phase D verified after WP-15 and fresh full regression
 next_action: execute WP-21 local sidecar/MCP
 phase_overlay: artifacts/control/PHASE-OVERLAY.yaml
