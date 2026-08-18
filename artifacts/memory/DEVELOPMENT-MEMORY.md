@@ -7,14 +7,10 @@ This is a governance/control-plane index, not Product Memory.
 - Canonical spec SHA-256: `85b66cbfd380a756eba9266ec8021b331dfee232ab95bd030f287766ba628b9a`
 - Durable worktree: `/home/lenovo/Hermes Workspace/zero-mem-v1.1`
 - Local branch: `NyanBUIDL-Zero-mem`
-- Local checkpoint: none yet
-- Lifecycle: `WP-00_VERIFIED_PENDING_CHECKPOINT`
-- Current WP/task: `WP-00` / closure passed; checkpoint pending
+- Local checkpoint: `f8e1e59f25c12d60c2ada18a7948bc53c68d24f0`
+- Lifecycle: `WP-00_VERIFIED_AND_CHECKPOINTED`
+- Current WP/task: `WP-01` / scope materialization pending
 - Roadmap: WP-00..WP-22 DAG from surviving planning authority
-- Ownership: storage WP-04; retrieval WP-05; interface WP-08; profiles WP-20; MCP WP-21; Hermes WP-07; Obsidian WP-22; final gate WP-19
-- Production call graph: baseline graph extracted externally; each implementation task must add source-corrobated caller → authority → owner → consumer evidence
 - Product Memory boundary: prompts, handoffs, Graphify, Development Memory, secrets, credentials, and governance evidence are excluded
 - Baseline: 3138 passed, 5 skipped, 0 failed
-- Current evidence: `artifacts/evidence/V11-DURABLE-RESTART-EVIDENCE.md`
-- Current handoff: `artifacts/handoffs/V11-DURABLE-RESTART-HANDOFF.md`
-- Next action: freeze WP-00 closure gates and materialize task-local scope
+- Next action: materialize WP-01 exact scope and production call graph
