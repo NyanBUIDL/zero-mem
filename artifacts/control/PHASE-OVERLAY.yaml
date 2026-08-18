@@ -1,0 +1,138 @@
+overlay_version: "1.0"
+target_release: "1.1.0"
+canonical_hash: "85b66cbfd380a756eba9266ec8021b331dfee232ab95bd030f287766ba628b9a"
+planning_ref: "2f1763f1335326b83bf90f263cada5c3715f21eb"
+derived_from:
+  master_plan: "docs/v1.1.0/MASTER_PLAN.md"
+  wp_manifest: "artifacts/tasks/task-manifest.json"
+  wp_documents: "docs/v1.1.0/work-packages/WP-00..WP-22"
+  adr_set: "docs/v1.1.0/decisions/ADR-001..ADR-008"
+  historical_phase_status_used: false
+authority_model:
+  wp: ownership_and_requirements
+  phase: execution_sequencing
+  canonical_spec: requirements
+  phase_cannot: ["change WP ownership", "change WP dependencies", "close a WP", "authorize runtime implementation"]
+phases:
+  A:
+    WPs: [WP-00, WP-01, WP-02]
+    state: IN_PROGRESS
+    entry_requirements: ["canonical identity verified", "WP-00 source reconciliation available"]
+    exit_requirements: ["WP-00, WP-01, WP-02 VERIFIED", "core/adapter boundaries proven", "closure review, regression, governance, local checkpoint"]
+  B:
+    WPs: [WP-13, WP-04, WP-03, WP-08]
+    state: NOT_STARTED
+    entry_requirements: ["Phase A VERIFIED and checkpointed"]
+    exit_requirements: ["configuration, canonical storage, scale constraints, and public interface contracts verified", "required focused/regression evidence and checkpoint"]
+  C:
+    WPs: [WP-05, WP-20, WP-06, WP-09, WP-11, WP-12]
+    state: NOT_STARTED
+    entry_requirements: ["Phase B VERIFIED and checkpointed"]
+    exit_requirements: ["retrieval, scope modes, context budgets, compatibility, async, and process ownership verified", "required negative/security/regression evidence and checkpoint"]
+  D:
+    WPs: [WP-14, WP-15]
+    state: NOT_STARTED
+    entry_requirements: ["Phase C VERIFIED and checkpointed"]
+    exit_requirements: ["failure/recovery/conflict semantics and operational diagnostics verified", "closure gates and checkpoint"]
+  E:
+    WPs: [WP-21, WP-07, WP-22]
+    state: NOT_STARTED
+    entry_requirements: ["Phase D VERIFIED and checkpointed"]
+    exit_requirements: ["local sidecar/MCP, Hermes adapter, and Obsidian projection/write-back consumers verified", "integration/security/rebuild evidence and checkpoint"]
+  F:
+    WPs: [WP-17, WP-10, WP-18]
+    state: NOT_STARTED
+    entry_requirements: ["Phase E VERIFIED and checkpointed"]
+    exit_requirements: ["migration/rollback, packaging, and documentation/DX verified against implemented interfaces", "no future implementation performed by this overlay"]
+  G:
+    WPs: [WP-16, WP-19]
+    state: NOT_STARTED
+    entry_requirements: ["Phase F VERIFIED and checkpointed"]
+    exit_requirements: ["full validation/benchmarks and release go/no-go verified", "final local durable checkpoint; remote publication remains denied"]
+work_packages:
+  - {id: WP-00, title: "Baseline Reconciliation and Delta Audit", dependencies: [], primary_responsibilities: "control-plane baseline, canonical parity, evidence rules", implementation_surfaces: "governance artifacts only", verification_obligations: "identity, control validator, regression, forbidden-path audit", release_dependency: "baseline for all WPs", proposed_phase: A, mapping_reason: "root of DAG and governance foundation", source_reference: "MASTER_PLAN §7; WP-00-BASELINE.md"}
+  - {id: WP-01, title: Architecture, dependencies: [WP-00], primary_responsibilities: "component ownership, lifecycle and import boundaries", implementation_surfaces: "architecture/control-plane contracts; future core owner", verification_obligations: "architecture contract and call-graph evidence", release_dependency: "precedes core boundary work", proposed_phase: A, mapping_reason: "direct successor to baseline", source_reference: "MASTER_PLAN §§4-6; WP-01-ARCHITECTURE.md"}
+  - {id: WP-02, title: "Core Boundaries", dependencies: [WP-01], primary_responsibilities: "core/adapter separation and client-owned runtime boundary", implementation_surfaces: "core package and adapter boundary", verification_obligations: "import, ownership, two-client isolation and regression tests", release_dependency: "foundation for configuration/API", proposed_phase: A, mapping_reason: "final foundation gate before mutable runtime work", source_reference: "MASTER_PLAN §§5,7; WP-02-CORE_BOUNDARIES.md"}
+  - {id: WP-03, title: Performance, dependencies: [WP-04], primary_responsibilities: "long-run scale and resource budgets", implementation_surfaces: "storage, ingest, retrieval, adapter benchmarks", verification_obligations: "measured startup/write/retrieval/resource evidence", release_dependency: "consumed by final validation", proposed_phase: B, mapping_reason: "depends on canonical storage and precedes full test gate", source_reference: "MASTER_PLAN §§5,10; WP-03-PERFORMANCE.md"}
+  - {id: WP-04, title: "Storage Freshness Retention Delete", dependencies: [WP-13, WP-02], primary_responsibilities: "composite canonical storage, freshness, retention, delete and rebuild", implementation_surfaces: "capture, JSONL, SQLite derived sync, replay, backup", verification_obligations: "append persistence, freshness, rebuild, concurrency and recovery cases", release_dependency: "foundation for retrieval and reliability", proposed_phase: B, mapping_reason: "all prerequisites are Phase A/B-local and storage is a runtime foundation", source_reference: "MASTER_PLAN §§3,5,7; WP-04-STORAGE.md"}
+  - {id: WP-05, title: Retrieval, dependencies: [WP-04], primary_responsibilities: "bounded authorized retrieval, ranking and fusion", implementation_surfaces: "retrieval/query/corpus/evidence paths", verification_obligations: "bounded candidates, authorization-before-influence, deterministic ranking", release_dependency: "required by context and profiles", proposed_phase: C, mapping_reason: "storage prerequisite is completed in B", source_reference: "MASTER_PLAN §§3,5,7,10; WP-05-RETRIEVAL.md"}
+  - {id: WP-06, title: "Context Efficiency", dependencies: [WP-05, WP-20, WP-08], primary_responsibilities: "evidence selection, dedupe and token/context budgets", implementation_surfaces: "context router, evidence builder, budget/envelope", verification_obligations: "bounded context, freshness/insufficiency and token evidence", release_dependency: "required by Hermes and sidecar consumers", proposed_phase: C, mapping_reason: "all contract and scope inputs are available in C", source_reference: "MASTER_PLAN §§4.1,5,7,10; WP-06-CONTEXT_EFFICIENCY.md"}
+  - {id: WP-07, title: "Hermes Integration", dependencies: [WP-06, WP-08, WP-15, WP-20, WP-21], primary_responsibilities: "Hermes hooks, identity, lifecycle, fallback and adapter behavior", implementation_surfaces: "Hermes adapter/registration/client lifecycle", verification_obligations: "capture/read/injection failure isolation and parity", release_dependency: "required by packaging, migration and release", proposed_phase: E, mapping_reason: "consumer of public, context, diagnostics, scope and transport contracts", source_reference: "MASTER_PLAN §§4.1-4.2,5,7; WP-07-HERMES_INTEGRATION.md"}
+  - {id: WP-08, title: "Agent-Agnostic API", dependencies: [WP-04, WP-02], primary_responsibilities: "transport-neutral four-capability public lifecycle contract", implementation_surfaces: "public API/facade and typed results", verification_obligations: "direct API contract and unavailable/error semantics", release_dependency: "consumer contract for integrations and MCP", proposed_phase: B, mapping_reason: "API foundation depends only on core and storage", source_reference: "MASTER_PLAN §§4.1,5,7; WP-08-AGENT_AGNOSTIC_API.md"}
+  - {id: WP-09, title: Compatibility, dependencies: [WP-08], primary_responsibilities: "supported compatibility and deprecation surface", implementation_surfaces: "public aliases, version and compatibility checks", verification_obligations: "legacy consumer and contract compatibility tests", release_dependency: "required by packaging/migration/release", proposed_phase: C, mapping_reason: "direct public API consumer and prerequisite for packaging", source_reference: "MASTER_PLAN §§5,8; WP-09-COMPATIBILITY.md"}
+  - {id: WP-10, title: "Installation Packaging", dependencies: [WP-07, WP-09, WP-17, WP-21, WP-22], primary_responsibilities: "portable install/setup/upgrade/uninstall artifact", implementation_surfaces: "packaging, CLI, descriptors and release artifact", verification_obligations: "exact-wheel lifecycle and portability matrix", release_dependency: "late release prerequisite", proposed_phase: F, mapping_reason: "all packaging consumers and migration/workspace contracts precede it", source_reference: "MASTER_PLAN §§5,7-8; WP-10-INSTALLATION_PACKAGING.md"}
+  - {id: WP-11, title: "Sync Async", dependencies: [WP-08], primary_responsibilities: "explicit sync/async API, offload, cancellation and lifecycle", implementation_surfaces: "public async facade, queues and worker lifecycle", verification_obligations: "deadline, cancellation, backpressure and cleanup tests", release_dependency: "required by multi-agent and operations", proposed_phase: C, mapping_reason: "public API is its only direct prerequisite", source_reference: "MASTER_PLAN §7; WP-11-SYNC_ASYNC.md"}
+  - {id: WP-12, title: "Multi Agent", dependencies: [WP-11], primary_responsibilities: "multi-agent/process ownership and cross-process writes", implementation_surfaces: "runtime ownership, locking, profile/process policy", verification_obligations: "concurrent identity, writer safety and isolation tests", release_dependency: "required by reliability and MCP", proposed_phase: C, mapping_reason: "async lifecycle precedes physical multi-runtime policy", source_reference: "MASTER_PLAN §§4.3,5,7; WP-12-MULTI_AGENT.md"}
+  - {id: WP-13, title: Configuration, dependencies: [WP-02], primary_responsibilities: "effective configuration, paths, validation and runtime ownership", implementation_surfaces: "config schema, path resolution, setup/doctor/runtime", verification_obligations: "precedence, safety, redaction and identical effective config", release_dependency: "prerequisite for canonical storage", proposed_phase: B, mapping_reason: "directly follows core boundary and precedes storage", source_reference: "MASTER_PLAN §§5,7,9; WP-13-CONFIGURATION.md"}
+  - {id: WP-14, title: "Reliability Recovery", dependencies: [WP-04, WP-08, WP-12], primary_responsibilities: "failure classes, recovery, conflict and repair semantics", implementation_surfaces: "storage/runtime/API/backup/doctor recovery paths", verification_obligations: "fault injection, interruption, corruption and conflict tests", release_dependency: "required by diagnostics, MCP, migration and Obsidian", proposed_phase: D, mapping_reason: "all three prerequisites complete in B/C", source_reference: "MASTER_PLAN §§5,7-9; WP-14-RELIABILITY_RECOVERY.md"}
+  - {id: WP-15, title: Observability, dependencies: [WP-14], primary_responsibilities: "status, metrics, freshness and diagnostics", implementation_surfaces: "doctor/status/log/metric schemas", verification_obligations: "content-free diagnostics and lag/resource visibility", release_dependency: "required by Hermes and MCP", proposed_phase: D, mapping_reason: "diagnostics consume reliability state", source_reference: "MASTER_PLAN §§5,7,10; WP-15-OBSERVABILITY.md"}
+  - {id: WP-16, title: "Testing Benchmarks", dependencies: [WP-03, WP-04, WP-05, WP-06, WP-07, WP-08, WP-09, WP-10, WP-11, WP-12, WP-13, WP-14, WP-15, WP-17, WP-18, WP-20, WP-21, WP-22], primary_responsibilities: "central validation, regression and benchmark gate", implementation_surfaces: "tests, fixtures, supported matrix and benchmark artifacts", verification_obligations: "full release validation and measured gates", release_dependency: "direct prerequisite of WP-19", proposed_phase: G, mapping_reason: "manifest explicitly makes it dependent on every implementation/consumer WP", source_reference: "MASTER_PLAN §§7,11-12; WP-16-TESTING_BENCHMARKS.md"}
+  - {id: WP-17, title: Migration, dependencies: [WP-07, WP-09, WP-14, WP-20, WP-21, WP-22], primary_responsibilities: "v1.0-to-v1.1 discovery, backup, migration, rollback", implementation_surfaces: "upgrade/backup/config/API/descriptor/projection migration", verification_obligations: "populated-state preview, interruption, rollback and preservation", release_dependency: "required by packaging and release", proposed_phase: F, mapping_reason: "migration consumes all runtime/integration/workspace contracts", source_reference: "MASTER_PLAN §§5,7-8,12; WP-17-MIGRATION_V1_0_TO_V1_1.md"}
+  - {id: WP-18, title: Documentation, dependencies: [WP-07, WP-08, WP-10, WP-20, WP-21, WP-22], primary_responsibilities: "user, integration, operations and developer documentation", implementation_surfaces: "README, guides, examples, runbooks and release docs", verification_obligations: "example execution, links, exact artifact consistency", release_dependency: "required by final release readiness", proposed_phase: F, mapping_reason: "documentation must describe implemented public/install/integration behavior", source_reference: "MASTER_PLAN §§5,7,12; WP-18-DOCUMENTATION_DX.md"}
+  - {id: WP-19, title: "Release Readiness", dependencies: [WP-16, WP-17, WP-18, WP-20, WP-21, WP-22], primary_responsibilities: "final traceability, no-go/go decision and release closure", implementation_surfaces: "release evidence, decision and rollback records", verification_obligations: "all mandatory WPs, exact artifact and final regression", release_dependency: "terminal release gate", proposed_phase: G, mapping_reason: "MASTER_PLAN assigns final go/no-go despite numeric ID", source_reference: "MASTER_PLAN §§5,7,12; WP-19-RELEASE_READINESS.md"}
+  - {id: WP-20, title: "Profiles Knowledge Spaces", dependencies: [WP-05, WP-08], primary_responsibilities: "profile/space modes, scope policy and isolation", implementation_surfaces: "scope models/resolution across retrieval/API/integrations", verification_obligations: "all modes, no leakage, order-independent union and write separation", release_dependency: "required by context, Hermes, migration, Obsidian", proposed_phase: C, mapping_reason: "retrieval and public API are its declared prerequisites", source_reference: "MASTER_PLAN §§4.3,5,7,9; WP-20-PROFILES_KNOWLEDGE_SPACES.md"}
+  - {id: WP-21, title: "Local Sidecar MCP", dependencies: [WP-08, WP-12, WP-14, WP-15], primary_responsibilities: "local lifecycle, MCP binding, limits, identity and conformance", implementation_surfaces: "sidecar/MCP server and client adapters", verification_obligations: "four-capability parity, security, overload, deadline and disabled behavior", release_dependency: "required by Hermes, packaging, migration, docs", proposed_phase: E, mapping_reason: "transport requires public API, process, recovery and diagnostics", source_reference: "MASTER_PLAN §§4.1,5,7; WP-21-LOCAL_SIDECAR_MCP.md"}
+  - {id: WP-22, title: "Obsidian Workspace", dependencies: [WP-04, WP-14, WP-20], primary_responsibilities: "curated projection, candidate review and approved write-back", implementation_surfaces: "workspace projection/review/write-back/rebuild", verification_obligations: "views, provenance, path safety, idempotency, conflicts and no-loop", release_dependency: "required by migration, packaging, docs and release", proposed_phase: E, mapping_reason: "storage, recovery and scope contracts precede human projection/write-back", source_reference: "MASTER_PLAN §§4.4,5,7-9; WP-22-OBSIDIAN_WORKSPACE.md"}
+WP_to_phase:
+  WP-00: A
+  WP-01: A
+  WP-02: A
+  WP-03: B
+  WP-04: B
+  WP-05: C
+  WP-06: C
+  WP-07: E
+  WP-08: B
+  WP-09: C
+  WP-10: F
+  WP-11: C
+  WP-12: C
+  WP-13: B
+  WP-14: D
+  WP-15: D
+  WP-16: G
+  WP-17: F
+  WP-18: F
+  WP-19: G
+  WP-20: C
+  WP-21: E
+  WP-22: E
+dependencies:
+  WP-00: []
+  WP-01: [WP-00]
+  WP-02: [WP-01]
+  WP-03: [WP-04]
+  WP-04: [WP-13, WP-02]
+  WP-05: [WP-04]
+  WP-06: [WP-05, WP-20, WP-08]
+  WP-07: [WP-06, WP-08, WP-15, WP-20, WP-21]
+  WP-08: [WP-04, WP-02]
+  WP-09: [WP-08]
+  WP-10: [WP-07, WP-09, WP-17, WP-21, WP-22]
+  WP-11: [WP-08]
+  WP-12: [WP-11]
+  WP-13: [WP-02]
+  WP-14: [WP-04, WP-08, WP-12]
+  WP-15: [WP-14]
+  WP-16: [WP-03, WP-04, WP-05, WP-06, WP-07, WP-08, WP-09, WP-10, WP-11, WP-12, WP-13, WP-14, WP-15, WP-17, WP-18, WP-20, WP-21, WP-22]
+  WP-17: [WP-07, WP-09, WP-14, WP-20, WP-21, WP-22]
+  WP-18: [WP-07, WP-08, WP-10, WP-20, WP-21, WP-22]
+  WP-19: [WP-16, WP-17, WP-18, WP-20, WP-21, WP-22]
+  WP-20: [WP-05, WP-08]
+  WP-21: [WP-08, WP-12, WP-14, WP-15]
+  WP-22: [WP-04, WP-14, WP-20]
+closure_model:
+  wp_verified_requires: ["requirements satisfied", "implementation or control-plane scope present", "focused/integration/security/negative/benchmark evidence as applicable", "closure review", "full regression", "governance consistency", "local checkpoint"]
+  phase_verified_requires: ["every mapped WP VERIFIED", "all phase exit requirements satisfied", "no forbidden later-phase work", "full regression clean", "local durable checkpoint"]
+  current_durable_evidence: {WP-00: VERIFIED, WP-01: VERIFIED, WP-02: NOT_STARTED}
+  phase_state_rule: "derive from current durable WP evidence; historical Phase labels are ignored"
+checkpoint_policy:
+  local_git_allowed: true
+  remote_publication: DENIED
+  destructive_git: DENIED
+  phase_transition: "only after all mapped WPs and closure gates are VERIFIED and checkpointed"
+  current_durable_phase: A
+  next_incomplete_wp: WP-02
+  next_legal_execution: "Phase A / WP-02 scope materialization; runtime implementation remains separately authorization-gated"
+implementation_authorization: NOT_GRANTED_BY_OVERLAY
+product_memory: UNTOUCHED

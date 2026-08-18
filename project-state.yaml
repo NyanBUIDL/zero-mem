@@ -1267,3 +1267,18 @@ v11_last_verified_phase: WP-01
 v11_checkpoint_sha: 0cbfa6d3d86845346591d99ee75acf6e9f2f448a
 v11_remote_publication: DENIED
 v11_baseline_result: 3138 passed, 5 skipped, 0 failed
+# Durable WP-to-phase execution overlay (derived; WP authority unchanged)
+v11_phase_overlay: artifacts/control/PHASE-OVERLAY.yaml
+v11_phase_overlay_version: "1.0"
+v11_phase_overlay_status: ESTABLISHED
+v11_current_durable_phase: A
+v11_current_phase_state: IN_PROGRESS
+v11_current_durable_verified_wps: [WP-00, WP-01]
+v11_next_incomplete_wp: WP-02
+v11_next_legal_execution: "Phase A / WP-02 scope materialization"
+v11_phase_f_started: false
+v11_phase_g_started: false
+v11_historical_phase_labels_current_authority: false
+v11_product_memory: UNTOUCHED
+v11_overlay_runtime_implementation: NOT_PERFORMED
+v11_overlay_remote_publication: DENIED
