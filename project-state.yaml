@@ -1261,10 +1261,10 @@ v11_branch: NyanBUIDL-Zero-mem
 v11_planning_ref: 2f1763f1335326b83bf90f263cada5c3715f21eb
 v11_canonical_sha256: 85b66cbfd380a756eba9266ec8021b331dfee232ab95bd030f287766ba628b9a
 v11_restart_lifecycle: WP-01_VERIFIED
-v11_current_phase: WP-01
-v11_current_task: WP-02
-v11_last_verified_phase: WP-01
-v11_checkpoint_sha: 0cbfa6d3d86845346591d99ee75acf6e9f2f448a
+v11_current_phase: A
+v11_current_task: PHASE-B-SCOPE-MATERIALIZATION
+v11_last_verified_phase: A
+v11_checkpoint_sha: cfcb1f0
 v11_remote_publication: DENIED
 v11_baseline_result: 3138 passed, 5 skipped, 0 failed
 # Durable WP-to-phase execution overlay (derived; WP authority unchanged)
@@ -1272,13 +1272,27 @@ v11_phase_overlay: artifacts/control/PHASE-OVERLAY.yaml
 v11_phase_overlay_version: "1.0"
 v11_phase_overlay_status: ESTABLISHED
 v11_current_durable_phase: A
-v11_current_phase_state: IN_PROGRESS
-v11_current_durable_verified_wps: [WP-00, WP-01]
-v11_next_incomplete_wp: WP-02
-v11_next_legal_execution: "Phase A / WP-02 scope materialization"
+v11_current_phase_state: VERIFIED
+v11_current_durable_verified_wps: [WP-00, WP-01, WP-02]
+v11_next_incomplete_wp: WP-13
+v11_next_legal_execution: "create local Phase A checkpoint, then materialize Phase B scopes"
 v11_phase_f_started: false
 v11_phase_g_started: false
 v11_historical_phase_labels_current_authority: false
 v11_product_memory: UNTOUCHED
-v11_overlay_runtime_implementation: NOT_PERFORMED
+v11_overlay_runtime_implementation: WP-02_VERIFIED
 v11_overlay_remote_publication: DENIED
+
+# v11 execution update — WP-02
+v11_wp02_status: VERIFIED
+v11_wp02_checkpoint_sha: cfcb1f0
+v11_wp02_task: public core/client and adapter boundary
+v11_wp02_focused_result: "20 passed"
+v11_wp02_regression_result: "3146 passed, 5 skipped, 0 failed (isolated HOME/XDG)"
+v11_wp02_benchmark: "10000 calls in 0.002702s"
+v11_wp02_evidence: artifacts/evidence/WP-02-CLOSURE.md
+v11_wp02_handoff: artifacts/handoffs/WP-02-HANDOFF.md
+v11_phase_a_status: VERIFIED
+v11_phase_a_checkpoint_pending: true
+v11_phase_a_evidence: artifacts/evidence/PHASE-A-CLOSURE.md
+v11_phase_a_handoff: artifacts/handoffs/PHASE-A-HANDOFF.md

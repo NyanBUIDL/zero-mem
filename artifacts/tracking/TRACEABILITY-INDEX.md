@@ -9,6 +9,8 @@
 | `artifacts/tasks/task-manifest.json` | `dependencies`, `WP_to_phase` | machine-readable DAG authority |
 | `artifacts/evidence/WP-00-CLOSURE.md` | WP-00 VERIFIED | current durable evidence |
 | `artifacts/evidence/WP-01-CLOSURE.md` | WP-01 VERIFIED | current durable evidence |
+| `artifacts/evidence/WP-02-CLOSURE.md` | WP-02 VERIFIED | current durable evidence |
+| `artifacts/handoffs/WP-02-HANDOFF.md` | WP-02 boundary handoff | next-phase context |
 | `artifacts/control/runner-state.yaml` | current phase/WP selection | runner compatibility |
 | `artifacts/control/PHASE-OVERLAY.yaml` | phases, mapping, closure model | canonical derived sequencing overlay |
 

@@ -16,7 +16,7 @@ authority_model:
 phases:
   A:
     WPs: [WP-00, WP-01, WP-02]
-    state: IN_PROGRESS
+    state: VERIFIED
     entry_requirements: ["canonical identity verified", "WP-00 source reconciliation available"]
     exit_requirements: ["WP-00, WP-01, WP-02 VERIFIED", "core/adapter boundaries proven", "closure review, regression, governance, local checkpoint"]
   B:
@@ -124,7 +124,7 @@ dependencies:
 closure_model:
   wp_verified_requires: ["requirements satisfied", "implementation or control-plane scope present", "focused/integration/security/negative/benchmark evidence as applicable", "closure review", "full regression", "governance consistency", "local checkpoint"]
   phase_verified_requires: ["every mapped WP VERIFIED", "all phase exit requirements satisfied", "no forbidden later-phase work", "full regression clean", "local durable checkpoint"]
-  current_durable_evidence: {WP-00: VERIFIED, WP-01: VERIFIED, WP-02: NOT_STARTED}
+  current_durable_evidence: {WP-00: VERIFIED, WP-01: VERIFIED, WP-02: VERIFIED}
   phase_state_rule: "derive from current durable WP evidence; historical Phase labels are ignored"
 checkpoint_policy:
   local_git_allowed: true
@@ -132,7 +132,7 @@ checkpoint_policy:
   destructive_git: DENIED
   phase_transition: "only after all mapped WPs and closure gates are VERIFIED and checkpointed"
   current_durable_phase: A
-  next_incomplete_wp: WP-02
-  next_legal_execution: "Phase A / WP-02 scope materialization; runtime implementation remains separately authorization-gated"
+  next_incomplete_wp: WP-13
+  next_legal_execution: "Phase B / WP-13 scope materialization after Phase A checkpoint"
 implementation_authorization: NOT_GRANTED_BY_OVERLAY
 product_memory: UNTOUCHED

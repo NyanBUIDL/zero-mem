@@ -2,7 +2,7 @@
 
 | Phase | WPs | State | Evidence basis | Next gate |
 |---|---|---|---|---|
-| A | WP-00, WP-01, WP-02 | IN_PROGRESS | WP-00/WP-01 durable; WP-02 incomplete | verify WP-02 and Phase A closure gates |
+| A | WP-00, WP-01, WP-02 | VERIFIED | WP-02 evidence, isolated regression, governance review | Phase B scope materialization |
 | B | WP-13, WP-04, WP-03, WP-08 | NOT_STARTED | no current durable WP evidence | Phase A VERIFIED + checkpoint |
 | C | WP-05, WP-20, WP-06, WP-09, WP-11, WP-12 | NOT_STARTED | no current durable WP evidence | Phase B VERIFIED + checkpoint |
 | D | WP-14, WP-15 | NOT_STARTED | no current durable WP evidence | Phase C VERIFIED + checkpoint |
@@ -20,5 +20,5 @@
 Phase state is derived from current WP evidence. Historical lost Phase A–E labels are not current evidence.
 
 **Current durable phase:** A
-**Next incomplete WP:** WP-02
-**Implementation authorization:** NOT GRANTED BY OVERLAY
+**Next incomplete WP:** WP-13
+**Implementation authorization:** Phase B remains inactive until its exact task scopes are materialized.

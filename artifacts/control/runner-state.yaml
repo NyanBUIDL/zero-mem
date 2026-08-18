@@ -1,22 +1,25 @@
 runner: MASTER-AUTONOMOUS-RUNNER
 lifecycle: PHASE_OVERLAY_ESTABLISHED
 phase: A
-phase_state: IN_PROGRESS
-current_task: WP-02
+phase_state: VERIFIED
+current_task: PHASE-B-SCOPE-MATERIALIZATION
 completed_tasks:
   - WP-00
   - WP-01
+  - WP-02
 completed_verified_wps:
   - WP-00
   - WP-01
-active_authorizations: []
-last_checkpoint: 0cbfa6d3d86845346591d99ee75acf6e9f2f448a
-last_action: durable WP-to-phase overlay derived and validated; WP-00/WP-01 remain CURRENT_DURABLE_VERIFIED_WP
-next_action: materialize WP-02 exact scope and production call graph after dependency check
+  - WP-02
+active_authorizations:
+  - WP-02 exact bounded scope from artifacts/tasks/WP-02.md
+last_checkpoint: cfcb1f0
+last_action: Phase A closure gates passed after WP-02 verification
+next_action: create local Phase A checkpoint, then materialize Phase B scopes
 phase_overlay: artifacts/control/PHASE-OVERLAY.yaml
 wp_authority: artifacts/tasks/task-manifest.json
 selection_model: current durable state -> incomplete WPs -> WP dependencies -> legal phase -> eligible WP/task
 phase_completion_rule: all mapped WPs and closure gates VERIFIED; never infer from phase label
-implementation_authorization: NOT_GRANTED_BY_OVERLAY
+implementation_authorization: PHASE_A_CLOSED; Phase B NOT_GRANTED_UNTIL_MATERIALIZED
 product_memory: UNTOUCHED
 remote_publication: DENIED

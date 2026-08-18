@@ -6,7 +6,7 @@ Source: `artifacts/tasks/task-manifest.json` and planning ref `2f1763f1335326b83
 |---|---|---:|---|---|
 | WP-00 | Baseline Reconciliation and Delta Audit | A | — | VERIFIED |
 | WP-01 | Architecture | A | WP-00 | VERIFIED |
-| WP-02 | Core Boundaries | A | WP-01 | NOT_STARTED |
+| WP-02 | Core Boundaries | A | WP-01 | VERIFIED (implementation checkpoint `cfcb1f0`; Phase A closure pending) |
 | WP-03 | Performance | B | WP-04 | NOT_STARTED |
 | WP-04 | Storage Freshness Retention Delete | B | WP-13, WP-02 | NOT_STARTED |
 | WP-05 | Retrieval | C | WP-04 | NOT_STARTED |
