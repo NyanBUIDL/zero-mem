@@ -3,6 +3,7 @@
 from .api import API_VERSION, AsyncClient, AsyncQueueFullError, AsyncTimeoutError, CapabilityResult, ClientClosedError, Health, InvalidRequestError, PublicClient, ZeroMemAPIError
 from .core import CaptureResult, CoreConfig, EventWriter, ZeroMemClient
 from .recovery import FailureClass, RecoveryDiagnosis, diagnose
+from .status import STATUS_SCHEMA_VERSION, StatusSnapshot, collect_status
 from .version import __version__
 
 __all__ = [
@@ -16,8 +17,11 @@ __all__ = [
     "InvalidRequestError",
     "PublicClient",
     "RecoveryDiagnosis",
+    "STATUS_SCHEMA_VERSION",
+    "StatusSnapshot",
     "ZeroMemAPIError",
     "diagnose",
+    "collect_status",
     "CaptureResult",
     "CoreConfig",
     "EventWriter",

@@ -333,7 +333,18 @@
       "depends_on": [
         "WP-14"
       ],
-      "status": "NOT_STARTED"
+      "status": "VERIFIED",
+      "authorized_scope": [
+        "artifacts/tasks/WP-15.md",
+        "zero_mem/status.py",
+        "zero_mem/commands_doctor.py",
+        "tests/unit/test_wp15_status.py",
+        "benchmarks/wp15_status.py",
+        "artifacts/evidence/WP-15-CLOSURE.md",
+        "artifacts/handoffs/WP-15-HANDOFF.md"
+      ],
+      "checkpoint_commit": "PENDING_WP15_COMMIT",
+      "evidence": "artifacts/evidence/WP-15-CLOSURE.md"
     },
     {
       "id": "WP-16",
