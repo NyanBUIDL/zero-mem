@@ -41,7 +41,7 @@ phases:
     exit_requirements: ["local sidecar/MCP, Hermes adapter, and Obsidian projection/write-back consumers verified", "integration/security/rebuild evidence and checkpoint"]
   F:
     WPs: [WP-17, WP-10, WP-18]
-    state: NOT_STARTED
+    state: VERIFIED
     entry_requirements: ["Phase E VERIFIED and checkpointed"]
     exit_requirements: ["migration/rollback, packaging, and documentation/DX verified against implemented interfaces", "no future implementation performed by this overlay"]
   G:
@@ -124,15 +124,15 @@ dependencies:
 closure_model:
   wp_verified_requires: ["requirements satisfied", "implementation or control-plane scope present", "focused/integration/security/negative/benchmark evidence as applicable", "closure review", "full regression", "governance consistency", "local checkpoint"]
   phase_verified_requires: ["every mapped WP VERIFIED", "all phase exit requirements satisfied", "no forbidden later-phase work", "full regression clean", "local durable checkpoint"]
-  current_durable_evidence: {WP-00: VERIFIED, WP-01: VERIFIED, WP-02: VERIFIED, WP-13: VERIFIED, WP-04: VERIFIED, WP-03: VERIFIED, WP-08: VERIFIED, WP-05: VERIFIED, WP-20: VERIFIED, WP-06: VERIFIED, WP-09: VERIFIED, WP-11: VERIFIED, WP-12: VERIFIED, WP-14: VERIFIED, WP-15: VERIFIED, WP-21: VERIFIED, WP-07: VERIFIED, WP-22: VERIFIED}
+  current_durable_evidence: {WP-00: VERIFIED, WP-01: VERIFIED, WP-02: VERIFIED, WP-13: VERIFIED, WP-04: VERIFIED, WP-03: VERIFIED, WP-08: VERIFIED, WP-05: VERIFIED, WP-20: VERIFIED, WP-06: VERIFIED, WP-09: VERIFIED, WP-11: VERIFIED, WP-12: VERIFIED, WP-14: VERIFIED, WP-15: VERIFIED, WP-21: VERIFIED, WP-07: VERIFIED, WP-22: VERIFIED, WP-17: VERIFIED, WP-10: VERIFIED, WP-18: VERIFIED}
   phase_state_rule: "derive from current durable WP evidence; historical Phase labels are ignored"
 checkpoint_policy:
   local_git_allowed: true
   remote_publication: DENIED
   destructive_git: DENIED
   phase_transition: "only after all mapped WPs and closure gates are VERIFIED and checkpointed"
-  current_durable_phase: F
-  next_incomplete_wp: WP-17
-  next_legal_execution: "Phase F / WP-17 scope materialization after Phase E checkpoint"
+  current_durable_phase: G
+  next_incomplete_wp: WP-16
+  next_legal_execution: "Phase G / WP-16 integrated validation after Phase F checkpoint"
 implementation_authorization: NOT_GRANTED_BY_OVERLAY
 product_memory: UNTOUCHED

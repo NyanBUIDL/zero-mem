@@ -258,7 +258,7 @@
         "artifacts/evidence/WP-10-CLOSURE.md",
         "artifacts/handoffs/WP-10-HANDOFF.md"
       ],
-      "checkpoint_commit": "PENDING_WP10_COMMIT",
+      "checkpoint_commit": "6d5c15383101e00b6aa2850f1e79580cd5e7c652",
       "evidence": "artifacts/evidence/WP-10-CLOSURE.md"
     },
     {
@@ -418,7 +418,7 @@
         "artifacts/evidence/WP-17-CLOSURE.md",
         "artifacts/handoffs/WP-17-HANDOFF.md"
       ],
-      "checkpoint_commit": "PENDING_WP17_COMMIT",
+      "checkpoint_commit": "6d5c15383101e00b6aa2850f1e79580cd5e7c652",
       "evidence": "artifacts/evidence/WP-17-CLOSURE.md"
     },
     {
@@ -441,7 +441,7 @@
         "artifacts/evidence/WP-18-CLOSURE.md",
         "artifacts/handoffs/WP-18-HANDOFF.md"
       ],
-      "checkpoint_commit": "PENDING_WP18_COMMIT",
+      "checkpoint_commit": "6d5c15383101e00b6aa2850f1e79580cd5e7c652",
       "evidence": "artifacts/evidence/WP-18-CLOSURE.md"
     },
     {
