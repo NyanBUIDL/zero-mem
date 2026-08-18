@@ -472,7 +472,7 @@
         "project-state.yaml",
         "artifacts/control/PHASE-OVERLAY.yaml"
       ],
-      "checkpoint_commit": "PENDING_WP19_COMMIT",
+      "checkpoint_commit": "674af304132f498e19f089c7c3c4b18dabd9c656",
       "evidence": "artifacts/evidence/WP-19-CLOSURE.md"
     },
     {
