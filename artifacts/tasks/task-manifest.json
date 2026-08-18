@@ -149,7 +149,7 @@
         "WP-20",
         "WP-08"
       ],
-      "status": "READY_FOR_EXECUTION",
+      "status": "VERIFIED",
       "authorized_scope": [
         "artifacts/tasks/WP-06.md",
         "src/integration/m7/evidence_builder.py",
@@ -160,7 +160,9 @@
         "artifacts/evidence/WP-06-CLOSURE.md",
         "artifacts/handoffs/WP-06-HANDOFF.md"
       ],
-      "scope_status": "MATERIALIZED_ALL_TASKS"
+      "scope_status": "MATERIALIZED_ALL_TASKS",
+      "checkpoint_commit": "PENDING_WP06_COMMIT",
+      "evidence": "artifacts/evidence/WP-06-CLOSURE.md"
     },
     {
       "id": "WP-07",
