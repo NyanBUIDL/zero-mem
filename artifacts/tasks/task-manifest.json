@@ -311,7 +311,21 @@
         "WP-08",
         "WP-12"
       ],
-      "status": "NOT_STARTED"
+      "status": "VERIFIED",
+      "authorized_scope": [
+        "artifacts/tasks/WP-14.md",
+        "zero_mem/recovery.py",
+        "zero_mem/backup.py",
+        "zero_mem/upgrade.py",
+        "zero_mem/commands_doctor.py",
+        "tests/unit/test_wp14_recovery.py",
+        "benchmarks/wp14_recovery.py",
+        "docs/v1.1.0/recovery/WP-14-RECOVERY-RUNBOOK.md",
+        "artifacts/evidence/WP-14-CLOSURE.md",
+        "artifacts/handoffs/WP-14-HANDOFF.md"
+      ],
+      "checkpoint_commit": "PENDING_WP14_COMMIT",
+      "evidence": "artifacts/evidence/WP-14-CLOSURE.md"
     },
     {
       "id": "WP-15",
