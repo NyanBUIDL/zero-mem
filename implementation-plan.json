@@ -87,6 +87,14 @@
   "m10_increment_7_status": "verified",
   "m10_increment_count": 7,
   "feature_freeze_status": "active",
+  "autonomous_execution_authorization": {
+    "scope": "WP-24..WP-35",
+    "status": "APPROVED",
+    "user_approval_per_wp": "not_required",
+    "architecture_escalation": "required",
+    "destructive_data_operations": "not_authorized",
+    "release_publication": "not_authorized"
+  },
   "post_m10_audit_status": "not_started",
   "packaging_status": "not_started",
   "scope": "External Zero-Mem sidecar for Hermes Agent; local-first, observation-only before controlled injection",
@@ -97,7 +105,8 @@
     "profile as policy; global reads are profile-first and bounded",
     "explicit authorization for cross-profile writes",
     "privacy by design with redaction before persistence",
-    "SQLite/JSONL/artifacts canonical; Obsidian is curated projection/workspace",
+    "v1.2+ canonical memory-event truth is append-only JSONL; SQLite/FTS/indexes/graphs/materialized views are derived and rebuildable; versioned artifacts remain authoritative only for their own contents; Obsidian is a curated human-facing projection",
+    "approved canonical storage refinement: docs/v1.2.0/SPEC-AMENDMENT-001-CANONICAL-MEMORY-EVENT-TRUTH.md and docs/v1.2.0/decisions/ADR-009-CANONICAL_MEMORY_EVENT_TRUTH_AND_DERIVED_STATE_BOUNDARY.md; prospective from v1.2+; v1.1 history preserved",
     "rebuildable indexes and projections"
   ],
   "milestones": [

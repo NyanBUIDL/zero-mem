@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from zero_mem.core import CoreConfig, ZeroMemClient
+from zero_mem.core import AppendReceipt, CoreConfig, ZeroMemClient
 
 
 def test_clients_keep_immutable_distinct_runtime_configuration() -> None:
@@ -77,8 +77,9 @@ def test_enabled_client_writes_through_injected_writer() -> None:
     calls: list[object] = []
 
     class Writer:
-        def append(self, event: object) -> None:
+        def append(self, event: object) -> AppendReceipt:
             calls.append(event)
+            return AppendReceipt("appended", "e1", 0, True)
 
     event = {"kind": "observation"}
     client = ZeroMemClient(

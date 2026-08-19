@@ -1,4 +1,4 @@
-from zero_mem import CoreConfig, PublicClient
+from zero_mem import AppendReceipt, CoreConfig, PublicClient
 
 
 class Writer:
@@ -6,6 +6,7 @@ class Writer:
         self.events = []
     def append(self, event):
         self.events.append(event)
+        return AppendReceipt("appended", f"event-{len(self.events)}", len(self.events) - 1, True)
 
 
 def test_generic_fixture_uses_only_public_zero_mem_imports() -> None:

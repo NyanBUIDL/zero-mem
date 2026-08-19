@@ -1,0 +1,190 @@
+"""Bounded transport-only sidecar for the canonical Zero-Mem dispatcher."""
+from __future__ import annotations
+
+import json
+import math
+import threading
+import time
+from concurrent.futures import CancelledError, ThreadPoolExecutor, TimeoutError as FutureTimeout
+from dataclasses import dataclass
+from enum import Enum
+from numbers import Real
+from typing import Any, Callable, cast
+
+from .m6.mcp_wrapper import handle_call
+
+
+class SidecarStatus(str, Enum):
+    OK = "OK"
+    INVALID_REQUEST = "INVALID_REQUEST"
+    PAYLOAD_TOO_LARGE = "PAYLOAD_TOO_LARGE"
+    OVERLOADED = "OVERLOADED"
+    DEADLINE_EXCEEDED = "DEADLINE_EXCEEDED"
+    DOWNSTREAM_ERROR = "DOWNSTREAM_ERROR"
+    UNAVAILABLE = "UNAVAILABLE"
+    CLOSED = "CLOSED"
+
+
+@dataclass(frozen=True)
+class SidecarConfig:
+    max_request_bytes: int = 64 * 1024
+    max_response_bytes: int = 256 * 1024
+    max_concurrency: int = 4
+    max_queue: int = 16
+    default_deadline: float = 5.0
+
+    def __post_init__(self) -> None:
+        for name in ("max_request_bytes", "max_response_bytes", "max_concurrency"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise ValueError(f"invalid {name}")
+        if isinstance(self.max_queue, bool) or not isinstance(self.max_queue, int) or self.max_queue < 0:
+            raise ValueError("invalid max_queue")
+        if (
+            isinstance(self.default_deadline, bool)
+            or not isinstance(self.default_deadline, Real)
+            or not _finite_number(self.default_deadline)
+            or self.default_deadline <= 0
+        ):
+            raise ValueError("invalid default_deadline")
+
+
+def _finite_number(value: Real) -> bool:
+    try:
+        return math.isfinite(float(value))
+    except (OverflowError, ValueError):
+        return False
+
+
+@dataclass(frozen=True)
+class SidecarResult:
+    status: SidecarStatus
+    payload: dict[str, Any]
+    bytes_in: int = 0
+    bytes_out: int = 0
+
+
+Dispatcher = Callable[[dict[str, Any]], dict[str, Any]]
+
+
+class ZeroMemSidecar:
+    """Bounded local adapter; all semantics remain in the injected dispatcher."""
+
+    def __init__(self, config: SidecarConfig | None = None, *, dispatcher: Dispatcher | None = None) -> None:
+        self.config = config or SidecarConfig()
+        self._dispatcher = dispatcher or self._default_dispatch
+        self._admission_capacity = self.config.max_concurrency + self.config.max_queue
+        self._admitted = 0
+        self._executor = ThreadPoolExecutor(max_workers=self.config.max_concurrency, thread_name_prefix="zero-mem-sidecar")
+        self._closed = False
+        self._close_lock = threading.RLock()
+        self._admission_condition = threading.Condition(self._close_lock)
+        self._futures: set[Any] = set()
+
+    @staticmethod
+    def _default_dispatch(payload: dict[str, Any]) -> dict[str, Any]:
+        tool = cast(str, payload["tool"])
+        return handle_call(tool, payload)
+
+    @staticmethod
+    def _result(status: SidecarStatus, *, payload: dict[str, Any] | None = None, bytes_in: int = 0) -> SidecarResult:
+        body = payload or {"status": status.value}
+        raw = json.dumps(body, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        return SidecarResult(status, body, bytes_in, len(raw))
+
+    def _future_done(self, future: Any) -> None:
+        with self._admission_condition:
+            self._futures.discard(future)
+            self._admitted -= 1
+            self._admission_condition.notify_all()
+
+    def _acquire_admission(self, deadline: float, *, immediate: bool) -> SidecarStatus | None:
+        with self._admission_condition:
+            while self._admitted >= self._admission_capacity:
+                if self._closed:
+                    return SidecarStatus.CLOSED
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return SidecarStatus.OVERLOADED if immediate else SidecarStatus.DEADLINE_EXCEEDED
+                self._admission_condition.wait(timeout=remaining)
+            if self._closed:
+                return SidecarStatus.CLOSED
+            self._admitted += 1
+            return None
+
+    def handle(self, request: bytes, *, identity: str | None = None, wait_timeout: float | None = None) -> SidecarResult:
+        if not isinstance(request, (bytes, bytearray)):
+            return self._result(SidecarStatus.INVALID_REQUEST)
+        size = len(request)
+        if size > self.config.max_request_bytes:
+            return self._result(SidecarStatus.PAYLOAD_TOO_LARGE, bytes_in=size)
+        with self._close_lock:
+            if self._closed:
+                return self._result(SidecarStatus.CLOSED, bytes_in=size)
+        try:
+            payload = json.loads(bytes(request).decode("utf-8"))
+            if not isinstance(payload, dict) or not isinstance(payload.get("tool"), str):
+                raise ValueError("invalid envelope")
+            if identity is not None:
+                if "requesting_profile_id" in payload and payload["requesting_profile_id"] != identity:
+                    return self._result(SidecarStatus.INVALID_REQUEST, bytes_in=size)
+                payload["requesting_profile_id"] = identity
+        except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, ValueError, TypeError):
+            return self._result(SidecarStatus.INVALID_REQUEST, bytes_in=size)
+
+        timeout = self.config.default_deadline if wait_timeout is None else wait_timeout
+        if isinstance(timeout, bool) or not isinstance(timeout, Real) or not _finite_number(timeout) or timeout < 0:
+            return self._result(SidecarStatus.INVALID_REQUEST, bytes_in=size)
+        deadline = time.monotonic() + timeout
+        admission_status = self._acquire_admission(deadline, immediate=timeout == 0)
+        if admission_status is not None:
+            return self._result(admission_status, bytes_in=size)
+        with self._admission_condition:
+            if self._closed:
+                self._admitted -= 1
+                self._admission_condition.notify_all()
+                return self._result(SidecarStatus.CLOSED, bytes_in=size)
+            try:
+                future = self._executor.submit(self._dispatcher, payload)
+            except RuntimeError:
+                closed = self._closed
+                self._admitted -= 1
+                self._admission_condition.notify_all()
+                status = SidecarStatus.CLOSED if closed else SidecarStatus.UNAVAILABLE
+                return self._result(status, bytes_in=size)
+            self._futures.add(future)
+            future.add_done_callback(self._future_done)
+        try:
+            response = future.result(timeout=max(0.0, deadline - time.monotonic()))
+        except FutureTimeout:
+            return self._result(SidecarStatus.DEADLINE_EXCEEDED, bytes_in=size)
+        except CancelledError:
+            return self._result(SidecarStatus.CLOSED, bytes_in=size)
+        except Exception:
+            return self._result(SidecarStatus.DOWNSTREAM_ERROR, bytes_in=size)
+        with self._admission_condition:
+            if self._closed:
+                return self._result(SidecarStatus.CLOSED, bytes_in=size)
+            if not isinstance(response, dict):
+                return self._result(SidecarStatus.DOWNSTREAM_ERROR, bytes_in=size)
+            try:
+                raw = json.dumps(response, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            except (TypeError, ValueError, OverflowError, RecursionError):
+                return self._result(SidecarStatus.DOWNSTREAM_ERROR, bytes_in=size)
+            if len(raw) > self.config.max_response_bytes:
+                return self._result(SidecarStatus.PAYLOAD_TOO_LARGE, bytes_in=size)
+            return SidecarResult(SidecarStatus.OK, response, size, len(raw))
+
+    def close(self) -> None:
+        with self._admission_condition:
+            if self._closed:
+                return
+            self._closed = True
+            futures = tuple(self._futures)
+            self._admission_condition.notify_all()
+        for future in futures:
+            future.cancel()
+        self._executor.shutdown(wait=False, cancel_futures=True)
+
+
+__all__ = ["SidecarConfig", "SidecarResult", "SidecarStatus", "ZeroMemSidecar"]

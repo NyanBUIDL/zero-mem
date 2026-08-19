@@ -1,44 +1,56 @@
-"""M7.1 — Master Zero-Mem runtime gate (single source of truth).
+"""Zero-Mem runtime composition and master enable/disable gate.
 
-Owns the ONE authoritative master enable/disable boolean (``ZERO_MEM_ENABLED``).
-Contains NO retrieval, authorization, SQLite, JSONL, routing, or injection logic.
-It is a pure configuration/runtime-state holder consulted by M1, M6, and future
-M7 modules so that the master setting is resolved exactly once per process start
-and never re-parsed per request.
-
-Design constraints (M7.1 plan):
-* one canonical resolved boolean;
-* absent config defaults to ``True`` (backward-compatible with M0-M6);
-* invalid/garbled config raises ``ZeroMemConfigError`` (NOT silently true/false);
-* restart required to change the setting (no watcher/polling);
-* no mutable request/authorization state is stored here.
+The module-level compatibility state contains only the resolved master boolean.
+Canonical writer ownership is instance-scoped and created through
+``ZeroMemRuntime.open``; adapters never resolve a path or instantiate a store.
 """
-
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from pathlib import Path
+from typing import Literal, Optional
+
+from src.storage.capture_boundary import CaptureStore, CaptureStoreConfig
+from src.storage.jsonl_capture import JsonlCaptureStore
+from src.storage.runtime_root import RuntimeStorageRoot
 
 
 class ZeroMemConfigError(ValueError):
-    """Typed error for invalid master-switch configuration.
-
-    Distinct from disabled state: an invalid value must fail closed at
-    initialization, it must NOT be coerced into enabled or disabled.
-    """
+    """Typed error for invalid master-switch or runtime configuration."""
 
 
-# Strict accepted spellings (case-insensitive, whitespace-stripped).
 _TRUE_VALUES = frozenset({"true", "1", "yes", "on"})
 _FALSE_VALUES = frozenset({"false", "0", "no", "off"})
 
 
-def parse_zero_mem_enabled(raw: Optional[str]) -> bool:
-    """Strictly parse a raw config string into the master boolean.
+@dataclass(frozen=True)
+class RuntimeConfig:
+    """Validated input for the runtime composition root."""
 
-    MISSING (None) -> compatibility default ``True``.
-    INVALID (anything not in the documented set) -> raises ``ZeroMemConfigError``.
-    """
+    capture_root: Path
+    enabled: bool = True
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.capture_root, Path):
+            raise TypeError("capture_root must be Path")
+        if not isinstance(self.enabled, bool):
+            raise TypeError("runtime enabled must be bool")
+        if not self.capture_root.is_absolute():
+            raise ValueError("capture_root must be absolute")
+        root = self.capture_root.expanduser()
+        if root == Path.home() or Path.home() in root.parents:
+            raise ValueError("capture_root must not be inside the real home directory")
+        object.__setattr__(self, "capture_root", root)
+
+
+@dataclass(frozen=True)
+class RuntimeHealth:
+    status: Literal["OPEN", "CLOSED"]
+    reason_code: str | None = None
+
+
+def parse_zero_mem_enabled(raw: Optional[str]) -> bool:
+    """Strictly parse the process-start master switch."""
     if raw is None:
         return True
     if not isinstance(raw, str):
@@ -56,42 +68,93 @@ def parse_zero_mem_enabled(raw: Optional[str]) -> bool:
     )
 
 
-@dataclass(frozen=True)
 class ZeroMemRuntime:
-    """Immutable resolved master runtime state.
+    """Instance-scoped runtime owning at most one canonical writer."""
 
-    Holds only whether Zero-Mem participates globally. No request, grant, scope,
-    or authorization state is stored here.
-    """
+    def __init__(
+        self,
+        *,
+        enabled: bool,
+        writer: CaptureStore | None = None,
+        owns_writer: bool = False,
+    ) -> None:
+        if not isinstance(enabled, bool):
+            raise ZeroMemConfigError("runtime enabled must be bool")
+        self.enabled = enabled
+        self._writer = writer
+        self._owns_writer = owns_writer
+        self._closed = False
 
-    enabled: bool
+    @classmethod
+    def open(
+        cls,
+        config: RuntimeConfig,
+        *,
+        store: CaptureStore | None = None,
+    ) -> "ZeroMemRuntime":
+        """Create the sole runtime-owned canonical writer.
+
+        ``store`` is an explicit injection seam for tests and controlled
+        composition. Production callers pass only ``RuntimeConfig``.
+        """
+        if not isinstance(config, RuntimeConfig):
+            raise TypeError("config must be RuntimeConfig")
+        if not config.enabled:
+            return cls(enabled=False)
+        storage_root = RuntimeStorageRoot.open(config.capture_root)
+        writer = store if store is not None else JsonlCaptureStore(
+            CaptureStoreConfig(storage_root.canonical)
+        )
+        return cls(enabled=True, writer=writer, owns_writer=True)
 
     def is_enabled(self) -> bool:
-        return self.enabled
+        return self.enabled and not self._closed
 
     def disabled_reason(self) -> Optional[str]:
+        if self._closed:
+            return "RUNTIME_CLOSED"
         return None if self.enabled else "ZERO_MEM_DISABLED"
 
+    @property
+    def writer(self) -> CaptureStore:
+        if self._closed:
+            raise RuntimeError("RUNTIME_CLOSED")
+        if not self.enabled or self._writer is None:
+            raise RuntimeError("RUNTIME_WRITER_UNAVAILABLE")
+        return self._writer
 
-# Module-level default runtime, configured once per process via ``configure``.
+    def health(self) -> RuntimeHealth:
+        if self._closed:
+            return RuntimeHealth("CLOSED", "RUNTIME_CLOSED")
+        if not self.enabled:
+            return RuntimeHealth("CLOSED", "ZERO_MEM_DISABLED")
+        if self._writer is None:
+            return RuntimeHealth("CLOSED", "RUNTIME_WRITER_UNAVAILABLE")
+        return RuntimeHealth("OPEN")
+
+    def close(self) -> None:
+        if self._closed:
+            return None
+        self._closed = True
+        writer, self._writer = self._writer, None
+        if self._owns_writer and writer is not None:
+            writer.close()
+        return None
+
+
+# Compatibility state for the master boolean only; it never owns a writer.
 _default_runtime: Optional[ZeroMemRuntime] = None
 
 
 def configure(*, enabled: bool) -> ZeroMemRuntime:
-    """Resolve and install the master runtime state for this process.
-
-    Called during supported runtime/configuration initialization (startup), not
-    per request. Changing the switch requires restart.
-    """
+    """Resolve and install only the process-start master runtime gate."""
     global _default_runtime
-    _default_runtime = ZeroMemRuntime(enabled=bool(enabled))
+    _default_runtime = ZeroMemRuntime(enabled=enabled)
     return _default_runtime
 
 
 def new_runtime(*, enabled: bool) -> ZeroMemRuntime:
-    """Create an explicit immutable runtime handle without global mutation."""
-    if not isinstance(enabled, bool):
-        raise ZeroMemConfigError("runtime enabled must be bool")
+    """Create an explicit boolean-only runtime handle."""
     return ZeroMemRuntime(enabled=enabled)
 
 
@@ -104,6 +167,8 @@ def get_runtime() -> ZeroMemRuntime:
 
 
 __all__ = [
+    "RuntimeConfig",
+    "RuntimeHealth",
     "ZeroMemRuntime",
     "ZeroMemConfigError",
     "configure",

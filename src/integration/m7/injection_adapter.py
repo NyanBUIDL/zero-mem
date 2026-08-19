@@ -27,6 +27,7 @@ last-route, or last-profile. Each hook invocation is independent.
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -81,6 +82,10 @@ class InjectionAdapter:
         self._grants = grants
         self._sensitivity_ceiling = sensitivity_ceiling
         self._registered: bool = False
+        # Standalone M7 callers are active by construction; the Hermes boundary
+        # Hermes boundary explicitly revokes this state during shutdown.
+        self._active: bool = True
+        self._lifecycle_lock = threading.RLock()
 
     # ------------------------------------------------------------------
     # Plugin registration (real Hermes PluginContext.register_hook)
@@ -91,13 +96,27 @@ class InjectionAdapter:
         Accepts any context object exposing ``register_hook(name, callback)``
         — the real Hermes PluginContext or a compatible test double.
         """
-        if self._registered:
+        with self._lifecycle_lock:
+            if self._registered:
+                self._active = True
+                return ("pre_llm_call",)
+            if not hasattr(context, "register_hook") or not callable(context.register_hook):
+                return ()
+            context.register_hook("pre_llm_call", self._on_pre_llm_call)
+            self._registered = True
+            self._active = True
             return ("pre_llm_call",)
-        if not hasattr(context, "register_hook") or not callable(context.register_hook):
-            return ()
-        context.register_hook("pre_llm_call", self._on_pre_llm_call)
-        self._registered = True
-        return ("pre_llm_call",)
+
+    def restart(self) -> None:
+        """Reactivate the retained callback after boundary restart."""
+        with self._lifecycle_lock:
+            if self._registered:
+                self._active = True
+
+    def shutdown(self) -> None:
+        """Revoke the retained callback without altering host registrations."""
+        with self._lifecycle_lock:
+            self._active = False
 
     # ------------------------------------------------------------------
     # Hook callback (the real pre_llm_call entry point)
@@ -133,6 +152,23 @@ class InjectionAdapter:
         user_message: str,
         session_id: Optional[str] = None,
     ) -> InjectionResult:
+        """Run one request with bounded, sanitized failure isolation."""
+        with self._lifecycle_lock:
+            try:
+                return self._process_impl(user_message=user_message, session_id=session_id)
+            except Exception:
+                return InjectionResult(
+                    injected=False,
+                    context="",
+                    reason="downstream_error",
+                )
+
+    def _process_impl(
+        self,
+        *,
+        user_message: str,
+        session_id: Optional[str] = None,
+    ) -> InjectionResult:
         """Run the M7.1→M7.2→M7.3 pipeline and serialize the envelope.
 
         This is the testable core. It does NOT touch Hermes internals.
@@ -141,6 +177,8 @@ class InjectionAdapter:
         # 1. M7.1 master gate
         if not get_runtime().is_enabled():
             return InjectionResult(injected=False, context="", reason="master_off")
+        if not self._active:
+            return InjectionResult(injected=False, context="", reason="adapter_shutdown")
 
         # 2. M7.2 deterministic router
         router_request = RouterRequest(
@@ -167,10 +205,13 @@ class InjectionAdapter:
                 insufficient_evidence=True, external_current_required=True,
                 reason_code="EXTERNAL_CURRENT_REQUIRED",
             )
-            envelope = serialize_evidence_set(es)
+            from .context import assemble_context
+            context_result = assemble_context(es)
             return InjectionResult(
-                injected=True, context=envelope,
-                route=decision.route.value, reason="external_current",
+                injected=context_result.status == "READY",
+                context=context_result.context,
+                route=decision.route.value,
+                reason="external_current" if context_result.status == "READY" else "context_budget_exceeded",
             )
 
         # 5. M7.3 authorized EvidenceSet construction
@@ -188,11 +229,14 @@ class InjectionAdapter:
                 reason="no_store",
             )
 
-        es = build_evidence_set(
-            decision, svc, router_request,
-            grants=self._grants,
-            sensitivity_ceiling=self._sensitivity_ceiling,
-        )
+        try:
+            es = build_evidence_set(
+                decision, svc, router_request,
+                grants=self._grants,
+                sensitivity_ceiling=self._sensitivity_ceiling,
+            )
+        finally:
+            svc.close()
 
         # 5a. M7.5 hardening: validate EvidenceSet invariants (fail closed)
         validation = validate_evidence_set(es)
@@ -206,15 +250,16 @@ class InjectionAdapter:
         # 5b. M7.5 hardening: sanitize (escape) all evidence fields
         es = sanitize_evidence_set(es)
 
-        # 6. Serialize
-        envelope = serialize_evidence_set(es)
-        if not envelope:
+        # 6. Assemble a bounded, deterministic DATA-only context envelope.
+        from .context import assemble_context
+        context_result = assemble_context(es)
+        if context_result.status != "READY":
             return InjectionResult(
                 injected=False, context="", route=decision.route.value,
-                reason="empty_evidence_set",
+                reason="context_budget_exceeded",
             )
         return InjectionResult(
-            injected=True, context=envelope,
+            injected=True, context=context_result.context,
             route=decision.route.value, reason="evidence_ready",
         )
 
@@ -233,7 +278,11 @@ class InjectionAdapter:
             from src.retrieval.db import open_readonly
             from src.access import AuthorizedReadService
             ro = open_readonly(self._store_path)
-            return AuthorizedReadService(ro, requesting_profile_id=self._requesting_profile_id)
+            try:
+                return AuthorizedReadService(ro, requesting_profile_id=self._requesting_profile_id)
+            except Exception:
+                ro.close()
+                return None
         except Exception:
             return None
 
@@ -244,6 +293,7 @@ class InjectionAdapter:
         """Content-safe diagnostic metadata. No raw evidence, no secrets."""
         return {
             "registered": self._registered,
+            "active": self._active,
             "has_store": self._store_path is not None,
             "has_profile": self._requesting_profile_id is not None,
             "master_switch": get_runtime().is_enabled(),

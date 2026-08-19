@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import stat
 import threading
 try:
     import fcntl
@@ -14,6 +15,7 @@ from typing import Any, Mapping
 from src.capture.validation import validate_envelope
 from src.redaction import RedactionRejected
 from .capture_boundary import AppendResult, CaptureRejected, CaptureStoreConfig
+from .coordination import locked, open_parent_dir
 
 
 class JsonlCaptureStore:
@@ -23,11 +25,21 @@ class JsonlCaptureStore:
         if fcntl is None:
             raise CaptureRejected("capture_rejected: process_lock_unavailable")
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        # Establish the complete ancestor chain through descriptor-relative
+        # no-follow traversal before retaining the store.
+        parent_fd = open_parent_dir(self.path)
+        os.close(parent_fd)
         if os.name != "nt":
             os.chmod(self.path.parent, 0o700)
         self._lock = threading.RLock()
         self._process_lock_path = self.path.with_name(self.path.name + ".lock")
-        self._process_lock = self._process_lock_path.open("a+b")
+        lock_flags = os.O_CREAT | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0)
+        parent_fd = open_parent_dir(self._process_lock_path)
+        try:
+            lock_fd = os.open(self._process_lock_path.name, lock_flags, 0o600, dir_fd=parent_fd)
+        finally:
+            os.close(parent_fd)
+        self._process_lock = os.fdopen(lock_fd, "a+b")
         if os.name != "nt":
             os.chmod(self._process_lock_path, 0o600)
         self._by_id: dict[str, dict[str, Any]] = {}
@@ -41,23 +53,21 @@ class JsonlCaptureStore:
 
     @contextmanager
     def _exclusive_process_lock(self):
-        fcntl.flock(self._process_lock.fileno(), fcntl.LOCK_EX)
-        try:
+        with locked(self._process_lock_path, mode="exclusive", timeout=5.0):
             yield
-        finally:
-            fcntl.flock(self._process_lock.fileno(), fcntl.LOCK_UN)
 
     def _load(self) -> None:
         self._by_id.clear()
         self._by_hash.clear()
         self._next_sequence = 0
-        if not self.path.exists():
-            self.path.touch(mode=0o600)
-            if os.name != "nt":
-                os.chmod(self.path, 0o600)
+        fd = self._open_data(os.O_RDONLY)
+        if fd is None:
             self._loaded_size = 0
             return
-        data = self.path.read_bytes()
+        try:
+            data = self._read_fd(fd)
+        finally:
+            os.close(fd)
         if data and not data.endswith(b"\n"):
             raise CaptureRejected("capture_rejected: partial_final_line")
         for line_number, line in enumerate(data.splitlines(), start=1):
@@ -77,15 +87,27 @@ class JsonlCaptureStore:
 
     def _refresh(self) -> None:
         """Load only records appended by another process since the last refresh."""
-        size = self.path.stat().st_size
+        fd = self._open_data(os.O_RDONLY)
+        if fd is None:
+            size = 0
+        else:
+            try:
+                size = os.fstat(fd).st_size
+            finally:
+                os.close(fd)
         if size < self._loaded_size:
             self._load()
             return
         if size == self._loaded_size:
             return
-        with self.path.open("rb") as stream:
-            stream.seek(self._loaded_size)
-            data = stream.read()
+        fd = self._open_data(os.O_RDONLY)
+        if fd is None:
+            raise CaptureRejected("capture_rejected: canonical_disappeared")
+        try:
+            os.lseek(fd, self._loaded_size, os.SEEK_SET)
+            data = self._read_fd(fd)
+        finally:
+            os.close(fd)
         if data and not data.endswith(b"\n"):
             raise CaptureRejected("capture_rejected: partial_final_line")
         for line in data.splitlines():
@@ -104,6 +126,30 @@ class JsonlCaptureStore:
     @staticmethod
     def _serialize(event: Mapping[str, Any]) -> bytes:
         return (json.dumps(dict(event), ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+
+    def _open_data(self, flags: int) -> int | None:
+        parent_fd = open_parent_dir(self.path)
+        try:
+            try:
+                return os.open(self.path.name, flags | getattr(os, "O_NOFOLLOW", 0), dir_fd=parent_fd)
+            except FileNotFoundError:
+                if flags & (os.O_WRONLY | os.O_RDWR):
+                    return os.open(self.path.name, flags | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600, dir_fd=parent_fd)
+                return None
+        finally:
+            os.close(parent_fd)
+
+    @staticmethod
+    def _read_fd(fd: int) -> bytes:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode):
+            raise CaptureRejected("capture_rejected: canonical_not_regular")
+        chunks: list[bytes] = []
+        while True:
+            chunk = os.read(fd, 1024 * 1024)
+            if not chunk:
+                return b"".join(chunks)
+            chunks.append(chunk)
 
     def append(self, event: Mapping[str, Any]) -> AppendResult:
         with self._lock:
@@ -134,10 +180,14 @@ class JsonlCaptureStore:
         record["sequence"] = self._next_sequence
         blob = self._serialize(record)
         try:
-            with self.path.open("ab") as stream:
-                stream.write(blob)
-                stream.flush()
-                os.fsync(stream.fileno())
+            fd = self._open_data(os.O_WRONLY | os.O_APPEND)
+            if fd is None:
+                raise OSError("canonical_missing")
+            try:
+                os.write(fd, blob)
+                os.fsync(fd)
+            finally:
+                os.close(fd)
         except Exception:
             raise CaptureRejected("capture_rejected: append_failed") from None
         self._by_id[event_id] = record

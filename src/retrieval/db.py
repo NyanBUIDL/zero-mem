@@ -13,10 +13,12 @@ sanitized error. It performs no migration.
 from __future__ import annotations
 
 import sqlite3
+import stat
 from pathlib import Path
 from typing import Optional
 
 from .models import QueryError
+from src.storage.coordination import locked, regular_identity
 
 # Imported read-only: the code's current schema version. No migration is ever run.
 from src.storage.migrations import CURRENT_SCHEMA_VERSION  # noqa: E402
@@ -84,23 +86,46 @@ def open_readonly(database_path: Path) -> ReadonlyStore:
     """
     if not isinstance(database_path, Path):
         raise QueryError(code="database_unavailable", message="invalid_path_type")
-    if not database_path.exists():
-        raise QueryError(code="database_unavailable", message="missing_database")
+    if not database_path.is_absolute():
+        raise QueryError(code="database_unavailable", message="invalid_path")
+    try:
+        identity = regular_identity(database_path)
+    except OSError:
+        raise QueryError(code="database_unavailable", message="missing_database") from None
     uri = f"file:{database_path.as_posix()}?mode=ro"
+    if len(database_path.parts) >= 5 and database_path.parts[1:4] == ("proc", "self", "fd"):
+        try:
+            coordination_path = database_path.resolve(strict=True)
+        except OSError:
+            raise QueryError(code="database_unavailable", message="unsafe_database_path") from None
+    else:
+        coordination_path = database_path
+    lock_path = coordination_path.with_name(coordination_path.name + ".lock")
     try:
-        conn = sqlite3.connect(uri, uri=True)
-    except sqlite3.Error as exc:
-        raise QueryError(code="database_unavailable", message="open_failed") from exc
-    conn.row_factory = sqlite3.Row
-    try:
-        # Blocks write-adjacent pragmas (e.g. checkpoint) where supported.
-        conn.execute("PRAGMA query_only = ON")
-    except sqlite3.Error:
-        # Older / unsupported builds ignore it; mode=ro still prevents writes.
-        pass
-    store = ReadonlyStore(conn, database_path)
-    store.validate_schema()
-    return store
+        with locked(lock_path, mode="shared", timeout=5.0):
+            try:
+                conn = sqlite3.connect(uri, uri=True)
+            except sqlite3.Error as exc:
+                raise QueryError(code="database_unavailable", message="open_failed") from exc
+            conn.row_factory = sqlite3.Row
+            try:
+                if regular_identity(database_path) != identity:
+                    conn.close()
+                    raise QueryError(code="database_unavailable", message="database_identity_changed")
+            except OSError:
+                conn.close()
+                raise QueryError(code="database_unavailable", message="unsafe_database_path") from None
+            try:
+                # Blocks write-adjacent pragmas (e.g. checkpoint) where supported.
+                conn.execute("PRAGMA query_only = ON")
+            except sqlite3.Error:
+                # Older / unsupported builds ignore it; mode=ro still prevents writes.
+                pass
+            store = ReadonlyStore(conn, database_path)
+            store.validate_schema()
+            return store
+    except TimeoutError:
+        raise QueryError(code="database_unavailable", message="coordination_timeout") from None
 
 
 def _readonly_conn_is_query_only(store: ReadonlyStore) -> bool:

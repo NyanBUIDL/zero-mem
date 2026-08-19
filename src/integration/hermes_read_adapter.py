@@ -23,13 +23,15 @@ serializes only.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Final
 
 from .bridge_config import BridgeConfig
 from .m6 import configure as _configure_m6
-from .m6.mcp_wrapper import handle_call, tool_schemas
+from .m6.mcp_wrapper import tool_schemas
+from .sidecar import SidecarConfig, ZeroMemSidecar
 from .zero_mem_runtime import configure as configure_zero_mem_runtime, get_runtime
 
 # Exactly the approved M6 read tools (no extra/hidden tools).
@@ -90,7 +92,10 @@ class HermesReadAdapter:
         self.enabled = bool(config.enabled)
         # M7.1 master runtime gate: resolve the single shared authority from the
         # canonical config value. Master OFF dominates adapter-local enabled state.
-        configure_zero_mem_runtime(enabled=bool(config.zero_mem_enabled))
+        try:
+            get_runtime()
+        except RuntimeError:
+            configure_zero_mem_runtime(enabled=bool(config.zero_mem_enabled))
         self._zero_mem = get_runtime()
         # Store path resolved explicitly; no cwd/home inference.
         self.store_path = Path(store_path).expanduser().resolve() if store_path is not None else None
@@ -98,6 +103,7 @@ class HermesReadAdapter:
         self._registered: tuple[str, ...] = ()
         self._runtime_started = False
         self.last_diagnostic: RegistrationDiagnostic | None = None
+        self._sidecar: ZeroMemSidecar | None = None
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -136,6 +142,7 @@ class HermesReadAdapter:
         ro.close()
         # Initialize the read-only M6 runtime (no writes).
         _configure_m6(self.store_path)
+        self._sidecar = ZeroMemSidecar(SidecarConfig())
         self._runtime_started = True
 
     def register(self, context: Any) -> tuple[str, ...]:
@@ -181,15 +188,38 @@ class HermesReadAdapter:
             "diagnostics": {"bounded": True, "master_switch": False},
         }
 
+    def _sidecar_call(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        try:
+            if not get_runtime().is_enabled():
+                return {"status": "DISABLED", "reason_code": "ZERO_MEM_DISABLED"}
+        except Exception:
+            return {"status": "CAPABILITY_UNAVAILABLE", "reason_code": "master_gate_unavailable"}
+        if self._sidecar is None:
+            return {"status": "CAPABILITY_UNAVAILABLE", "reason_code": "adapter_not_ready"}
+        payload = dict(arguments or {})
+        payload["tool"] = tool_name
+        try:
+            encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        except (TypeError, ValueError, OverflowError):
+            return {"status": "DOWNSTREAM_ERROR", "reason_code": "DOWNSTREAM_ERROR", "diagnostics": {"bounded": True}}
+        result = self._sidecar.handle(
+            encoded,
+            identity=self.config.profile_id,
+        )
+        return result.payload
+
     def _make_handler(self, tool_name: str):
         def handler(arguments: dict[str, Any]) -> dict[str, Any]:
-            if not self._zero_mem.is_enabled():
-                return self._disabled_response()
+            try:
+                if not get_runtime().is_enabled():
+                    return self._disabled_response()
+            except Exception:
+                return {"status": "CAPABILITY_UNAVAILABLE", "reason_code": "master_gate_unavailable"}
             if not self.enabled or not self._runtime_started:
                 return {"status": "CAPABILITY_UNAVAILABLE", "reason_code": "adapter_not_ready"}
             try:
                 # Forward through the verified M6 transport (no adapter policy).
-                return handle_call(tool_name, arguments or {})
+                return self._sidecar_call(tool_name, arguments or {})
             except Exception:
                 # Localized sanitized failure; never leak internals.
                 return {
@@ -213,7 +243,7 @@ class HermesReadAdapter:
             return self._disabled_response()
         if not self.enabled or not self._runtime_started:
             return {"status": "CAPABILITY_UNAVAILABLE", "reason_code": "adapter_not_ready"}
-        return handle_call(tool_name, arguments or {})
+        return self._sidecar_call(tool_name, arguments or {})
 
     def list_tools(self) -> list[dict[str, Any]]:
         """Return the Hermes-visible tool schemas (matches M6 contract)."""
@@ -224,6 +254,9 @@ class HermesReadAdapter:
         self.enabled = False
         self._registered = ()
         self._runtime_started = False
+        if self._sidecar is not None:
+            self._sidecar.close()
+            self._sidecar = None
         self.last_diagnostic = RegistrationDiagnostic("shutdown_clean")
 
     def restart(self) -> None:

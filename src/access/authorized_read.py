@@ -197,6 +197,12 @@ class AuthorizedReadService:
         # resolved grants are VALIDATED from their own fields (no caller trust).
         self._grant_conn = grant_conn
 
+    def close(self) -> None:
+        """Close the owned read-only store connection, if it exposes close()."""
+        close = getattr(self._store, "close", None)
+        if callable(close):
+            close()
+
     # -- policy gate --------------------------------------------------------
     def _resolve_persistent_grants(self, request: AccessRequest,
                                    grants: Optional[List[AuthorizedReadGrant]]) -> Optional[List[AuthorizedReadGrant]]:

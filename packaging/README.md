@@ -38,7 +38,7 @@ Zero-Mem-owned integration descriptor below the configured XDG config root and
 uses the existing external Hermes plugin-context boundary. Hermes is not a
 runtime dependency of the Zero-Mem wheel.
 
-This is a local v1.1.0 release-layer acceptance bundle, not a published
+This is a local v1.2.0 release-layer acceptance bundle, not a published
 release artifact. It does not provide status, a manual rebuild command, rollback,
 service, GitHub publication, or data-purge commands.
 

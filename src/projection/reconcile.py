@@ -65,6 +65,7 @@ from .ownership import (
     classify_managed_file,
     conflict_sibling_relative_path,
 )
+from .paths import assert_within_managed_root
 from .writer import (
     WriteOutcome,
     WriteStatus,
@@ -446,6 +447,12 @@ def _reconcile_desired(
         )
 
     path = managed_root / note.relative_path
+    try:
+        assert_within_managed_root(managed_root, path)
+    except ProjectionPathError:
+        return (WriteOutcome(note.note_id, note.relative_path,
+                             WriteStatus.SKIPPED_UNSAFE_OWNERSHIP,
+                             "unsafe_path"), None, None, None, None)
     if not (path.exists() or path.is_symlink()):
         return write_note(managed_root, note, dry_run=dry_run), None, None, None, None
 
@@ -465,7 +472,6 @@ def _reconcile_desired(
     # Signal 3 (frontmatter): the file carries the marker + this note_id.
     contained = True
     try:
-        from .paths import assert_within_managed_root
         assert_within_managed_root(managed_root, path)
     except Exception:
         contained = False

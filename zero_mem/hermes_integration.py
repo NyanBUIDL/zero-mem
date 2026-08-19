@@ -13,6 +13,8 @@ import os
 import re
 import shutil
 import tempfile
+import threading
+from functools import wraps
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -25,6 +27,14 @@ CONFIG_FILENAME = "hermes-integration.json"
 OWNER_MARKER = "zero-mem"
 BOUNDARY_ID = "hermes-plugin-context-v1"
 _ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+
+
+def _lifecycle_guard(method):
+    @wraps(method)
+    def guarded(self, *args, **kwargs):
+        with self._lifecycle_lock:
+            return method(self, *args, **kwargs)
+    return guarded
 
 
 class HermesIntegrationError(RuntimeError):
@@ -310,45 +320,95 @@ class HermesBoundary:
         self.capture_root = capture_root
         self.store_path = store_path
         self.diagnostics: list[dict[str, str]] = []
+        self._registered_context: Any | None = None
+        self._registration_result: dict[str, tuple[str, ...]] | None = None
+        self._capture_adapter: Any | None = None
+        self._read_adapter: Any | None = None
+        self._injection_adapter: Any | None = None
+        self._lifecycle_lock = threading.RLock()
 
+    @_lifecycle_guard
     def register(self, context: Any) -> dict[str, tuple[str, ...]]:
+        from src.integration.zero_mem_runtime import configure, get_runtime
         enabled, error = _master_switch()
         if error or not enabled or not self.config.enabled:
+            # Fail closed even when a prior boundary configured a process-local
+            # runtime as enabled. Registration must not leave stale authority live.
+            # Stop previously registered adapters before revoking the process gate.
+            self.shutdown()
+            configure(enabled=False)
             return {"hooks": (), "tools": (), "injection": ()}
+        # A boundary-local registration must never re-enable an already
+        # resolved process-global disabled/closed runtime. Only initialize the
+        # compatibility gate when no global runtime exists yet.
+        try:
+            global_runtime = get_runtime()
+        except RuntimeError:
+            configure(enabled=True)
+        else:
+            if not global_runtime.is_enabled():
+                self.shutdown()
+                configure(enabled=False)
+                return {"hooks": (), "tools": (), "injection": ()}
+        if self._registered_context is context and self._registration_result is not None:
+            for adapter in (self._capture_adapter, self._read_adapter, self._injection_adapter):
+                restart = getattr(adapter, "restart", None)
+                if callable(restart):
+                    restart()
+            return {key: tuple(value) for key, value in self._registration_result.items()}
+        if self._registered_context is not None:
+            self.shutdown()
         from src.integration.bridge_config import BridgeConfig
         from src.integration.hermes_registration import RegistrationAdapter
         from src.integration.hermes_read_adapter import HermesReadAdapter
         from src.integration.m7.injection_adapter import InjectionAdapter
-        from src.integration.zero_mem_runtime import configure
 
-        configure(enabled=True)
         result: dict[str, tuple[str, ...]] = {"hooks": (), "tools": (), "injection": ()}
         if self.capture_root is not None:
             try:
-                result["hooks"] = RegistrationAdapter(
+                self._capture_adapter = RegistrationAdapter(
                     BridgeConfig(enabled=True, project_id=self.config.project_id, profile_id=self.config.profile_id, capture_root=self.capture_root),
-                ).register(context)
+                )
+                result["hooks"] = self._capture_adapter.register(context)
             except Exception:
                 self.diagnostics.append({"component": "capture", "code": "registration_failed"})
         if self.store_path is not None:
             try:
                 tool_context = _ToolContextAdapter(context)
-                result["tools"] = HermesReadAdapter(
+                self._read_adapter = HermesReadAdapter(
                     BridgeConfig(enabled=True, project_id=self.config.project_id, profile_id=self.config.profile_id, capture_root=self.capture_root or Path(tempfile.mkdtemp(prefix="zero-mem-boundary-"))),
                     store_path=self.store_path,
-                ).register(tool_context)
+                )
+                result["tools"] = self._read_adapter.register(tool_context)
             except Exception:
                 self.diagnostics.append({"component": "read", "code": "registration_failed"})
         try:
-            injection = InjectionAdapter(
+            self._injection_adapter = InjectionAdapter(
                 requesting_profile_id=self.config.profile_id,
                 project_id=self.config.project_id,
                 store_path=self.store_path,
             )
-            result["injection"] = injection.register(context)
+            result["injection"] = self._injection_adapter.register(context)
         except Exception:
             self.diagnostics.append({"component": "injection", "code": "registration_failed"})
+        self._registered_context = context
+        self._registration_result = {key: tuple(value) for key, value in result.items()}
         return result
+
+
+    @_lifecycle_guard
+    def shutdown(self) -> None:
+        """Close all adapters owned by this boundary; safe to call repeatedly."""
+        for adapter in (self._read_adapter, self._capture_adapter, self._injection_adapter):
+            close = getattr(adapter, "shutdown", None)
+            if callable(close):
+                try:
+                    close()
+                except Exception:
+                    self.diagnostics.append({"component": "lifecycle", "code": "shutdown_failed"})
+        # Keep adapter references and registration result so an existing Hermes
+        # callback set can be rebound on the next lifecycle restart without
+        # registering duplicate callbacks.
 
 
 class _ToolContextAdapter:

@@ -46,7 +46,7 @@ def main() -> int:
     manifest = {
         "schema_version": 1,
         "product": "zero-mem",
-        "version": "1.1.0",
+        "version": "1.2.0",
         "platform": "linux-x86_64",
         "bundle_status": "PKG-2 INSTALLER ACCEPTANCE BUNDLE",
         "wheel": f"wheels/{wheel.name}",

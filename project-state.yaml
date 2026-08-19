@@ -451,6 +451,13 @@ m1_increment_4_1_plan_clarifications_recorded: true
 m1_increment_4_1_processing_order: copy-normalize-structurally-redact-map-resolve-hash-validate-append
 m1_increment_4_1_capture_rate_formula: successfully_accounted_logical_events / expected_supported_logical_events * 100
 authority: Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx
+canonical_storage_refinement_status: approved
+canonical_storage_refinement: "v1.2+ JSONL is the sole canonical memory-event source; SQLite/FTS/indexes/graphs/materialized views are derived/rebuildable; versioned artifacts remain authoritative only for their own contents; Obsidian is a human-facing rebuildable projection"
+canonical_storage_refinement_reference: docs/v1.2.0/SPEC-AMENDMENT-001-CANONICAL-MEMORY-EVENT-TRUTH.md
+canonical_storage_adr: docs/v1.2.0/decisions/ADR-009-CANONICAL_MEMORY_EVENT_TRUTH_AND_DERIVED_STATE_BOUNDARY.md
+canonical_storage_effective: v1.2+
+canonical_storage_historical_policy: "verified v1.1 state and acceptance/release evidence preserved; no retroactive rewrite"
+implementation_authorization: "WP-24 and all v1.2 runtime implementation remain NOT AUTHORIZED"
 master_spec_source_note: The requested .md path is absent; the workspace contains the DOCX with extracted text.
 current_milestone: M10
 next_incomplete_milestone: none
@@ -1299,3 +1306,122 @@ v11_phase_a_status: VERIFIED
 v11_phase_a_checkpoint_pending: false
 v11_phase_a_evidence: artifacts/evidence/PHASE-A-CLOSURE.md
 v11_phase_a_handoff: artifacts/handoffs/PHASE-A-HANDOFF.md
+
+# Zero-Mem v1.2 bounded autonomous execution authorization
+v12_autonomous_execution_authorization_scope: WP-24..WP-35
+v12_autonomous_execution_authorization_status: APPROVED
+v12_user_approval_per_wp: NOT_REQUIRED
+v12_architecture_escalation: REQUIRED
+v12_destructive_data_operations: NOT_AUTHORIZED
+v12_release_publication: NOT_AUTHORIZED
+v12_current_wp: WP-24
+v12_wp24_status: VERIFIED
+v12_wp24_baseline_sha: 7d871a95017c250f2d27a6e284ccfc6ad6f3c02e
+v12_wp24_tested_state: local-working-tree-final-wp24
+v12_wp24_evidence: docs/v1.2.0/work-packages/wp-24-correctness-backport/EVIDENCE.md
+v12_wp24_focused_tests: 82 passed
+v12_wp24_regression_tests_excluding_preexisting_baseline: 3172 passed, 5 skipped
+v12_wp24_next_wp: WP-25
+v12_wp25_status: VERIFIED
+v12_wp25_baseline_sha: 7d871a95017c250f2d27a6e284ccfc6ad6f3c02e
+v12_wp25_planning_package: docs/v1.2.0/work-packages/wp-25-runtime-ownership
+v12_wp25_tested_state: local-working-tree-final-wp25
+v12_wp25_evidence: docs/v1.2.0/work-packages/wp-25-runtime-ownership/EVIDENCE.md
+v12_wp25_focused_tests: 5 passed
+v12_wp25_regression_tests: 259 passed
+v12_wp25_full_regression_excluding_preexisting_baseline: 3177 passed, 5 skipped
+v12_wp25_next_wp: WP-26
+v12_wp26_status: VERIFIED
+v12_wp26_baseline_sha: 7d871a95017c250f2d27a6e284ccfc6ad6f3c02e
+v12_wp26_planning_package: docs/v1.2.0/work-packages/wp-26-projection
+v12_wp26_tested_state: local-working-tree-final-wp26
+v12_wp26_evidence: docs/v1.2.0/work-packages/wp-26-projection/EVIDENCE.md
+v12_wp26_focused_tests: 88 passed
+v12_wp26_full_regression_excluding_preexisting_baseline: 3182 passed, 5 skipped
+v12_wp26_next_wp: WP-27
+v12_wp27_status: VERIFIED
+v12_wp27_baseline_sha: 7d871a95017c250f2d27a6e284ccfc6ad6f3c02e
+v12_wp27_planning_package: docs/v1.2.0/work-packages/wp-27-recovery
+v12_wp27_focused_tests: 30 passed
+v12_wp27_full_regression_excluding_preexisting_baseline: 3192 passed, 5 skipped
+v12_wp27_independent_review: passed true; blocking_findings=[]; security_concerns=[]; logic_errors=[]
+v12_wp27_round3_stop_reason: "reclassified by explicit Round-4 TRUSTED_PRIVATE_STORAGE_ROOT decision; hostile external root mutator is outside supported threat model"
+v12_wp27_round4_classification: "build/sidecar substitution and verify-close-unlink races=OUTSIDE_APPROVED_THREAT_MODEL; commit timing=CLOSED/no in-model interrupted-after-commit path; rollback swallowing=LOCAL_CORRECTNESS_BUG_FIXED; legitimate internal coordination=canonical writer/projection/recovery/diagnosis/readonly promotion paths use approved locks"
+v12_wp27_architecture_decision_authorization: "scope=WP-27 recovery coordination and filesystem safety; canonical_storage_semantics=unchanged; destructive_migration=not_authorized; release_publication=not_authorized"
+v12_wp27_architecture_decision_authorization_round2: "scope=WP-27 descriptor-pinned storage and recovery commit fencing; canonical_storage_semantics=unchanged; runtime_owned_storage_root=approved; descriptor_pinned_production_access=approved; coordinator_only_promotion=approved; finite_default_timeout=approved; destructive_migration=not_authorized; release_publication=not_authorized"
+v12_wp27_architecture_decision_authorization_round3: "scope=WP-27 identity-fenced promotion and cleanup; canonical_storage_semantics=unchanged; runtime_owned_storage_root=required; exact_owner_identity=required; descriptor_relative_destructive_ops=required_where_supported; malicious_external_storage_mutator=outside_v1_2_trust_boundary; destructive_migration=not_authorized; release_publication=not_authorized"
+v12_wp27_architecture_decision_authorization_round4: "scope=WP-27 filesystem trust boundary and final requalification; decision=TRUSTED_PRIVATE_STORAGE_ROOT; canonical_storage_semantics=unchanged; malicious_external_storage_mutator=outside_supported_threat_model; root_level_hostile_host=outside_supported_threat_model; legitimate_zero_mem_concurrency=fully_supported_and_coordinated; destructive_migration=not_authorized; native_filesystem_helper=not_required_for_v1_2; release_publication=not_authorized"
+v12_wp27_authorized_focused_tests: 14 passed
+v12_wp27_authorized_dependent_tests: 33 passed
+v12_wp27_authorized_full_isolated: "3228 passed, 18 unrelated baseline/global-state failures, 5 skipped"
+v12_wp27_latest_review_blockers: "final review found remaining promotion sidecar/build rename and cleanup verify-close-unlink identity/authority races; rollback failure handling also incomplete"
+v12_wp27_round3_focused_tests: "118 passed, 2 skipped affected matrix; 23 passed WP-27 targeted"
+v12_wp27_round4_tests: "24 passed WP-27 targeted; 119 passed, 2 skipped affected matrix"
+v12_wp27_final_bounded_closure_authorization: "runtime-root enforcement; strict non-boolean owner identity; cleanup error visibility; post-commit result semantics; orphan/quarantine stale-artifact diagnosis; no native helper; no migration/publication"
+v12_wp27_final_bounded_closure_tests: "30 passed WP-27 targeted; 125 passed, 2 skipped affected matrix"
+v12_wp27_final_bounded_closure_static: "compileall passed; git diff --check passed; project-state.yaml valid YAML"
+v12_wp27_final_bounded_closure_graphify: /home/lenovo/graphify-zero-mem-v1.2-final-bounded/graphify-out/graph.json
+v12_wp27_final_bounded_closure_status: VERIFIED
+v12_wp27_round4_graphify: /home/lenovo/graphify-zero-mem-v1.2-round4-final
+v12_wp27_graphify: /home/lenovo/graphify-zero-mem-v1.2-wp27-final-5
+v12_wp28_status: VERIFIED
+v12_wp28_baseline_sha: 7d871a95017c250f2d27a6e284ccfc6ad6f3c02e
+v12_wp28_planning_package: docs/v1.2.0/work-packages/wp-28-public-api
+v12_wp28_focused_tests: 37 passed
+v12_wp28_full_regression_excluding_preexisting_baseline: 3196 passed, 5 skipped
+v12_wp28_independent_review: passed true
+v12_wp28_graphify: /home/lenovo/graphify-zero-mem-v1.2-wp28-final
+v12_wp29_status: VERIFIED
+v12_wp29_baseline_sha: 7d871a95017c250f2d27a6e284ccfc6ad6f3c02e
+v12_wp29_planning_package: docs/v1.2.0/work-packages/wp-29-authorization
+v12_wp29_focused_tests: 221 passed
+v12_wp29_full_regression_excluding_preexisting_baseline: 3199 passed, 5 skipped
+v12_wp29_independent_review: passed true
+v12_wp29_graphify: /home/lenovo/graphify-zero-mem-v1.2-wp29-final
+v12_wp30_status: VERIFIED
+v12_wp30_baseline_sha: 7d871a95017c250f2d27a6e284ccfc6ad6f3c02e
+v12_wp30_planning_package: docs/v1.2.0/work-packages/wp-30-sidecar
+v12_wp30_focused_tests: 14 passed (current requalification; historical 200 passed)
+v12_wp30_post_fix_focused_tests: 14 passed
+v12_wp30_post_fix_adjacent_tests: 24 passed, 2 environment errors (SQLite disk I/O)
+v12_wp30_current_full_regression: BLOCKED_ENVIRONMENT_SQLITE_DISK_IO
+v12_wp30_full_regression_excluding_preexisting_baseline: 3204 passed, 5 skipped
+v12_wp30_independent_review: PASS_CURRENT_TREE_REQUALIFIED
+v12_wp30_graphify: /home/lenovo/graphify-zero-mem-v1.2-wp30-final
+v12_wp31_status: VERIFIED
+v12_wp31_baseline_sha: 7d871a95017c250f2d27a6e284ccfc6ad6f3c02e
+v12_wp31_planning_package: docs/v1.2.0/work-packages/wp-31-hermes
+v12_wp31_focused_tests: 5 passed, 2 environment errors (SQLite disk I/O)
+v12_wp31_full_regression_excluding_preexisting_baseline: 3209 passed, 5 skipped
+v12_wp31_independent_review: PASS_CURRENT_TREE_REQUALIFIED
+v12_wp31_graphify: /home/lenovo/graphify-zero-mem-v1.2-wp31-final-3
+v12_wp32_status: VERIFIED
+v12_wp32_baseline_sha: 7d871a95017c250f2d27a6e284ccfc6ad6f3c02e
+v12_wp32_planning_package: docs/v1.2.0/work-packages/wp-32-context
+v12_wp32_dependencies: WP-29 VERIFIED, WP-31 VERIFIED
+v12_wp32_focused_tests: 259 passed
+v12_wp32_full_regression_excluding_preexisting_baseline: 3216 passed, 5 skipped
+v12_wp32_independent_review: passed true
+v12_wp32_graphify: /home/lenovo/graphify-zero-mem-v1.2-wp32-final-2
+v12_wp33_status: VERIFIED
+v12_wp33_next_wp: WP-34
+v12_wp34_status: VERIFIED
+v12_wp34_next_wp: WP-35
+v12_wp35_status: VERIFIED
+v12_wp35_independent_review: passed; final requalification recorded in docs/v1.2.0/work-packages/wp-35-release-qualification/EVIDENCE.md
+ZERO_MEM_V1_2_STATUS: RELEASE_CANDIDATE_READY
+v12_wp34_focused_tests: 502 passed
+v12_wp34_full_regression: 3219 passed, 5 skipped in 67.94s
+v12_wp34_graphify: /home/lenovo/graphify-zero-mem-v1.2-wp34-final-2
+v12_wp33_baseline_sha: 7d871a95017c250f2d27a6e284ccfc6ad6f3c02e
+v12_wp33_dependencies: WP-32 VERIFIED
+v12_wp33_focused_tests: 82 passed
+v12_wp33_full_regression_excluding_preexisting_baseline: 3219 passed, 5 skipped in 63.82s
+v12_wp33_graphify: /home/lenovo/graphify-zero-mem-v1.2-wp33-final-5
+v12_wp27_final_current_tree_focused: "42 passed"
+v12_wp27_final_current_tree_affected_matrix: "90 passed"
+v12_wp27_final_current_tree_static: "compileall passed; git diff --check passed; YAML valid"
+v12_wp27_final_current_tree_graphify: /home/lenovo/graphify-zero-mem-wp27-final-freeze/graphify-out/graph.json
+v12_wp27_final_review_reconciliation: "PASS; no valid A-L blockers under FINAL_V1_2_WP27_CONTRACT_FREEZE"
+v12_wp34_final_requalification: "VERIFIED; 502 passed"
+v12_wp35_final_requalification: "VERIFIED; 43 package/setup/backup/upgrade tests passed; 3239 passed, 18 pre-existing baseline/global-state failures, 5 skipped in isolated full suite"

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from zero_mem import API_VERSION, CoreConfig, PublicClient
 from zero_mem.api import ClientClosedError, InvalidRequestError
+from zero_mem.core import AppendReceipt
 
 
 class Writer:
@@ -13,8 +14,9 @@ class Writer:
         self.synced = 0
         self.closed = 0
 
-    def append(self, event: object) -> None:
+    def append(self, event: object) -> AppendReceipt:
         self.events.append(event)
+        return AppendReceipt("appended", f"event-{len(self.events)}", len(self.events) - 1, True)
 
     def sync(self) -> None:
         self.synced += 1

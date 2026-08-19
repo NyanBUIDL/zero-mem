@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from zero_mem import AsyncClient, AsyncQueueFullError, CoreConfig
+from zero_mem import AppendReceipt, AsyncClient, AsyncQueueFullError, CoreConfig
 
 
 class SlowWriter:
@@ -14,9 +14,10 @@ class SlowWriter:
         self.events = []
         self.closed = 0
 
-    def append(self, event: object) -> None:
+    def append(self, event: object) -> AppendReceipt:
         time.sleep(self.delay)
         self.events.append(event)
+        return AppendReceipt("appended", f"event-{len(self.events)}", len(self.events) - 1, True)
 
     def close(self) -> None:
         self.closed += 1

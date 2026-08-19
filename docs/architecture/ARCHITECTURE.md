@@ -13,12 +13,13 @@
 
 ## 2. Canonical storage
 
-- SQLite with WAL and FTS5 stores queryable trace metadata and relationships.
-- JSONL stores append-only raw events per session/day.
-- A separate local versioned artifact store holds large tool outputs, documents, diffs, and attachments.
-- Retrieval indexes and Obsidian projections are rebuildable derived views and never source-of-record.
+- JSONL is the append-only canonical source of truth for memory events/traces, including event identity, ordering/sequence, historical provenance, lifecycle events, and artifact references.
+- SQLite with WAL and FTS5 stores derived/materialized query state, metadata, relationships, checkpoints, watermarks, and projection metadata. It is rebuildable from canonical sources and is not the canonical event log.
+- A separate local versioned artifact store holds large tool outputs, documents, diffs, and attachments. It may be authoritative for the contents of a specific artifact version, but it is not the canonical memory-event stream.
+- Retrieval indexes, graph/vector projections, corpus indexes, materialized views, and Obsidian projections are rebuildable derived views and never source-of-record.
+- This v1.2+ boundary is governed by `docs/v1.2.0/SPEC-AMENDMENT-001-CANONICAL-MEMORY-EVENT-TRUTH.md` and accepted ADR-009. Verified v1.1 history remains historical and is not rewritten.
 
-## 3. Data flow
+## 3. Recovery and projection data flow
 
 ```text
 Hermes event
@@ -26,7 +27,8 @@ Hermes event
   -> secret/PII redaction or reject
   -> schema validation
   -> content hash and duplicate check
-  -> append JSONL + SQLite metadata
+  -> canonical JSONL append + durability confirmation
+  -> derived SQLite projection / checkpoint / watermark update
   -> deterministic metadata/index updates
   -> bounded retrieval evidence
   -> Hermes final reasoning/action

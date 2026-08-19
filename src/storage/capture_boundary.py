@@ -28,6 +28,15 @@ class AppendResult:
     content_hash: str
     duplicate_class: str | None = None
 
+    @property
+    def canonical_durable(self) -> bool:
+        """The append or duplicate references durable canonical state."""
+        return True
+
+    @property
+    def reason_code(self) -> str | None:
+        return f"duplicate_{self.duplicate_class}" if self.duplicate_class else None
+
 
 class CaptureStore(Protocol):
     def append(self, event: Mapping[str, Any]) -> AppendResult: ...
