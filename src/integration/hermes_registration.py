@@ -35,10 +35,17 @@ class RegistrationAdapter:
         self.last_diagnostic: RegistrationDiagnostic | None = None
         # M7.1 master runtime gate: resolve the single shared authority from the
         # canonical config value. Master OFF dominates adapter-local enabled state.
+        # Each adapter is composed from an explicit BridgeConfig.  Resolve the
+        # shared compatibility gate from that canonical value at composition
+        # time; otherwise a prior adapter's process-local state can silently
+        # override the current adapter configuration.
         try:
-            get_runtime()
+            current_runtime = get_runtime()
         except RuntimeError:
-            configure_zero_mem_runtime(enabled=bool(config.zero_mem_enabled))
+            configure_zero_mem_runtime(enabled=bool(config.zero_mem_enabled), source="adapter")
+        else:
+            if current_runtime.is_enabled() or current_runtime.source == "adapter":
+                configure_zero_mem_runtime(enabled=bool(config.zero_mem_enabled), source="adapter")
         self._zero_mem = get_runtime()
         self._lifecycle_lock = threading.RLock()
         effective_enabled = bool(config.zero_mem_enabled) and self._zero_mem.is_enabled()

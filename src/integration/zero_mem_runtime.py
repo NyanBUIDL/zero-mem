@@ -77,12 +77,14 @@ class ZeroMemRuntime:
         enabled: bool,
         writer: CaptureStore | None = None,
         owns_writer: bool = False,
+        source: str = "explicit",
     ) -> None:
         if not isinstance(enabled, bool):
             raise ZeroMemConfigError("runtime enabled must be bool")
         self.enabled = enabled
         self._writer = writer
         self._owns_writer = owns_writer
+        self.source = source
         self._closed = False
 
     @classmethod
@@ -146,10 +148,10 @@ class ZeroMemRuntime:
 _default_runtime: Optional[ZeroMemRuntime] = None
 
 
-def configure(*, enabled: bool) -> ZeroMemRuntime:
+def configure(*, enabled: bool, source: str = "explicit") -> ZeroMemRuntime:
     """Resolve and install only the process-start master runtime gate."""
     global _default_runtime
-    _default_runtime = ZeroMemRuntime(enabled=enabled)
+    _default_runtime = ZeroMemRuntime(enabled=enabled, source=source)
     return _default_runtime
 
 

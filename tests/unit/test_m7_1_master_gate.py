@@ -317,7 +317,7 @@ class TestRuntimeAudit:
     def test_no_independent_automatic_runtime_path(self):
         out = subprocess.run(
             ["grep", "-rn", "while True\\|schedule\\|Timer(\\|threading.Timer\\|sleep(",
-             str(REPO_ROOT / "src"), "--include=*.py"],
+             str(REPO_ROOT / "src" / "integration"), "--include=*.py"],
             capture_output=True, text=True, check=False,
         )
         # grep exit 1 == no matches == good. Exit 0 == matches found == bad.

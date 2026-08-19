@@ -236,7 +236,9 @@ class InjectionAdapter:
                 sensitivity_ceiling=self._sensitivity_ceiling,
             )
         finally:
-            svc.close()
+            close = getattr(svc, "close", None)
+            if callable(close):
+                close()
 
         # 5a. M7.5 hardening: validate EvidenceSet invariants (fail closed)
         validation = validate_evidence_set(es)

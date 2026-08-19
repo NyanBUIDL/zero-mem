@@ -27,6 +27,7 @@ CONFIG_FILENAME = "hermes-integration.json"
 OWNER_MARKER = "zero-mem"
 BOUNDARY_ID = "hermes-plugin-context-v1"
 _ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+_BOUNDARY_DISABLED_RUNTIME = None
 
 
 def _lifecycle_guard(method):
@@ -329,6 +330,7 @@ class HermesBoundary:
 
     @_lifecycle_guard
     def register(self, context: Any) -> dict[str, tuple[str, ...]]:
+        global _BOUNDARY_DISABLED_RUNTIME
         from src.integration.zero_mem_runtime import configure, get_runtime
         enabled, error = _master_switch()
         if error or not enabled or not self.config.enabled:
@@ -336,7 +338,8 @@ class HermesBoundary:
             # runtime as enabled. Registration must not leave stale authority live.
             # Stop previously registered adapters before revoking the process gate.
             self.shutdown()
-            configure(enabled=False)
+            configure(enabled=False, source="boundary")
+            _BOUNDARY_DISABLED_RUNTIME = get_runtime()
             return {"hooks": (), "tools": (), "injection": ()}
         # A boundary-local registration must never re-enable an already
         # resolved process-global disabled/closed runtime. Only initialize the
@@ -344,12 +347,18 @@ class HermesBoundary:
         try:
             global_runtime = get_runtime()
         except RuntimeError:
-            configure(enabled=True)
+            configure(enabled=True, source="boundary")
         else:
             if not global_runtime.is_enabled():
-                self.shutdown()
-                configure(enabled=False)
-                return {"hooks": (), "tools": (), "injection": ()}
+                if global_runtime.source != "boundary" or global_runtime is not _BOUNDARY_DISABLED_RUNTIME:
+                    self.shutdown()
+                    configure(enabled=False)
+                    _BOUNDARY_DISABLED_RUNTIME = get_runtime()
+                    return {"hooks": (), "tools": (), "injection": ()}
+                configure(enabled=True, source="boundary")
+                _BOUNDARY_DISABLED_RUNTIME = None
+            else:
+                _BOUNDARY_DISABLED_RUNTIME = None
         if self._registered_context is context and self._registration_result is not None:
             for adapter in (self._capture_adapter, self._read_adapter, self._injection_adapter):
                 restart = getattr(adapter, "restart", None)

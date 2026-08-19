@@ -93,9 +93,12 @@ class HermesReadAdapter:
         # M7.1 master runtime gate: resolve the single shared authority from the
         # canonical config value. Master OFF dominates adapter-local enabled state.
         try:
-            get_runtime()
+            current_runtime = get_runtime()
         except RuntimeError:
-            configure_zero_mem_runtime(enabled=bool(config.zero_mem_enabled))
+            configure_zero_mem_runtime(enabled=bool(config.zero_mem_enabled), source="adapter")
+        else:
+            if current_runtime.is_enabled() or current_runtime.source == "adapter":
+                configure_zero_mem_runtime(enabled=bool(config.zero_mem_enabled), source="adapter")
         self._zero_mem = get_runtime()
         # Store path resolved explicitly; no cwd/home inference.
         self.store_path = Path(store_path).expanduser().resolve() if store_path is not None else None
