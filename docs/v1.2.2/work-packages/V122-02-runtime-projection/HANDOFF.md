@@ -2,7 +2,7 @@
 
 **Status:** `VERIFIED_LINUX_SCOPED`
 **Current tree fingerprint:** `ba9cd2d8719bcb00e8562b4a7baf07dfb69cceb0616c134c519d7ec99f5a3bdc`
-**HEAD:** `ad6e38eaa7ac7a764aa54bd5fee8dfcd59a5a6a6`; dirty-tree evidence is required after every mutation.
+**Parent candidate SHA:** `ad6e38eaa7ac7a764aa54bd5fee8dfcd59a5a6a6`; final release evidence is bound separately to the post-qualification release commit.
 
 ## Observed
 

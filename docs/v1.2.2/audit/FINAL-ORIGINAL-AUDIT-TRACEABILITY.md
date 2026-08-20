@@ -5,7 +5,7 @@
 - Original audit: `artifacts/audits/V11-FINAL-MAINTAINER-AUDIT.md`
 - Original findings: `artifacts/audits/V11-FINAL-MAINTAINER-FINDINGS.yaml`
 - Expanded inventory: `/home/lenovo/Hermes Workspace/ZERO-MEM-v1.2.1-AUDIT-FINDING-MATRIX.md`
-- Current HEAD: `ad6e38eaa7ac7a764aa54bd5fee8dfcd59a5a6a6`
+- Pre-release candidate HEAD: `ad6e38eaa7ac7a764aa54bd5fee8dfcd59a5a6a6`; final release evidence must bind the post-qualification release commit.
 - Current worktree: intentionally dirty
 - Scope: Linux qualification only; Windows/macOS explicitly deferred to v1.2.3
 - Canonical authority: AGENTS.md, architecture document, Spec Amendment 001, ADR-009, v1.2.2 master plan and maintainer platform decision.
@@ -91,7 +91,7 @@ The old `V122-current/` and `final-audit-096050…/` bundles are explicitly inva
 
 `artifacts/evidence/v1.2.2/ba9cd2d8719bcb00e8562b4a7baf07dfb69cceb0616c134c519d7ec99f5a3bdc/`
 
-The verifier passes against `$(git rev-parse HEAD)`, all raw-log/artifact hashes match, collection reports 3297, and the isolated full suite reports 3292 passed, 5 skipped, 0 failed.
+The pre-release verifier passed against the candidate source SHA and its raw-log/artifact hashes. Final release evidence is source-bound separately to the final release commit; the isolated Linux full suite reports 3292 passed, 5 skipped, 0 failed.
 
 ## Final verdict
 

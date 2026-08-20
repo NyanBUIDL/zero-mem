@@ -2,7 +2,7 @@
 
 **Status:** `VERIFIED_LINUX_SCOPED`
 **Owner:** Zero-Mem storage boundary
-**Baseline SHA:** `af01e494a29410b11dd6d5c4c78275e6e08604df`
+**Baseline SHA:** `af01e494a29410b11dd6d5c4c78275e6e08604df` (parent candidate lineage)
 **Audit IDs closed:** A-06; A-08 foundation
 **Prerequisites:** V122-00 VERIFIED (`V122-00-EXACT-TREE-REPLACEMENT-REVIEW-001`)
 **Approval:** `MAINTAINER_APPROVAL_V122_01_TO_06_2026_08_20`

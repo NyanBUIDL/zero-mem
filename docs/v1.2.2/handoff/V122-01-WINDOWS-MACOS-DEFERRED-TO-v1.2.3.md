@@ -1,7 +1,7 @@
 # V122-01 Windows/macOS Qualification Handoff to v1.2.3
 
 **Status:** `IMPLEMENTATION_COMPLETE` / Linux verified / Windows and macOS qualification deferred
-**Candidate HEAD:** `ad6e38eaa7ac7a764aa54bd5fee8dfcd59a5a6a6`
+**Parent candidate SHA:** `ad6e38eaa7ac7a764aa54bd5fee8dfcd59a5a6a6`; final release evidence is bound separately to the post-qualification release commit.
 **Worktree:** intentionally dirty; current-tree evidence is bound to the candidate HEAD plus the tracked/untracked package delta.
 **Parent/release lineage:** V122-00 baseline `af01e494a29410b11dd6d5c4c78275e6e08604df`; V122-00 was `VERIFIED` by `V122-00-EXACT-TREE-REPLACEMENT-REVIEW-001`.
 
