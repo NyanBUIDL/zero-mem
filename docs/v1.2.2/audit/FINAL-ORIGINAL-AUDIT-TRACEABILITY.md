@@ -20,7 +20,7 @@
 | A-04 | High | Legacy sidecar requires explicit deprecation and canonical parity. | Deprecation warning exists; `LocalSidecar` delegates canonical read capabilities through bounded `ZeroMemSidecar` and preserves canonical statuses. | CLOSED_VERIFIED | No | Legacy observe/sync/health/capabilities remain compatibility-only. |
 | A-05 | High | Hermes lifecycle must be composed and tested. | Project-local Hermes boundary covers enable/disable, capture, projection, reads, restart, idempotence and shutdown. | CLOSED_VERIFIED | No | Real external host execution remains fixture-bound. |
 | A-06 | High | Platform-sensitive storage needs one owner and safe identity/path/lock/promotion semantics. | Platform owner, identity fencing, locking, short-write and recovery paths pass Linux tests. | DEFERRED_WITH_EXPLICIT_AUTHORITY | Yes | Windows/macOS ABI, reparse and filesystem behavior unqualified. |
-| A-07 | Medium | Evidence must bind exact source, commands, logs, hashes and collection state. | Current verifier-backed bundle `artifacts/evidence/v1.2.2/ba9cd2d…/` matches HEAD, tree fingerprint, raw logs and assets; verifier PASS. | CLOSED_VERIFIED | No | Reviewer result must be persisted in the final bundle. |
+| A-07 | Medium | Evidence must bind exact source, commands, logs, hashes and collection state. | Final source-bound bundle `artifacts/evidence/v1.2.2/c518979-final/` matches the final release commit, tree fingerprint, raw logs and normalized assets; verifier PASS. | CLOSED_VERIFIED | No | Pre-release candidate bundle is retained as historical evidence. |
 | A-08 | Medium | Windows/macOS must not be claimed qualified without executable matrix evidence. | Documentation and maintainer decision correctly state Linux-only and defer both platforms. | DEFERRED_WITH_EXPLICIT_AUTHORITY | Yes | No real Windows/macOS evidence. |
 
 **Inventory:** 8 findings. **Final counts:** CLOSED_VERIFIED 5; CLOSED_BY_DESIGN_CHANGE 0; DEFERRED_WITH_AUTHORITY 2; STILL_OPEN 0; NOT_APPLICABLE_WITH_PROOF 0.
@@ -89,7 +89,7 @@ This terminal closure review confirmed the reconciled package statuses, current 
 
 The old `V122-current/` and `final-audit-096050…/` bundles are explicitly invalidated. The authoritative current bundle is:
 
-`artifacts/evidence/v1.2.2/ba9cd2d8719bcb00e8562b4a7baf07dfb69cceb0616c134c519d7ec99f5a3bdc/`
+The pre-release candidate bundle under `artifacts/evidence/v1.2.2/ba9cd2d8719bcb00e8562b4a7baf07dfb69cceb0616c134c519d7ec99f5a3bdc/` is retained as historical evidence. The authoritative final release bundle is `artifacts/evidence/v1.2.2/c518979-final/`, source-bound to the final release commit.
 
 The pre-release verifier passed against the candidate source SHA and its raw-log/artifact hashes. Final release evidence is source-bound separately to the final release commit; the isolated Linux full suite reports 3292 passed, 5 skipped, 0 failed.
 
