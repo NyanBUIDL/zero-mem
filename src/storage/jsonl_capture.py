@@ -5,40 +5,34 @@ import json
 import os
 import stat
 import threading
-try:
-    import fcntl
-except ImportError:  # native Windows is outside the v1.1 support matrix
-    fcntl = None  # type: ignore[assignment]
 from pathlib import Path
 from typing import Any, Mapping
 
 from src.capture.validation import validate_envelope
 from src.redaction import RedactionRejected
 from .capture_boundary import AppendResult, CaptureRejected, CaptureStoreConfig
-from .coordination import locked, open_parent_dir
+from .coordination import locked
+from .platform import PlatformErrorCode, PlatformStorageError, ensure_private_directory, open_regular
 
 
 class JsonlCaptureStore:
     def __init__(self, config: CaptureStoreConfig) -> None:
         self.config = config
         self.path = config.path
-        if fcntl is None:
-            raise CaptureRejected("capture_rejected: process_lock_unavailable")
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            ensure_private_directory(self.path.parent)
+        except PlatformStorageError:
+            raise CaptureRejected("capture_rejected: unsafe_canonical_path") from None
         # Establish the complete ancestor chain through descriptor-relative
         # no-follow traversal before retaining the store.
-        parent_fd = open_parent_dir(self.path)
-        os.close(parent_fd)
         if os.name != "nt":
             os.chmod(self.path.parent, 0o700)
         self._lock = threading.RLock()
         self._process_lock_path = self.path.with_name(self.path.name + ".lock")
-        lock_flags = os.O_CREAT | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0)
-        parent_fd = open_parent_dir(self._process_lock_path)
         try:
-            lock_fd = os.open(self._process_lock_path.name, lock_flags, 0o600, dir_fd=parent_fd)
-        finally:
-            os.close(parent_fd)
+            lock_fd = open_regular(self._process_lock_path, os.O_RDWR, create=True)
+        except PlatformStorageError as exc:
+            raise CaptureRejected("capture_rejected: process_lock_unavailable") from None
         self._process_lock = os.fdopen(lock_fd, "a+b")
         if os.name != "nt":
             os.chmod(self._process_lock_path, 0o600)
@@ -128,16 +122,12 @@ class JsonlCaptureStore:
         return (json.dumps(dict(event), ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
 
     def _open_data(self, flags: int) -> int | None:
-        parent_fd = open_parent_dir(self.path)
         try:
-            try:
-                return os.open(self.path.name, flags | getattr(os, "O_NOFOLLOW", 0), dir_fd=parent_fd)
-            except FileNotFoundError:
-                if flags & (os.O_WRONLY | os.O_RDWR):
-                    return os.open(self.path.name, flags | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600, dir_fd=parent_fd)
+            return open_regular(self.path, flags, create=bool(flags & (os.O_WRONLY | os.O_RDWR)))
+        except PlatformStorageError as exc:
+            if exc.code is PlatformErrorCode.NOT_FOUND:
                 return None
-        finally:
-            os.close(parent_fd)
+            raise CaptureRejected("capture_rejected: unsafe_canonical_path") from None
 
     @staticmethod
     def _read_fd(fd: int) -> bytes:

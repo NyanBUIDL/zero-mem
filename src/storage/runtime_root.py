@@ -1,12 +1,11 @@
-"""Runtime-owned production storage root for Linux-qualified Zero-Mem."""
+"""Runtime-owned storage root using the internal platform contract."""
 from __future__ import annotations
 
-import os
 import stat
 from dataclasses import dataclass
 from pathlib import Path
 
-from .coordination import open_parent_dir
+from .platform import PlatformErrorCode, PlatformStorageError, ensure_private_directory, validate_directory
 
 
 @dataclass(frozen=True)
@@ -42,56 +41,22 @@ class RuntimeStorageRoot:
         root = root.expanduser()
         if root == Path.home() or Path.home() in root.parents:
             raise ValueError("storage root must not be inside the real home directory")
-        if root.exists() or root.is_symlink():
-            info = root.lstat()
-            if stat.S_ISLNK(info.st_mode):
+        for ancestor in (root, *root.parents):
+            if ancestor.is_symlink():
                 raise ValueError("storage root symlink is not allowed")
-            if not stat.S_ISDIR(info.st_mode):
-                raise ValueError("storage root must be a directory")
-        else:
-            _mkdir_private_no_symlink(root)
-        parent_fd = open_parent_dir(root / ".root-probe")
-        os.close(parent_fd)
-        for name in ("canonical", "derived", "recovery", "locks", "metadata"):
-            child = root / name
-            if child.exists() or child.is_symlink():
-                info = child.lstat()
-                if stat.S_ISLNK(info.st_mode):
-                    raise ValueError("storage domain symlink is not allowed")
-                if not stat.S_ISDIR(info.st_mode):
-                    raise ValueError("storage domain must be a directory")
-            else:
-                child.mkdir(mode=0o700)
-            child_fd = open_parent_dir(child / ".domain-probe")
-            os.close(child_fd)
-        if os.name != "nt":
-            os.chmod(root, 0o700)
+        try:
+            ensure_private_directory(root)
+            for name in ("canonical", "derived", "recovery", "locks", "metadata"):
+                child = root / name
+                if child.exists() or child.is_symlink():
+                    validate_directory(child)
+                else:
+                    ensure_private_directory(child)
+        except PlatformStorageError as exc:
+            if exc.code is PlatformErrorCode.UNSAFE_PATH:
+                raise ValueError("storage root path is unsafe") from None
+            raise
         return cls(root)
-
-
-def _mkdir_private_no_symlink(path: Path) -> None:
-    """Create a missing directory without traversing an existing symlink.
-
-    ``Path.mkdir(parents=True)`` delegates ancestor traversal to the kernel and
-    would accept a symlinked ancestor during ordinary bootstrap.  Build the
-    missing chain one component at a time and validate every existing component
-    before proceeding.  Post-validation hostile replacement is outside the
-    trusted-private-root model; this closes the normal bootstrap path only.
-    """
-    if path.exists() or path.is_symlink():
-        info = path.lstat()
-        if stat.S_ISLNK(info.st_mode):
-            raise ValueError("storage root ancestor symlink is not allowed")
-        if not stat.S_ISDIR(info.st_mode):
-            raise ValueError("storage root ancestor must be a directory")
-        return
-    _mkdir_private_no_symlink(path.parent)
-    try:
-        path.mkdir(mode=0o700)
-    except FileExistsError:
-        info = path.lstat()
-        if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
-            raise ValueError("storage root ancestor is unsafe")
 
 
 __all__ = ["RuntimeStorageRoot"]
