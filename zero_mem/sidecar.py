@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import time
+import warnings
 from dataclasses import dataclass
 from typing import Any
 
@@ -10,6 +11,10 @@ from .api import PublicClient
 
 CONTRACT_VERSION = "1.1"
 CAPABILITIES = ("observe", "sync", "health", "capabilities")
+DEPRECATION_MESSAGE = (
+    "zero_mem.sidecar.LocalSidecar is deprecated; use "
+    "src.integration.sidecar.ZeroMemSidecar for the canonical bounded sidecar contract"
+)
 
 
 class SidecarError(RuntimeError):
@@ -25,9 +30,10 @@ class SidecarConfig:
 
 
 class LocalSidecar:
-    """Owned local dispatcher; no network listener is created implicitly."""
+    """Deprecated compatibility wrapper; canonical transport is ``ZeroMemSidecar``."""
 
     def __init__(self, client: PublicClient, *, config: SidecarConfig | None = None) -> None:
+        warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning, stacklevel=2)
         self._client = client
         self._config = config or SidecarConfig()
         if self._config.max_payload_bytes < 1 or self._config.deadline_seconds <= 0:
@@ -75,4 +81,4 @@ class LocalSidecar:
         return {"ok": True, "capability": capability, "result": result}
 
 
-__all__ = ["CAPABILITIES", "CONTRACT_VERSION", "LocalSidecar", "SidecarConfig", "SidecarError"]
+__all__ = ["CAPABILITIES", "CONTRACT_VERSION", "DEPRECATION_MESSAGE", "LocalSidecar", "SidecarConfig", "SidecarError"]

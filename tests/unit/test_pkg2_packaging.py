@@ -137,14 +137,14 @@ def test_fresh_offline_install_custom_xdg_and_cli(bundle: Path, tmp_path: Path) 
     runtime = home / "data root with spaces" / "zero-mem"
     bindir = home / "bin root with spaces"
     assert (runtime / "current").is_symlink()
-    assert (runtime / "runtimes" / "1.2.0" / "venv").is_dir()
+    assert (runtime / "runtimes" / "1.2.1" / "venv").is_dir()
     cli = bindir / "zero-mem"
     assert cli.is_file() and os.access(cli, os.X_OK)
     env = _env(home)
     assert _run([str(cli), "--help"], env=env, cwd=tmp_path).returncode == 0
-    assert _run([str(cli), "--version"], env=env, cwd=tmp_path).stdout.strip() == "zero-mem 1.2.0"
+    assert _run([str(cli), "--version"], env=env, cwd=tmp_path).stdout.strip() == "zero-mem 1.2.1"
     imports = _run([str(runtime / "current" / "venv" / "bin" / "python"), "-c", "import zero_mem, src; print(zero_mem.__version__)"], env=env, cwd=tmp_path)
-    assert imports.stdout.strip() == "1.2.0"
+    assert imports.stdout.strip() == "1.2.1"
 
 
 def test_checksum_tampering_fails_before_activation(bundle: Path, tmp_path: Path) -> None:
@@ -172,7 +172,7 @@ def test_interrupted_install_preserves_previous_active_runtime(bundle: Path, tmp
     assert result.returncode != 0
     assert (runtime / "current").resolve() == before
     assert not list((runtime / "runtimes").glob(".staging-*"))
-    assert _run([str(runtime / "current" / "venv" / "bin" / "python"), "-m", "zero_mem.cli", "--version"], env=env, cwd=tmp_path).stdout.strip() == "zero-mem 1.2.0"
+    assert _run([str(runtime / "current" / "venv" / "bin" / "python"), "-m", "zero_mem.cli", "--version"], env=env, cwd=tmp_path).stdout.strip() == "zero-mem 1.2.1"
 
 
 def test_same_version_reinstall_is_non_destructive(bundle: Path, tmp_path: Path) -> None:

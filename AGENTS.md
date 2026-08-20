@@ -8,7 +8,7 @@ The authoritative specification is `Tai_lieu_thong_nhat_Hermes_External_ZeroMem.
 
 - Hermes remains the orchestration and final-action layer.
 - The sidecar captures, redacts, classifies, indexes, retrieves, and calibrates evidence.
-- **v1.2+ canonical-storage refinement:** JSONL is the canonical append-only source of truth for memory events/traces. SQLite and indexes are derived/materialized state rebuildable from canonical sources. Versioned artifacts remain separately authoritative for their own contents; Obsidian is a human-facing rebuildable projection, not raw storage or the retrieval engine.
+- **v1.2+ canonical-storage refinement:** JSONL is the canonical append-only source of truth for memory events/traces. SQLite and indexes are derived/materialized state rebuildable from canonical sources. The master storage model remains SQLite + JSONL with this approved v1.2+ refinement. Versioned artifacts remain separately authoritative for their own contents; Obsidian is a human-facing rebuildable projection, not raw storage or the retrieval engine.
 - The approved refinement is recorded in `docs/v1.2.0/SPEC-AMENDMENT-001-CANONICAL-MEMORY-EVENT-TRUTH.md` and `docs/v1.2.0/decisions/ADR-009-CANONICAL_MEMORY_EVENT_TRUTH_AND_DERIVED_STATE_BOUNDARY.md`. It is prospective for v1.2+ and does not rewrite v1.1 history.
 - Obsidian is a human-facing Knowledge Workspace and curated, rebuildable projection—not raw storage or the retrieval engine.
 - Memory operations use deterministic/local mechanisms by default and make zero LLM calls; only final reasoning/response may use an LLM.
@@ -29,6 +29,10 @@ The authoritative specification is `Tai_lieu_thong_nhat_Hermes_External_ZeroMem.
 5. Record exact changed files and sanitized command evidence.
 6. Update project state only after acceptance criteria pass.
 7. Create a checkpoint before destructive changes; never install system-wide packages or perform destructive operations without explicit approval.
+
+## Mandatory Git/GitHub governance
+
+Before any Git or GitHub mutation, the agent **MUST** read [`docs/governance/GITHUB-POLICY.md`](docs/governance/GITHUB-POLICY.md). This includes commit, branch creation/update, merge, rebase, tag, push, release, hotfix, rollback, and remote modification. The policy is mandatory and its stop/escalation conditions apply.
 
 ## Required quality gates
 
