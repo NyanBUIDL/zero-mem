@@ -32,9 +32,15 @@ class SidecarConfig:
     max_concurrency: int = 4
     max_queue: int = 16
     default_deadline: float = 5.0
+    max_depth: int = 32
+    max_items: int = 4096
 
     def __post_init__(self) -> None:
         for name in ("max_request_bytes", "max_response_bytes", "max_concurrency"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise ValueError(f"invalid {name}")
+        for name in ("max_depth", "max_items"):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
                 raise ValueError(f"invalid {name}")
@@ -65,6 +71,29 @@ class SidecarResult:
 
 
 Dispatcher = Callable[[dict[str, Any]], dict[str, Any]]
+
+
+def _within_bounds(value: Any, *, max_depth: int, max_items: int,
+                   depth: int = 0, seen: int = 0) -> tuple[bool, int]:
+    """Bound nested JSON structures before dispatch/serialization."""
+    if depth > max_depth or seen > max_items:
+        return False, seen
+    if isinstance(value, dict):
+        seen += len(value)
+        for key, child in value.items():
+            ok, seen = _within_bounds(key, max_depth=max_depth, max_items=max_items, depth=depth + 1, seen=seen)
+            if not ok:
+                return False, seen
+            ok, seen = _within_bounds(child, max_depth=max_depth, max_items=max_items, depth=depth + 1, seen=seen)
+            if not ok:
+                return False, seen
+    elif isinstance(value, (list, tuple)):
+        seen += len(value)
+        for child in value:
+            ok, seen = _within_bounds(child, max_depth=max_depth, max_items=max_items, depth=depth + 1, seen=seen)
+            if not ok:
+                return False, seen
+    return seen <= max_items, seen
 
 
 class ZeroMemSidecar:
@@ -125,6 +154,9 @@ class ZeroMemSidecar:
             payload = json.loads(bytes(request).decode("utf-8"))
             if not isinstance(payload, dict) or not isinstance(payload.get("tool"), str):
                 raise ValueError("invalid envelope")
+            bounded, _ = _within_bounds(payload, max_depth=self.config.max_depth, max_items=self.config.max_items)
+            if not bounded:
+                raise ValueError("request bounds exceeded")
             if identity is not None:
                 if "requesting_profile_id" in payload and payload["requesting_profile_id"] != identity:
                     return self._result(SidecarStatus.INVALID_REQUEST, bytes_in=size)
@@ -168,6 +200,9 @@ class ZeroMemSidecar:
             if not isinstance(response, dict):
                 return self._result(SidecarStatus.DOWNSTREAM_ERROR, bytes_in=size)
             try:
+                bounded, _ = _within_bounds(response, max_depth=self.config.max_depth, max_items=self.config.max_items)
+                if not bounded:
+                    return self._result(SidecarStatus.DOWNSTREAM_ERROR, bytes_in=size)
                 raw = json.dumps(response, sort_keys=True, separators=(",", ":")).encode("utf-8")
             except (TypeError, ValueError, OverflowError, RecursionError):
                 return self._result(SidecarStatus.DOWNSTREAM_ERROR, bytes_in=size)

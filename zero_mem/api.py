@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any, Mapping, Protocol
 
 from .core import CaptureResult, CoreConfig, EventWriter, ZeroMemClient
 
@@ -31,12 +31,22 @@ class AsyncTimeoutError(ZeroMemAPIError):
     pass
 
 
+class PublicReadService(Protocol):
+    """Injected authorized read boundary; the public module stays storage-neutral."""
+    def search(self, request: Mapping[str, Any] | None = None) -> Any: ...
+    def get_trace(self, request: Mapping[str, Any] | None = None) -> Any: ...
+    def get_task_state(self, request: Mapping[str, Any] | None = None) -> Any: ...
+    def get_decisions(self, request: Mapping[str, Any] | None = None) -> Any: ...
+
+
 @dataclass(frozen=True)
 class CapabilityResult:
     capability: str
     status: str
     reason_code: str
     items: tuple[Mapping[str, Any], ...] = ()
+    provenance: tuple[Mapping[str, Any], ...] = ()
+    freshness: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -51,16 +61,20 @@ class PublicClient:
     """Synchronous generic-agent facade; no internal storage paths are exposed."""
 
     def __init__(self, config: CoreConfig, *, writer: EventWriter | None = None,
-                 consistency_policy: str | None = None) -> None:
+                 consistency_policy: str | None = None,
+                 read_service: PublicReadService | None = None) -> None:
         self._client = ZeroMemClient(config, writer=writer, consistency_policy=consistency_policy)
         self._active_session = False
         self._closed = False
         self._writer = writer
+        self._read_service = read_service
 
     @classmethod
     def open(cls, config: CoreConfig | None = None, *, writer: EventWriter | None = None,
-             consistency_policy: str | None = None) -> "PublicClient":
-        return cls(config or CoreConfig(), writer=writer, consistency_policy=consistency_policy)
+             consistency_policy: str | None = None,
+             read_service: PublicReadService | None = None) -> "PublicClient":
+        return cls(config or CoreConfig(), writer=writer, consistency_policy=consistency_policy,
+                   read_service=read_service)
 
     def _ensure_open(self) -> None:
         if self._closed:
@@ -98,17 +112,42 @@ class PublicClient:
         self._ensure_open()
         return CapabilityResult(capability, "CAPABILITY_UNAVAILABLE", "CAPABILITY_NOT_IMPLEMENTED")
 
+    def _read(self, capability: str, request: Mapping[str, Any] | None) -> CapabilityResult:
+        self._ensure_open()
+        if self._read_service is None:
+            return self._unavailable(capability)
+        method_name = capability.rsplit(".", 1)[-1]
+        try:
+            raw = getattr(self._read_service, method_name)(request or {})
+        except TimeoutError:
+            return CapabilityResult(capability, "TIMEOUT", "READ_TIMEOUT")
+        except Exception:
+            return CapabilityResult(capability, "UNAVAILABLE", "READ_UNAVAILABLE")
+        status = getattr(raw, "status", None)
+        reason = getattr(raw, "reason_code", None)
+        if getattr(raw, "denied", False):
+            status, reason = "DENIED", str(reason or "READ_DENIED")
+        elif getattr(raw, "error", None) is not None:
+            status, reason = "UNAVAILABLE", "READ_UNAVAILABLE"
+        else:
+            status, reason = str(status or "READY"), str(reason or "READ_OK")
+        items = getattr(raw, "items", ()) or ()
+        normalized = tuple(item if isinstance(item, Mapping) else {"value": item} for item in items)
+        return CapabilityResult(capability, status, reason, normalized,
+                                tuple(getattr(raw, "provenance", ()) or ()),
+                                getattr(raw, "freshness", None))
+
     def search(self, request: Mapping[str, Any] | None = None) -> CapabilityResult:
-        return self._unavailable("zero_mem.search")
+        return self._read("zero_mem.search", request)
 
     def get_trace(self, request: Mapping[str, Any] | None = None) -> CapabilityResult:
-        return self._unavailable("zero_mem.get_trace")
+        return self._read("zero_mem.get_trace", request)
 
     def get_task_state(self, request: Mapping[str, Any] | None = None) -> CapabilityResult:
-        return self._unavailable("zero_mem.get_task_state")
+        return self._read("zero_mem.get_task_state", request)
 
     def get_decisions(self, request: Mapping[str, Any] | None = None) -> CapabilityResult:
-        return self._unavailable("zero_mem.get_decisions")
+        return self._read("zero_mem.get_decisions", request)
 
     def health(self) -> Health:
         self._ensure_open()
@@ -145,8 +184,10 @@ class AsyncClient:
 
     @classmethod
     def open(cls, config: CoreConfig | None = None, *, writer: EventWriter | None = None,
-             consistency_policy: str | None = None, queue_capacity: int = 16) -> "AsyncClient":
-        return cls(PublicClient.open(config, writer=writer, consistency_policy=consistency_policy), queue_capacity=queue_capacity)
+             consistency_policy: str | None = None, read_service: PublicReadService | None = None,
+             queue_capacity: int = 16) -> "AsyncClient":
+        return cls(PublicClient.open(config, writer=writer, consistency_policy=consistency_policy,
+                                     read_service=read_service), queue_capacity=queue_capacity)
 
     async def _call(self, operation: Any, *, deadline: float | None = None) -> Any:
         if self._closed:

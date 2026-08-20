@@ -14,7 +14,9 @@ Start at [agent-development-system/00-START-HERE.md](agent-development-system/00
 - Runtime-owned projection and observable freshness.
 - One canonical sidecar contract.
 - Full Hermes composition lifecycle.
-- Qualified Windows, Linux, and macOS storage behavior.
+- Linux-qualified v1.2.2 target.
+- Windows implementation retained; experimental/unqualified and deferred to v1.2.3.
+- macOS implementation retained; experimental/unqualified and deferred to v1.2.3.
 - Reproducible, exact-SHA release evidence.
 
 ## Non-goals

@@ -119,7 +119,7 @@ class SQLiteStore:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             if os.name != "nt":
                 os.chmod(self.path.parent, 0o700)
-            self._conn = sqlite3.connect(str(self.path))
+            self._conn = sqlite3.connect(str(self.path), check_same_thread=False)
             self._conn.row_factory = sqlite3.Row
             self._apply_pragmas()
         except StoreError:

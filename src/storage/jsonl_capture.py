@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import os
-import stat
 import threading
 from pathlib import Path
 from typing import Any, Mapping
@@ -12,7 +11,19 @@ from src.capture.validation import validate_envelope
 from src.redaction import RedactionRejected
 from .capture_boundary import AppendResult, CaptureRejected, CaptureStoreConfig
 from .coordination import locked
-from .platform import PlatformErrorCode, PlatformStorageError, ensure_private_directory, open_regular
+from .platform import (
+    PlatformErrorCode,
+    PlatformStorageError,
+    close_handle,
+    ensure_private_directory,
+    fsync_handle,
+    handle_size,
+    open_regular,
+    read_all,
+    read_from,
+    set_mode,
+    write_all,
+)
 
 
 class JsonlCaptureStore:
@@ -25,8 +36,10 @@ class JsonlCaptureStore:
             raise CaptureRejected("capture_rejected: unsafe_canonical_path") from None
         # Establish the complete ancestor chain through descriptor-relative
         # no-follow traversal before retaining the store.
-        if os.name != "nt":
-            os.chmod(self.path.parent, 0o700)
+        try:
+            set_mode(self.path.parent, 0o700)
+        except PlatformStorageError:
+            raise CaptureRejected("capture_rejected: unsafe_canonical_path") from None
         self._lock = threading.RLock()
         self._process_lock_path = self.path.with_name(self.path.name + ".lock")
         try:
@@ -34,8 +47,11 @@ class JsonlCaptureStore:
         except PlatformStorageError as exc:
             raise CaptureRejected("capture_rejected: process_lock_unavailable") from None
         self._process_lock = os.fdopen(lock_fd, "a+b")
-        if os.name != "nt":
-            os.chmod(self._process_lock_path, 0o600)
+        try:
+            set_mode(self._process_lock_path, 0o600)
+        except PlatformStorageError:
+            self._process_lock.close()
+            raise CaptureRejected("capture_rejected: process_lock_unavailable") from None
         self._by_id: dict[str, dict[str, Any]] = {}
         self._by_hash: dict[str, dict[str, Any]] = {}
         self._next_sequence = 0
@@ -61,7 +77,7 @@ class JsonlCaptureStore:
         try:
             data = self._read_fd(fd)
         finally:
-            os.close(fd)
+            close_handle(fd)
         if data and not data.endswith(b"\n"):
             raise CaptureRejected("capture_rejected: partial_final_line")
         for line_number, line in enumerate(data.splitlines(), start=1):
@@ -86,9 +102,9 @@ class JsonlCaptureStore:
             size = 0
         else:
             try:
-                size = os.fstat(fd).st_size
+                size = handle_size(fd)
             finally:
-                os.close(fd)
+                close_handle(fd)
         if size < self._loaded_size:
             self._load()
             return
@@ -98,10 +114,9 @@ class JsonlCaptureStore:
         if fd is None:
             raise CaptureRejected("capture_rejected: canonical_disappeared")
         try:
-            os.lseek(fd, self._loaded_size, os.SEEK_SET)
-            data = self._read_fd(fd)
+            data = read_from(fd, self._loaded_size)
         finally:
-            os.close(fd)
+            close_handle(fd)
         if data and not data.endswith(b"\n"):
             raise CaptureRejected("capture_rejected: partial_final_line")
         for line in data.splitlines():
@@ -131,15 +146,10 @@ class JsonlCaptureStore:
 
     @staticmethod
     def _read_fd(fd: int) -> bytes:
-        info = os.fstat(fd)
-        if not stat.S_ISREG(info.st_mode):
-            raise CaptureRejected("capture_rejected: canonical_not_regular")
-        chunks: list[bytes] = []
-        while True:
-            chunk = os.read(fd, 1024 * 1024)
-            if not chunk:
-                return b"".join(chunks)
-            chunks.append(chunk)
+        try:
+            return read_all(fd)
+        except PlatformStorageError:
+            raise CaptureRejected("capture_rejected: canonical_read_failed") from None
 
     def append(self, event: Mapping[str, Any]) -> AppendResult:
         with self._lock:
@@ -174,10 +184,10 @@ class JsonlCaptureStore:
             if fd is None:
                 raise OSError("canonical_missing")
             try:
-                os.write(fd, blob)
-                os.fsync(fd)
+                write_all(fd, blob)
+                fsync_handle(fd)
             finally:
-                os.close(fd)
+                close_handle(fd)
         except Exception:
             raise CaptureRejected("capture_rejected: append_failed") from None
         self._by_id[event_id] = record

@@ -5,8 +5,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import sys
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,6 +21,19 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def wheel_version(wheel: Path) -> str:
+    """Read the distribution version from the wheel's own metadata."""
+    with zipfile.ZipFile(wheel) as archive:
+        metadata_names = [name for name in archive.namelist() if name.endswith(".dist-info/METADATA")]
+        if len(metadata_names) != 1:
+            raise SystemExit("wheel metadata missing or ambiguous")
+        metadata = archive.read(metadata_names[0]).decode("utf-8")
+    match = re.search(r"(?m)^Version:\s*([^\r\n]+)\s*$", metadata)
+    if not match:
+        raise SystemExit("wheel version missing")
+    return match.group(1).strip()
 
 
 def main() -> int:
@@ -46,7 +61,7 @@ def main() -> int:
     manifest = {
         "schema_version": 1,
         "product": "zero-mem",
-        "version": "1.2.1",
+        "version": wheel_version(wheel),
         "platform": "linux-x86_64",
         "bundle_status": "PKG-2 INSTALLER ACCEPTANCE BUNDLE",
         "wheel": f"wheels/{wheel.name}",

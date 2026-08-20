@@ -5,7 +5,6 @@ import hashlib
 import json
 import math
 import os
-import stat
 import threading
 import time
 from dataclasses import dataclass
@@ -14,7 +13,27 @@ from numbers import Real
 from pathlib import Path
 
 
-from src.storage.coordination import coordinated, open_parent_dir, read_regular_bytes
+from src.storage.coordination import coordinated, read_regular_bytes
+from src.storage.platform import (
+    PlatformStorageError,
+    FileIdentity,
+    atomic_promote,
+    close_handle,
+    handle_info,
+    fsync_handle,
+    is_regular_info,
+    is_symlink_info,
+    list_relative,
+    open_parent_dir,
+    open_relative,
+    paths_alias,
+    read_all,
+    rename_relative,
+    stat_relative,
+    unlink_relative,
+    validate_path,
+    write_all,
+)
 from src.storage.ingest import rebuild_from_jsonl
 from src.storage.sqlite_store import SQLiteStore, SQLiteStoreConfig
 from src.storage.runtime_root import RuntimeStorageRoot
@@ -78,19 +97,10 @@ _FAILURE_MAP = {
 
 
 def _validate_path(path: Path, *, allow_missing: bool = False) -> None:
-    if not isinstance(path, Path) or not path.is_absolute():
-        raise ValueError("path must be absolute")
-    for current in (path, *path.parents):
-        try:
-            info = current.lstat()
-        except FileNotFoundError:
-            continue
-        if stat.S_ISLNK(info.st_mode):
-            raise ValueError("path symlink is not allowed")
-        if current == path and not allow_missing and not stat.S_ISREG(info.st_mode):
-            raise ValueError("path must be a regular file")
-        if current == path and allow_missing and stat.S_ISDIR(info.st_mode):
-            raise ValueError("path cannot be a directory")
+    try:
+        validate_path(path, allow_missing=allow_missing)
+    except PlatformStorageError as exc:
+        raise ValueError("path symlink or unsafe") from exc
 
 
 def _strict_identity(value: object) -> bool:
@@ -122,38 +132,33 @@ def _validate_domain_path(path: Path, domain: Path, *, allow_missing: bool = Fal
 
 def _identity(path: Path) -> _CanonicalIdentity:
     _validate_path(path)
-    parent_fd = open_parent_dir(path)
+    parent = open_parent_dir(path)
     try:
-        fd = os.open(path.name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=parent_fd)
+        fd = open_relative(parent, path.name, access="read")
         try:
-            info = os.fstat(fd)
-            if not stat.S_ISREG(info.st_mode):
+            info = handle_info(fd)
+            if not is_regular_info(info):
                 raise OSError("canonical_not_regular")
-            chunks: list[bytes] = []
-            while True:
-                chunk = os.read(fd, 1024 * 1024)
-                if not chunk:
-                    break
-                chunks.append(chunk)
-            return _CanonicalIdentity(info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, hashlib.sha256(b"".join(chunks)).hexdigest())
+            raw = read_all(fd)
+            return _CanonicalIdentity(info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, hashlib.sha256(raw).hexdigest())
         finally:
-            os.close(fd)
+            close_handle(fd)
     finally:
-        os.close(parent_fd)
+        close_handle(parent)
 
 
-def _remove_owned(path: Path, marker: Path, token: str, *, directory_fd: int | None = None) -> None:
+def _remove_owned(path: Path, marker: Path, token: str, *, directory_fd: int | Path | None = None) -> None:
     owned_directory = directory_fd is None
     if directory_fd is None:
         directory_fd = open_parent_dir(path)
     build_fd: int | None = None
     sidecar_fds: list[int] = []
     try:
-        marker_fd = os.open(marker.name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=directory_fd)
+        marker_fd = open_relative(directory_fd, marker.name, access="read")
         try:
-            data = json.loads(os.read(marker_fd, 65536).decode("utf-8"))
+            data = json.loads(read_all(marker_fd).decode("utf-8"))
         finally:
-            os.close(marker_fd)
+            close_handle(marker_fd)
         expected_build = data.get("build_identity")
         if (
             data.get("token") != token
@@ -164,32 +169,32 @@ def _remove_owned(path: Path, marker: Path, token: str, *, directory_fd: int | N
             or not _strict_identity(expected_build["inode"])
         ):
             return
-        build_fd = os.open(path.name, os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0), dir_fd=directory_fd)
-        info = os.fstat(build_fd)
-        if not stat.S_ISREG(info.st_mode) or expected_build != {"device": info.st_dev, "inode": info.st_ino}:
+        build_fd = open_relative(directory_fd, path.name, access="read", nonblocking=True)
+        info = handle_info(build_fd)
+        if not is_regular_info(info) or expected_build != {"device": info.st_dev, "inode": info.st_ino}:
             return
         for suffix in ("-wal", "-shm"):
             sidecar_name = path.name + suffix
             try:
-                sidecar_fd = os.open(sidecar_name, os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0), dir_fd=directory_fd)
-            except FileNotFoundError:
+                sidecar_fd = open_relative(directory_fd, sidecar_name, access="read", nonblocking=True)
+            except PlatformStorageError:
                 continue
-            sidecar_info = os.fstat(sidecar_fd)
-            if not stat.S_ISREG(sidecar_info.st_mode):
+            sidecar_info = handle_info(sidecar_fd)
+            if not is_regular_info(sidecar_info):
                 return
             sidecar_fds.append(sidecar_fd)
-            os.unlink(sidecar_name, dir_fd=directory_fd)
-        os.unlink(path.name, dir_fd=directory_fd)
-        os.unlink(marker.name, dir_fd=directory_fd)
-    except (OSError, ValueError, json.JSONDecodeError, TypeError) as exc:
+            unlink_relative(directory_fd, sidecar_name)
+        unlink_relative(directory_fd, path.name)
+        unlink_relative(directory_fd, marker.name)
+    except (OSError, PlatformStorageError, ValueError, json.JSONDecodeError, TypeError) as exc:
         raise _CleanupFailure("owned_cleanup_failed") from exc
     finally:
         if build_fd is not None:
-            os.close(build_fd)
+            close_handle(build_fd)
         for sidecar_fd in sidecar_fds:
-            os.close(sidecar_fd)
+            close_handle(sidecar_fd)
         if owned_directory:
-            os.close(directory_fd)
+            close_handle(directory_fd)
 
 
 
@@ -206,11 +211,8 @@ class RecoveryCoordinator:
         self.storage_root = storage_root
         self.canonical_path = canonical_path.absolute()
         self.derived_path = derived_path.absolute()
-        if self.derived_path.exists():
-            canonical_info = self.canonical_path.stat()
-            derived_info = self.derived_path.stat()
-            if (canonical_info.st_dev, canonical_info.st_ino) == (derived_info.st_dev, derived_info.st_ino):
-                raise ValueError("canonical_path and derived_path alias")
+        if paths_alias(self.canonical_path, self.derived_path):
+            raise ValueError("canonical_path and derived_path alias")
         self.source_id = self.canonical_path.name
         self._lock = threading.Lock()
         self._active_worker: threading.Thread | None = None
@@ -367,137 +369,120 @@ class RecoveryCoordinator:
     @staticmethod
     def _safe_unlink_snapshot(path: Path) -> None:
         try:
-            parent_fd = open_parent_dir(path)
+            parent = open_parent_dir(path)
             try:
-                os.unlink(path.name, dir_fd=parent_fd)
+                unlink_relative(parent, path.name)
             finally:
-                os.close(parent_fd)
-        except OSError as exc:
-            raise _CleanupFailure("snapshot_cleanup_failed") from exc
+                close_handle(parent)
+        except (OSError, PlatformStorageError):
+            raise _CleanupFailure("snapshot_cleanup_failed") from None
 
     def _reject_canonical_derived_alias(self) -> None:
-        if not self.derived_path.exists():
+        if not paths_alias(self.canonical_path, self.derived_path):
             return
         canonical_parent = open_parent_dir(self.canonical_path)
         derived_parent = open_parent_dir(self.derived_path)
         canonical_fd = derived_fd = None
         try:
-            canonical_fd = os.open(self.canonical_path.name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=canonical_parent)
-            derived_fd = os.open(self.derived_path.name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=derived_parent)
-            canonical_info = os.fstat(canonical_fd)
-            derived_info = os.fstat(derived_fd)
+            canonical_fd = open_relative(canonical_parent, self.canonical_path.name, access="read")
+            derived_fd = open_relative(derived_parent, self.derived_path.name, access="read")
+            canonical_info = handle_info(canonical_fd)
+            derived_info = handle_info(derived_fd)
             if (canonical_info.st_dev, canonical_info.st_ino) == (derived_info.st_dev, derived_info.st_ino):
                 raise ValueError("canonical_derived_alias")
         finally:
             if canonical_fd is not None:
-                os.close(canonical_fd)
+                close_handle(canonical_fd)
             if derived_fd is not None:
-                os.close(derived_fd)
-            os.close(canonical_parent)
-            os.close(derived_parent)
+                close_handle(derived_fd)
+            close_handle(canonical_parent)
+            close_handle(derived_parent)
 
     def _reject_unsafe_derived_artifacts(self) -> None:
-        """Reject hostile legacy/build artifacts through one pinned parent fd."""
-        parent_fd = open_parent_dir(self.derived_path)
+        """Reject hostile legacy/build artifacts through one pinned parent handle."""
+        parent = open_parent_dir(self.derived_path)
         try:
             prefix = self.derived_path.name + ".recovery-building."
-            names = os.listdir(parent_fd)
-            fixed = {
-                self.derived_path.name + "-wal",
-                self.derived_path.name + "-shm",
-            }
+            names = list_relative(parent)
+            fixed = {self.derived_path.name + "-wal", self.derived_path.name + "-shm"}
             for name in names:
                 if name.endswith(".owner"):
-                    base_name = name[:-len(".owner")]
-                    if base_name not in names:
+                    if name[:-len(".owner")] not in names:
                         raise OSError("orphan_recovery_owner")
                     continue
-                if ".recovery-old." in name:
-                    raise OSError("unknown_recovery_quarantine")
-                if name == self.derived_path.name + ".recovery-building":
-                    raise OSError("unknown_recovery_build")
+                if ".recovery-old." in name or name == self.derived_path.name + ".recovery-building":
+                    raise OSError("unknown_recovery_artifact")
                 if name not in fixed and not name.startswith(prefix):
                     continue
-                info = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
-                if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
+                info = stat_relative(parent, name)
+                if is_symlink_info(info) or not is_regular_info(info):
                     raise OSError("unsafe_derived_artifact")
-                if name in fixed or not name.startswith(prefix):
+                if name in fixed:
                     continue
                 marker_name = name + ".owner"
                 try:
-                    marker_info = os.stat(marker_name, dir_fd=parent_fd, follow_symlinks=False)
-                except FileNotFoundError:
+                    marker_info = stat_relative(parent, marker_name)
+                except PlatformStorageError:
                     raise OSError("unowned_recovery_build") from None
-                if stat.S_ISLNK(marker_info.st_mode) or not stat.S_ISREG(marker_info.st_mode):
+                if is_symlink_info(marker_info) or not is_regular_info(marker_info):
                     raise OSError("unowned_recovery_build")
-                marker_fd = os.open(marker_name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=parent_fd)
+                marker_fd = open_relative(parent, marker_name, access="read")
                 try:
-                    owner = json.loads(os.read(marker_fd, 65536).decode("utf-8"))
+                    owner = json.loads(read_all(marker_fd).decode("utf-8"))
                 except (OSError, ValueError, UnicodeError, json.JSONDecodeError):
                     raise OSError("malformed_recovery_owner") from None
                 finally:
-                    os.close(marker_fd)
+                    close_handle(marker_fd)
                 candidate = self.derived_path.parent / name
                 marker = self.derived_path.parent / marker_name
                 expected_build = owner.get("build_identity")
-                if (
-                    owner.get("build") != str(candidate)
-                    or owner.get("destination") != str(self.derived_path)
-                    or not isinstance(owner.get("token"), str)
-                    or not _valid_canonical_identity(owner.get("canonical"))
-                    or not isinstance(expected_build, dict)
-                    or set(expected_build) != {"device", "inode"}
-                    or not _strict_identity(expected_build["device"])
-                    or not _strict_identity(expected_build["inode"])
-                ):
+                if (owner.get("build") != str(candidate) or owner.get("destination") != str(self.derived_path)
+                        or not isinstance(owner.get("token"), str) or not _valid_canonical_identity(owner.get("canonical"))
+                        or not isinstance(expected_build, dict) or set(expected_build) != {"device", "inode"}
+                        or not _strict_identity(expected_build["device"]) or not _strict_identity(expected_build["inode"])):
                     raise OSError("recovery_owner_mismatch")
-                _remove_owned(candidate, marker, owner["token"], directory_fd=parent_fd)
+                _remove_owned(candidate, marker, owner["token"], directory_fd=parent)
         finally:
-            os.close(parent_fd)
+            close_handle(parent)
 
 
     def _create_snapshot(self, snapshot_path: Path, identity: _CanonicalIdentity) -> None:
         raw = read_regular_bytes(self.canonical_path)
         if _identity(self.canonical_path) != identity:
             raise ValueError("canonical_generation_changed")
-        snapshot_parent_fd = open_parent_dir(snapshot_path)
-        fd = os.open(snapshot_path.name, os.O_CREAT | os.O_EXCL | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0), 0o600, dir_fd=snapshot_parent_fd)
+        parent = open_parent_dir(snapshot_path)
+        fd = open_relative(parent, snapshot_path.name, access="readwrite", create=True, exclusive=True)
         try:
-            written = 0
-            while written < len(raw):
-                count = os.write(fd, raw[written:])
-                if count <= 0:
-                    raise OSError("snapshot_short_write")
-                written += count
-            if os.fstat(fd).st_size != len(raw):
-                raise OSError("snapshot_size_mismatch")
-            os.fsync(fd)
-        except Exception as snapshot_error:
             try:
-                os.unlink(snapshot_path.name, dir_fd=snapshot_parent_fd)
-            except OSError as cleanup_error:
-                raise _CleanupFailure("snapshot_cleanup_failed") from cleanup_error
-            raise snapshot_error
+                write_all(fd, raw)
+                if handle_info(fd).st_size != len(raw):
+                    raise OSError("snapshot_size_mismatch")
+                fsync_handle(fd)
+            except Exception as snapshot_error:
+                try:
+                    unlink_relative(parent, snapshot_path.name)
+                except Exception as cleanup_error:
+                    raise _CleanupFailure("snapshot_cleanup_failed") from cleanup_error
+                raise snapshot_error
         finally:
-            os.close(fd)
-            os.close(snapshot_parent_fd)
+            close_handle(fd)
+            close_handle(parent)
 
     def _reserve_owned_build(self, building_path: Path, marker: Path, token: str, identity: _CanonicalIdentity) -> None:
-        flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
-        directory_fd = open_parent_dir(building_path)
+        directory = open_parent_dir(building_path)
         try:
-            build_fd = os.open(building_path.name, os.O_CREAT | os.O_EXCL | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0), 0o600, dir_fd=directory_fd)
-            build_info = os.fstat(build_fd)
-            os.close(build_fd)
-            marker_fd = os.open(marker.name, os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0), 0o600, dir_fd=directory_fd)
+            build_fd = open_relative(directory, building_path.name, access="readwrite", create=True, exclusive=True)
+            build_info = handle_info(build_fd)
+            close_handle(build_fd)
+            marker_fd = open_relative(directory, marker.name, access="write", create=True, exclusive=True)
             owner = {"token": token, "build": str(building_path), "build_identity": {"device": build_info.st_dev, "inode": build_info.st_ino}, "pid": os.getpid(), "canonical": {"device": identity.device, "inode": identity.inode, "size": identity.size, "mtime_ns": identity.mtime_ns, "digest": identity.digest}, "destination": str(self.derived_path)}
             try:
-                os.write(marker_fd, json.dumps(owner, sort_keys=True).encode("utf-8"))
-                os.fsync(marker_fd)
+                write_all(marker_fd, json.dumps(owner, sort_keys=True).encode("utf-8"))
+                fsync_handle(marker_fd)
             finally:
-                os.close(marker_fd)
+                close_handle(marker_fd)
         finally:
-            os.close(directory_fd)
+            close_handle(directory)
 
     def _build_default(self, snapshot_path: Path, building_path: Path, marker: Path, token: str) -> None:
         store = None
@@ -513,36 +498,29 @@ class RecoveryCoordinator:
                 store.close()
 
     def _promote_owned(self, building_path: Path, marker: Path, token: str, identity: _CanonicalIdentity, deadline: float | None) -> None:
-        flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
-        directory_fd = open_parent_dir(self.derived_path)
+        directory = open_parent_dir(self.derived_path)
         build_fd: int | None = None
         try:
-            marker_fd = os.open(marker.name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=directory_fd)
+            marker_fd = open_relative(directory, marker.name, access="read")
             try:
-                data = json.loads(os.read(marker_fd, 65536).decode("utf-8"))
+                data = json.loads(read_all(marker_fd).decode("utf-8"))
             finally:
-                os.close(marker_fd)
-            canonical_owner = data.get("canonical")
+                close_handle(marker_fd)
             expected_owner = {"device": identity.device, "inode": identity.inode, "size": identity.size, "mtime_ns": identity.mtime_ns, "digest": identity.digest}
-            if data.get("token") != token or data.get("build") != str(building_path) or data.get("destination") != str(self.derived_path) or canonical_owner != expected_owner:
+            if data.get("token") != token or data.get("build") != str(building_path) or data.get("destination") != str(self.derived_path) or data.get("canonical") != expected_owner:
                 raise RuntimeError("recovery_owner_mismatch")
-            build_fd = os.open(building_path.name, os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0), dir_fd=directory_fd)
-            build_info = os.fstat(build_fd)
+            build_fd = open_relative(directory, building_path.name, access="read", nonblocking=True)
+            build_info = handle_info(build_fd)
             expected_build = data.get("build_identity")
-            if (
-                not stat.S_ISREG(build_info.st_mode)
-                or not isinstance(expected_build, dict)
-                or set(expected_build) != {"device", "inode"}
-                or not _strict_identity(expected_build["device"])
-                or not _strict_identity(expected_build["inode"])
-                or expected_build != {"device": build_info.st_dev, "inode": build_info.st_ino}
-            ):
+            if (not is_regular_info(build_info) or not isinstance(expected_build, dict) or set(expected_build) != {"device", "inode"}
+                    or not _strict_identity(expected_build["device"]) or not _strict_identity(expected_build["inode"])
+                    or expected_build != {"device": build_info.st_dev, "inode": build_info.st_ino}):
                 raise RuntimeError("recovery_build_identity_mismatch")
             try:
-                destination_info = os.stat(self.derived_path.name, dir_fd=directory_fd, follow_symlinks=False)
-            except FileNotFoundError:
+                destination_info = stat_relative(directory, self.derived_path.name)
+            except PlatformStorageError:
                 destination_info = None
-            if destination_info is not None and not stat.S_ISREG(destination_info.st_mode):
+            if destination_info is not None and not is_regular_info(destination_info):
                 raise RuntimeError("derived_destination_unsafe")
             if self._deadline_expired(deadline):
                 raise TimeoutError("promotion_deadline_exceeded")
@@ -552,33 +530,38 @@ class RecoveryCoordinator:
                 for suffix in ("-wal", "-shm"):
                     sidecar_name = self.derived_path.name + suffix
                     try:
-                        sidecar_info = os.stat(sidecar_name, dir_fd=directory_fd, follow_symlinks=False)
-                    except FileNotFoundError:
+                        sidecar_info = stat_relative(directory, sidecar_name)
+                    except PlatformStorageError:
                         continue
-                    if not stat.S_ISREG(sidecar_info.st_mode):
+                    if not is_regular_info(sidecar_info):
                         raise RuntimeError("derived_sidecar_unsafe")
                     quarantine = sidecar_name + f".recovery-old.{token}"
-                    os.rename(sidecar_name, quarantine, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+                    rename_relative(directory, sidecar_name, quarantine)
                     quarantined.append((sidecar_name, quarantine))
-                os.rename(building_path.name, self.derived_path.name, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+                atomic_promote(
+                    building_path,
+                    self.derived_path,
+                    expected_source=FileIdentity(build_info.st_dev, build_info.st_ino, build_info.st_size, build_info.st_mtime_ns, ""),
+                )
+                unlink_relative(directory, building_path.name)
             except Exception as promotion_error:
                 rollback_errors: list[OSError] = []
                 for sidecar_name, quarantine in reversed(quarantined):
                     try:
-                        os.rename(quarantine, sidecar_name, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
-                    except OSError as rollback_error:
+                        rename_relative(directory, quarantine, sidecar_name)
+                    except (OSError, PlatformStorageError) as rollback_error:
                         rollback_errors.append(rollback_error)
                 if rollback_errors:
                     raise _PromotionFailure("promotion_rollback_failed") from rollback_errors[0]
                 raise promotion_error
             try:
-                os.unlink(marker.name, dir_fd=directory_fd)
-            except OSError as exc:
-                raise _CleanupFailure("promotion_marker_cleanup_failed") from exc
+                unlink_relative(directory, marker.name)
+            except (OSError, PlatformStorageError):
+                raise _CleanupFailure("promotion_marker_cleanup_failed") from None
         finally:
             if build_fd is not None:
-                os.close(build_fd)
-            os.close(directory_fd)
+                close_handle(build_fd)
+            close_handle(directory)
 
 
 __all__ = ["RecoveryCoordinator", "RecoveryResult", "RecoveryStatus"]

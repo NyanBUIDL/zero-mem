@@ -243,7 +243,7 @@ def test_promotion_rollback_failure_is_reported(monkeypatch: pytest.MonkeyPatch,
     derived.write_bytes(b"not sqlite")
     sidecar = Path(str(derived) + "-wal")
     sidecar.write_bytes(b"old wal")
-    real_rename = os.rename
+    real_rename = os.replace
     calls = 0
 
     def fail_rollback(src: str, dst: str, *, src_dir_fd: int | None = None, dst_dir_fd: int | None = None) -> None:
@@ -253,7 +253,7 @@ def test_promotion_rollback_failure_is_reported(monkeypatch: pytest.MonkeyPatch,
             raise OSError("simulated rollback failure")
         real_rename(src, dst, src_dir_fd=src_dir_fd, dst_dir_fd=dst_dir_fd)
 
-    monkeypatch.setattr("src.storage.recovery.os.rename", fail_rollback)
+    monkeypatch.setattr("src.storage.platform.os.replace", fail_rollback)
     result = RecoveryCoordinator(storage, canonical, derived).recover(timeout=5.0)
     assert result.status is RecoveryStatus.UNAVAILABLE
     assert result.diagnostic_code == "promotion_rollback_failed"

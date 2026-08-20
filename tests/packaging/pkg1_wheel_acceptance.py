@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run the PKG-1 installed-wheel acceptance outside the repository.
 
-Usage: python tests/packaging/pkg1_wheel_acceptance.py dist/zero_mem-1.2.1-py3-none-any.whl
+Usage: python tests/packaging/pkg1_wheel_acceptance.py dist/zero_mem-1.2.2-py3-none-any.whl
 """
 
 from __future__ import annotations
@@ -52,8 +52,8 @@ def main() -> int:
         code = (
             "import importlib.metadata as m, importlib.util, pathlib, zero_mem, src, src.corpus, "
             "src.storage.sqlite_store; "
-            "assert zero_mem.__version__ == '1.2.1'; "
-            "assert m.version('zero-mem') == '1.2.1'; "
+            "assert zero_mem.__version__ == '1.2.2'; "
+            "assert m.version('zero-mem') == '1.2.2'; "
             "assert 'site-packages' in str(pathlib.Path(zero_mem.__file__)); "
             "assert 'site-packages' in str(pathlib.Path(src.__path__[0])); "
             "assert importlib.util.find_spec('pypdf') is None; "
@@ -64,8 +64,8 @@ def main() -> int:
         version_flag = run([str(venv / "bin" / "zero-mem"), "--version"], cwd=root, env=env)
         version_command = run([str(venv / "bin" / "zero-mem"), "version"], cwd=root, env=env)
         assert "usage: zero-mem" in help_text
-        assert version_flag == "zero-mem 1.2.1"
-        assert version_command == "1.2.1"
+        assert version_flag == "zero-mem 1.2.2"
+        assert version_command == "1.2.2"
         assert str(repo) not in imports
         print(f"wheel={wheel.name}")
         print(f"venv={venv}")

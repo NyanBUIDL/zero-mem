@@ -8,9 +8,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from .api import PublicClient
+from src.integration.sidecar import SidecarConfig as CanonicalSidecarConfig, ZeroMemSidecar
 
 CONTRACT_VERSION = "1.1"
 CAPABILITIES = ("observe", "sync", "health", "capabilities")
+CANONICAL_READ_CAPABILITIES = ("search", "get_trace", "get_task_state", "get_decisions")
 DEPRECATION_MESSAGE = (
     "zero_mem.sidecar.LocalSidecar is deprecated; use "
     "src.integration.sidecar.ZeroMemSidecar for the canonical bounded sidecar contract"
@@ -39,15 +41,52 @@ class LocalSidecar:
         if self._config.max_payload_bytes < 1 or self._config.deadline_seconds <= 0:
             raise SidecarError("CONFIG_INVALID")
         self._started = False
+        self._canonical: ZeroMemSidecar | None = None
+
+    def _canonical_dispatch(self, payload: dict[str, Any]) -> dict[str, Any]:
+        tool = payload["tool"]
+        request = {key: value for key, value in payload.items() if key != "tool"}
+        result = getattr(self._client, tool)(request)
+        return {
+            "status": getattr(result, "status", "UNAVAILABLE"),
+            "reason_code": getattr(result, "reason_code", "READ_UNAVAILABLE"),
+            "items": list(getattr(result, "items", ()) or ()),
+            "provenance": list(getattr(result, "provenance", ()) or ()),
+            "freshness": getattr(result, "freshness", None),
+        }
+
+    def _canonical_handle(self, request: dict[str, Any]) -> dict[str, Any]:
+        if self._canonical is None:
+            raise SidecarError("UNAVAILABLE")
+        payload = dict(request)
+        payload["tool"] = payload.pop("capability")
+        identity = payload.pop("identity")
+        result = self._canonical.handle(
+            json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8"),
+            identity=identity,
+        )
+        if result.status.value != "OK":
+            raise SidecarError(result.status.value)
+        return result.payload
 
     def start(self) -> dict[str, Any]:
         if self._started:
             return self.health()
+        self._canonical = ZeroMemSidecar(
+            CanonicalSidecarConfig(
+                max_request_bytes=self._config.max_payload_bytes,
+                default_deadline=self._config.deadline_seconds,
+            ),
+            dispatcher=self._canonical_dispatch,
+        )
         self._started = True
         return self.health()
 
     def stop(self) -> dict[str, Any]:
         self._started = False
+        if self._canonical is not None:
+            self._canonical.close()
+            self._canonical = None
         return {"status": "STOPPED", "contract_version": CONTRACT_VERSION}
 
     def health(self) -> dict[str, Any]:
@@ -65,6 +104,8 @@ class LocalSidecar:
         if size > self._config.max_payload_bytes:
             raise SidecarError("PAYLOAD_TOO_LARGE")
         capability = request.get("capability")
+        if capability in CANONICAL_READ_CAPABILITIES:
+            return self._canonical_handle(request)
         if capability not in CAPABILITIES:
             raise SidecarError("CAPABILITY_UNSUPPORTED")
         started = time.monotonic()

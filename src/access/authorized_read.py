@@ -245,6 +245,10 @@ class AuthorizedReadService:
                           reason_code=ReasonCode.DENY_UNAUTHORIZED_CROSS_PROFILE_READ.value)
         return eff
 
+    def authorize(self, request: AccessRequest) -> EffectiveReadScope:
+        """Authorize a validated request without touching retrieval or freshness state."""
+        return self._gate(request)
+
     def _denied(self, eff: EffectiveReadScope) -> AuthorizedResult:
         return AuthorizedResult(allowed=False, denied=True,
                                 reason_code=eff.reason_code, decision=eff)

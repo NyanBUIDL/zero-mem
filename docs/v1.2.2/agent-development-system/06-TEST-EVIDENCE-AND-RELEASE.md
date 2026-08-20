@@ -13,13 +13,13 @@
 
 ## Mandatory platform matrix
 
-| OS | Python | Required jobs | Gate |
+| OS | Python | Required jobs | v1.2.2 status |
 |---|---|---|---|
-| Ubuntu latest | 3.11, 3.12, 3.13 | full suite, process lock, recovery, clean install | all pass |
-| macOS latest | 3.11, 3.12, 3.13 | full suite, POSIX path/lock, clean install | all pass |
-| Windows latest | 3.11, 3.12, 3.13 | full suite, reparse/lock, clean install | all pass |
+| Linux | 3.11 execution environment | full suite, process lock, recovery, clean install | QUALIFIED |
+| macOS | future supported versions | POSIX path/lock, clean install | DEFERRED_TO_v1.2.3 |
+| Windows | future supported versions | reparse/lock, clean install | DEFERRED_TO_v1.2.3 |
 
-An explicit unsupported row is allowed only before v1.2.2 release qualification and must fail closed with a documented reason. It is not a green result and blocks a cross-platform support claim.
+The maintainer decision `MAINTAINER-DECISION-PLATFORM-SCOPE-v1.2.2` authorizes Linux-only v1.2.2 qualification. Windows/macOS remain pending real-platform qualification; no skipped or unavailable platform row is a green result.
 
 ## Minimum end-to-end scenarios
 

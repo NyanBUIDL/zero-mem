@@ -40,6 +40,8 @@ class ProjectionWatermark:
     canonical_sequence: int
     derived_sequence: int
     status: ProjectionStatus
+    last_success_at: float | None = None
+    last_error: str | None = None
 
 
 @dataclass(frozen=True)
@@ -76,6 +78,9 @@ class ProjectionCoordinator:
         self._failed = False
         self._canonical_sequence = 0
         self._derived_sequence = 0
+        self._submitted: dict[str, int] = {}
+        self._last_success_at: float | None = None
+        self._last_error: str | None = None
 
     @classmethod
     def from_ingest(cls, config: ProjectionConfig, *, store: object) -> "ProjectionCoordinator":
@@ -132,6 +137,13 @@ class ProjectionCoordinator:
             if self._worker is None:
                 raise RuntimeError("PROJECTION_NOT_STARTED")
             self._canonical_sequence = max(self._canonical_sequence, canonical_sequence)
+            previous = self._submitted.get(source_id)
+            has_deferred = any(item.source_id == source_id for item in self._deferred)
+            if previous is not None and canonical_sequence <= previous and not has_deferred:
+                if self._derived_sequence >= canonical_sequence:
+                    return ProjectionStatus.CURRENT
+                return ProjectionStatus.PENDING
+            self._submitted[source_id] = canonical_sequence
         notification = ProjectionNotification(source_path, source_id, canonical_sequence)
         try:
             self._queue.put_nowait(notification)
@@ -176,7 +188,13 @@ class ProjectionCoordinator:
                 status = ProjectionStatus.CURRENT
             else:
                 status = ProjectionStatus.PENDING
-            return ProjectionWatermark(self._canonical_sequence, self._derived_sequence, status)
+            return ProjectionWatermark(
+                self._canonical_sequence,
+                self._derived_sequence,
+                status,
+                self._last_success_at,
+                self._last_error,
+            )
 
     def flush(self, timeout: float | None = None) -> ProjectionStatus:
         deadline = None if timeout is None else time.monotonic() + timeout
@@ -227,11 +245,14 @@ class ProjectionCoordinator:
             except Exception:
                 with self._condition:
                     self._failed = True
+                    self._last_error = "PROJECTION_FAILED"
                 self._queue.task_done()
                 self._drain_after_failure()
                 with self._condition:
                     self._condition.notify_all()
                 return
+            with self._condition:
+                self._last_success_at = time.time()
             self._queue.task_done()
             batch_count += 1
             with self._condition:

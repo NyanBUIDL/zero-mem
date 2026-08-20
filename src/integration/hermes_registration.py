@@ -53,7 +53,7 @@ class RegistrationAdapter:
             RuntimeConfig(config.capture_root, enabled=effective_enabled),
             store=store,
         )
-        runtime_writer = _CaptureWriter(self.runtime.writer) if effective_enabled else None
+        runtime_writer = _CaptureWriter(self.runtime.writer, on_append=self.runtime.notify_append) if effective_enabled else None
         self._client = ZeroMemClient(
             CoreConfig(
                 enabled=effective_enabled,
@@ -137,14 +137,25 @@ __all__ = ["RegistrationAdapter", "RegistrationDiagnostic", "RegistrationFailure
 class _CaptureWriter:
     """Translate the generic client append into the existing capture adapter."""
 
-    def __init__(self, store: Any) -> None:
+    def __init__(self, store: Any, *, on_append: Any = None) -> None:
         self._store = store
+        self._on_append = on_append
 
     def append(self, event: object) -> AppendReceipt:
         result = adapt_mapped_event(event if isinstance(event, MappingResult) else None, store=self._store)
         if result.code == "appended":
+            if callable(self._on_append):
+                try:
+                    self._on_append(result)
+                except Exception:
+                    pass
             return AppendReceipt("appended", result.event_id, result.sequence, True)
         if result.code.startswith("duplicate_"):
+            if callable(self._on_append):
+                try:
+                    self._on_append(result)
+                except Exception:
+                    pass
             return AppendReceipt(
                 "duplicate",
                 result.event_id,

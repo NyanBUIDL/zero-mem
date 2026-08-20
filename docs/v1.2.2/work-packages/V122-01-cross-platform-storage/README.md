@@ -1,12 +1,12 @@
 # V122-01 — Cross-Platform Storage Contract
 
-**Status:** IMPLEMENTED (awaiting exact-tree independent review)
+**Status:** `VERIFIED_LINUX_SCOPED`
 **Owner:** Zero-Mem storage boundary
 **Baseline SHA:** `af01e494a29410b11dd6d5c4c78275e6e08604df`
 **Audit IDs closed:** A-06; A-08 foundation
 **Prerequisites:** V122-00 VERIFIED (`V122-00-EXACT-TREE-REPLACEMENT-REVIEW-001`)
 **Approval:** `MAINTAINER_APPROVAL_V122_01_TO_06_2026_08_20`
-**Allowed source paths:** `src/storage/platform.py`, `src/storage/coordination.py`, `src/storage/runtime_root.py`, `src/storage/jsonl_capture.py`, platform/storage tests, this package evidence
+**Allowed source paths:** `src/storage/platform.py`, `src/storage/coordination.py`, `src/storage/runtime_root.py`, `src/storage/jsonl_capture.py`, `src/storage/recovery.py`, V122-01 platform/storage tests, this package evidence
 **Forbidden source paths:** canonical JSONL schema, SQLite schema/migrations, public API semantics, Hermes core, remote refs, tags, releases, PyPI
 
 ## Authority read
@@ -45,15 +45,15 @@ The storage coordination owner was Linux/POSIX-specific and exposed raw platform
 - [x] Concurrent process lock, timeout, abandoned-lock release.
 - [x] Affected capture/recovery/WP-33 compatibility.
 - [x] Static boundary check: no raw `fcntl`, `O_DIRECTORY`, `O_NOFOLLOW`, `LockFileEx`, `/proc/self/fd`, or raw errno in the V122-01 domain owners.
-- [ ] Independent exact-tree review — pending at this record stage.
+- [x] Independent exact-tree review: `V122-FINAL-EXACT-TREE-ADVERSARIAL-REVIEW-005-20260821` PASS.
 
 ## Test commands and results
 
-Recorded in `artifacts/evidence/v1.2.2/V122-01-current-tree/commands.txt` with raw logs and SHA-256 linkage. Current Linux/CPython 3.11.16/SQLite 3.53.1/FTS5 environment passed the focused and affected regression suite.
+Recorded in `artifacts/evidence/v1.2.2/ba9cd2d8719bcb00e8562b4a7baf07dfb69cceb0616c134c519d7ec99f5a3bdc/` with raw logs and SHA-256 linkage. Current Linux/CPython 3.11.16/SQLite 3.53.1 evidence is source-bound and verifier-approved.
 
 ## Evidence and review
 
 - Changed files: platform adapter, three adapterized owners, focused platform tests, package evidence.
-- Evidence manifest: to be completed after independent review against final tree.
-- Independent reviewer: pending.
+- Evidence manifest: current candidate bundle above.
+- Independent reviewer: `V122-FINAL-EXACT-TREE-ADVERSARIAL-REVIEW-005-20260821` — PASS.
 - Rollback: revert only the V122-01 package commit; canonical JSONL and SQLite schema are untouched.
