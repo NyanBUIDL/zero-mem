@@ -5,7 +5,7 @@
   "evidence_commit_sha": "DERIVED_FROM_CURRENT_HEAD",
   "logs": [
     {"path": "logs/full-py311.log", "sha256": "c6260556affc0790c0a9ee6fcb1189f27b9493411acad5aa162c89e0d0f3eef9"},
-    {"path": "logs/r00-focused-py311.log", "sha256": "086ab16f3995537ff4d8064c6bbcf96f46f647fa33e716a595a13fd194f9b59a"}
+    {"path": "logs/r00-focused-py311.log", "sha256": "2132f781fd09c4d032290bbe2ac096ba7335a9eb5ac19ffde8bd10a3ae2045f5"}
   ],
   "assets": [
     {"path": "artifacts/r00-verifier.txt", "sha256": "0705b619560de4240178184ad41f97d60c76eac5a1173c75abe34831fa7beac9"}
