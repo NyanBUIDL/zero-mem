@@ -1430,7 +1430,7 @@ v12_wp35_final_requalification: "VERIFIED; 43 package/setup/backup/upgrade tests
 v123_release_control_status: READY_FOR_FINAL_AUDIT
 v123_baseline_sha: 5f1a329b6e5a18833fb4186cad7c91807a40b79e
 v123_artifact_source_sha: ff441f23cbb0f32fc74a948f40f45b79ca17dbf2
-v123_current_head: d6e3941a02255b00e6393c8ff575b623614da519
+v123_current_head: DERIVED_FROM_GIT_HEAD
 v123_r00_status: CLOSED_VERIFIED
 v123_r01_status: CLOSED_VERIFIED
 v123_r02_status: CLOSED_VERIFIED

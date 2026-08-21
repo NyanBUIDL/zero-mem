@@ -1,7 +1,7 @@
 # Zero-Mem v1.2.3 Final Checklist Reconciliation
 
 **Status:** READY_FOR_FINAL_AUDIT
-**Current HEAD:** `03e0eda78f449da0f1b2f88ead3cbe0331641f26`
+**Current HEAD:** `DERIVED_FROM_GIT_HEAD`
 **Artifact source:** `ff441f23cbb0f32fc74a948f40f45b79ca17dbf2`
 **Evidence verifier:** `scripts/verify_v123_evidence.py`
 
