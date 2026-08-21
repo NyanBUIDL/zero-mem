@@ -1425,3 +1425,24 @@ v12_wp27_final_current_tree_graphify: /home/lenovo/graphify-zero-mem-wp27-final-
 v12_wp27_final_review_reconciliation: "PASS; no valid A-L blockers under FINAL_V1_2_WP27_CONTRACT_FREEZE"
 v12_wp34_final_requalification: "VERIFIED; 502 passed"
 v12_wp35_final_requalification: "VERIFIED; 43 package/setup/backup/upgrade tests passed; 3239 passed, 18 pre-existing baseline/global-state failures, 5 skipped in isolated full suite"
+
+# Zero-Mem v1.2.3 release-control overlay
+v123_release_control_status: READY_FOR_FINAL_AUDIT
+v123_baseline_sha: 5f1a329b6e5a18833fb4186cad7c91807a40b79e
+v123_artifact_source_sha: f2a8c43b40f4964777e23e3d875fedcae8a88dc1
+v123_current_head: 660b4bcc39e98e6ce563f0e88d3807b5c8e42fe0
+v123_r00_status: CLOSED_VERIFIED
+v123_r01_status: CLOSED_VERIFIED
+v123_r02_status: CLOSED_VERIFIED
+v123_r03_status: CLOSED_VERIFIED
+v123_r04_status: VERIFIED_ALL_PLATFORMS
+v123_r04_github_run: 32452599375
+v123_r04_platforms: "Linux PASS; macOS PASS; Windows PASS"
+v123_r05_status: QUALIFIED_PENDING_FINAL_AUDIT
+v123_full_suite: "3301 passed, 5 skipped, 0 failed"
+v123_wheel: zero_mem-1.2.3-py3-none-any.whl
+v123_sdist: zero_mem-1.2.3.tar.gz
+v123_publication_status: NOT_PUBLISHED
+v123_force_push: false
+v123_tag_moved: false
+v123_destructive_operation: false
