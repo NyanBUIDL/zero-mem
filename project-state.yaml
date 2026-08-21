@@ -1427,9 +1427,13 @@ v12_wp34_final_requalification: "VERIFIED; 502 passed"
 v12_wp35_final_requalification: "VERIFIED; 43 package/setup/backup/upgrade tests passed; 3239 passed, 18 pre-existing baseline/global-state failures, 5 skipped in isolated full suite"
 
 # Zero-Mem v1.2.3 release-control overlay
-v123_release_control_status: RELEASE_READY — PUBLICATION BOUNDARY ONLY
+v123_release_control_status: RELEASED_VERIFIED
 v123_r05_status: VERIFIED
-v123_final_audit: "ENGINEERING PASS; publication boundary only"
+v123_final_audit: "PASS"
+v123_release_commit_sha: 4fa6a706d40440e1370c6a0494837ff776c54678
+v123_publication_status: RELEASED_VERIFIED
+v123_tag_status: v1.2.3_VERIFIED
+v123_github_release: https://github.com/NyanBUIDL/zero-mem/releases/tag/v1.2.3
 v123_baseline_sha: 5f1a329b6e5a18833fb4186cad7c91807a40b79e
 v123_artifact_source_sha: ff441f23cbb0f32fc74a948f40f45b79ca17dbf2
 v123_current_head: DERIVED_FROM_GIT_HEAD
@@ -1440,12 +1444,9 @@ v123_r03_status: CLOSED_VERIFIED
 v123_r04_status: VERIFIED_ALL_PLATFORMS
 v123_r04_github_run: 32454255094
 v123_r04_platforms: "Linux PASS; macOS PASS; Windows PASS"
-v123_r05_status: VERIFIED
-v123_final_audit: "ENGINEERING PASS; publication boundary only"
 v123_full_suite: "3301 passed, 5 skipped, 0 failed"
 v123_wheel: zero_mem-1.2.3-py3-none-any.whl
 v123_sdist: zero_mem-1.2.3.tar.gz
-v123_publication_status: NOT_PUBLISHED
 v123_force_push: false
 v123_tag_moved: false
 v123_destructive_operation: false

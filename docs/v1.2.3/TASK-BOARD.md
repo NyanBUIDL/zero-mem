@@ -8,7 +8,7 @@
 | R-03 | VERIFIED | Full Hermes host factory, real lifecycle, projection/read success, restart, duplicate hook/tool checks, verifier, checksums, and independent review PASS |
 | R-04 | VERIFIED | Real GitHub Actions matrix run `32454255094`: Linux PASS, macOS PASS, Windows PASS; raw logs and checksums captured |
 | R-05 | VERIFIED | Full isolated suite, packaging, fresh wheel/sdist install smoke, source-bound evidence, and independent final audit: engineering PASS |
-| Final audit | VERIFIED | Engineering PASS; final state is `RELEASE_READY — PUBLICATION BOUNDARY ONLY` because master/tag/publication remain separate |
+| Final audit | VERIFIED | Engineering and post-publication audit PASS; `v1.2.3` tag and GitHub Release verified |
 
 ## Allowed status vocabulary
 

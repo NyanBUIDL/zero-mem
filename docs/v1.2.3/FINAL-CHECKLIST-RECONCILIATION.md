@@ -1,6 +1,6 @@
 # Zero-Mem v1.2.3 Final Checklist Reconciliation
 
-**Status:** RELEASE_READY — PUBLICATION BOUNDARY ONLY
+**Status:** RELEASED_VERIFIED
 **Current HEAD:** `DERIVED_FROM_GIT_HEAD`
 **Artifact source:** `ff441f23cbb0f32fc74a948f40f45b79ca17dbf2`
 **Evidence verifier:** `scripts/verify_v123_evidence.py`
@@ -46,11 +46,11 @@
 - [x] Clean working tree at evidence generation and review checkpoints.
 - [x] No force push, tag movement, history rewrite, or destructive canonical operation.
 - [x] Remote release branch identity inspected.
-- [x] Final independent audit: engineering PASS; publication boundary explicitly remains separate.
+- [x] Final independent audit and post-publication reconciliation: PASS.
 - [x] Project-state.yaml v1.2.3 projection updated from final audit evidence.
 
 ## Known limits
 
 - Existing legacy subset tests can exhibit global runtime order failures when selected outside the canonical full-suite order; the exact full suite is green and these failures are preserved, not hidden.
 - GitHub Actions emitted non-blocking Node.js action deprecation annotations; all platform matrix jobs passed.
-- No tag or GitHub Release has been created. Publication remains a separate boundary.
+- [x] Published tag `v1.2.3` and GitHub Release verified; post-publication asset hashes match.
