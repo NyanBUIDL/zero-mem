@@ -1,0 +1,3 @@
+b406e0670977569ff4fe30dca39b3dcbedabc7fc2d6b601f4cdcbfbc29d40aec  ./logs/full-py311.log
+1bfbac567f3425d78f51e3c7be538ff78a2b2d0d8662c6bb11c15e5d520b94d3  ./logs/r03-focused-py311.log
+3e3cca00406567b35a3c33a524bf95528322e63e86cb262fc3a56e9c16422c86  ./artifacts/r03-hermes-host.txt
