@@ -31,6 +31,13 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            mkdir -p /d/zero-mem-home /d/zero-mem-tmp
+            export USERPROFILE='D:\\zero-mem-home'
+            export HOME='D:\\zero-mem-home'
+            export TMP='D:\\zero-mem-tmp'
+            export TEMP='D:\\zero-mem-tmp'
+          fi
           mkdir -p ci-logs
           python -m pytest -q \
             tests/unit/test_v122_platform_storage.py \

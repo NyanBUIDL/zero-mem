@@ -11,6 +11,7 @@ import hashlib
 import math
 import os
 import stat
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -782,12 +783,24 @@ def atomic_promote(source: Path, destination: Path, *, expected_source: FileIden
             except FileNotFoundError:
                 pass
             if os.name == "posix" and hasattr(os, "link"):
-                linkat = ctypes.CDLL(None, use_errno=True).linkat
-                linkat.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
-                linkat.restype = ctypes.c_int
-                result = linkat(fd, b"", parent_fd, temporary.name.encode(), 0x1000)
-                if result != 0:
-                    raise OSError(ctypes.get_errno(), "linkat")
+                if sys.platform == "darwin":
+                    # macOS does not implement Linux's AT_EMPTY_PATH linkat
+                    # extension. Both names are in the already-opened trusted
+                    # parent directory; identity was verified from the source fd.
+                    os.link(
+                        source.name,
+                        temporary.name,
+                        src_dir_fd=parent_fd,
+                        dst_dir_fd=parent_fd,
+                        follow_symlinks=False,
+                    )
+                else:
+                    linkat = ctypes.CDLL(None, use_errno=True).linkat
+                    linkat.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
+                    linkat.restype = ctypes.c_int
+                    result = linkat(fd, b"", parent_fd, temporary.name.encode(), 0x1000)
+                    if result != 0:
+                        raise OSError(ctypes.get_errno(), "linkat")
             else:
                 raise PlatformStorageError(PlatformErrorCode.UNAVAILABLE)
             os.replace(temporary.name, destination.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
