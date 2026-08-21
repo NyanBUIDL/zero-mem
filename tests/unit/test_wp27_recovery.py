@@ -244,16 +244,23 @@ def test_promotion_rollback_failure_is_reported(monkeypatch: pytest.MonkeyPatch,
     sidecar = Path(str(derived) + "-wal")
     sidecar.write_bytes(b"old wal")
     real_rename = os.replace
+    real_windows_rename = __import__("src.storage.platform", fromlist=["_windows_replace_handle"])._windows_replace_handle
     calls = 0
 
-    def fail_rollback(src: str, dst: str, *, src_dir_fd: int | None = None, dst_dir_fd: int | None = None) -> None:
+    def fail_rollback(*args, **kwargs) -> None:
         nonlocal calls
         calls += 1
         if calls >= 2:
             raise OSError("simulated rollback failure")
-        real_rename(src, dst, src_dir_fd=src_dir_fd, dst_dir_fd=dst_dir_fd)
+        if os.name == "nt":
+            real_windows_rename(*args, **kwargs)
+        else:
+            real_rename(*args, **kwargs)
 
-    monkeypatch.setattr("src.storage.platform.os.replace", fail_rollback)
+    if os.name == "nt":
+        monkeypatch.setattr("src.storage.platform._windows_replace_handle", fail_rollback)
+    else:
+        monkeypatch.setattr("src.storage.platform.os.replace", fail_rollback)
     result = RecoveryCoordinator(storage, canonical, derived).recover(timeout=5.0)
     assert result.status is RecoveryStatus.UNAVAILABLE
     assert result.diagnostic_code == "promotion_rollback_failed"
@@ -408,7 +415,10 @@ def test_snapshot_cleanup_failure_is_not_swallowed(monkeypatch: pytest.MonkeyPat
     snapshot = canonical.with_name("events.jsonl.recovery-snapshot.injected")
     identity = _identity(canonical)
     monkeypatch.setattr("src.storage.recovery.os.fsync", lambda _fd: (_ for _ in ()).throw(OSError("fsync failure")))
-    monkeypatch.setattr("src.storage.recovery.os.unlink", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("unlink failure")))
+    if os.name == "nt":
+        monkeypatch.setattr("src.storage.recovery.unlink_relative", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("unlink failure")))
+    else:
+        monkeypatch.setattr("src.storage.recovery.os.unlink", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("unlink failure")))
     with pytest.raises(_CleanupFailure, match="snapshot_cleanup_failed"):
         coordinator._create_snapshot(snapshot, identity)
 
