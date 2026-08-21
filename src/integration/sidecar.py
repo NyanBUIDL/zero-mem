@@ -217,25 +217,43 @@ class ZeroMemSidecar:
                 return self._result(SidecarStatus.PAYLOAD_TOO_LARGE, bytes_in=size)
             return SidecarResult(SidecarStatus.OK, response, size, len(raw))
 
-    def close(self, timeout: float | None = None) -> None:
-        """Close admission and cancel queued work within a finite deadline.
+    def close(self, timeout: float | None = None) -> bool:
+        """Close admission and report whether owned work fully terminated.
 
         Running dispatcher code is not forcibly interrupted: Python cannot safely
-        kill an arbitrary thread. The canonical dispatcher is a finite read-only
-        path; injected dispatchers must be cooperative. ``timeout`` bounds the
-        close wait and late results are discarded by the closed-state check.
+        kill an arbitrary thread. With ``timeout`` supplied, the method waits only
+        that long and returns ``False`` if a cooperative dispatcher is still
+        running. With no timeout it performs immediate close and returns ``False``
+        whenever in-flight work exists. Late results are discarded by closed-state
+        checks; queued work is cancelled before it can enter the dispatcher.
         """
         if timeout is not None and (isinstance(timeout, bool) or not isinstance(timeout, Real) or not _finite_number(timeout) or timeout < 0):
             raise ValueError("invalid close timeout")
+        wait_deadline = time.monotonic() + float(timeout or 0.0)
         with self._admission_condition:
             if self._closed:
-                return
+                return True
             self._closed = True
             futures = tuple(self._futures)
             self._admission_condition.notify_all()
         for future in futures:
             future.cancel()
         self._executor.shutdown(wait=False, cancel_futures=True)
+        complete = True
+        for future in futures:
+            remaining = wait_deadline - time.monotonic()
+            if remaining <= 0:
+                if not future.done():
+                    complete = False
+                continue
+            try:
+                future.result(timeout=remaining)
+            except Exception:
+                pass
+            if not future.done():
+                complete = False
+        return complete
+
 
 
 __all__ = ["SidecarConfig", "SidecarResult", "SidecarStatus", "ZeroMemSidecar"]
