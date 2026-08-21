@@ -1,6 +1,6 @@
 # R-01 — Public Composition
 
-**Status:** OPEN
+**Status:** VERIFIED
 **Baseline SHA:** `5f1a329b6e5a18833fb4186cad7c91807a40b79e`
 **Finding closed:** Public external consumer cannot yet construct a fully wired local runtime through `zero_mem` alone.
 **Allowed paths:** `zero_mem/**`, `src/integration/public_read_adapter.py`, focused R-01 tests, v1.2.3 evidence/work-package documentation.
