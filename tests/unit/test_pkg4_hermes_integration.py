@@ -325,6 +325,10 @@ def test_boundary_registers_hook_tool_and_injection_surfaces(monkeypatch, tmp_pa
 
 def test_boundary_adapts_successful_read_tool_registration(monkeypatch, tmp_path):
     _ready(monkeypatch, tmp_path)
+    # The production default mode is now OBSERVE (R124-01: capture-only, no read
+    # tools). This test exercises the read-tool wiring path, so it opts into the
+    # explicit ASSIST mode where read tools are authorized.
+    monkeypatch.setenv("ZERO_MEM_MODE", "assist")
     from src.integration import hermes_read_adapter
 
     class FakeReadAdapter:
@@ -340,7 +344,8 @@ def test_boundary_adapts_successful_read_tool_registration(monkeypatch, tmp_path
     context = FakeContext()
     result = hi.HermesBoundary(
         hi.IntegrationConfig("P", "PR"),
-        store_path=tmp_path / "synthetic.sqlite",
+        capture_root=tmp_path / "capture",
+        store_path=tmp_path / "capture" / "derived" / "events.sqlite",
     ).register(context)
     assert result["tools"] == ("memory_query",)
     assert "memory_query" in context.tools
