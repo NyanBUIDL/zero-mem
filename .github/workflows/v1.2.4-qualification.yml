@@ -1,0 +1,309 @@
+# Zero-Mem v1.2.4 cross-platform qualification workflow (remediation R124-06)
+#
+# Triggers:
+#   - push to branch release/v1.2.4
+#   - pull_request targeting release/v1.2.4
+#   - workflow_dispatch
+#
+# Matrix (fail-fast: false):
+#   os = [ubuntu-latest, windows-latest, macos-latest]
+#   python-version = ['3.11', '3.12', '3.13']
+#
+# Gate -> matrix-cell coverage (R124-06):
+#   Gate 1  focused v1.2.4 tests ............ ALL 9 cells (3 OS x 3 py)
+#   Gate 2  platform storage/recovery/attack  ALL 9 cells
+#   Gate 3  full unit + integration suite .... ALL 9 cells   (do NOT skip any cell for gates 1-3)
+#   Gate 4  security/redaction/authorization . ALL 9 cells
+#   Gate 5  concurrency / lock ............... ALL 9 cells
+#   Gate 6  benchmark (capture rate) ......... ALL 9 cells
+#   Gate 7  wheel/sdist build ................ python 3.11 ONLY (all 3 OS)
+#   Gate 8  clean wheel install (fresh venv) . python 3.11 ONLY (all 3 OS)
+#   Gate 9  CLI smoke ........................ python 3.11 ONLY (all 3 OS)
+#   Gate 10 sidecar smoke ................... python 3.11 ONLY (all 3 OS)
+#   Gate 11 Hermes composition smoke ........ python 3.11 ONLY (all 3 OS)
+#   Artifact upload (raw logs) ............. ALL 9 cells (if: always())
+#
+# CRITICAL path isolation (R124-06):
+#   RuntimeConfig rejects any capture_root inside the real home directory
+#   (raises ValueError "capture_root must not be inside the real home directory").
+#   pytest's tmp_path derives from TMPDIR/TMP/TEMP, so on EVERY OS we point temp
+#   (TMPDIR on Linux/macOS; TMP/TEMP on Windows) at a dir OUTSIDE the runner home,
+#   and on Windows we ALSO redirect HOME/USERPROFILE, exactly mirroring
+#   v1.2.3-platform-qualification.yml (D:\zero-mem-home, D:\zero-mem-tmp on
+#   Windows; /tmp/zm-tmp on Linux/macOS). Without this ~33 tests fail spuriously.
+#
+# Every test/smoke step uses `set -eo pipefail` and `| tee`s output into ci-logs/
+# so a failing pytest actually fails the job (a masked failure is a governance
+# violation) and real evidence is uploaded for every cell.
+
+name: Zero-Mem v1.2.4 cross-platform qualification (R124-06)
+
+on:
+  push:
+    branches: [release/v1.2.4]
+  pull_request:
+    branches: [release/v1.2.4]
+  workflow_dispatch:
+
+concurrency:
+  group: v124-qual-${{ github.workflow }}-${{ github.ref }}-${{ matrix.os }}-${{ matrix.python-version }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.11', '3.12', '3.13']
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install test & build tooling
+        shell: bash
+        run: python -m pip install --upgrade pip build pytest
+
+      # --- CRITICAL: redirect temp + HOME off the runner home (R124-06) --------
+      # Env vars are written to $GITHUB_ENV so they persist for ALL subsequent
+      # steps (each `run:` is a fresh shell). The inline `export` lets the
+      # in-step python sanity check see them immediately.
+      - name: Configure out-of-home temp and HOME (R124-06 path isolation)
+        shell: bash
+        run: |
+          set -eo pipefail
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            mkdir -p /d/zero-mem-home /d/zero-mem-tmp
+            export USERPROFILE='D:\zero-mem-home'
+            export HOME='D:\zero-mem-home'
+            export TMP='D:\zero-mem-tmp'
+            export TEMP='D:\zero-mem-tmp'
+            echo "USERPROFILE=D:\\zero-mem-home" >> "$GITHUB_ENV"
+            echo "HOME=D:\\zero-mem-home" >> "$GITHUB_ENV"
+            echo "TMP=D:\\zero-mem-tmp" >> "$GITHUB_ENV"
+            echo "TEMP=D:\\zero-mem-tmp" >> "$GITHUB_ENV"
+          else
+            mkdir -p /tmp/zm-tmp
+            export TMPDIR='/tmp/zm-tmp'
+            echo "TMPDIR=/tmp/zm-tmp" >> "$GITHUB_ENV"
+          fi
+          # Verify IN THIS STEP (inline export is visible here) that the temp dir
+          # is outside HOME; otherwise RuntimeConfig will reject capture_root and
+          # ~33 tests fail spuriously.
+          python - <<'PY'
+          import pathlib, tempfile
+          home = pathlib.Path.home()
+          tmp = pathlib.Path(tempfile.gettempdir())
+          print("HOME=", home, "TEMP=", tmp)
+          assert home != tmp and home not in tmp.parents, \
+              f"temp dir {tmp} must NOT be inside HOME {home}"
+          print("path-isolation-OK")
+          PY
+
+      - name: Prepare CI log directory
+        shell: bash
+        run: mkdir -p ci-logs
+
+      # ================= GATE 1: focused v1.2.4 tests (ALL 9 cells) ==========
+      - name: "Gate 1: focused v1.2.4 tests"
+        shell: bash
+        run: |
+          set -eo pipefail
+          python -m pytest -q \
+            tests/unit/test_v124_hitl_correction.py \
+            tests/unit/test_v124_storage_topology.py \
+            tests/unit/test_v124_runtime_modes.py \
+            tests/unit/test_v124_message_contract.py \
+            tests/integration/test_v123_hermes_host_composition.py \
+            2>&1 | tee "ci-logs/${{ matrix.os }}-py${{ matrix.python-version }}-g1-v124.log"
+
+      # ========= GATE 2: platform storage / recovery / path-attack (ALL 9) ===
+      - name: "Gate 2: platform storage / recovery / path-attack"
+        shell: bash
+        run: |
+          set -eo pipefail
+          python -m pytest -q \
+            tests/unit/test_v122_platform_storage.py \
+            tests/unit/test_v122_short_write.py \
+            tests/unit/test_wp27_recovery.py \
+            tests/unit/test_wp25_runtime_ownership.py \
+            2>&1 | tee "ci-logs/${{ matrix.os }}-py${{ matrix.python-version }}-g2-platform.log"
+
+      # ============= GATE 3: full unit + integration suite (ALL 9 cells) ======
+      # Required not to skip any OS/Python cell for gates 1-3.
+      - name: "Gate 3: full unit + integration suite"
+        shell: bash
+        run: |
+          set -eo pipefail
+          python -m pytest -q tests/unit tests/integration \
+            2>&1 | tee "ci-logs/${{ matrix.os }}-py${{ matrix.python-version }}-g3-full.log"
+
+      # ===== GATE 4: security / redaction / authorization (ALL 9 cells) =======
+      - name: "Gate 4: security / redaction / authorization"
+        shell: bash
+        run: |
+          set -eo pipefail
+          python -m pytest -q \
+            tests/unit/test_m1_redaction.py \
+            tests/unit/test_wp29_authorization.py \
+            tests/unit/test_m8_3_authorization_first.py \
+            tests/unit/test_m5_authorized_read.py \
+            tests/unit/test_m5_policy_rebuild.py \
+            tests/unit/test_m5_access_policy.py \
+            2>&1 | tee "ci-logs/${{ matrix.os }}-py${{ matrix.python-version }}-g4-security.log"
+
+      # ============== GATE 5: concurrency / lock (ALL 9 cells) ===============
+      - name: "Gate 5: concurrency / lock"
+        shell: bash
+        run: |
+          set -eo pipefail
+          python -m pytest -q \
+            tests/unit/test_v122_lock_modes.py \
+            tests/unit/test_wp11_sync_async.py \
+            2>&1 | tee "ci-logs/${{ matrix.os }}-py${{ matrix.python-version }}-g5-concurrency.log"
+
+      # ================= GATE 6: benchmark (ALL 9 cells) =====================
+      # Real benchmark test; underlying module is src/integration/capture_benchmark.py.
+      - name: "Gate 6: benchmark (capture rate)"
+        shell: bash
+        run: |
+          set -eo pipefail
+          python -m pytest -q tests/integration/test_m1_capture_rate.py \
+            2>&1 | tee "ci-logs/${{ matrix.os }}-py${{ matrix.python-version }}-g6-benchmark.log"
+
+      # ---- Gates 7-11 run on python 3.11 ONLY across all three OS ------------
+      # (required: "gates 7-11 should run at least on all three OS with one
+      #  Python version (3.11) plus full matrix if cheap").
+
+      # ============ GATE 7: wheel + sdist build (python 3.11 only) ===========
+      - name: "Gate 7: build wheel + sdist"
+        if: matrix.python-version == '3.11'
+        shell: bash
+        run: |
+          set -eo pipefail
+          python -m build --outdir dist \
+            2>&1 | tee "ci-logs/${{ matrix.os }}-py${{ matrix.python-version }}-g7-build.log"
+
+      # ===== GATE 8: clean install of built wheel into fresh venv (3.11) ======
+      - name: "Gate 8: clean install of built wheel into fresh venv (outside repo)"
+        if: matrix.python-version == '3.11'
+        shell: bash
+        run: |
+          set -eo pipefail
+          VENV="$RUNNER_TEMP/zm-clean-venv"
+          python -m venv "$VENV"
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            VENV_PY="$VENV/Scripts/python.exe"
+          else
+            VENV_PY="$VENV/bin/python"
+          fi
+          echo "VENV_PY=$VENV_PY" >> "$GITHUB_ENV"
+          "$VENV_PY" -m pip install --upgrade pip
+          "$VENV_PY" -m pip install dist/*.whl \
+            2>&1 | tee "ci-logs/${{ matrix.os }}-py${{ matrix.python-version }}-g8-install.log"
+
+      # ============== GATE 9: CLI smoke (python 3.11 only) ===================
+      - name: "Gate 9: CLI smoke (zero-mem --version / --help)"
+        if: matrix.python-version == '3.11'
+        shell: bash
+        run: |
+          set -eo pipefail
+          "$VENV_PY" -m zero_mem.cli --version \
+            2>&1 | tee "ci-logs/${{ matrix.os }}-py${{ matrix.python-version }}-g9-cli-version.log"
+          "$VENV_PY" -m zero_mem.cli --help \
+            2>&1 | tee "ci-logs/${{ matrix.os }}-py${{ matrix.python-version }}-g9-cli-help.log"
+
+      # ============ GATE 10: sidecar smoke (python 3.11 only) ================
+      - name: "Gate 10: sidecar smoke (public surface import + bounded call)"
+        if: matrix.python-version == '3.11'
+        shell: bash
+        run: |
+          set -eo pipefail
+          "$VENV_PY" - <<'PY' 2>&1 | tee "ci-logs/${{ matrix.os }}-py${{ matrix.python-version }}-g10-sidecar.log"
+          from src.integration.sidecar import (
+              ZeroMemSidecar, SidecarConfig, SidecarStatus, SidecarResult,
+          )
+          sc = ZeroMemSidecar(SidecarConfig())
+          # Minimal bounded call: an empty envelope must be rejected safely.
+          res = sc.handle(b"{}")
+          assert isinstance(res, SidecarResult), "expected SidecarResult"
+          assert res.status == SidecarStatus.INVALID_REQUEST, res.status
+          print("sidecar-smoke-OK", res.status.value)
+          PY
+
+      # ========= GATE 11: Hermes composition smoke (python 3.11 only) =======
+      # NOTE: the production default mode is now OBSERVE (R124-01), which captures
+      # only and registers NO read tools. To exercise the full capture+read
+      # composition path this smoke sets ZERO_MEM_MODE=assist explicitly.
+      - name: "Gate 11: Hermes composition smoke (open_hermes_boundary, capture root outside HOME)"
+        if: matrix.python-version == '3.11'
+        shell: bash
+        env:
+          ZERO_MEM_MODE: assist
+        run: |
+          set -eo pipefail
+          "$VENV_PY" - <<'PY' 2>&1 | tee "ci-logs/${{ matrix.os }}-py${{ matrix.python-version }}-g11-hermes.log"
+          import pathlib, tempfile
+          import zero_mem
+          from zero_mem import open_hermes_boundary
+
+          # capture root MUST be outside HOME; use the redirected temp dir.
+          base = pathlib.Path(tempfile.gettempdir()) / "zm-hermes-smoke"
+          base.mkdir(parents=True, exist_ok=True)
+          capture_root = base / "capture"
+          store_path = capture_root / "derived" / "events.sqlite"
+
+          class HostContext:
+              def __init__(self):
+                  self.hooks = {}
+                  self.tools = {}
+                  self.toolsets = {}
+                  self.descriptions = {}
+
+              def register_hook(self, name, callback):
+                  self.hooks[name] = callback
+
+              def register_tool(self, name, toolset, schema, handler, *, description):
+                  self.tools[name] = handler
+                  self.toolsets[name] = toolset
+                  self.descriptions[name] = description
+
+          boundary = open_hermes_boundary(
+              project_id="project-smoke",
+              profile_id="profile-smoke",
+              capture_root=capture_root,
+              store_path=store_path,
+          )
+          ctx = HostContext()
+          result = boundary.register(ctx)
+          assert result["hooks"], "no hooks registered"
+          assert result["tools"], "no tools registered"
+          assert "on_session_start" in ctx.hooks, "session-start hook missing"
+          boundary.shutdown()
+          print("hermes-composition-smoke-OK")
+          PY
+
+      # ===================== Evidence upload (ALL cells) =====================
+      - name: Upload raw CI logs (evidence)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v124-${{ matrix.os }}-py${{ matrix.python-version }}-logs
+          path: ci-logs/
+          if-no-files-found: error
+
+      - name: Upload built wheel + sdist (evidence)
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: v124-${{ matrix.os }}-py${{ matrix.python-version }}-dist
+          path: dist/
+          if-no-files-found: error
