@@ -60,3 +60,46 @@ def test_public_boundary_rejects_invalid_input_and_closed_use() -> None:
 def test_public_api_module_has_no_internal_src_dependency() -> None:
     source = (Path(__file__).resolve().parents[2] / "zero_mem/api.py").read_text()
     assert "from src" not in source and "import src" not in source
+
+
+def test_public_health_surfaced_truthfully_from_provider() -> None:
+    # R124-03: when a truthful health provider is wired, PublicClient.health() must
+    # surface the provider's real freshness/watermark state, NOT a hardcoded OK.
+    class TruthfulProvider:
+        def health(self):
+            return {
+                "status": "CLOSED",
+                "mode": "off",
+                "capture_enabled": False,
+                "read_enabled": False,
+                "injection_enabled": False,
+                "writer_open": False,
+                "canonical_store_identity": None,
+                "read_store_identity": None,
+                "last_canonical_sequence": 0,
+                "last_projected_sequence": 0,
+                "lag": 0,
+                "projection_status": None,
+                "last_projection_error": None,
+                "readiness": "OFF",
+                "reason_code": "BOUNDARY_DISABLED",
+            }
+
+        def sync_status(self):
+            return "OFF"
+
+    client = PublicClient.open(CoreConfig(enabled=False), health_provider=TruthfulProvider())
+    health = client.health()
+    assert health.status == "CLOSED"
+    assert health.runtime_mode == "off"
+    assert health.capture_enabled is False
+    assert health.writer_open is False
+    assert client.sync() == "OFF"
+    client.shutdown()
+
+
+def test_public_health_unconfigured_without_provider_is_not_ok() -> None:
+    # R124-03: without a provider, an unconfigured client must not self-green to OK.
+    client = PublicClient.open(CoreConfig(enabled=False))
+    assert client.health().status == "UNCONFIGURED"
+    client.shutdown()

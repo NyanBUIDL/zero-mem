@@ -55,6 +55,33 @@ class Health:
     status: str
     active_session: bool
     writer_configured: bool
+    runtime_mode: str | None = None
+    capture_enabled: bool | None = None
+    read_enabled: bool | None = None
+    injection_enabled: bool | None = None
+    writer_open: bool | None = None
+    canonical_store_identity: str | None = None
+    derived_store_identity: str | None = None
+    last_canonical_sequence: int | None = None
+    last_projected_sequence: int | None = None
+    lag: int | None = None
+    projection_status: str | None = None
+    last_projection_error: str | None = None
+    readiness: str | None = None
+    reason_code: str | None = None
+
+
+class HealthProvider(Protocol):
+    """Injected truthful runtime health source; the public module stays storage-neutral.
+
+    Implementations must return a mapping with the keys defined by VALIDATION_SPEC
+    (runtime_mode, capture_enabled, read_enabled, injection_enabled, writer_open,
+    canonical/derived_store_identity, last_canonical/projected_sequence, lag,
+    projection_status, last_projection_error, status, readiness, reason_code).
+    """
+
+    def health(self) -> Mapping[str, Any]: ...
+    def sync_status(self) -> str: ...
 
 
 class PublicClient:
@@ -62,19 +89,22 @@ class PublicClient:
 
     def __init__(self, config: CoreConfig, *, writer: EventWriter | None = None,
                  consistency_policy: str | None = None,
-                 read_service: PublicReadService | None = None) -> None:
+                 read_service: PublicReadService | None = None,
+                 health_provider: HealthProvider | None = None) -> None:
         self._client = ZeroMemClient(config, writer=writer, consistency_policy=consistency_policy)
         self._active_session = False
         self._closed = False
         self._writer = writer
         self._read_service = read_service
+        self._health_provider = health_provider
 
     @classmethod
     def open(cls, config: CoreConfig | None = None, *, writer: EventWriter | None = None,
              consistency_policy: str | None = None,
-             read_service: PublicReadService | None = None) -> "PublicClient":
+             read_service: PublicReadService | None = None,
+             health_provider: HealthProvider | None = None) -> "PublicClient":
         return cls(config or CoreConfig(), writer=writer, consistency_policy=consistency_policy,
-                   read_service=read_service)
+                   read_service=read_service, health_provider=health_provider)
 
     def _ensure_open(self) -> None:
         if self._closed:
@@ -108,6 +138,11 @@ class PublicClient:
 
     def sync(self) -> str:
         self._ensure_open()
+        # R124-03: never claim SYNCED/CURRENT merely because a flush method was
+        # called. Delegate to the injected runtime provider; absent a provider,
+        # fall back to the writer flush but truthfully report the legacy state.
+        if self._health_provider is not None:
+            return str(self._health_provider.sync_status())
         for name in ("sync", "flush"):
             method = getattr(self._writer, name, None)
             if callable(method):
@@ -118,6 +153,42 @@ class PublicClient:
     def _unavailable(self, capability: str) -> CapabilityResult:
         self._ensure_open()
         return CapabilityResult(capability, "CAPABILITY_UNAVAILABLE", "CAPABILITY_NOT_IMPLEMENTED")
+
+    def health(self) -> Health:
+        self._ensure_open()
+        # R124-03: when a truthful runtime provider is wired, surface its real
+        # freshness/watermark state. The public health response must never
+        # self-green to mask a lagging or unavailable derived store.
+        if self._health_provider is not None:
+            raw = self._health_provider.health()
+            return Health(
+                api_version=API_VERSION,
+                status=str(raw.get("status", "UNKNOWN")),
+                active_session=self._active_session,
+                writer_configured=self._writer is not None,
+                runtime_mode=raw.get("mode"),
+                capture_enabled=raw.get("capture_enabled"),
+                read_enabled=raw.get("read_enabled"),
+                injection_enabled=raw.get("injection_enabled"),
+                writer_open=raw.get("writer_open"),
+                canonical_store_identity=raw.get("canonical_store_identity"),
+                derived_store_identity=raw.get("read_store_identity"),
+                last_canonical_sequence=raw.get("last_canonical_sequence"),
+                last_projected_sequence=raw.get("last_projected_sequence"),
+                lag=raw.get("lag"),
+                projection_status=raw.get("projection_status"),
+                last_projection_error=raw.get("last_projection_error"),
+                readiness=raw.get("readiness"),
+                reason_code=raw.get("reason_code"),
+            )
+        # No provider wired: report the REAL client state instead of unconditionally
+        # "OK". R124-03 — the public surface must not self-green; an unconfigured or
+        # closed client is reported truthfully.
+        if self._writer is None:
+            status = "UNCONFIGURED"
+        else:
+            status = "OK"
+        return Health(API_VERSION, status, self._active_session, self._writer is not None)
 
     def _read(self, capability: str, request: Mapping[str, Any] | None) -> CapabilityResult:
         self._ensure_open()
@@ -156,10 +227,6 @@ class PublicClient:
     def get_decisions(self, request: Mapping[str, Any] | None = None) -> CapabilityResult:
         return self._read("zero_mem.get_decisions", request)
 
-    def health(self) -> Health:
-        self._ensure_open()
-        return Health(API_VERSION, "OK", self._active_session, self._writer is not None)
-
     def shutdown(self) -> str:
         if self._closed:
             return "ALREADY_SHUTDOWN"
@@ -192,9 +259,11 @@ class AsyncClient:
     @classmethod
     def open(cls, config: CoreConfig | None = None, *, writer: EventWriter | None = None,
              consistency_policy: str | None = None, read_service: PublicReadService | None = None,
+             health_provider: HealthProvider | None = None,
              queue_capacity: int = 16) -> "AsyncClient":
         return cls(PublicClient.open(config, writer=writer, consistency_policy=consistency_policy,
-                                     read_service=read_service), queue_capacity=queue_capacity)
+                                     read_service=read_service, health_provider=health_provider),
+                   queue_capacity=queue_capacity)
 
     async def _call(self, operation: Any, *, deadline: float | None = None) -> Any:
         if self._closed:
