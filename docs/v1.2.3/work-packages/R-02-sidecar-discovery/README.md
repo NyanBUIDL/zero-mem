@@ -1,6 +1,6 @@
 # R-02 — Canonical Sidecar Discovery
 
-**Status:** OPEN
+**Status:** VERIFIED
 **Baseline SHA:** `5f1a329b6e5a18833fb4186cad7c91807a40b79e`
 **Finding closed:** Sidecar capability discovery and dispatch are not yet proven as the one canonical semantic path.
 **Allowed paths:** `zero_mem/sidecar.py`, `src/integration/sidecar.py`, focused R-02 tests, v1.2.3 evidence/work-package documentation.
