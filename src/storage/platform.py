@@ -329,7 +329,10 @@ def open_regular(path: Path, flags: int, *, create: bool = False, exclusive: boo
             disposition = 1 if exclusive else 4 if create else 3
             handle = create_file(str(path), desired, share, None, disposition, 0x00200000, None)
             if handle in (None, ctypes.c_void_p(-1).value):
-                raise OSError
+                error_code = ctypes.get_last_error()
+                if error_code in (2, 3):  # ERROR_FILE_NOT_FOUND / ERROR_PATH_NOT_FOUND
+                    raise FileNotFoundError(error_code, "CreateFileW")
+                raise OSError(error_code, "CreateFileW")
             fd_flags = os.O_RDWR if (flags & os.O_RDWR) else os.O_WRONLY if (flags & os.O_WRONLY) else os.O_RDONLY
             if flags & os.O_APPEND:
                 fd_flags |= os.O_APPEND
