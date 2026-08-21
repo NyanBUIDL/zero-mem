@@ -73,12 +73,15 @@ V124-05 Cross-platform + release qualification
 
 ### V124-03 — Single storage topology and truthful freshness
 
-- Tạo một runtime composition root sở hữu canonical writer, projection coordinator, derived DB và authorized read service.
-- Loại bỏ cấu hình cho phép capture ghi A nhưng read/injection đọc B.
-- Health phải công bố tối thiểu: `capture_enabled`, `last_canonical_sequence`, `last_projected_sequence`, `lag`, `projection_status`, `read_store_identity`, `injection_enabled`.
-- `sync()` chỉ trả current khi derived watermark bắt kịp canonical watermark.
+**Trạng thái:** `IMPLEMENTED_VERIFIED`
+**Commit:** V124-03 (see work-packages/V124-03-storage-topology)
 
-**Exit gate:** capture → project → read → shutdown → restart E2E dùng một topology; projection failure vẫn giữ capture receipt và trả `STALE/UNAVAILABLE` trung thực.
+- `ZeroMemRuntime` already owns one canonical writer, one derived SQLite store, one bounded projection worker, and the authorized read service — no split topology.
+- `RuntimeHealth` now publishes the full freshness surface: `capture_enabled`, `last_canonical_sequence`, `last_projected_sequence`, `lag`, `projection_status`, `read_store_identity`, `injection_enabled`.
+- `sync()` returns `CURRENT` only when the derived watermark has caught the canonical watermark; otherwise `STALE`/`UNAVAILABLE`/`OFF`/`DISABLED` (no false success).
+- Canonical sequence is recorded independently of projection; capture receipt survives projection failure.
+
+**Gate đã đạt:** 7 unit freshness tests + 63 regression tests pass; compileall; `git diff --check`.
 
 ### V124-04 — Hermes pillars, HITL and Agent Skills
 

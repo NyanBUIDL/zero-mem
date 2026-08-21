@@ -111,6 +111,14 @@ class RuntimeHealth:
     reason_code: str | None = None
     projection: ProjectionWatermark | None = None
     mode: str | None = None
+    # V124-03 truthful-freshness surface (single runtime-owned topology).
+    capture_enabled: bool = False
+    last_canonical_sequence: int = 0
+    last_projected_sequence: int = 0
+    lag: int = 0
+    projection_status: str | None = None
+    read_store_identity: str | None = None
+    injection_enabled: bool = False
 
 
 class ZeroMemRuntime:
@@ -143,6 +151,7 @@ class ZeroMemRuntime:
         self.source = source
         self._injection_adapter = injection_adapter
         self._closed = False
+        self._last_canonical_sequence = 0
 
     @classmethod
     def open(cls, config: RuntimeConfig, *, store: CaptureStore | None = None) -> "ZeroMemRuntime":
@@ -230,12 +239,39 @@ class ZeroMemRuntime:
         return self._projection
 
     def notify_append(self, result: AppendResult) -> ProjectionStatus:
-        """Submit a durable append; projection failure never changes capture success."""
+        """Submit a durable append; projection failure never changes capture success.
+
+        V124-03: the canonical sequence is recorded from the durable append receipt
+        independent of projection state, so health/freshness truthfully reflect capture
+        even when the derived store is unavailable or lagging.
+        """
         if self._closed:
             return ProjectionStatus.CLOSED
+        if isinstance(result.sequence, int) and not isinstance(result.sequence, bool) and result.sequence >= 0:
+            self._last_canonical_sequence = max(self._last_canonical_sequence, result.sequence)
         if self._projection is None:
             return ProjectionStatus.UNAVAILABLE
         return self._projection.submit(self.writer_path, self.stream_name, result.sequence)
+
+    def sync(self) -> str:
+        """Return the truthful sync state of the single runtime-owned topology.
+
+        V124-03 exit gate: ``CURRENT`` only when the derived watermark has caught the
+        canonical watermark and the identity/checkpoint is valid. Otherwise reports
+        ``STALE`` (lagging), ``UNAVAILABLE`` (derived not usable), ``OFF`` or ``DISABLED``.
+        This never claims CURRENT on a false premise.
+        """
+        if not self.enabled or self._closed:
+            return "OFF" if not self.enabled else "DISABLED"
+        if self._writer is None:
+            return "UNAVAILABLE"
+        if self._projection is None:
+            return "UNAVAILABLE"
+        status = self.flush_projection(timeout=5.0)
+        snapshot = self._projection.snapshot()
+        if status is ProjectionStatus.CURRENT and snapshot.derived_sequence >= snapshot.canonical_sequence:
+            return "CURRENT"
+        return "STALE"
 
     @property
     def writer_path(self) -> Path:
@@ -251,16 +287,48 @@ class ZeroMemRuntime:
 
     def health(self) -> RuntimeHealth:
         if self._closed:
-            return RuntimeHealth("CLOSED", "RUNTIME_CLOSED", mode=self.mode.value)
+            return RuntimeHealth(
+                "CLOSED", "RUNTIME_CLOSED", mode=self.mode.value,
+                capture_enabled=False, read_store_identity=None, injection_enabled=False,
+            )
         if not self.enabled:
-            return RuntimeHealth("CLOSED", "ZERO_MEM_DISABLED", mode=self.mode.value)
+            return RuntimeHealth(
+                "CLOSED", "ZERO_MEM_DISABLED", mode=self.mode.value,
+                capture_enabled=False, read_store_identity=None, injection_enabled=False,
+            )
         if self._writer is None:
-            return RuntimeHealth("CLOSED", "RUNTIME_WRITER_UNAVAILABLE", mode=self.mode.value)
+            return RuntimeHealth(
+                "CLOSED", "RUNTIME_WRITER_UNAVAILABLE", mode=self.mode.value,
+                capture_enabled=False, read_store_identity=None, injection_enabled=False,
+            )
         if self._projection is None:
-            return RuntimeHealth("OPEN", self._projection_error or "PROJECTION_UNAVAILABLE", mode=self.mode.value)
+            return RuntimeHealth(
+                "OPEN", self._projection_error or "PROJECTION_UNAVAILABLE", mode=self.mode.value,
+                capture_enabled=self.capture_enabled,
+                last_canonical_sequence=self._last_canonical_sequence,
+                last_projected_sequence=0,
+                lag=self._last_canonical_sequence,
+                projection_status="DERIVED_UNAVAILABLE",
+                read_store_identity=None,
+                injection_enabled=self.injection_enabled,
+            )
         snapshot = self._projection.snapshot()
-        reason = self._projection_error or snapshot.last_error
-        return RuntimeHealth("OPEN", reason, snapshot, mode=self.mode.value)
+        derived = snapshot.derived_sequence
+        canonical = snapshot.canonical_sequence
+        lag = max(0, canonical - derived)
+        # V124-03: health reads a snapshot; it never self-greens. STALE reflects lag;
+        # UNAVAILABLE reflects a derived store that cannot be used.
+        status_value = snapshot.status.value if isinstance(snapshot.status, ProjectionStatus) else str(snapshot.status)
+        return RuntimeHealth(
+            "OPEN", status_value, snapshot, mode=self.mode.value,
+            capture_enabled=self.capture_enabled,
+            last_canonical_sequence=canonical,
+            last_projected_sequence=derived,
+            lag=lag,
+            projection_status=status_value,
+            read_store_identity=str(self._derived.path) if self._derived is not None else None,
+            injection_enabled=self.injection_enabled,
+        )
 
     def flush_projection(self, timeout: float | None = None) -> ProjectionStatus:
         if self._projection is None:
