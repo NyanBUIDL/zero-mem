@@ -1,6 +1,6 @@
 # R-00 — Source-Bound Release Evidence Model
 
-**Status:** PARTIAL
+**Status:** VERIFIED
 **Baseline SHA:** `5f1a329b6e5a18833fb4186cad7c91807a40b79e`
 **Finding closed:** Release evidence is not source-contained or clean-checkout-verifiable for v1.2.3.
 **Allowed paths:**

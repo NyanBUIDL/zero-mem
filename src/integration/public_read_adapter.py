@@ -139,7 +139,11 @@ class AuthorizedPublicReadAdapter:
         project_id = (request or {}).get("project_id")
         if not isinstance(project_id, str) or not project_id:
             return ReadResult("INVALID", "INVALID_REQUEST")
-        return self._run(request, lambda req: self._service.m4_current_state(req, project_id))
+        scoped = dict(request or {})
+        scoped["project_ids"] = [project_id]
+        if self._requester is not None:
+            scoped["target_profile_ids"] = [self._requester]
+        return self._run(scoped, lambda req: self._service.m4_current_state(req, project_id))
 
     def get_decisions(self, request: Mapping[str, Any] | None = None) -> ReadResult:
         if request is not None and not isinstance(request, Mapping):
@@ -147,7 +151,11 @@ class AuthorizedPublicReadAdapter:
         project_id = (request or {}).get("project_id")
         if not isinstance(project_id, str) or not project_id:
             return ReadResult("INVALID", "INVALID_REQUEST")
-        return self._run(request, lambda req: self._service.m4_decisions(req, project_id))
+        scoped = dict(request or {})
+        scoped["project_ids"] = [project_id]
+        if self._requester is not None:
+            scoped["target_profile_ids"] = [self._requester]
+        return self._run(scoped, lambda req: self._service.m4_decisions(req, project_id))
 
     def close(self) -> None:
         """Release the owned strict read-only service connection."""
