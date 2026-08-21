@@ -1,0 +1,11 @@
+UTC=2026-08-21T11:30:00Z
+OS=Linux NyanBUIDL 7.0.0-30-generic x86_64
+Python=/tmp/zero-mem-v123-py311-venv/bin/python
+Python_version=3.11.16
+pytest=9.1.1
+TMPDIR=/dev/shm/zero-mem-v123-r01-final-evidence
+HOME=/dev/shm/zero-mem-v123-r01-final-evidence/home
+XDG_CONFIG_HOME=/dev/shm/zero-mem-v123-r01-final-evidence/config
+XDG_DATA_HOME=/dev/shm/zero-mem-v123-r01-final-evidence/data
+XDG_STATE_HOME=/dev/shm/zero-mem-v123-r01-final-evidence/state
+XDG_CACHE_HOME=/dev/shm/zero-mem-v123-r01-final-evidence/cache
