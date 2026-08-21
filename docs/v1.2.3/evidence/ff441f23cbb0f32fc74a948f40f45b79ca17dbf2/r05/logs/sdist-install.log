@@ -1,0 +1,11 @@
+Processing /dev/shm/zero-mem-v123-r05-build/sdist/zero_mem-1.2.3.tar.gz
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Building wheels for collected packages: zero-mem
+  Building wheel for zero-mem (pyproject.toml): started
+  Building wheel for zero-mem (pyproject.toml): finished with status 'done'
+  Created wheel for zero-mem: filename=zero_mem-1.2.3-py3-none-any.whl size=483201 sha256=18552b4c9d29a83190a92842408bbd710465cccd50e8ba30edf9c2b8f4c5e9f1
+  Stored in directory: /dev/shm/zero-mem-review-r03-home/.cache/pip/wheels/87/54/87/595160d09746be3cd9b341ac62207e7cf659247a8dba49d495
+Successfully built zero-mem
+Installing collected packages: zero-mem
+Successfully installed zero-mem-1.2.3

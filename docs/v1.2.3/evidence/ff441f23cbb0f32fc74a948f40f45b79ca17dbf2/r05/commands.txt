@@ -1,0 +1,6 @@
+ARTIFACT_SOURCE_SHA=ff441f23cbb0f32fc74a948f40f45b79ca17dbf2
+COMMAND=full isolated suite + wheel/sdist build + fresh install smoke
+EXIT_CODE=0
+FULL_SUITE=3301 passed; 5 skipped; 0 failed
+WHEEL_SHA256=8e2ae39c2708031d28965ee3819766b224d27e67c366f4b8fb52913f8221d4f6
+SDIST_SHA256=ae1d03b4c576aab8e9bd2645bc250cc95b37fa910e98f0c89905302462209eee
