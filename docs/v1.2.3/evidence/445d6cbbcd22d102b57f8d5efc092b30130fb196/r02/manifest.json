@@ -1,0 +1,47 @@
+{
+  "artifact_source_sha": "445d6cbbcd22d102b57f8d5efc092b30130fb196",
+  "assets": [
+    {
+      "path": "artifacts/r02-sidecar.txt",
+      "sha256": "932fe8f7092474e6a333f213433a5be8f5e1b111943895dc58f03b8344ea1fb2"
+    }
+  ],
+  "evidence_commit_sha": "DERIVED_FROM_CURRENT_HEAD",
+  "full_suite": {
+    "command": "PYTHONPATH=. /tmp/zero-mem-v123-py311-venv/bin/python -m pytest -q tests/",
+    "environment": "isolated HOME/XDG/TMPDIR under /dev/shm/zero-mem-v123-r02-evidence",
+    "exit_code": 0,
+    "failed": 0,
+    "passed": 3300,
+    "raw_log": "logs/full-py311.log",
+    "raw_log_sha256": "6a61426743e84dc2b3f720666440815ebd373e070e287422dc0e39bbfcf7cba7",
+    "skipped": 5,
+    "source_sha": "445d6cbbcd22d102b57f8d5efc092b30130fb196"
+  },
+  "logs": [
+    {
+      "path": "logs/full-py311.log",
+      "sha256": "6a61426743e84dc2b3f720666440815ebd373e070e287422dc0e39bbfcf7cba7"
+    },
+    {
+      "path": "logs/r02-focused-py311.log",
+      "sha256": "64c9fac8c4dbd3b34ed5eca164a1693e6ceb84fdf6d3018f7ccdbdb004d5ad89"
+    }
+  ],
+  "package": "R-02",
+  "platforms": {
+    "linux": {
+      "evidence": "logs/full-py311.log",
+      "status": "PASS"
+    },
+    "macos": {
+      "evidence": "R-04 pending",
+      "status": "NOT_RUN"
+    },
+    "windows": {
+      "evidence": "R-04 pending",
+      "status": "NOT_RUN"
+    }
+  },
+  "source_sha": "445d6cbbcd22d102b57f8d5efc092b30130fb196"
+}

@@ -1,0 +1,3 @@
+6a61426743e84dc2b3f720666440815ebd373e070e287422dc0e39bbfcf7cba7  ./logs/full-py311.log
+64c9fac8c4dbd3b34ed5eca164a1693e6ceb84fdf6d3018f7ccdbdb004d5ad89  ./logs/r02-focused-py311.log
+932fe8f7092474e6a333f213433a5be8f5e1b111943895dc58f03b8344ea1fb2  ./artifacts/r02-sidecar.txt
