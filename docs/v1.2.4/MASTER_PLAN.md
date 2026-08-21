@@ -97,7 +97,15 @@ HITL tối thiểu: inspect → propose correction/supersession/delete-request �
 
 **Exit gate:** không silent overwrite; denial không rò candidate; Skill fixture vẫn đúng chuẩn sau mọi lifecycle capture.
 
-### V124-05 — Cross-platform and release qualification
+**Trạng thái:** `IMPLEMENTED_VERIFIED`
+**Commit:** V124-04 (see work-packages/V124-04-hitl-skills)
+
+- `zero_mem/correction.py` — `CorrectionController` implements the HITL gate over the runtime-owned topology: `propose()` (side-effect-free preview), `confirm()` (appends a linked control event to canonical JSONL, preserving the original trace; never overwrites or deletes).
+- Delete-request appends a tombstone control event; the canonical record is retained (ADR-009).
+- Denial (unknown target) leaks no candidate id/snippet/count.
+- Skills pillar: the sidecar captures skill lifecycle provenance but writes no `SKILL.md` (verified by capture-root scan).
+
+**Gate đã đạt:** 6 HITL unit tests + 69 regression tests pass; compileall; `git diff --check`.
 
 - Thay mọi POSIX-only assumption còn lọt ra khỏi platform backend.
 - Kiểm tra Windows/Linux/macOS, CPython 3.11–3.13.
