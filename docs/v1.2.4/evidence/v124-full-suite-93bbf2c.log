@@ -1,0 +1,159 @@
+........................................................................ [  2%]
+.....................................................ss................. [  4%]
+........................................................................ [  6%]
+........................................................................ [  8%]
+..................ss....s............................................... [ 10%]
+........................................................................ [ 12%]
+........................................................................ [ 14%]
+........................................................................ [ 17%]
+........................................................................ [ 19%]
+........................................................................ [ 21%]
+........................................................................ [ 23%]
+........................................................................ [ 25%]
+........................................................................ [ 27%]
+........................................................................ [ 29%]
+........................................................................ [ 32%]
+........................................................................ [ 34%]
+........................................................................ [ 36%]
+........................................................................ [ 38%]
+........................................................................ [ 40%]
+.............................................F.......................... [ 42%]
+........................................................................ [ 44%]
+........................................................................ [ 47%]
+........................................................................ [ 49%]
+........................................................................ [ 51%]
+........................................................................ [ 53%]
+........................................................................ [ 55%]
+........................................................................ [ 57%]
+........................................................................ [ 59%]
+........................................................................ [ 62%]
+........................................................................ [ 64%]
+........................................................................ [ 66%]
+........................................................................ [ 68%]
+........................................................................ [ 70%]
+........................................................................ [ 72%]
+........................................................................ [ 74%]
+........................................................................ [ 77%]
+........................................................................ [ 79%]
+........................................................................ [ 81%]
+........................................................................ [ 83%]
+........................................................................ [ 85%]
+........................................................................ [ 87%]
+........................................................................ [ 89%]
+..........F.....................F....................................... [ 92%]
+........................................................................ [ 94%]
+........................................................................ [ 96%]
+..............................................F......................... [ 98%]
+.....................................................                    [100%]
+=================================== FAILURES ===================================
+_______________ TestAbsenceGuards.test_single_master_switch_only _______________
+
+self = <tests.unit.test_m6_final_acceptance.TestAbsenceGuards object at 0x722551e5d950>
+adapter = <src.integration.hermes_read_adapter.HermesReadAdapter object at 0x722548d61dd0>
+
+    def test_single_master_switch_only(self, adapter):
+        # M7.1 introduces EXACTLY ONE master Zero-Mem switch (ZERO_MEM_ENABLED),
+        # backed by BridgeConfig.zero_mem_enabled. No redundant/alias/per-subsystem
+        # switches are permitted.
+        base = REPO_ROOT / "src" / "integration"
+        src = "\n".join(f.read_text() for f in base.rglob("*.py"))
+        # The one approved canonical switch IS present.
+        assert "ZERO_MEM_ENABLED" in src
+        assert "zero_mem_enabled" in src
+        # Forbidden redundant/alias/per-subsystem switches remain absent.
+        for forbidden in (
+            "zero_mem.enabled",        # alias form (only ZERO_MEM_ENABLED is canonical)
+            "master_enable",
+            "memory_system_enabled",
+            "disable_zero_mem",
+            "capture_enabled",
+            "retrieval_enabled",
+            "injection_enabled",
+            "mcp_enabled",
+            "routing_enabled",
+            "project_memory_enabled",
+        ):
+>           assert forbidden not in src
+E           assert 'capture_enabled' not in '"""Project-... else None\n'
+E             
+E             'capture_enabled' is contained here:
+E               ogy).
+E                   capture_enabled: bool = False
+E                   last_canonical_sequence: int = 0
+E                   last_projected_sequence: int = 0
+E                   lag: int = 0...
+E             
+E             ...Full output truncated (4301 lines hidden), use '-vv' to show
+
+tests/unit/test_m6_final_acceptance.py:695: AssertionError
+________________ test_registration_failure_isolated_per_surface ________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x722524f7f3d0>
+tmp_path = PosixPath('/dev/shm/zm-v124-test/pytest-of-lenovo/pytest-18/test_registration_failure_isol0')
+
+    def test_registration_failure_isolated_per_surface(monkeypatch, tmp_path):
+        _ready(monkeypatch, tmp_path)
+        class Partial:
+            def register_hook(self, *_args):
+                raise RuntimeError("synthetic registration failure")
+            def register_tool(self, *_args, **_kwargs):
+                raise RuntimeError("synthetic tool failure")
+        boundary = hi.HermesBoundary(hi.IntegrationConfig("P", "PR"), capture_root=tmp_path / "capture", store_path=tmp_path / "missing.sqlite")
+        result = boundary.register(Partial())
+        assert result["hooks"] == ()
+        assert "synthetic" not in json.dumps(boundary.diagnostics)
+>       assert {item["component"] for item in boundary.diagnostics} == {"injection"}
+E       AssertionError: assert {'topology'} == {'injection'}
+E         
+E         Extra items in the left set:
+E         'topology'
+E         Extra items in the right set:
+E         'injection'
+E         Use -v to get more diff
+
+tests/unit/test_pkg4_hermes_integration.py:133: AssertionError
+___________ test_boundary_registers_hook_tool_and_injection_surfaces ___________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7225279c3390>
+tmp_path = PosixPath('/dev/shm/zm-v124-test/pytest-of-lenovo/pytest-18/test_boundary_registers_hook_t0')
+
+    def test_boundary_registers_hook_tool_and_injection_surfaces(monkeypatch, tmp_path):
+        _ready(monkeypatch, tmp_path)
+        config = hi.IntegrationConfig("P", "PR")
+        context = FakeContext()
+        result = hi.HermesBoundary(
+            config,
+            capture_root=tmp_path / "capture",
+            store_path=tmp_path / "missing.sqlite",
+        ).register(context)
+>       assert "pre_llm_call" in result["injection"]
+E       AssertionError: assert 'pre_llm_call' in ()
+
+tests/unit/test_pkg4_hermes_integration.py:320: AssertionError
+________ test_wp31_injection_adapter_revokes_and_restarts_with_boundary ________
+
+tmp_path = PosixPath('/dev/shm/zm-v124-test/pytest-of-lenovo/pytest-18/test_wp31_injection_adapter_re0')
+
+    def test_wp31_injection_adapter_revokes_and_restarts_with_boundary(tmp_path: Path) -> None:
+        configure(enabled=True)
+    
+        class Context:
+            def register_hook(self, name, callback):
+                self.callback = callback
+    
+        context = Context()
+        boundary = HermesBoundary(IntegrationConfig("project-c", "profile-c"))
+        result = boundary.register(context)
+>       assert result["injection"] == ("pre_llm_call",)
+E       AssertionError: assert () == ('pre_llm_call',)
+E         
+E         Right contains one more item: 'pre_llm_call'
+E         Use -v to get more diff
+
+tests/unit/test_wp31_hermes.py:80: AssertionError
+=========================== short test summary info ============================
+FAILED tests/unit/test_m6_final_acceptance.py::TestAbsenceGuards::test_single_master_switch_only
+FAILED tests/unit/test_pkg4_hermes_integration.py::test_registration_failure_isolated_per_surface
+FAILED tests/unit/test_pkg4_hermes_integration.py::test_boundary_registers_hook_tool_and_injection_surfaces
+FAILED tests/unit/test_wp31_hermes.py::test_wp31_injection_adapter_revokes_and_restarts_with_boundary
+4 failed, 3356 passed, 5 skipped in 119.88s (0:01:59)
