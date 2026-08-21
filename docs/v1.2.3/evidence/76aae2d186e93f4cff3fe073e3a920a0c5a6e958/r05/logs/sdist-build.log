@@ -1,0 +1,204 @@
+* Getting build dependencies for sdist...
+running egg_info
+writing zero_mem.egg-info/PKG-INFO
+writing dependency_links to zero_mem.egg-info/dependency_links.txt
+writing entry points to zero_mem.egg-info/entry_points.txt
+writing requirements to zero_mem.egg-info/requires.txt
+writing top-level names to zero_mem.egg-info/top_level.txt
+reading manifest file 'zero_mem.egg-info/SOURCES.txt'
+writing manifest file 'zero_mem.egg-info/SOURCES.txt'
+* Building sdist...
+running sdist
+running egg_info
+writing zero_mem.egg-info/PKG-INFO
+writing dependency_links to zero_mem.egg-info/dependency_links.txt
+writing entry points to zero_mem.egg-info/entry_points.txt
+writing requirements to zero_mem.egg-info/requires.txt
+writing top-level names to zero_mem.egg-info/top_level.txt
+reading manifest file 'zero_mem.egg-info/SOURCES.txt'
+writing manifest file 'zero_mem.egg-info/SOURCES.txt'
+running check
+creating zero_mem-1.2.3
+creating zero_mem-1.2.3/src/access
+creating zero_mem-1.2.3/src/capture
+creating zero_mem-1.2.3/src/corpus
+creating zero_mem-1.2.3/src/corpus/adapters
+creating zero_mem-1.2.3/src/integration
+creating zero_mem-1.2.3/src/integration/m6
+creating zero_mem-1.2.3/src/integration/m7
+creating zero_mem-1.2.3/src/m8
+creating zero_mem-1.2.3/src/project_memory
+creating zero_mem-1.2.3/src/projection
+creating zero_mem-1.2.3/src/redaction
+creating zero_mem-1.2.3/src/retrieval
+creating zero_mem-1.2.3/src/storage
+creating zero_mem-1.2.3/src/storage/migrations
+creating zero_mem-1.2.3/zero_mem
+creating zero_mem-1.2.3/zero_mem.egg-info
+copying files to zero_mem-1.2.3...
+copying README.md -> zero_mem-1.2.3
+copying pyproject.toml -> zero_mem-1.2.3
+copying src/access/__init__.py -> zero_mem-1.2.3/src/access
+copying src/access/admin.py -> zero_mem-1.2.3/src/access
+copying src/access/audit.py -> zero_mem-1.2.3/src/access
+copying src/access/authorized_read.py -> zero_mem-1.2.3/src/access
+copying src/access/authorized_write.py -> zero_mem-1.2.3/src/access
+copying src/access/contracts.py -> zero_mem-1.2.3/src/access
+copying src/access/grant_events.py -> zero_mem-1.2.3/src/access
+copying src/access/grants.py -> zero_mem-1.2.3/src/access
+copying src/access/linked.py -> zero_mem-1.2.3/src/access
+copying src/access/policy.py -> zero_mem-1.2.3/src/access
+copying src/access/rebuild.py -> zero_mem-1.2.3/src/access
+copying src/access/resolver.py -> zero_mem-1.2.3/src/access
+copying src/capture/__init__.py -> zero_mem-1.2.3/src/capture
+copying src/capture/adapter.py -> zero_mem-1.2.3/src/capture
+copying src/capture/event_types.py -> zero_mem-1.2.3/src/capture
+copying src/capture/validation.py -> zero_mem-1.2.3/src/capture
+copying src/corpus/__init__.py -> zero_mem-1.2.3/src/corpus
+copying src/corpus/blob_store.py -> zero_mem-1.2.3/src/corpus
+copying src/corpus/compatibility.py -> zero_mem-1.2.3/src/corpus
+copying src/corpus/config.py -> zero_mem-1.2.3/src/corpus
+copying src/corpus/contracts.py -> zero_mem-1.2.3/src/corpus
+copying src/corpus/dedup.py -> zero_mem-1.2.3/src/corpus
+copying src/corpus/derived_store.py -> zero_mem-1.2.3/src/corpus
+copying src/corpus/enrichment.py -> zero_mem-1.2.3/src/corpus
+copying src/corpus/extract.py -> zero_mem-1.2.3/src/corpus
+copying src/corpus/graph.py -> zero_mem-1.2.3/src/corpus
+copying src/corpus/identity.py -> zero_mem-1.2.3/src/corpus
+copying src/corpus/normalize.py -> zero_mem-1.2.3/src/corpus
+copying src/corpus/query_planner.py -> zero_mem-1.2.3/src/corpus
+copying src/corpus/redact.py -> zero_mem-1.2.3/src/corpus
+copying src/corpus/registry.py -> zero_mem-1.2.3/src/corpus
+copying src/corpus/retrieval.py -> zero_mem-1.2.3/src/corpus
+copying src/corpus/versioning.py -> zero_mem-1.2.3/src/corpus
+copying src/corpus/adapters/__init__.py -> zero_mem-1.2.3/src/corpus/adapters
+copying src/corpus/adapters/base.py -> zero_mem-1.2.3/src/corpus/adapters
+copying src/corpus/adapters/pdf.py -> zero_mem-1.2.3/src/corpus/adapters
+copying src/corpus/adapters/registry.py -> zero_mem-1.2.3/src/corpus/adapters
+copying src/corpus/adapters/txt.py -> zero_mem-1.2.3/src/corpus/adapters
+copying src/integration/__init__.py -> zero_mem-1.2.3/src/integration
+copying src/integration/bridge_config.py -> zero_mem-1.2.3/src/integration
+copying src/integration/capture_adapter.py -> zero_mem-1.2.3/src/integration
+copying src/integration/capture_benchmark.py -> zero_mem-1.2.3/src/integration
+copying src/integration/hermes_plugin.py -> zero_mem-1.2.3/src/integration
+copying src/integration/hermes_read_adapter.py -> zero_mem-1.2.3/src/integration
+copying src/integration/hermes_registration.py -> zero_mem-1.2.3/src/integration
+copying src/integration/non_interference.py -> zero_mem-1.2.3/src/integration
+copying src/integration/payload_mapping.py -> zero_mem-1.2.3/src/integration
+copying src/integration/public_read_adapter.py -> zero_mem-1.2.3/src/integration
+copying src/integration/sidecar.py -> zero_mem-1.2.3/src/integration
+copying src/integration/zero_mem_runtime.py -> zero_mem-1.2.3/src/integration
+copying src/integration/m6/__init__.py -> zero_mem-1.2.3/src/integration/m6
+copying src/integration/m6/contracts.py -> zero_mem-1.2.3/src/integration/m6
+copying src/integration/m6/dispatcher.py -> zero_mem-1.2.3/src/integration/m6
+copying src/integration/m6/errors.py -> zero_mem-1.2.3/src/integration/m6
+copying src/integration/m6/handlers.py -> zero_mem-1.2.3/src/integration/m6
+copying src/integration/m6/mcp_wrapper.py -> zero_mem-1.2.3/src/integration/m6
+copying src/integration/m6/runtime.py -> zero_mem-1.2.3/src/integration/m6
+copying src/integration/m6/tools.py -> zero_mem-1.2.3/src/integration/m6
+copying src/integration/m7/__init__.py -> zero_mem-1.2.3/src/integration/m7
+copying src/integration/m7/budget.py -> zero_mem-1.2.3/src/integration/m7
+copying src/integration/m7/context.py -> zero_mem-1.2.3/src/integration/m7
+copying src/integration/m7/contracts.py -> zero_mem-1.2.3/src/integration/m7
+copying src/integration/m7/eligibility.py -> zero_mem-1.2.3/src/integration/m7
+copying src/integration/m7/envelope.py -> zero_mem-1.2.3/src/integration/m7
+copying src/integration/m7/evidence_builder.py -> zero_mem-1.2.3/src/integration/m7
+copying src/integration/m7/hardening.py -> zero_mem-1.2.3/src/integration/m7
+copying src/integration/m7/injection_adapter.py -> zero_mem-1.2.3/src/integration/m7
+copying src/integration/m7/m8_integration.py -> zero_mem-1.2.3/src/integration/m7
+copying src/integration/m7/memory_router.py -> zero_mem-1.2.3/src/integration/m7
+copying src/m8/__init__.py -> zero_mem-1.2.3/src/m8
+copying src/m8/calibration.py -> zero_mem-1.2.3/src/m8
+copying src/m8/calibration_contract.py -> zero_mem-1.2.3/src/m8
+copying src/m8/derived_index.py -> zero_mem-1.2.3/src/m8
+copying src/m8/graph_access.py -> zero_mem-1.2.3/src/m8
+copying src/m8/graph_bounds.py -> zero_mem-1.2.3/src/m8
+copying src/m8/graph_contract.py -> zero_mem-1.2.3/src/m8
+copying src/m8/graph_projection.py -> zero_mem-1.2.3/src/m8
+copying src/m8/graph_sources.py -> zero_mem-1.2.3/src/m8
+copying src/m8/identity.py -> zero_mem-1.2.3/src/m8
+copying src/m8/projection_store.py -> zero_mem-1.2.3/src/m8
+copying src/m8/provenance.py -> zero_mem-1.2.3/src/m8
+copying src/m8/retrieval_metadata.py -> zero_mem-1.2.3/src/m8
+copying src/m8/temporal_contract.py -> zero_mem-1.2.3/src/m8
+copying src/m8/temporal_projection.py -> zero_mem-1.2.3/src/m8
+copying src/m8/temporal_read.py -> zero_mem-1.2.3/src/m8
+copying src/m8/vocabulary.py -> zero_mem-1.2.3/src/m8
+copying src/project_memory/__init__.py -> zero_mem-1.2.3/src/project_memory
+copying src/project_memory/contracts.py -> zero_mem-1.2.3/src/project_memory
+copying src/project_memory/projector.py -> zero_mem-1.2.3/src/project_memory
+copying src/project_memory/reader.py -> zero_mem-1.2.3/src/project_memory
+copying src/project_memory/rebuild.py -> zero_mem-1.2.3/src/project_memory
+copying src/projection/__init__.py -> zero_mem-1.2.3/src/projection
+copying src/projection/config.py -> zero_mem-1.2.3/src/projection
+copying src/projection/conflicts.py -> zero_mem-1.2.3/src/projection
+copying src/projection/contracts.py -> zero_mem-1.2.3/src/projection
+copying src/projection/eligibility.py -> zero_mem-1.2.3/src/projection
+copying src/projection/engine.py -> zero_mem-1.2.3/src/projection
+copying src/projection/identity.py -> zero_mem-1.2.3/src/projection
+copying src/projection/links.py -> zero_mem-1.2.3/src/projection
+copying src/projection/manifest.py -> zero_mem-1.2.3/src/projection
+copying src/projection/ownership.py -> zero_mem-1.2.3/src/projection
+copying src/projection/paths.py -> zero_mem-1.2.3/src/projection
+copying src/projection/reconcile.py -> zero_mem-1.2.3/src/projection
+copying src/projection/render.py -> zero_mem-1.2.3/src/projection
+copying src/projection/writer.py -> zero_mem-1.2.3/src/projection
+copying src/redaction/__init__.py -> zero_mem-1.2.3/src/redaction
+copying src/redaction/redactor.py -> zero_mem-1.2.3/src/redaction
+copying src/retrieval/__init__.py -> zero_mem-1.2.3/src/retrieval
+copying src/retrieval/cursor.py -> zero_mem-1.2.3/src/retrieval
+copying src/retrieval/db.py -> zero_mem-1.2.3/src/retrieval
+copying src/retrieval/models.py -> zero_mem-1.2.3/src/retrieval
+copying src/retrieval/query.py -> zero_mem-1.2.3/src/retrieval
+copying src/retrieval/relations.py -> zero_mem-1.2.3/src/retrieval
+copying src/retrieval/search.py -> zero_mem-1.2.3/src/retrieval
+copying src/retrieval/verification.py -> zero_mem-1.2.3/src/retrieval
+copying src/storage/__init__.py -> zero_mem-1.2.3/src/storage
+copying src/storage/canonical_replay.py -> zero_mem-1.2.3/src/storage
+copying src/storage/capture_boundary.py -> zero_mem-1.2.3/src/storage
+copying src/storage/coordination.py -> zero_mem-1.2.3/src/storage
+copying src/storage/ingest.py -> zero_mem-1.2.3/src/storage
+copying src/storage/jsonl_capture.py -> zero_mem-1.2.3/src/storage
+copying src/storage/platform.py -> zero_mem-1.2.3/src/storage
+copying src/storage/projection.py -> zero_mem-1.2.3/src/storage
+copying src/storage/recovery.py -> zero_mem-1.2.3/src/storage
+copying src/storage/runtime_root.py -> zero_mem-1.2.3/src/storage
+copying src/storage/sqlite_store.py -> zero_mem-1.2.3/src/storage
+copying src/storage/migrations/__init__.py -> zero_mem-1.2.3/src/storage/migrations
+copying src/storage/migrations/migrate_1.py -> zero_mem-1.2.3/src/storage/migrations
+copying src/storage/migrations/migrate_10.py -> zero_mem-1.2.3/src/storage/migrations
+copying src/storage/migrations/migrate_2.py -> zero_mem-1.2.3/src/storage/migrations
+copying src/storage/migrations/migrate_3.py -> zero_mem-1.2.3/src/storage/migrations
+copying src/storage/migrations/migrate_4.py -> zero_mem-1.2.3/src/storage/migrations
+copying src/storage/migrations/migrate_5.py -> zero_mem-1.2.3/src/storage/migrations
+copying src/storage/migrations/migrate_6.py -> zero_mem-1.2.3/src/storage/migrations
+copying src/storage/migrations/migrate_7.py -> zero_mem-1.2.3/src/storage/migrations
+copying src/storage/migrations/migrate_8.py -> zero_mem-1.2.3/src/storage/migrations
+copying src/storage/migrations/migrate_9.py -> zero_mem-1.2.3/src/storage/migrations
+copying zero_mem/__init__.py -> zero_mem-1.2.3/zero_mem
+copying zero_mem/api.py -> zero_mem-1.2.3/zero_mem
+copying zero_mem/backup.py -> zero_mem-1.2.3/zero_mem
+copying zero_mem/cli.py -> zero_mem-1.2.3/zero_mem
+copying zero_mem/commands_doctor.py -> zero_mem-1.2.3/zero_mem
+copying zero_mem/commands_setup.py -> zero_mem-1.2.3/zero_mem
+copying zero_mem/config.py -> zero_mem-1.2.3/zero_mem
+copying zero_mem/core.py -> zero_mem-1.2.3/zero_mem
+copying zero_mem/hermes_integration.py -> zero_mem-1.2.3/zero_mem
+copying zero_mem/local.py -> zero_mem-1.2.3/zero_mem
+copying zero_mem/paths.py -> zero_mem-1.2.3/zero_mem
+copying zero_mem/recovery.py -> zero_mem-1.2.3/zero_mem
+copying zero_mem/sidecar.py -> zero_mem-1.2.3/zero_mem
+copying zero_mem/status.py -> zero_mem-1.2.3/zero_mem
+copying zero_mem/upgrade.py -> zero_mem-1.2.3/zero_mem
+copying zero_mem/version.py -> zero_mem-1.2.3/zero_mem
+copying zero_mem.egg-info/PKG-INFO -> zero_mem-1.2.3/zero_mem.egg-info
+copying zero_mem.egg-info/SOURCES.txt -> zero_mem-1.2.3/zero_mem.egg-info
+copying zero_mem.egg-info/dependency_links.txt -> zero_mem-1.2.3/zero_mem.egg-info
+copying zero_mem.egg-info/entry_points.txt -> zero_mem-1.2.3/zero_mem.egg-info
+copying zero_mem.egg-info/requires.txt -> zero_mem-1.2.3/zero_mem.egg-info
+copying zero_mem.egg-info/top_level.txt -> zero_mem-1.2.3/zero_mem.egg-info
+copying zero_mem.egg-info/SOURCES.txt -> zero_mem-1.2.3/zero_mem.egg-info
+Writing zero_mem-1.2.3/setup.cfg
+Creating tar archive
+removing 'zero_mem-1.2.3' (and everything under it)
+Successfully built zero_mem-1.2.3.tar.gz

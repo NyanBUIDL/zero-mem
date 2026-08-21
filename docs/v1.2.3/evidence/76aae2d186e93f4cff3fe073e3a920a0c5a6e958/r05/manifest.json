@@ -1,0 +1,71 @@
+{
+  "artifact_source_sha": "76aae2d186e93f4cff3fe073e3a920a0c5a6e958",
+  "assets": [
+    {
+      "path": "artifacts/zero_mem-1.2.3.tar.gz",
+      "sha256": "8e2ae39c2708031d28965ee3819766b224d27e67c366f4b8fb52913f8221d4f6"
+    },
+    {
+      "path": "artifacts/zero_mem-1.2.3-py3-none-any.whl",
+      "sha256": "ae1d03b4c576aab8e9bd2645bc250cc95b37fa910e98f0c89905302462209eee"
+    }
+  ],
+  "evidence_commit_sha": "DERIVED_FROM_CURRENT_HEAD",
+  "full_suite": {
+    "command": "PYTHONPATH=. /tmp/zero-mem-v123-py311-venv/bin/python -m pytest -q tests/",
+    "environment": "isolated HOME/XDG/TMPDIR under /dev/shm/zero-mem-v123-r05-full; Python 3.11.16",
+    "exit_code": 0,
+    "failed": 0,
+    "passed": 3301,
+    "raw_log": "logs/full-suite.log",
+    "raw_log_sha256": "0572d6f8a2e0d4bd671265018878fbcfc3399bc3b4f1253a55d990ad866c96ec",
+    "skipped": 5,
+    "source_sha": "76aae2d186e93f4cff3fe073e3a920a0c5a6e958"
+  },
+  "logs": [
+    {
+      "path": "logs/full-suite.log",
+      "sha256": "0572d6f8a2e0d4bd671265018878fbcfc3399bc3b4f1253a55d990ad866c96ec"
+    },
+    {
+      "path": "logs/wheel-build.log",
+      "sha256": "4f1742f9d57f8dec95a7d55a449c5ef064db3b8763e66a2621218823be6d8120"
+    },
+    {
+      "path": "logs/sdist-build.log",
+      "sha256": "4d8f8bb69c381cd345dd9b03d0aeab850df92f57017b583382d63231f1681766"
+    },
+    {
+      "path": "logs/wheel-install.log",
+      "sha256": "e6845041aa057fdf23b06ebbccae5f11acf5d15d1c497df36e85c7fc021c11c8"
+    },
+    {
+      "path": "logs/sdist-install.log",
+      "sha256": "52a79f7bd2a236dc64f94c2511c8c4d2f7ec1a149d2605e5eb7fe6cd262fb517"
+    },
+    {
+      "path": "logs/wheel-smoke.log",
+      "sha256": "513f9981a2de2435a07017a2eb941bc90cc4b2b8024af1b56d66840140d99fea"
+    },
+    {
+      "path": "logs/sdist-smoke.log",
+      "sha256": "8c6e5a6f39f33291ea6881e8ac761544846a6f8c6660d60ea1068e69bc3b6c3a"
+    }
+  ],
+  "package": "R-05",
+  "platforms": {
+    "linux": {
+      "evidence": "R-04 run 32452599375",
+      "status": "PASS"
+    },
+    "macos": {
+      "evidence": "R-04 run 32452599375",
+      "status": "PASS"
+    },
+    "windows": {
+      "evidence": "R-04 run 32452599375",
+      "status": "PASS"
+    }
+  },
+  "source_sha": "76aae2d186e93f4cff3fe073e3a920a0c5a6e958"
+}
