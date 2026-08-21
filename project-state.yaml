@@ -1429,8 +1429,8 @@ v12_wp35_final_requalification: "VERIFIED; 43 package/setup/backup/upgrade tests
 # Zero-Mem v1.2.3 release-control overlay
 v123_release_control_status: READY_FOR_FINAL_AUDIT
 v123_baseline_sha: 5f1a329b6e5a18833fb4186cad7c91807a40b79e
-v123_artifact_source_sha: f2a8c43b40f4964777e23e3d875fedcae8a88dc1
-v123_current_head: 660b4bcc39e98e6ce563f0e88d3807b5c8e42fe0
+v123_artifact_source_sha: ff441f23cbb0f32fc74a948f40f45b79ca17dbf2
+v123_current_head: d6e3941a02255b00e6393c8ff575b623614da519
 v123_r00_status: CLOSED_VERIFIED
 v123_r01_status: CLOSED_VERIFIED
 v123_r02_status: CLOSED_VERIFIED
