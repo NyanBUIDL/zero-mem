@@ -16,7 +16,7 @@
 - `zero_mem-1.2.3.tar.gz`
   - SHA-256: `8e2ae39c2708031d28965ee3819766b224d27e67c366f4b8fb52913f8221d4f6`
 
-Downloaded GitHub Release assets matched both authoritative hashes exactly.
+Downloaded GitHub Release assets matched both authoritative hashes exactly. The published release body matches the tracked release notes after GitHub's standard terminal-newline normalization.
 
 ## Publication safety
 

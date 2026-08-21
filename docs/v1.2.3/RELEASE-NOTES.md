@@ -32,3 +32,4 @@ Both artifacts passed fresh-install public smoke tests and are recorded in the s
 ## Architecture and safety
 
 JSONL remains canonical append-only memory-event truth. SQLite and other indexes remain derived and rebuildable. Authorization remains before discovery. No force push, history rewrite, destructive canonical operation, or existing tag movement was performed during engineering qualification.
+
