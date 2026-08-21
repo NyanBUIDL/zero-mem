@@ -71,6 +71,7 @@ class SidecarResult:
 
 
 Dispatcher = Callable[[dict[str, Any]], dict[str, Any]]
+_CLOSED_DISPATCH = object()
 
 
 def _within_bounds(value: Any, *, max_depth: int, max_items: int,
@@ -114,6 +115,12 @@ class ZeroMemSidecar:
     def _default_dispatch(payload: dict[str, Any]) -> dict[str, Any]:
         tool = cast(str, payload["tool"])
         return handle_call(tool, payload)
+
+    def _dispatch_if_open(self, payload: dict[str, Any]) -> dict[str, Any] | object:
+        with self._admission_condition:
+            if self._closed:
+                return _CLOSED_DISPATCH
+        return self._dispatcher(payload)
 
     @staticmethod
     def _result(status: SidecarStatus, *, payload: dict[str, Any] | None = None, bytes_in: int = 0) -> SidecarResult:
@@ -177,7 +184,7 @@ class ZeroMemSidecar:
                 self._admission_condition.notify_all()
                 return self._result(SidecarStatus.CLOSED, bytes_in=size)
             try:
-                future = self._executor.submit(self._dispatcher, payload)
+                future = self._executor.submit(self._dispatch_if_open, payload)
             except RuntimeError:
                 closed = self._closed
                 self._admitted -= 1
@@ -210,7 +217,16 @@ class ZeroMemSidecar:
                 return self._result(SidecarStatus.PAYLOAD_TOO_LARGE, bytes_in=size)
             return SidecarResult(SidecarStatus.OK, response, size, len(raw))
 
-    def close(self) -> None:
+    def close(self, timeout: float | None = None) -> None:
+        """Close admission and cancel queued work within a finite deadline.
+
+        Running dispatcher code is not forcibly interrupted: Python cannot safely
+        kill an arbitrary thread. The canonical dispatcher is a finite read-only
+        path; injected dispatchers must be cooperative. ``timeout`` bounds the
+        close wait and late results are discarded by the closed-state check.
+        """
+        if timeout is not None and (isinstance(timeout, bool) or not isinstance(timeout, Real) or not _finite_number(timeout) or timeout < 0):
+            raise ValueError("invalid close timeout")
         with self._admission_condition:
             if self._closed:
                 return
