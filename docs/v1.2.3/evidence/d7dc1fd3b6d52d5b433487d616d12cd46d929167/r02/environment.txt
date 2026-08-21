@@ -1,0 +1,6 @@
+UTC=2026-08-21T11:45:00Z
+OS=Linux NyanBUIDL 7.0.0-30-generic x86_64
+Python=/tmp/zero-mem-v123-py311-venv/bin/python
+Python_version=3.11.16
+pytest=9.1.1
+TMPDIR=/dev/shm/zero-mem-v123-r02-evidence
