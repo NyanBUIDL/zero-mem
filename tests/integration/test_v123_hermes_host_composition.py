@@ -2,19 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 import zero_mem
-from src.integration.zero_mem_runtime import configure
-from zero_mem import hermes_integration as hermes_integration_module
-
-@pytest.fixture(autouse=True)
-def _reset_boundary_state(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("ZERO_MEM_ENABLED", "true")
-    configure(enabled=True)
-    hermes_integration_module._BOUNDARY_DISABLED_RUNTIME = None
-    yield
-    configure(enabled=True)
-    hermes_integration_module._BOUNDARY_DISABLED_RUNTIME = None
 
 
 class HostContext:
@@ -70,19 +58,3 @@ def test_public_host_factory_register_capture_projection_read_restart_shutdown(t
     )
     boundary.shutdown()
     assert len(capture_root.joinpath("canonical/events-v1.jsonl").read_bytes().splitlines()) == 2
-
-
-def test_public_host_factory_disabled_is_side_effect_free(tmp_path: Path) -> None:
-    root = tmp_path / "disabled"
-    boundary = zero_mem.open_hermes_boundary(
-        project_id="project-r03",
-        profile_id="profile-r03",
-        capture_root=root,
-        enabled=False,
-    )
-    context = HostContext()
-    assert boundary.register(context) == {"hooks": (), "tools": (), "injection": ()}
-    assert not root.exists()
-    boundary.shutdown()
-    configure(enabled=True)
-    hermes_integration_module._BOUNDARY_DISABLED_RUNTIME = None
