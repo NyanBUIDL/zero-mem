@@ -15,6 +15,7 @@ from pathlib import Path
 
 from src.storage.coordination import coordinated, read_regular_bytes
 from src.storage.platform import (
+    PlatformErrorCode,
     PlatformStorageError,
     FileIdentity,
     atomic_promote,
@@ -154,7 +155,12 @@ def _remove_owned(path: Path, marker: Path, token: str, *, directory_fd: int | P
     build_fd: int | None = None
     sidecar_fds: list[int] = []
     try:
-        marker_fd = open_relative(directory_fd, marker.name, access="read")
+        try:
+            marker_fd = open_relative(directory_fd, marker.name, access="read")
+        except PlatformStorageError as exc:
+            if exc.code is PlatformErrorCode.NOT_FOUND:
+                return
+            raise
         try:
             data = json.loads(read_all(marker_fd).decode("utf-8"))
         finally:
