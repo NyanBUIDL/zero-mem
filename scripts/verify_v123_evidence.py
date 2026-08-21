@@ -26,6 +26,7 @@ ALLOWED_DELTA = (
     "docs/v1.2.3/BASELINE-AUDIT.md",
     "docs/v1.2.3/TASK-BOARD.md",
     "docs/v1.2.3/FINAL-CHECKLIST-RECONCILIATION.md",
+    "project-state.yaml",
     "docs/v1.2.3/README.md",
     "docs/v1.2.3/RELEASE-NOTES.md",
 )
