@@ -41,6 +41,7 @@ class HostContext:
 
 
 def test_public_host_factory_register_capture_projection_read_restart_shutdown(tmp_path: Path) -> None:
+    # V124-02: default mode is `assist` — capture + read tools, NO injection hook.
     capture_root = tmp_path / "capture"
     store_path = capture_root / "derived" / "events.sqlite"
     boundary = zero_mem.open_hermes_boundary(
@@ -53,7 +54,8 @@ def test_public_host_factory_register_capture_projection_read_restart_shutdown(t
     first = boundary.register(context)
     assert first["hooks"]
     assert first["tools"]
-    assert first["injection"] == ("pre_llm_call",)
+    # assist mode must NOT register a controlled injection hook.
+    assert first["injection"] == ()
     assert "on_session_start" in context.hooks
     assert context.toolsets and all(value == "zero_mem" for value in context.toolsets.values())
     assert context.descriptions and all(value == "Authorized Zero-Mem read surface" for value in context.descriptions.values())
@@ -83,3 +85,51 @@ def test_public_host_factory_register_capture_projection_read_restart_shutdown(t
     )
     boundary.shutdown()
     assert len(capture_root.joinpath("canonical/events-v1.jsonl").read_bytes().splitlines()) == 2
+
+
+def test_host_factory_inject_mode_registers_controlled_injection_hook(tmp_path: Path) -> None:
+    # V124-02: explicit inject mode registers the controlled pre_llm_call hook.
+    import os
+
+    os.environ["ZERO_MEM_MODE"] = "inject"
+    try:
+        capture_root = tmp_path / "capture"
+        store_path = capture_root / "derived" / "events.sqlite"
+        boundary = zero_mem.open_hermes_boundary(
+            project_id="project-r03",
+            profile_id="profile-r03",
+            capture_root=capture_root,
+            store_path=store_path,
+        )
+        context = HostContext()
+        result = boundary.register(context)
+        assert result["hooks"]
+        assert result["tools"]
+        assert result["injection"] == ("pre_llm_call",)
+        assert boundary._injection_adapter is not None
+    finally:
+        os.environ.pop("ZERO_MEM_MODE", None)
+
+
+def test_host_factory_observe_mode_registers_no_read_and_no_injection(tmp_path: Path) -> None:
+    # V124-02: observe mode captures only; no read tools, no injection hook.
+    import os
+
+    os.environ["ZERO_MEM_MODE"] = "observe"
+    try:
+        capture_root = tmp_path / "capture"
+        store_path = capture_root / "derived" / "events.sqlite"
+        boundary = zero_mem.open_hermes_boundary(
+            project_id="project-r03",
+            profile_id="profile-r03",
+            capture_root=capture_root,
+            store_path=store_path,
+        )
+        context = HostContext()
+        result = boundary.register(context)
+        assert result["hooks"]
+        assert result["tools"] == ()
+        assert result["injection"] == ()
+        assert boundary._injection_adapter is None
+    finally:
+        os.environ.pop("ZERO_MEM_MODE", None)

@@ -17,7 +17,10 @@ import threading
 from functools import wraps
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.integration.zero_mem_runtime import RuntimeMode
 
 from .paths import config_root, derived_db, load_config, memory_stream
 from .version import __version__
@@ -173,6 +176,27 @@ def _master_switch() -> tuple[bool, str | None]:
         return parse_zero_mem_enabled(raw), None
     except Exception:
         return False, "invalid ZERO_MEM_ENABLED configuration"
+
+
+def _runtime_mode() -> tuple["RuntimeMode", str | None]:  # type: ignore[name-defined]
+    """Resolve the explicit runtime mode from ZERO_MEM_MODE (default assist).
+
+    V124-02. ``off`` is also enforced when ZERO_MEM_ENABLED resolves to false.
+    """
+    from src.integration.zero_mem_runtime import parse_runtime_mode, RuntimeMode
+
+    enabled, error = _master_switch()
+    if error:
+        return RuntimeMode.OFF, error
+    if not enabled:
+        return RuntimeMode.OFF, None
+    raw = os.environ.get("ZERO_MEM_MODE")
+    if raw is None:
+        return RuntimeMode.ASSIST, None
+    try:
+        return parse_runtime_mode(raw), None
+    except Exception:
+        return RuntimeMode.OFF, f"invalid ZERO_MEM_MODE configuration: {raw!r}"
 
 
 def zero_mem_ready() -> bool:
@@ -386,6 +410,13 @@ class HermesBoundary:
         from src.integration.hermes_registration import RegistrationAdapter
         from src.integration.hermes_read_adapter import HermesReadAdapter
         from src.integration.m7.injection_adapter import InjectionAdapter
+        from src.integration.zero_mem_runtime import mode_injection_enabled, mode_read_enabled
+
+        mode, mode_error = _runtime_mode()
+        if mode_error:
+            self.diagnostics.append({"component": "mode", "code": "invalid_runtime_mode"})
+        read_enabled = mode_error is None and mode_read_enabled(mode)
+        injection_enabled = mode_error is None and mode_injection_enabled(mode)
 
         result: dict[str, tuple[str, ...]] = {"hooks": (), "tools": (), "injection": ()}
         if self.capture_root is not None:
@@ -396,7 +427,8 @@ class HermesBoundary:
                 result["hooks"] = self._capture_adapter.register(context)
             except Exception:
                 self.diagnostics.append({"component": "capture", "code": "registration_failed"})
-        if self.store_path is not None:
+        # V124-02: read tools are registered only when the runtime mode permits.
+        if self.store_path is not None and read_enabled:
             try:
                 tool_context = _ToolContextAdapter(context)
                 self._read_adapter = HermesReadAdapter(
@@ -407,12 +439,18 @@ class HermesBoundary:
             except Exception:
                 self.diagnostics.append({"component": "read", "code": "registration_failed"})
         try:
-            self._injection_adapter = InjectionAdapter(
-                requesting_profile_id=self.config.profile_id,
-                project_id=self.config.project_id,
-                store_path=self.store_path,
-            )
-            result["injection"] = self._injection_adapter.register(context)
+            # V124-02: injection hook is registered ONLY in inject mode (controlled).
+            # observe/assist must never construct or register an InjectionAdapter.
+            if not injection_enabled:
+                self._injection_adapter = None
+                result["injection"] = ()
+            else:
+                self._injection_adapter = InjectionAdapter(
+                    requesting_profile_id=self.config.profile_id,
+                    project_id=self.config.project_id,
+                    store_path=self.store_path,
+                )
+                result["injection"] = self._injection_adapter.register(context)
         except Exception:
             self.diagnostics.append({"component": "injection", "code": "registration_failed"})
         self._registered_context = context

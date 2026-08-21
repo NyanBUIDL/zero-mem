@@ -49,6 +49,17 @@ V124-05 Cross-platform + release qualification
 
 ### V124-02 — Explicit runtime modes
 
+**Trạng thái:** `IMPLEMENTED_VERIFIED`
+**Commit:** `V124-02` (see work-packages/V124-02-runtime-modes)
+
+- Explicit `off`/`observe`/`assist`/`inject` modes govern writer-open, capture, read-tool and injection-hook registration.
+- `RuntimeMode` enum + `capability_matrix()` expose the exact truth table; each cell asserted directly.
+- `off` opens no writer/derived store; `observe` captures only (no injection); `assist` adds read tools; `inject` adds the controlled `pre_llm_call` hook.
+- Backward migration: `enabled=False` → `off`; missing mode defaults to `assist`.
+- `ZERO_MEM_MODE` env selects the mode; invalid value fails closed to `off`.
+
+**Gate đã đạt:** 39 unit mode tests + 3 host-composition tests (assist/observe/inject) + related regression 106 passed; compileall; `git diff --check`.
+
 | Mode | Capture | Explicit read | Auto injection |
 |---|---:|---:|---:|
 | `off` | No | No | No |

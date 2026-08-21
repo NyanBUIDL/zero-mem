@@ -10,6 +10,7 @@ dist/
 
 # Virtual environments
 .venv/
+.venv-*/
 venv/
 
 # Local SQLite (project uses temp dirs in tests; keep repo DBs out)
