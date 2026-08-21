@@ -173,6 +173,8 @@ def _remove_owned(path: Path, marker: Path, token: str, *, directory_fd: int | P
         info = handle_info(build_fd)
         if not is_regular_info(info) or expected_build != {"device": info.st_dev, "inode": info.st_ino}:
             return
+        close_handle(build_fd)
+        build_fd = None
         for suffix in ("-wal", "-shm"):
             sidecar_name = path.name + suffix
             try:
@@ -181,8 +183,9 @@ def _remove_owned(path: Path, marker: Path, token: str, *, directory_fd: int | P
                 continue
             sidecar_info = handle_info(sidecar_fd)
             if not is_regular_info(sidecar_info):
+                close_handle(sidecar_fd)
                 return
-            sidecar_fds.append(sidecar_fd)
+            close_handle(sidecar_fd)
             unlink_relative(directory_fd, sidecar_name)
         unlink_relative(directory_fd, path.name)
         unlink_relative(directory_fd, marker.name)
