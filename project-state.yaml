@@ -1450,3 +1450,32 @@ v123_sdist: zero_mem-1.2.3.tar.gz
 v123_force_push: false
 v123_tag_moved: false
 v123_destructive_operation: false
+
+# Zero-Mem v1.2.4 remediation overlay (R124 series)
+# Statuses below are CORRECTED downward from the prior optimistic claims recorded
+# at ff631d5a56f58ef910bed5e52a4f1138a0ed4c73. The prior IMPLEMENTED_VERIFIED
+# markers for V124-02/03/04 were not supported by production-path evidence:
+# the production HermesBoundary still registered capture hooks in mode `off`,
+# composed three independent adapters over split storage roots, the public
+# zero_mem.api health()/sync() returned unconditional OK/SYNCED, and the HITL
+# correction controller emitted a non-ingestible control schema with an
+# unredacted rationale and a collision-prone control_event_id.
+v124_baseline_sha: ff631d5a56f58ef910bed5e52a4f1138a0ed4c73
+v124_status_correction_reason: "production-path audit findings P0/P1/P2 unresolved at baseline"
+v124_01_status: IMPLEMENTED_VERIFIED
+v124_01_commit: 018407c
+v124_02_status: IMPLEMENTED_PENDING_VERIFICATION
+v124_02_commit: c66ba4d
+v124_03_status: IMPLEMENTED_PENDING_VERIFICATION
+v124_03_commit: 5647b2e
+v124_04_status: IMPLEMENTED_PENDING_VERIFICATION
+v124_04_commit: 6cbe221
+v124_05_status: NOT_RELEASE_QUALIFIED
+v124_06_status: IMPLEMENTED_PENDING_VERIFICATION
+v124_06_commit: c7c9b75
+v124_ci_workflow: .github/workflows/v1.2.4-qualification.yml
+v124_prior_claims_superseded: "V124-02/03/04 IMPLEMENTED_VERIFIED claims in docs/v1.2.4/MASTER_PLAN.md are historical only"
+v124_release_qualified: false
+v124_master_merged: false
+v124_tag_created: false
+v124_github_release_created: false
