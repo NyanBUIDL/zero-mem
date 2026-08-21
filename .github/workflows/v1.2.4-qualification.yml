@@ -45,14 +45,13 @@ on:
     branches: [release/v1.2.4]
   workflow_dispatch:
 
-concurrency:
-  group: v124-qual-${{ github.workflow }}-${{ github.ref }}-${{ matrix.os }}-${{ matrix.python-version }}
-  cancel-in-progress: true
-
 jobs:
   qualify:
     name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
+    concurrency:
+      group: v124-qual-${{ github.workflow }}-${{ github.ref }}-${{ matrix.os }}-${{ matrix.python-version }}
+      cancel-in-progress: true
     strategy:
       fail-fast: false
       matrix:
@@ -227,7 +226,7 @@ jobs:
         shell: bash
         run: |
           set -eo pipefail
-          "$VENV_PY" - <<'PY' 2>&1 | tee "ci-logs/${{ matrix.os }}-py${{ matrix.python-version }}-g10-sidecar.log"
+          python - <<'PY' 2>&1 | tee "ci-logs/${{ matrix.os }}-py${{ matrix.python-version }}-g10-sidecar.log"
           from src.integration.sidecar import (
               ZeroMemSidecar, SidecarConfig, SidecarStatus, SidecarResult,
           )
@@ -250,7 +249,7 @@ jobs:
           ZERO_MEM_MODE: assist
         run: |
           set -eo pipefail
-          "$VENV_PY" - <<'PY' 2>&1 | tee "ci-logs/${{ matrix.os }}-py${{ matrix.python-version }}-g11-hermes.log"
+          python - <<'PY' 2>&1 | tee "ci-logs/${{ matrix.os }}-py${{ matrix.python-version }}-g11-hermes.log"
           import pathlib, tempfile
           import zero_mem
           from zero_mem import open_hermes_boundary
