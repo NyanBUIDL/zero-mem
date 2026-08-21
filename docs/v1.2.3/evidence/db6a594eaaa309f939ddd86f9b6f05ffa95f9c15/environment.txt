@@ -1,0 +1,13 @@
+UTC=2026-08-21T04:05:32Z
+OS=Linux NyanBUIDL 7.0.0-30-generic x86_64
+Python=/tmp/zero-mem-v123-py311-venv/bin/python
+Python_version=3.11.16
+pytest=9.1.1
+Git=2.53.0
+Graphify=0.9.43 (read-only advisory; not a product dependency)
+TMPDIR=/dev/shm/zero-mem-v123-tests-rerun
+HOME=/dev/shm/zero-mem-v123-tests-rerun/home
+XDG_CONFIG_HOME=/dev/shm/zero-mem-v123-tests-rerun/config
+XDG_DATA_HOME=/dev/shm/zero-mem-v123-tests-rerun/data
+XDG_STATE_HOME=/dev/shm/zero-mem-v123-tests-rerun/state
+XDG_CACHE_HOME=/dev/shm/zero-mem-v123-tests-rerun/cache

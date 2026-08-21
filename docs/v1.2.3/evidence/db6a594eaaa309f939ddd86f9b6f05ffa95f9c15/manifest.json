@@ -1,0 +1,29 @@
+{
+  "package": "R-00",
+  "artifact_source_sha": "db6a594eaaa309f939ddd86f9b6f05ffa95f9c15",
+  "source_sha": "db6a594eaaa309f939ddd86f9b6f05ffa95f9c15",
+  "evidence_commit_sha": "DERIVED_FROM_CURRENT_HEAD",
+  "logs": [
+    {"path": "logs/full-py311.log", "sha256": "c6260556affc0790c0a9ee6fcb1189f27b9493411acad5aa162c89e0d0f3eef9"},
+    {"path": "logs/r00-focused-py311.log", "sha256": "086ab16f3995537ff4d8064c6bbcf96f46f647fa33e716a595a13fd194f9b59a"}
+  ],
+  "assets": [
+    {"path": "artifacts/r00-verifier.txt", "sha256": "0705b619560de4240178184ad41f97d60c76eac5a1173c75abe34831fa7beac9"}
+  ],
+  "full_suite": {
+    "command": "PYTHONPATH=. /tmp/zero-mem-v123-py311-venv/bin/python -m pytest -q tests/",
+    "source_sha": "db6a594eaaa309f939ddd86f9b6f05ffa95f9c15",
+    "environment": "isolated HOME/XDG/TMPDIR under /dev/shm/zero-mem-v123-tests-rerun",
+    "exit_code": 0,
+    "passed": 3296,
+    "failed": 0,
+    "skipped": 5,
+    "raw_log": "logs/full-py311.log",
+    "raw_log_sha256": "c6260556affc0790c0a9ee6fcb1189f27b9493411acad5aa162c89e0d0f3eef9"
+  },
+  "platforms": {
+    "linux": {"status": "PASS", "evidence": "logs/full-py311.log"},
+    "windows": {"status": "NOT_RUN", "evidence": "real runner unavailable in current execution"},
+    "macos": {"status": "NOT_RUN", "evidence": "real runner unavailable in current execution"}
+  }
+}
