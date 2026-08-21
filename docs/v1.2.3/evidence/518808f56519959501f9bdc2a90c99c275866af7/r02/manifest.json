@@ -18,7 +18,7 @@
     "environment": "isolated HOME/XDG/TMPDIR under /dev/shm/zero-mem-v123-r02-evidence",
     "exit_code": 0,
     "failed": 0,
-    "passed": 3300,
+    "passed": 3301,
     "raw_log": "logs/full-py311.log",
     "raw_log_sha256": "b406e0670977569ff4fe30dca39b3dcbedabc7fc2d6b601f4cdcbfbc29d40aec",
     "skipped": 5,

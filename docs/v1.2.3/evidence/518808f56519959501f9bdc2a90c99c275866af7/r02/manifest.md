@@ -8,7 +8,7 @@ Operator: `Hermes zero-mem-build`
 OS/architecture: `Linux x86_64`
 Python/SQLite/FTS5: `Python 3.11.16; SQLite/FTS5 exercised`
 Build command: `not applicable; packaging deferred to R-05`
-Collection count: `3300 passed, 5 skipped, 0 failed`
+Collection count: `3301 passed, 5 skipped, 0 failed`
 Focused test count: `98 passed`
 Changed files: `zero_mem/sidecar.py; src/retrieval/db.py; tests/integration/test_v123_sidecar_composition.py`
 Reviewer: `pending fresh independent exact-tree review`

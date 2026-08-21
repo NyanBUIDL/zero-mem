@@ -8,7 +8,7 @@ Operator: `Hermes zero-mem-build`
 OS/architecture: `Linux x86_64`
 Python/SQLite/FTS5: `Python 3.11.16; SQLite/FTS5 exercised by full suite`
 Build command: `not applicable to R-01; packaging deferred to R-05`
-Collection count: `3300 passed, 5 skipped, 0 failed`
+Collection count: `3301 passed, 5 skipped, 0 failed`
 Focused test count: `42 passed`
 Changed files: `zero_mem/local.py; zero_mem/__init__.py; src/integration/public_read_adapter.py; tests/integration/test_v123_public_composition.py`
 Reviewer: `pending fresh independent exact-tree review`
