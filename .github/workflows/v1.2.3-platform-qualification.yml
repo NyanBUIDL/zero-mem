@@ -1,0 +1,48 @@
+name: Zero-Mem v1.2.3 platform qualification
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release/v1.2.3]
+
+jobs:
+  platform-qualification:
+    name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.11']
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install test tooling
+        run: python -m pip install --upgrade pip pytest
+
+      - name: Run platform qualification matrix
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-logs
+          python -m pytest -q \
+            tests/unit/test_v122_platform_storage.py \
+            tests/unit/test_v122_short_write.py \
+            tests/unit/test_wp27_recovery.py \
+            tests/unit/test_wp25_runtime_ownership.py \
+            2>&1 | tee ci-logs/${{ matrix.os }}-py${{ matrix.python-version }}-platform.log
+
+      - name: Upload raw platform log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v1.2.3-${{ matrix.os }}-py${{ matrix.python-version }}-platform-log
+          path: ci-logs/
+          if-no-files-found: error
