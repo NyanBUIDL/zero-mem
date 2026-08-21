@@ -9,13 +9,28 @@ class HostContext:
     def __init__(self) -> None:
         self.hooks: dict[str, object] = {}
         self.tools: dict[str, object] = {}
+        self.toolsets: dict[str, str] = {}
+        self.descriptions: dict[str, str] = {}
 
     def register_hook(self, name: str, callback: object) -> None:
+        if name in self.hooks:
+            raise RuntimeError("duplicate_hook")
         self.hooks[name] = callback
 
-    def register_tool(self, name: str, *args: object, **kwargs: object) -> None:
-        handler = args[2] if len(args) >= 3 else args[1]
+    def register_tool(
+        self,
+        name: str,
+        toolset: str,
+        schema: dict[str, object],
+        handler: object,
+        *,
+        description: str,
+    ) -> None:
+        if name in self.tools:
+            raise RuntimeError("duplicate_tool")
         self.tools[name] = handler
+        self.toolsets[name] = toolset
+        self.descriptions[name] = description
 
 
 def test_public_host_factory_register_capture_projection_read_restart_shutdown(tmp_path: Path) -> None:
@@ -33,6 +48,8 @@ def test_public_host_factory_register_capture_projection_read_restart_shutdown(t
     assert first["tools"]
     assert first["injection"] == ("pre_llm_call",)
     assert "on_session_start" in context.hooks
+    assert context.toolsets and all(value == "zero_mem" for value in context.toolsets.values())
+    assert context.descriptions and all(value == "Authorized Zero-Mem read surface" for value in context.descriptions.values())
 
     context.hooks["on_session_start"](
         {"event_id": "r03-event", "trace_id": "r03-trace", "session_id": "r03", "text": "host fixture"}
@@ -44,7 +61,8 @@ def test_public_host_factory_register_capture_projection_read_restart_shutdown(t
         {"requesting_profile_id": "profile-r03", "search_text": "host fixture"}
     )
     assert isinstance(response, dict)
-    assert response.get("status") in {"SUCCESS", "EMPTY", "POLICY_DENIED", "CAPABILITY_UNAVAILABLE"}
+    assert response.get("status") == "SUCCESS"
+    assert "r03-event" in str(response)
 
     hook_count = len(context.hooks)
     tool_count = len(context.tools)
