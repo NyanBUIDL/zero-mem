@@ -1,6 +1,6 @@
 # Zero-Mem v1.2.3 Final Checklist Reconciliation
 
-**Status:** READY_FOR_FINAL_AUDIT
+**Status:** RELEASE_READY — PUBLICATION BOUNDARY ONLY
 **Current HEAD:** `DERIVED_FROM_GIT_HEAD`
 **Artifact source:** `ff441f23cbb0f32fc74a948f40f45b79ca17dbf2`
 **Evidence verifier:** `scripts/verify_v123_evidence.py`
@@ -12,7 +12,7 @@
 - [x] R-02: canonical sidecar discovery, parity, normalized statuses, bounded close, independent PASS.
 - [x] R-03: full Hermes host composition and lifecycle, independent PASS.
 - [x] R-04: Linux PASS, macOS PASS, Windows PASS from GitHub Actions run `32454255094`.
-- [ ] R-05: final audit/reconciliation pending this document's independent audit.
+- [x] R-05: full isolated qualification, packaging, fresh wheel/sdist installs, source-bound evidence, and independent final audit complete.
 
 ## Behavioral checklist
 
@@ -46,8 +46,8 @@
 - [x] Clean working tree at evidence generation and review checkpoints.
 - [x] No force push, tag movement, history rewrite, or destructive canonical operation.
 - [x] Remote release branch identity inspected.
-- [ ] Final release identity reconciliation (`RELEASE_COMMIT_SHA`, proposed tag target, master relationship) pending final audit/publication boundary.
-- [ ] Project-state.yaml v1.2.3 projection update pending final audit.
+- [x] Final independent audit: engineering PASS; publication boundary explicitly remains separate.
+- [x] Project-state.yaml v1.2.3 projection updated from final audit evidence.
 
 ## Known limits
 

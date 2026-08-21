@@ -1,6 +1,6 @@
 # R-05 — Release Qualification and Reconciliation
 
-**Status:** READY_FOR_FINAL_AUDIT
+**Status:** VERIFIED
 **Baseline SHA:** `5f1a329b6e5a18833fb4186cad7c91807a40b79e`
 **Finding closed:** No source-bound v1.2.3 release qualification, packaging smoke, or final reconciliation exists.
 **Allowed paths:** package/release scripts, CI, v1.2.3 evidence, release notes, work-package documentation.
