@@ -1,6 +1,6 @@
 # R-03 — Hermes Host Composition
 
-**Status:** OPEN
+**Status:** VERIFIED
 **Baseline SHA:** `5f1a329b6e5a18833fb4186cad7c91807a40b79e`
 **Finding closed:** Existing public plugin factory is capture-only and does not prove full host lifecycle composition.
 **Allowed paths:** `src/integration/hermes_plugin.py`, `zero_mem/hermes_integration.py`, read/capture adapters, focused R-03 tests, v1.2.3 evidence/work-package documentation.

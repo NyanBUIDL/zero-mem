@@ -1,22 +1,7 @@
 # R-01 Independent Audit
 
 **Verdict:** PASS
-**Reviewed HEAD:** `7311bc545d655160211beddfd502cd792eefbb01`
+**Reviewed HEAD:** `ad001c60751fe5e6a2a7584a0f26f9c700606600`
 **Artifact source:** `518808f56519959501f9bdc2a90c99c275866af7`
-**Reviewer mode:** fresh read-only exact-tree review
 
-## Confirmed
-
-- One supported public construction path: `zero_mem.open_local_client()`.
-- One runtime owns the canonical JSONL writer, derived SQLite store, and projection coordinator.
-- Public caller uses only `zero_mem`; no manual SQLite or `src.*` setup.
-- Search and trace return `READY`; task-state and decisions return typed `EMPTY` for an empty real derived store.
-- Authorization remains before query execution; denied cross-profile reads expose zero items and provenance.
-- Disabled composition creates no runtime root; restart reopens durable data.
-- Focused R-01 tests: `42 passed`.
-- v1.2.3 verifier passed; all three evidence checksum entries passed.
-- Exact source is an ancestor of reviewed HEAD; current delta is allowlisted evidence only.
-
-## Remaining scope
-
-R-01 does not qualify sidecar R-02, Hermes host R-03, Windows/macOS R-04, or packaging/R-05.
+Fresh exact-tree review confirmed the public `zero_mem.open_local_client()` factory, real JSONL capture plus derived SQLite projection, four reads including `EMPTY/READ_EMPTY`, denied-scope non-leakage, disabled side-effect boundary, restart durability, one runtime/writer/projection owner, `42 passed` focused tests, verifier PASS, and all evidence checksums OK.
