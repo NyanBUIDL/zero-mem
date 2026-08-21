@@ -9,13 +9,14 @@ Thư mục này là cổng điều hành duy nhất cho công việc v1.2.4. Nó
 ## Thứ tự đọc bắt buộc
 
 1. [`00-START-HERE.md`](00-START-HERE.md)
-2. [`MASTER_PLAN.md`](MASTER_PLAN.md)
-3. [`ARCHITECTURE.md`](ARCHITECTURE.md)
-4. [`CODE_TRACEABILITY.md`](CODE_TRACEABILITY.md)
-5. [`AGENT_PROTOCOL.md`](AGENT_PROTOCOL.md)
-6. [`TECH_STACK.md`](TECH_STACK.md)
-7. [`VALIDATION_SPEC.md`](VALIDATION_SPEC.md)
-8. [`WORK_PACKAGE_TEMPLATE.md`](WORK_PACKAGE_TEMPLATE.md) khi tạo work package mới
+2. [`AUTONOMOUS_AGENT_PROMPT.md`](AUTONOMOUS_AGENT_PROMPT.md) nếu giao toàn bộ v1.2.4 cho một Lead Agent tự chủ
+3. [`MASTER_PLAN.md`](MASTER_PLAN.md)
+4. [`ARCHITECTURE.md`](ARCHITECTURE.md)
+5. [`CODE_TRACEABILITY.md`](CODE_TRACEABILITY.md)
+6. [`AGENT_PROTOCOL.md`](AGENT_PROTOCOL.md)
+7. [`TECH_STACK.md`](TECH_STACK.md)
+8. [`VALIDATION_SPEC.md`](VALIDATION_SPEC.md)
+9. [`WORK_PACKAGE_TEMPLATE.md`](WORK_PACKAGE_TEMPLATE.md) khi tạo work package mới
 
 ## Trạng thái gói công việc
 
