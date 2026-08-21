@@ -230,6 +230,21 @@ def configure_integration(*, project_id: str | None, profile_id: str | None) -> 
     return value
 
 
+def open_hermes_boundary(
+    *,
+    project_id: str,
+    profile_id: str,
+    capture_root: Path,
+    store_path: Path | None = None,
+    enabled: bool = True,
+) -> HermesBoundary:
+    """Create the full external Hermes host composition boundary."""
+    return HermesBoundary(
+        IntegrationConfig(project_id=project_id, profile_id=profile_id, enabled=enabled),
+        capture_root=Path(capture_root),
+        store_path=Path(store_path) if store_path is not None else None,
+    )
+
 def remove_integration() -> None:
     """Remove only a valid Zero-Mem-owned descriptor."""
     path = integration_config_path()
@@ -456,6 +471,7 @@ __all__ = [
     "inspect_integration",
     "integration_config_path",
     "load_integration_config",
+    "open_hermes_boundary",
     "remove_integration",
 ]
 

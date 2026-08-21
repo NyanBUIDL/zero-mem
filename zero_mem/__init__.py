@@ -6,8 +6,8 @@ from .recovery import FailureClass, RecoveryDiagnosis, diagnose
 from .status import STATUS_SCHEMA_VERSION, StatusSnapshot, collect_status
 from .sidecar import CAPABILITIES, CONTRACT_VERSION, LocalSidecar, SidecarConfig, SidecarError
 from .version import __version__
+from .hermes_integration import open_hermes_boundary
 from .local import open_local_client
-
 __all__ = [
     "API_VERSION",
     "AsyncClient",
@@ -20,6 +20,7 @@ __all__ = [
     "PublicClient",
     "PublicReadService",
     "open_local_client",
+    "open_hermes_boundary",
     "RecoveryDiagnosis",
     "STATUS_SCHEMA_VERSION",
     "StatusSnapshot",
