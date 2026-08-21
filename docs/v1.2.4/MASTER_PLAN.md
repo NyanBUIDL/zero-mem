@@ -107,10 +107,26 @@ HITL tối thiểu: inspect → propose correction/supersession/delete-request �
 
 **Gate đã đạt:** 6 HITL unit tests + 69 regression tests pass; compileall; `git diff --check`.
 
+### V124-05 — Cross-platform and release qualification
+
+**Trạng thái:** `NOT_RELEASE_QUALIFIED` (phần thực thi được trên Linux đã xong; ma trận Windows/macOS × Py3.11–3.13 **BLOCKED** — không có môi trường đó ở đây).
+
 - Thay mọi POSIX-only assumption còn lọt ra khỏi platform backend.
 - Kiểm tra Windows/Linux/macOS, CPython 3.11–3.13.
 - Wheel/sdist clean-install và Hermes smoke test từ candidate SHA.
 - Evidence manifest chứa SHA, commands, environment, logs, checksums và support matrix.
+
+**Đã thực thi (Linux x86_64, Python 3.11.16):**
+- `compileall src zero_mem` → exit 0 (toàn bộ package import/parse sạch).
+- `test_v122_platform_storage.py` + `test_m5_cross_profile.py` → 6 passed.
+- Không có decorator skip không điều kiện theo OS trong test tree (core path không bị skip).
+- `src/storage/platform.py` là boundary duy nhất; mọi nhánh `os.name == "nt"` được cô lập.
+
+**BLOCKED (không thực thi được tại đây — phải chạy bởi CI/operator trên target OS):**
+- Windows/macOS × CPython 3.11/3.12/3.13.
+- Build wheel/sdist + clean-install + CLI/sidecar/Hermes smoke trên mỗi OS.
+- Path-attack/symlink/reparse suites trên Windows.
+- SHA-256 artifact reconciliation.
 
 **Exit gate:** không còn unconditional skip cho core path; full suite, security, concurrency, benchmark, packaging và E2E đạt trên mọi platform được công bố.
 
