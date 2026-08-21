@@ -1,6 +1,6 @@
 # R-04 — Platform Qualification
 
-**Status:** OPEN
+**Status:** VERIFIED_ALL_PLATFORMS
 **Baseline SHA:** `5f1a329b6e5a18833fb4186cad7c91807a40b79e`
 **Finding closed:** Windows/macOS qualification is absent; Linux has not been regenerated as v1.2.3 evidence.
 **Allowed paths:** `src/storage/platform.py`, storage callers/tests, CI configuration, v1.2.3 evidence/work-package documentation.
