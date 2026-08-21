@@ -178,10 +178,37 @@ def _master_switch() -> tuple[bool, str | None]:
         return False, "invalid ZERO_MEM_ENABLED configuration"
 
 
-def _runtime_mode() -> tuple["RuntimeMode", str | None]:  # type: ignore[name-defined]
-    """Resolve the explicit runtime mode from ZERO_MEM_MODE (default assist).
+def _configured_capture_mode() -> tuple[str | None, str | None]:
+    """Read the canonical Zero-Mem config ``capture_mode``, if configured.
 
-    V124-02. ``off`` is also enforced when ZERO_MEM_ENABLED resolves to false.
+    R124-01. The canonical setup configuration is authority for the default mode.
+    A missing/unreadable configuration is NOT an error here: it simply provides no
+    canonical default, and the caller then fails closed rather than self-elevating.
+    """
+    try:
+        config = load_config(required=False)
+    except Exception:
+        return None, "invalid canonical configuration"
+    if not isinstance(config, dict):
+        return None, None
+    value = config.get("capture_mode")
+    return (value if isinstance(value, str) else None), None
+
+
+def _runtime_mode() -> tuple["RuntimeMode", str | None]:  # type: ignore[name-defined]
+    """Resolve the effective runtime mode from canonical config + environment.
+
+    R124-01 resolution order (fail closed, never self-elevating):
+
+    1. ``ZERO_MEM_ENABLED`` false/invalid  -> ``off``.
+    2. ``ZERO_MEM_MODE`` present           -> that explicit mode; invalid -> ``off``.
+    3. canonical config ``capture_mode``   -> mapped mode
+       (``observation_only`` -> ``observe``).
+    4. nothing configured                  -> ``observe`` (least-privilege default).
+
+    A missing ``ZERO_MEM_MODE`` must never raise the effective mode above the
+    canonical configuration, so an absent environment variable can no longer
+    promote a setup written as ``capture_mode=observation_only`` into ``assist``.
     """
     from src.integration.zero_mem_runtime import parse_runtime_mode, RuntimeMode
 
@@ -191,12 +218,24 @@ def _runtime_mode() -> tuple["RuntimeMode", str | None]:  # type: ignore[name-de
     if not enabled:
         return RuntimeMode.OFF, None
     raw = os.environ.get("ZERO_MEM_MODE")
-    if raw is None:
-        return RuntimeMode.ASSIST, None
-    try:
-        return parse_runtime_mode(raw), None
-    except Exception:
-        return RuntimeMode.OFF, f"invalid ZERO_MEM_MODE configuration: {raw!r}"
+    if raw is not None:
+        try:
+            return parse_runtime_mode(raw), None
+        except Exception:
+            # Sanitized diagnostic: never echo the rejected operator-supplied value.
+            return RuntimeMode.OFF, "invalid ZERO_MEM_MODE configuration"
+    capture_mode, config_error = _configured_capture_mode()
+    if config_error:
+        return RuntimeMode.OFF, config_error
+    if capture_mode is not None:
+        if capture_mode == "observation_only":
+            return RuntimeMode.OBSERVE, None
+        try:
+            return parse_runtime_mode(capture_mode), None
+        except Exception:
+            return RuntimeMode.OFF, "invalid canonical capture_mode configuration"
+    # No explicit mode and no canonical capture_mode: least privilege.
+    return RuntimeMode.OBSERVE, None
 
 
 def zero_mem_ready() -> bool:
@@ -347,12 +386,47 @@ def command(*, project_id: str | None, profile_id: str | None, check: bool = Fal
     return 0, _diagnostic("HERMES_INTEGRATION_CONFIGURED", "PASS", "Hermes integration configured through the supported plugin boundary")
 
 
+def _derived_store_path(capture_root: Path) -> Path:
+    """The one runtime-owned derived store identity, derived from capture_root.
+
+    R124-02. ``ZeroMemRuntime.open`` creates exactly this file via
+    ``RuntimeStorageRoot.derived``; nothing else may be treated as the read store.
+    """
+    return Path(capture_root).expanduser().resolve() / "derived" / "events.sqlite"
+
+
+def _same_store_identity(candidate: Path, runtime_owned: Path) -> bool:
+    """Return True only when ``candidate`` is the runtime-owned derived store.
+
+    Compares the normalized path, then the resolved real path (alias/symlink), then
+    the concrete filesystem identity when both exist. Any error is a mismatch.
+    """
+    try:
+        left = Path(candidate).expanduser()
+        right = Path(runtime_owned).expanduser()
+        if os.path.normcase(str(left)) == os.path.normcase(str(right)):
+            return True
+        if os.path.normcase(os.path.realpath(left)) == os.path.normcase(os.path.realpath(right)):
+            return True
+        if left.exists() and right.exists():
+            left_stat, right_stat = left.stat(), right.stat()
+            return (left_stat.st_dev, left_stat.st_ino) == (right_stat.st_dev, right_stat.st_ino)
+    except OSError:
+        return False
+    return False
+
+
 class HermesBoundary:
     """Small runtime composition helper for a supported external PluginContext.
 
     It consumes only explicit integration identity and caller-owned paths. Each
     existing adapter retains its own authorization, read-only, redaction, and
     failure-isolation behavior.
+
+    R124-01/R124-02: this class is the single production composition root. The
+    effective runtime mode is resolved BEFORE any adapter, writer, derived store,
+    or projection worker is constructed, and every adapter is bound to the one
+    runtime-owned storage identity derived from ``capture_root``.
     """
 
     def __init__(self, config: IntegrationConfig, *, capture_root: Path | None = None, store_path: Path | None = None) -> None:
@@ -362,24 +436,63 @@ class HermesBoundary:
         self.diagnostics: list[dict[str, str]] = []
         self._registered_context: Any | None = None
         self._registration_result: dict[str, tuple[str, ...]] | None = None
+        self._registered_mode: Any | None = None
         self._capture_adapter: Any | None = None
         self._read_adapter: Any | None = None
         self._injection_adapter: Any | None = None
+        self._resolved_store_path: Path | None = None
         self._lifecycle_lock = threading.RLock()
+
+    @property
+    def storage_identity(self) -> str | None:
+        """Sanitized single-topology store identity, or None when nothing is open."""
+        return str(self._resolved_store_path) if self._resolved_store_path is not None else None
+
+    @property
+    def runtime(self) -> Any | None:
+        """The one ZeroMemRuntime owned by this boundary, when composed."""
+        return getattr(self._capture_adapter, "runtime", None)
+
+    def _drop_authority(self) -> dict[str, tuple[str, ...]]:
+        """Fail closed: stop adapters and discard all cached callback authority."""
+        self.shutdown()
+        self._registered_context = None
+        self._registration_result = None
+        self._registered_mode = None
+        self._capture_adapter = None
+        self._read_adapter = None
+        self._injection_adapter = None
+        self._resolved_store_path = None
+        return {"hooks": (), "tools": (), "injection": ()}
 
     @_lifecycle_guard
     def register(self, context: Any) -> dict[str, tuple[str, ...]]:
         global _BOUNDARY_DISABLED_RUNTIME
-        from src.integration.zero_mem_runtime import configure, get_runtime
+        from src.integration.zero_mem_runtime import (
+            RuntimeMode,
+            configure,
+            get_runtime,
+            mode_injection_enabled,
+            mode_read_enabled,
+        )
+
         enabled, error = _master_switch()
-        if error or not enabled or not self.config.enabled:
-            # Fail closed even when a prior boundary configured a process-local
-            # runtime as enabled. Registration must not leave stale authority live.
-            # Stop previously registered adapters before revoking the process gate.
-            self.shutdown()
+        # R124-01: resolve the effective mode BEFORE composing anything at all.
+        mode, mode_error = _runtime_mode()
+        if mode_error:
+            self.diagnostics.append({"component": "mode", "code": "invalid_runtime_mode"})
+
+        # OFF gate. No capture hook, no read tool, no injection hook, no writer,
+        # no canonical JSONL, no SQLite, no projection worker. An invalid mode
+        # fails closed to exactly this path with a sanitized diagnostic.
+        if error or not enabled or not self.config.enabled or mode_error or mode is RuntimeMode.OFF:
+            # Stop previously registered adapters before revoking the process gate so
+            # registration never leaves stale callback authority live.
+            result = self._drop_authority()
             configure(enabled=False, source="boundary")
             _BOUNDARY_DISABLED_RUNTIME = get_runtime()
-            return {"hooks": (), "tools": (), "injection": ()}
+            return result
+
         # A boundary-local registration must never re-enable an already
         # resolved process-global disabled/closed runtime. Only initialize the
         # compatibility gate when no global runtime exists yet.
@@ -390,15 +503,22 @@ class HermesBoundary:
         else:
             if not global_runtime.is_enabled():
                 if global_runtime.source != "boundary" or global_runtime is not _BOUNDARY_DISABLED_RUNTIME:
-                    self.shutdown()
+                    result = self._drop_authority()
                     configure(enabled=False)
                     _BOUNDARY_DISABLED_RUNTIME = get_runtime()
-                    return {"hooks": (), "tools": (), "injection": ()}
+                    return result
                 configure(enabled=True, source="boundary")
                 _BOUNDARY_DISABLED_RUNTIME = None
             else:
                 _BOUNDARY_DISABLED_RUNTIME = None
-        if self._registered_context is context and self._registration_result is not None:
+
+        # Reuse an existing callback set only when the resolved mode is unchanged;
+        # a mode change must never reuse a registration made under other authority.
+        if (
+            self._registered_context is context
+            and self._registration_result is not None
+            and self._registered_mode is mode
+        ):
             for adapter in (self._capture_adapter, self._read_adapter, self._injection_adapter):
                 restart = getattr(adapter, "restart", None)
                 if callable(restart):
@@ -406,34 +526,60 @@ class HermesBoundary:
             return {key: tuple(value) for key, value in self._registration_result.items()}
         if self._registered_context is not None:
             self.shutdown()
+
         from src.integration.bridge_config import BridgeConfig
         from src.integration.hermes_registration import RegistrationAdapter
         from src.integration.hermes_read_adapter import HermesReadAdapter
         from src.integration.m7.injection_adapter import InjectionAdapter
-        from src.integration.zero_mem_runtime import mode_injection_enabled, mode_read_enabled
 
-        mode, mode_error = _runtime_mode()
-        if mode_error:
-            self.diagnostics.append({"component": "mode", "code": "invalid_runtime_mode"})
-        read_enabled = mode_error is None and mode_read_enabled(mode)
-        injection_enabled = mode_error is None and mode_injection_enabled(mode)
+        read_enabled = mode_read_enabled(mode)
+        injection_enabled = mode_injection_enabled(mode)
+
+        # R124-02: one composition root requires one runtime-owned storage root.
+        if self.capture_root is None:
+            self.diagnostics.append({"component": "topology", "code": "capture_root_required"})
+            return self._drop_authority()
+        runtime_store_path = _derived_store_path(self.capture_root)
+        # A retained store_path is a compatibility input only: it must resolve to the
+        # runtime-owned derived store. A split topology fails closed.
+        if self.store_path is not None and not _same_store_identity(self.store_path, runtime_store_path):
+            self.diagnostics.append({"component": "topology", "code": "store_identity_mismatch"})
+            return self._drop_authority()
 
         result: dict[str, tuple[str, ...]] = {"hooks": (), "tools": (), "injection": ()}
-        if self.capture_root is not None:
-            try:
-                self._capture_adapter = RegistrationAdapter(
-                    BridgeConfig(enabled=True, project_id=self.config.project_id, profile_id=self.config.profile_id, capture_root=self.capture_root),
-                )
-                result["hooks"] = self._capture_adapter.register(context)
-            except Exception:
-                self.diagnostics.append({"component": "capture", "code": "registration_failed"})
-        # V124-02: read tools are registered only when the runtime mode permits.
-        if self.store_path is not None and read_enabled:
+        # The capture adapter owns THE ZeroMemRuntime: one canonical writer, one
+        # derived SQLite store, one bounded ProjectionCoordinator. It is composed
+        # first so the runtime-owned derived store exists before any reader binds.
+        try:
+            self._capture_adapter = RegistrationAdapter(
+                BridgeConfig(
+                    enabled=True,
+                    project_id=self.config.project_id,
+                    profile_id=self.config.profile_id,
+                    capture_root=self.capture_root,
+                ),
+                mode=mode,
+            )
+            result["hooks"] = self._capture_adapter.register(context)
+        except Exception:
+            self.diagnostics.append({"component": "capture", "code": "registration_failed"})
+            return self._drop_authority()
+        self._resolved_store_path = runtime_store_path
+
+        # V124-02/R124-01: read tools are registered only when the mode permits.
+        # R124-02: the reader binds to the runtime-owned derived store, never to a
+        # separately supplied path.
+        if read_enabled:
             try:
                 tool_context = _ToolContextAdapter(context)
                 self._read_adapter = HermesReadAdapter(
-                    BridgeConfig(enabled=True, project_id=self.config.project_id, profile_id=self.config.profile_id, capture_root=self.capture_root or Path(tempfile.mkdtemp(prefix="zero-mem-boundary-"))),
-                    store_path=self.store_path,
+                    BridgeConfig(
+                        enabled=True,
+                        project_id=self.config.project_id,
+                        profile_id=self.config.profile_id,
+                        capture_root=self.capture_root,
+                    ),
+                    store_path=runtime_store_path,
                 )
                 result["tools"] = self._read_adapter.register(tool_context)
             except Exception:
@@ -448,12 +594,13 @@ class HermesBoundary:
                 self._injection_adapter = InjectionAdapter(
                     requesting_profile_id=self.config.profile_id,
                     project_id=self.config.project_id,
-                    store_path=self.store_path,
+                    store_path=runtime_store_path,
                 )
                 result["injection"] = self._injection_adapter.register(context)
         except Exception:
             self.diagnostics.append({"component": "injection", "code": "registration_failed"})
         self._registered_context = context
+        self._registered_mode = mode
         self._registration_result = {key: tuple(value) for key, value in result.items()}
         return result
 
@@ -470,7 +617,60 @@ class HermesBoundary:
                     self.diagnostics.append({"component": "lifecycle", "code": "shutdown_failed"})
         # Keep adapter references and registration result so an existing Hermes
         # callback set can be rebound on the next lifecycle restart without
-        # registering duplicate callbacks.
+        # registering duplicate callbacks. Authority is revoked separately by
+        # ``_drop_authority`` whenever the mode gate closes.
+
+    def health(self) -> dict[str, object]:
+        """R124-03: truthful production health across all four modes.
+
+        Delegates to the ONE runtime-owned topology. When the boundary is in OFF or
+        has dropped authority, reports the fail-closed CLOSED/OFF contract with no
+        side effects and no invented freshness.
+        """
+        runtime = self.runtime
+        if runtime is None:
+            return {
+                "status": "CLOSED",
+                "mode": "off",
+                "capture_enabled": False,
+                "read_enabled": False,
+                "injection_enabled": False,
+                "writer_open": False,
+                "canonical_store_identity": None,
+                "derived_store_identity": None,
+                "last_canonical_sequence": None,
+                "last_projected_sequence": None,
+                "lag": None,
+                "projection_status": None,
+                "last_projection_error": None,
+                "readiness": "OFF",
+                "reason_code": "BOUNDARY_DISABLED",
+            }
+        h = runtime.health()
+        return {
+            "status": h.status,
+            "mode": h.mode,
+            "capture_enabled": h.capture_enabled,
+            "read_enabled": h.read_enabled,
+            "injection_enabled": h.injection_enabled,
+            "writer_open": h.writer_open,
+            "canonical_store_identity": h.canonical_store_identity,
+            "derived_store_identity": h.read_store_identity,
+            "last_canonical_sequence": h.last_canonical_sequence,
+            "last_projected_sequence": h.last_projected_sequence,
+            "lag": h.lag,
+            "projection_status": h.projection_status,
+            "last_projection_error": h.last_projection_error,
+            "readiness": h.readiness,
+            "reason_code": h.reason_code,
+        }
+
+    def sync(self) -> str:
+        """R124-03: truthful production sync state; never self-greens to CURRENT."""
+        runtime = self.runtime
+        if runtime is None:
+            return "OFF"
+        return runtime.sync()
 
 
 class _ToolContextAdapter:

@@ -9,7 +9,7 @@ from typing import Any
 from .bridge_config import BridgeConfig, BridgeMetrics, VERIFIED_SUPPORTED_HOOKS
 from .capture_adapter import adapt_mapped_event
 from .payload_mapping import MappingResult, map_hook_payload
-from .zero_mem_runtime import RuntimeConfig, ZeroMemRuntime, configure as configure_zero_mem_runtime, get_runtime
+from .zero_mem_runtime import RuntimeConfig, RuntimeMode, ZeroMemRuntime, configure as configure_zero_mem_runtime, get_runtime
 from zero_mem.core import AppendReceipt, CoreConfig, ZeroMemClient
 
 
@@ -24,12 +24,19 @@ class RegistrationDiagnostic:
 
 
 class RegistrationAdapter:
-    """Register only verified observer hooks against a plugin context-like API."""
+    """Register only verified observer hooks against a plugin context-like API.
 
-    def __init__(self, config: BridgeConfig, *, store: Any = None) -> None:
+    R124-02: this adapter owns THE single ``ZeroMemRuntime`` for the composition
+    root (one canonical writer, one derived store, one bounded projection worker).
+    The explicit ``mode`` is propagated into that runtime so capability reporting,
+    read/injection enablement, and health all reflect one shared authority.
+    """
+
+    def __init__(self, config: BridgeConfig, *, store: Any = None, mode: RuntimeMode | None = None) -> None:
         self.config = config
         self.enabled = bool(config.enabled)
         self.store = store
+        self.mode = mode
         self.metrics = BridgeMetrics()
         self._registered: tuple[str, ...] = ()
         self.last_diagnostic: RegistrationDiagnostic | None = None
@@ -49,8 +56,13 @@ class RegistrationAdapter:
         self._zero_mem = get_runtime()
         self._lifecycle_lock = threading.RLock()
         effective_enabled = bool(config.zero_mem_enabled) and self._zero_mem.is_enabled()
+        # R124-01: an explicit OFF mode opens no writer and no derived store.
+        effective_mode = mode if mode is not None else RuntimeMode.ASSIST
+        if not effective_enabled or effective_mode is RuntimeMode.OFF:
+            effective_enabled = False
+            effective_mode = RuntimeMode.OFF
         self.runtime = ZeroMemRuntime.open(
-            RuntimeConfig(config.capture_root, enabled=effective_enabled),
+            RuntimeConfig(config.capture_root, enabled=effective_enabled, mode=effective_mode),
             store=store,
         )
         runtime_writer = _CaptureWriter(self.runtime.writer, on_append=self.runtime.notify_append) if effective_enabled else None
