@@ -94,7 +94,9 @@ class AuthorizedPublicReadAdapter:
             return ReadResult("UNAVAILABLE", "READ_UNAVAILABLE", error="READ_UNAVAILABLE", freshness=freshness)
         items = tuple(getattr(result, "items", ()) or ())
         provenance = tuple({"source": "authorized_read", "item_index": i} for i, _ in enumerate(items))
-        return ReadResult("READY", "READ_OK", items, provenance, freshness)
+        status = "READY" if items else "EMPTY"
+        reason = "READ_OK" if items else "READ_EMPTY"
+        return ReadResult(status, reason, items, provenance, freshness)
 
     def _run(self, request: Mapping[str, Any] | None, operation: Any) -> ReadResult:
         try:

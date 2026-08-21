@@ -38,6 +38,19 @@ def test_sidecar_advertises_and_dispatches_the_same_public_reads(tmp_path: Path)
         direct_event_ids = [item["value"].event_id for item in direct.items]
         routed_event_ids = [item["value"]["event_id"] for item in routed["items"]]
         assert routed_event_ids == direct_event_ids
+
+        empty_direct = client.search({"text": "no such sidecar fixture", "consistency": "require_current"})
+        empty_routed = sidecar.dispatch(
+            {
+                "identity": "profile-r02",
+                "capability": "search",
+                "text": "no such sidecar fixture",
+                "consistency": "require_current",
+            }
+        )
+        assert empty_direct.status == "EMPTY"
+        assert empty_routed["status"] == "EMPTY"
+        assert empty_routed["reason_code"] == "READ_EMPTY"
     finally:
         sidecar.stop()
         client.shutdown()
