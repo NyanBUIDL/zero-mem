@@ -282,6 +282,10 @@ def unlink_relative(parent: int | Path, name: str) -> None:
             os.unlink(name, dir_fd=parent)
     except FileNotFoundError:
         return
+    except PlatformStorageError as exc:
+        if exc.code is PlatformErrorCode.NOT_FOUND:
+            return
+        raise
     except OSError:
         raise PlatformStorageError(PlatformErrorCode.UNSAFE_PATH) from None
 
