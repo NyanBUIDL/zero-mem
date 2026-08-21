@@ -58,4 +58,3 @@ Dừng và báo `BLOCKED` khi:
 - test cần bỏ qua security gate để pass;
 - có dirty path không xác định hoặc cần rewrite lịch sử Git;
 - không thể chạy gate bắt buộc trên một platform được tuyên bố hỗ trợ.
-

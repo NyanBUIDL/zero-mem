@@ -72,4 +72,3 @@ docs/v1.2.4/evidence/<tested-full-sha>/<gate>/
 ```
 
 Manifest phải phân biệt `pass`, `fail`, `skip`, `error`; thiếu log/checksum/SHA là gate failure.
-

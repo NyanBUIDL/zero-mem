@@ -36,7 +36,7 @@ V124-05 Cross-platform + release qualification
 
 ### V124-01 — Semantic capture
 
-**Trạng thái:** `IMPLEMENTED_VERIFIED`  
+**Trạng thái:** `IMPLEMENTED_VERIFIED`
 **Commit:** `018407c`
 
 - `pre_llm_call` → `user_statement`.
@@ -102,4 +102,3 @@ HITL tối thiểu: inspect → propose correction/supersession/delete-request �
 | Review Agent Skills fixture độc lập với SOUL audit | V124-03 trước HITL integration |
 
 Không merge các nhánh song song nếu chúng thay cùng public contract hoặc cùng composition root mà chưa reconciliation review.
-

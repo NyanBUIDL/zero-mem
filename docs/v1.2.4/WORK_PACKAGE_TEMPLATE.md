@@ -71,4 +71,3 @@ Depends on: <IDs>
 ```
 
 Không đổi status sang `IMPLEMENTED_VERIFIED` nếu bất kỳ trường bắt buộc nào còn trống hoặc acceptance gate chưa đạt.
-

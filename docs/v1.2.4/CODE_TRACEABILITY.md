@@ -51,4 +51,3 @@ Nếu thêm hoặc đổi public field, event type, status hoặc mode, Agent ph
 5. positive + negative tests;
 6. tài liệu trong thư mục này;
 7. evidence record gắn exact commit SHA.
-

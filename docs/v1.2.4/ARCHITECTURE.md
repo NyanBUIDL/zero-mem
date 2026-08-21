@@ -84,4 +84,3 @@ ASSIST:  OBSERVE + Hermes chủ động gọi read tool
 INJECT:  ASSIST + controlled pre-LLM injection gate
 HITL:    Inspect → proposal → preview → confirm → linked event
 ```
-

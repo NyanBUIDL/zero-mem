@@ -41,4 +41,3 @@
 - Content/history duplication must be bounded.
 - No new always-on network process.
 - Benchmarks must report corpus size, repeats, platform, Python version and reproducibility seed.
-

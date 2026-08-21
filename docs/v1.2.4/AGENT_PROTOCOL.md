@@ -80,4 +80,3 @@ Record phải có:
 ## Definition of done
 
 Package chỉ là `IMPLEMENTED_VERIFIED` khi code, tests, negative paths, documentation và evidence đều khớp. “Code đã viết”, “test hẹp pass” hoặc “Agent báo xong” không đủ.
-

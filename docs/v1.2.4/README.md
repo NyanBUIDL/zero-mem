@@ -1,7 +1,7 @@
 # Zero-Mem v1.2.4 — Contract-Correction Development System
 
-**Branch:** `release/v1.2.4`  
-**Release status:** `IN_PROGRESS`  
+**Branch:** `release/v1.2.4`
+**Release status:** `IN_PROGRESS`
 **Purpose:** sửa sự lệch nhau giữa hành vi runtime, kỳ vọng người dùng và tài liệu thống nhất trước khi mở rộng v1.3.
 
 Thư mục này là cổng điều hành duy nhất cho công việc v1.2.4. Nó không thay thế tài liệu quyền lực [`Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx`](../../Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx), [`AGENTS.md`](../../AGENTS.md), ADR-009 hoặc bằng chứng kiểm thử.
@@ -28,4 +28,3 @@ Thư mục này là cổng điều hành duy nhất cho công việc v1.2.4. Nó
 | V124-05 | Đa nền tảng, packaging, E2E và release qualification | `APPROVED` |
 
 `APPROVED` chỉ cho phép bắt đầu theo đúng dependency và protocol; không có nghĩa là đã triển khai.
-
