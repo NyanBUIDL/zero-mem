@@ -17,27 +17,27 @@ VERIFIED_SUPPORTED_HOOKS: Final[tuple[str, ...]] = (
     "on_session_start",
     "on_session_end",
     "on_session_finalize",
+    "on_session_reset",
     "pre_tool_call",
     "post_tool_call",
+    "pre_llm_call",
+    "post_llm_call",
+    "on_skill_lifecycle",
+    "subagent_start",
+    "subagent_stop",
     "kanban_task_claimed",
     "kanban_task_completed",
     "kanban_task_blocked",
 )
 
 CONDITIONAL_FIXTURE_REQUIRED: Final[tuple[str, ...]] = (
-    "on_session_reset",
-    "pre_llm_call",
-    "post_llm_call",
     "pre_api_request",
     "post_api_request",
     "api_request_error",
-    "subagent_start",
-    "subagent_stop",
 )
 
 DEFERRED_HOOKS: Final[tuple[str, ...]] = (
     "file_operations",
-    "skill_usage",
     "generic_task_transitions",
     "transform_terminal_output",
     "transform_tool_result",
@@ -68,6 +68,7 @@ _EVENT_CLASSES: Final[dict[str, str]] = {
     "api_request_error": "llm_api_lifecycle",
     "subagent_start": "subagent_lifecycle",
     "subagent_stop": "subagent_lifecycle",
+    "on_skill_lifecycle": "skill_lifecycle",
     "kanban_task_claimed": "verified_task_or_kanban_lifecycle",
     "kanban_task_completed": "verified_task_or_kanban_lifecycle",
     "kanban_task_blocked": "verified_task_or_kanban_lifecycle",

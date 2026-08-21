@@ -1,6 +1,101 @@
 {
   "schema_version": 1,
   "authority": "Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx",
+  "v124_contract_correction": {
+    "status": "in_progress",
+    "approval_basis": "Owner explicitly requested product implementation from the v1.2.3 operational-logic audit on 2026-08-21.",
+    "release": "v1.2.4",
+    "objective": "Make observed product behavior match the documented Hermes External Zero-Mem user contract before v1.3 feature expansion.",
+    "invariants": [
+      "Hermes remains the orchestrator and final-action layer.",
+      "Observation mode never registers automatic context injection.",
+      "User and assistant messages use explicit semantic event types and occurrence-safe event identifiers.",
+      "Capture, projection, authorized reads, health, doctor, backup and recovery resolve one runtime-owned storage topology.",
+      "Canonical JSONL append success remains independent from derived projection success.",
+      "Memory-operation LLM calls remain zero.",
+      "Hermes read tools remain read-only; operator HITL changes use a separate reviewed control path.",
+      "Agent Skills files remain Hermes-owned and agentskills.io compatible; Zero-Mem observes lifecycle without rewriting SKILL.md."
+    ],
+    "runtime_modes": {
+      "off": "No capture, reads or injection.",
+      "observe": "Capture only; default and backward-safe setup mode.",
+      "assist": "Capture plus explicit authorized read tools; no automatic injection.",
+      "inject": "Capture, authorized reads and controlled pre-LLM injection."
+    },
+    "work_packages": [
+      {
+        "id": "V124-01",
+        "name": "Semantic message capture and occurrence-safe identity",
+        "status": "implemented_verified",
+        "depends_on": [],
+        "scope": [
+          "zero_mem/api.py",
+          "zero_mem/local.py",
+          "src/integration/bridge_config.py",
+          "src/integration/payload_mapping.py",
+          "src/integration/hermes_registration.py"
+        ],
+        "validation": {
+          "date": "2026-08-21",
+          "result": "103 targeted unit and integration tests passed; compileall and git diff --check passed.",
+          "full_suite_context": "3234 passed, 6 skipped; remaining Windows failures and packaging errors belong to pre-existing cross-platform work tracked by V124-05."
+        }
+      },
+      {
+        "id": "V124-02",
+        "name": "Explicit runtime modes and observation-only enforcement",
+        "status": "approved",
+        "depends_on": ["V124-01"],
+        "scope": [
+          "zero_mem/hermes_integration.py",
+          "zero_mem/cli.py",
+          "zero_mem/config.py",
+          "src/integration/m7/injection_adapter.py"
+        ]
+      },
+      {
+        "id": "V124-03",
+        "name": "Single storage composition and truthful freshness",
+        "status": "approved",
+        "depends_on": ["V124-02"],
+        "scope": [
+          "zero_mem/local.py",
+          "zero_mem/hermes_integration.py",
+          "src/integration/zero_mem_runtime.py",
+          "src/storage/projection.py"
+        ]
+      },
+      {
+        "id": "V124-04",
+        "name": "Hermes pillars, HITL control and Agent Skills compatibility",
+        "status": "approved",
+        "depends_on": ["V124-01", "V124-02", "V124-03"],
+        "scope": [
+          "Hermes memory/FTS5 ownership boundary",
+          "skill lifecycle observation without skill mutation",
+          "SOUL ownership exclusion",
+          "cron and subagent provenance",
+          "reviewed correction/supersession/delete-request control path"
+        ]
+      },
+      {
+        "id": "V124-05",
+        "name": "Cross-platform qualification and documentation",
+        "status": "approved",
+        "depends_on": ["V124-01", "V124-02", "V124-03", "V124-04"],
+        "scope": [
+          "docs/v1.2.4/ARCHITECTURE.md",
+          "docs/v1.2.4/ROADMAP.md",
+          "docs/v1.2.4/TECH_STACK.md",
+          "docs/v1.2.4/VALIDATION_SPEC.md",
+          "Linux/macOS/Windows CPython 3.11-3.13 validation"
+        ]
+      }
+    ],
+    "open_questions": [],
+    "destructive_data_operations": "not_authorized",
+    "release_publication": "not_authorized"
+  },
   "status": "verified",
   "current_milestone_status": "m10_verified",
   "current_milestone_verification": "m10_7_verified",

@@ -6,7 +6,11 @@ import json
 import pytest
 
 from src.integration.capture_benchmark import run_benchmark
-from src.integration.bridge_config import CONDITIONAL_FIXTURE_REQUIRED, DEFERRED_HOOKS
+from src.integration.bridge_config import (
+    CONDITIONAL_FIXTURE_REQUIRED,
+    DEFERRED_HOOKS,
+    VERIFIED_SUPPORTED_HOOKS,
+)
 
 
 def test_capture_rate_meets_threshold(tmp_path):
@@ -16,7 +20,7 @@ def test_capture_rate_meets_threshold(tmp_path):
         project_id="project-test",
         profile_id="profile-test",
     )
-    assert report.expected_supported == 8
+    assert report.expected_supported == len(VERIFIED_SUPPORTED_HOOKS)
     assert report.capture_rate >= 99.0
     assert report.failed_captures == 0
     assert report.envelope_failures == 0
@@ -64,7 +68,7 @@ def test_conditional_and_deferred_excluded_from_denominator(tmp_path):
     # (the harness drives only the fixtures that have synthetic inputs)
     assert report.unsupported_or_deferred == 4
     # denominator uses only supported expected events
-    assert report.expected_supported == 8
+    assert report.expected_supported == len(VERIFIED_SUPPORTED_HOOKS)
     # none of the excluded hooks leaked into the captured store
     records = _load_jsonl(report.jsonl_path)
     sources = {r["source"] for r in records}

@@ -13,9 +13,16 @@ class HostContext:
         self.descriptions: dict[str, str] = {}
 
     def register_hook(self, name: str, callback: object) -> None:
-        if name in self.hooks:
-            raise RuntimeError("duplicate_hook")
-        self.hooks[name] = callback
+        if name not in self.hooks:
+            self.hooks[name] = callback
+            return
+        previous = self.hooks[name]
+
+        def combined(*args, **kwargs):
+            results = (previous(*args, **kwargs), callback(*args, **kwargs))
+            return next((result for result in results if result is not None), None)
+
+        self.hooks[name] = combined
 
     def register_tool(
         self,

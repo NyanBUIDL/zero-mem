@@ -57,13 +57,29 @@ def test_redaction_rejection_does_not_persist() -> None:
     assert store.calls == []
 
 
-@pytest.mark.parametrize("hook", ["on_session_reset", "pre_llm_call", "file_operations"])
+@pytest.mark.parametrize("hook", ["pre_api_request", "file_operations"])
 def test_unsupported_and_conditional_results_do_not_persist(hook: str) -> None:
     store = FakeStore()
     mapped_result = map_hook_payload(hook, {})
     result = adapt_mapped_event(mapped_result, store=store)
     assert result.code in {"conditional_fixture_required", "unsupported_hook"}
     assert store.calls == []
+
+
+@pytest.mark.parametrize(
+    ("hook", "payload", "event_type"),
+    [
+        ("pre_llm_call", {"session_id": "s", "turn_id": "t", "user_message": "hello"}, "user_statement"),
+        ("post_llm_call", {"session_id": "s", "turn_id": "t", "assistant_response": "hi"}, "assistant_claim"),
+    ],
+)
+def test_message_hooks_persist_with_semantic_event_type(hook, payload, event_type) -> None:
+    store = FakeStore()
+    mapped_result = map_hook_payload(hook, payload)
+    result = adapt_mapped_event(mapped_result, store=store)
+    assert result.code == "appended"
+    assert len(store.calls) == 1
+    assert store.calls[0]["event_type"] == event_type
 
 
 def test_duplicate_event_id_and_content_hash_are_preserved() -> None:

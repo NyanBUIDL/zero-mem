@@ -127,10 +127,11 @@ def test_bridge_shutdown_neutral(tmp_path):
     assert payload == before
 
 
-def test_unsupported_hook_input_registers_nothing(tmp_path):
+def test_newly_verified_observation_hooks_are_registered(tmp_path):
     harness = _enabled_harness(tmp_path)
-    assert "pre_llm_call" not in harness.context.callbacks
-    assert "subagent_start" not in harness.context.callbacks
+    assert "pre_llm_call" in harness.context.callbacks
+    assert "subagent_start" in harness.context.callbacks
+    assert "pre_api_request" not in harness.context.callbacks
 
 
 def test_original_exception_not_suppressed(tmp_path):

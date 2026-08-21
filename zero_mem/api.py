@@ -88,7 +88,14 @@ class PublicClient:
         return "SESSION_ACTIVE"
 
     def observe_message(self, payload: object) -> CaptureResult:
-        return self._observe("message", payload)
+        """Backward-compatible alias for a user-authored message."""
+        return self.observe_user_message(payload)
+
+    def observe_user_message(self, payload: object) -> CaptureResult:
+        return self._observe("user_message", payload)
+
+    def observe_assistant_message(self, payload: object) -> CaptureResult:
+        return self._observe("assistant_message", payload)
 
     def observe_tool_call(self, payload: object) -> CaptureResult:
         return self._observe("tool_call", payload)
@@ -216,6 +223,12 @@ class AsyncClient:
 
     async def observe_message(self, payload: object, *, deadline: float | None = None) -> CaptureResult:
         return await self._call(lambda: self._sync.observe_message(payload), deadline=deadline)
+
+    async def observe_user_message(self, payload: object, *, deadline: float | None = None) -> CaptureResult:
+        return await self._call(lambda: self._sync.observe_user_message(payload), deadline=deadline)
+
+    async def observe_assistant_message(self, payload: object, *, deadline: float | None = None) -> CaptureResult:
+        return await self._call(lambda: self._sync.observe_assistant_message(payload), deadline=deadline)
 
     async def observe_tool_call(self, payload: object, *, deadline: float | None = None) -> CaptureResult:
         return await self._call(lambda: self._sync.observe_tool_call(payload), deadline=deadline)

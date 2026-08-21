@@ -27,7 +27,14 @@ class _RuntimeWriter:
             raise ValueError("observation_event_invalid")
         kind = event.get("kind")
         payload = event.get("payload")
-        hook = "pre_tool_call" if kind == "tool_call" else "on_session_start"
+        hooks = {
+            "user_message": "public_user_message",
+            "assistant_message": "public_assistant_message",
+            "tool_call": "public_tool_call",
+        }
+        hook = hooks.get(kind)
+        if hook is None:
+            raise ValueError("observation_kind_invalid")
         if not isinstance(payload, Mapping):
             raise ValueError("observation_payload_invalid")
         mapped = map_hook_payload(

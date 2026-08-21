@@ -118,11 +118,17 @@ def test_pre_post_events_do_not_pair_heuristically() -> None:
     assert pre.payload.get("event_id") != post.payload.get("event_id")
 
 
-def test_mapping_is_deterministic() -> None:
-    left = map_hook_payload("post_tool_call", {"status": "ok", "tool_name": "x"})
-    right = map_hook_payload("post_tool_call", {"tool_name": "x", "status": "ok"})
+def test_mapping_is_deterministic_when_host_occurrence_identity_is_present() -> None:
+    left = map_hook_payload("post_tool_call", {"status": "ok", "tool_name": "x", "tool_call_id": "tc-1"})
+    right = map_hook_payload("post_tool_call", {"tool_call_id": "tc-1", "tool_name": "x", "status": "ok"})
     assert left.payload == right.payload
     assert left.event_type == right.event_type
+
+
+def test_mapping_generates_distinct_occurrences_without_host_identity() -> None:
+    left = map_hook_payload("post_tool_call", {"status": "ok", "tool_name": "x"})
+    right = map_hook_payload("post_tool_call", {"status": "ok", "tool_name": "x"})
+    assert left.payload["event_id"] != right.payload["event_id"]
 
 
 def test_no_persistence_side_effect() -> None:

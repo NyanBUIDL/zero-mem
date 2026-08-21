@@ -67,7 +67,9 @@ def test_configuration_serialization_is_deterministic(tmp_path: Path) -> None:
 def test_supported_registry_exactness() -> None:
     assert VERIFIED_SUPPORTED_HOOKS == (
         "on_session_start", "on_session_end", "on_session_finalize",
-        "pre_tool_call", "post_tool_call", "kanban_task_claimed",
+        "on_session_reset", "pre_tool_call", "post_tool_call",
+        "pre_llm_call", "post_llm_call", "on_skill_lifecycle",
+        "subagent_start", "subagent_stop", "kanban_task_claimed",
         "kanban_task_completed", "kanban_task_blocked",
     )
     assert all(event_class_for_hook(hook) for hook in VERIFIED_SUPPORTED_HOOKS)
@@ -75,16 +77,14 @@ def test_supported_registry_exactness() -> None:
 
 def test_conditional_registry_exactness() -> None:
     assert CONDITIONAL_FIXTURE_REQUIRED == (
-        "on_session_reset", "pre_llm_call", "post_llm_call",
         "pre_api_request", "post_api_request", "api_request_error",
-        "subagent_start", "subagent_stop",
     )
     assert all(event_class_for_hook(hook) for hook in CONDITIONAL_FIXTURE_REQUIRED)
 
 
 def test_deferred_registry_exactness_and_behavior_hooks_excluded() -> None:
     assert "file_operations" in DEFERRED_HOOKS
-    assert "skill_usage" in DEFERRED_HOOKS
+    assert "on_skill_lifecycle" in VERIFIED_SUPPORTED_HOOKS
     assert "generic_task_transitions" in DEFERRED_HOOKS
     assert "transform_llm_output" in DEFERRED_HOOKS
     assert "pre_approval_request" in DEFERRED_HOOKS

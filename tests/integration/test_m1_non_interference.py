@@ -10,7 +10,11 @@ from pathlib import Path
 
 import pytest
 
-from src.integration.bridge_config import VERIFIED_SUPPORTED_HOOKS
+from src.integration.bridge_config import (
+    CONDITIONAL_FIXTURE_REQUIRED,
+    DEFERRED_HOOKS,
+    VERIFIED_SUPPORTED_HOOKS,
+)
 from src.integration.non_interference import (
     NonInterferenceHarness,
     synthetic_payloads,
@@ -47,14 +51,9 @@ def test_registers_only_verified_hooks(tmp_path):
     assert harness.registered == VERIFIED_SUPPORTED_HOOKS
     assert set(harness.registered).isdisjoint(
         {
-            "on_session_reset",
-            "pre_llm_call",
-            "post_llm_call",
             "pre_api_request",
             "post_api_request",
             "api_request_error",
-            "subagent_start",
-            "subagent_stop",
         }
     )
 
@@ -67,30 +66,8 @@ def test_disabled_registers_no_hooks(tmp_path):
 
 def test_conditional_and_deferred_hooks_remain_unregistered(tmp_path):
     harness = _enabled_harness(tmp_path)
-    conditional = {
-        "on_session_reset",
-        "pre_llm_call",
-        "post_llm_call",
-        "pre_api_request",
-        "post_api_request",
-        "api_request_error",
-        "subagent_start",
-        "subagent_stop",
-    }
-    deferred = {
-        "file_operations",
-        "skill_usage",
-        "generic_task_transitions",
-        "transform_terminal_output",
-        "transform_tool_result",
-        "transform_llm_output",
-        "pre_verify",
-        "pre_gateway_dispatch",
-        "pre_approval_request",
-        "post_approval_response",
-    }
-    assert not (set(harness.context.callbacks) & conditional)
-    assert not (set(harness.context.callbacks) & deferred)
+    assert not (set(harness.context.callbacks) & set(CONDITIONAL_FIXTURE_REQUIRED))
+    assert not (set(harness.context.callbacks) & set(DEFERRED_HOOKS))
 
 
 def test_enabled_versus_disabled_equivalence(tmp_path, payloads):

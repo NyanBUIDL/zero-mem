@@ -74,12 +74,12 @@ SUPPORTED_EVENT_CLASSES: Final[tuple[str, ...]] = (
     "post_tool_call",
     "llm_api_lifecycle",
     "subagent_lifecycle",
+    "skill_lifecycle",
     "verified_task_or_kanban_lifecycle",
 )
 
 DEFERRED_EVENT_CLASSES: Final[tuple[str, ...]] = (
     "file_operations",
-    "skill_usage",
     "generic_task_transitions",
 )
 
