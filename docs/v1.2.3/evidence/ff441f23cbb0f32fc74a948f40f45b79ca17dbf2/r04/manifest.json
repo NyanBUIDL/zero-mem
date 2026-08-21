@@ -1,0 +1,51 @@
+{
+  "artifact_source_sha": "ff441f23cbb0f32fc74a948f40f45b79ca17dbf2",
+  "assets": [
+    {
+      "path": "artifacts/platform-matrix-run.txt",
+      "sha256": "edf3f981c371a83f6ca3ec47f9494fe489e8a19d8150c8e97b9416c814518c4c"
+    }
+  ],
+  "evidence_commit_sha": "DERIVED_FROM_CURRENT_HEAD",
+  "full_suite": {
+    "command": "GitHub Actions workflow v1.2.3-platform-qualification.yml",
+    "environment": "GitHub-hosted ubuntu-latest/windows-latest/macos-latest; Python 3.11",
+    "exit_code": 0,
+    "failed": 0,
+    "passed": 50,
+    "raw_log": "logs/linux-py3.11-platform.log",
+    "raw_log_sha256": "0c147e434a205848de60a480d99c6e06203482bb176435daabb2c1991759d02d",
+    "skipped": 0,
+    "source_sha": "ff441f23cbb0f32fc74a948f40f45b79ca17dbf2"
+  },
+  "logs": [
+    {
+      "path": "logs/linux-py3.11-platform.log",
+      "sha256": "0c147e434a205848de60a480d99c6e06203482bb176435daabb2c1991759d02d"
+    },
+    {
+      "path": "logs/macos-py3.11-platform.log",
+      "sha256": "7997424713f623944989e94b99aa28e6b478b5c7901ed214831e947add8eddbf"
+    },
+    {
+      "path": "logs/windows-py3.11-platform.log",
+      "sha256": "7352684b5b82095075b2c008ab2d3c27c10dcf1a55d2c337f1a9ad06ba5caba5"
+    }
+  ],
+  "package": "R-04",
+  "platforms": {
+    "linux": {
+      "evidence": "logs/linux-py3.11-platform.log",
+      "status": "PASS"
+    },
+    "macos": {
+      "evidence": "logs/macos-py3.11-platform.log",
+      "status": "PASS"
+    },
+    "windows": {
+      "evidence": "logs/windows-py3.11-platform.log",
+      "status": "PASS"
+    }
+  },
+  "source_sha": "ff441f23cbb0f32fc74a948f40f45b79ca17dbf2"
+}

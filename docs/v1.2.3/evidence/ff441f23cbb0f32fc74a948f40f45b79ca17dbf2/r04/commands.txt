@@ -1,0 +1,5 @@
+ARTIFACT_SOURCE_SHA=ff441f23cbb0f32fc74a948f40f45b79ca17dbf2
+COMMAND=GitHub Actions workflow `v1.2.3-platform-qualification.yml`
+RUN_ID=32454255094
+HEAD=36cf83d5ccf9d0f40f564789bcbb362b1b65f4a8
+RESULT=Linux PASS; macOS PASS; Windows PASS

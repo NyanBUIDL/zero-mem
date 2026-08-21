@@ -11,7 +11,7 @@
 - [x] R-01: public `zero_mem` composition, real JSONL/SQLite four-read E2E, independent PASS.
 - [x] R-02: canonical sidecar discovery, parity, normalized statuses, bounded close, independent PASS.
 - [x] R-03: full Hermes host composition and lifecycle, independent PASS.
-- [x] R-04: Linux PASS, macOS PASS, Windows PASS from GitHub Actions run `32452599375`.
+- [x] R-04: Linux PASS, macOS PASS, Windows PASS from GitHub Actions run `32454255094`.
 - [ ] R-05: final audit/reconciliation pending this document's independent audit.
 
 ## Behavioral checklist
