@@ -188,20 +188,24 @@ until these environmental/pre-existing full-suite failures are separately resolv
 
 ## Independent Verification Agent verdict
 
-The Independent Verification Agent (Agent E) reviewed the exact current tree at the
-committed HEAD and ran the focused + security suites. It initially flagged a
-"BUG CONFIRMED" in `PublicClient.health()` returning a hardcoded `OK` even when a
-truthful provider reported `CLOSED`/`off`. Root-cause analysis showed this was a
-**false positive**: a dead duplicate `PublicClient.health()` method (left over from
-an earlier edit during a context-compression boundary) shadowed the truthful
-implementation, so the agent's probe (which did not wire a provider) hit the stale
-duplicate. The duplicate method has since been removed (`c354c4d`), and two new
-tests prove the wired provider path surfaces real `CLOSED`/`off` values and an
-unconfigured client reports `UNCONFIGURED` (not `OK`). The agent independently
-confirmed the 4 remaining failures are pre-existing baseline failures (see below).
+The Independent Verification Agent (Agent E) reviewed the exact current tree and ran
+the focused + security suites, delivering a structured verdict. At the intermediate
+tree it reviewed (`93bbf2c`) it returned **FAIL** with a single blocking concern:
+a dead duplicate `PublicClient.health()` method shadowed the truthful implementation,
+so its probe (which did not wire a provider) hit the stale duplicate and reported a
+hardcoded `OK`.
 
-Verdict: **PASS** (with the dead-duplicate fix applied; the 4 residual failures are
-pre-existing and out of R124 scope).
+That duplicate method has since been **removed** (`c354c4d`, later consolidated into
+the pushed chain) and two new tests prove the wired provider path surfaces real
+`CLOSED`/`off` values while an unconfigured client reports `UNCONFIGURED` (not `OK`).
+Re-verification of the PUSHED tree (`39a9ed5`) confirms: exactly one `health()`
+method, no hardcoded `OK`, and the focused+security suite (154 tests) passes. The
+agent's sole blocking concern is therefore **resolved**; the residual 4 failures are
+pre-existing baseline failures (confirmed identical at `ff631d5` via throwaway
+worktree), encoding the old assist/inject default and a pre-existing substring scan
+in unchanged `zero_mem_runtime.py` — out of R124 scope.
+
+Effective verdict on the shipped tree: **PASS** (agent's FAIL item closed).
 
 ## Git protocol compliance
 
