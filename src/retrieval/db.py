@@ -104,7 +104,7 @@ def open_readonly(database_path: Path) -> ReadonlyStore:
     try:
         with locked(lock_path, mode="shared", timeout=5.0):
             try:
-                conn = sqlite3.connect(uri, uri=True)
+                conn = sqlite3.connect(uri, uri=True, check_same_thread=False)
             except sqlite3.Error as exc:
                 raise QueryError(code="database_unavailable", message="open_failed") from exc
             conn.row_factory = sqlite3.Row

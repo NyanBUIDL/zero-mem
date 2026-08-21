@@ -1,17 +1,22 @@
 """Transport-neutral local sidecar dispatcher with fail-closed boundaries."""
 from __future__ import annotations
 
+import dataclasses
 import json
 import time
 import warnings
 from dataclasses import dataclass
-from typing import Any
+from enum import Enum
+from typing import Any, Mapping
 
 from .api import PublicClient
 from src.integration.sidecar import SidecarConfig as CanonicalSidecarConfig, ZeroMemSidecar
 
 CONTRACT_VERSION = "1.1"
-CAPABILITIES = ("observe", "sync", "health", "capabilities")
+CAPABILITIES = (
+    "observe", "sync", "health", "capabilities",
+    "search", "get_trace", "get_task_state", "get_decisions",
+)
 CANONICAL_READ_CAPABILITIES = ("search", "get_trace", "get_task_state", "get_decisions")
 DEPRECATION_MESSAGE = (
     "zero_mem.sidecar.LocalSidecar is deprecated; use "
@@ -47,12 +52,24 @@ class LocalSidecar:
         tool = payload["tool"]
         request = {key: value for key, value in payload.items() if key != "tool"}
         result = getattr(self._client, tool)(request)
+        def public_item(item: Any) -> Any:
+            if isinstance(item, Enum):
+                return item.value
+            if dataclasses.is_dataclass(item) and not isinstance(item, type):
+                return public_item(dataclasses.asdict(item))
+            if isinstance(item, Mapping):
+                return {str(key): public_item(value) for key, value in item.items()}
+            if isinstance(item, (list, tuple)):
+                return [public_item(value) for value in item]
+            return item
+
         return {
+            "capability": f"zero_mem.{tool}",
             "status": getattr(result, "status", "UNAVAILABLE"),
             "reason_code": getattr(result, "reason_code", "READ_UNAVAILABLE"),
-            "items": list(getattr(result, "items", ()) or ()),
-            "provenance": list(getattr(result, "provenance", ()) or ()),
-            "freshness": getattr(result, "freshness", None),
+            "items": [public_item(item) for item in (getattr(result, "items", ()) or ())],
+            "provenance": public_item(list(getattr(result, "provenance", ()) or ())),
+            "freshness": public_item(getattr(result, "freshness", None)),
         }
 
     def _canonical_handle(self, request: dict[str, Any]) -> dict[str, Any]:
