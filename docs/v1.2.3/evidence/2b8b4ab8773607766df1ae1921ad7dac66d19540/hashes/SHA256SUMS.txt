@@ -1,0 +1,3 @@
+819f0919544698dcd12fd2a36d8ec10bfd83327168326470083a5ebdc06722d0  ./logs/full-py311.log
+9eb8e0e0d7fa258d05b40481db11168cb918b065a19da8ee92a5a9b3e275d295  ./logs/r01-focused-py311.log
+13c7963fff8bcddb1c4deb47c332c7cc4e7e23bd66888d2036183f9bab412bff  ./artifacts/r01-public-composition.txt

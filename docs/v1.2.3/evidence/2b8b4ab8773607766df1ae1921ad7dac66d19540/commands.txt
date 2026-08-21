@@ -1,0 +1,15 @@
+ARTIFACT_SOURCE_SHA=2b8b4ab8773607766df1ae1921ad7dac66d19540
+COMMAND=PYTHONPATH=. /tmp/zero-mem-v123-py311-venv/bin/python -m pytest -q tests/
+WORKING_DIRECTORY=/home/lenovo/Hermes Workspace/zero-mem-v123-engineering
+ENVIRONMENT=isolated HOME/XDG/TMPDIR under /dev/shm/zero-mem-v123-r01-evidence; Python 3.11.16; pytest 9.1.1
+RESULT=exit_code=0; 3299 passed; 5 skipped; 0 failed
+RAW_LOG=logs/full-py311.log
+RAW_LOG_SHA256=819f0919544698dcd12fd2a36d8ec10bfd83327168326470083a5ebdc06722d0
+
+ARTIFACT_SOURCE_SHA=2b8b4ab8773607766df1ae1921ad7dac66d19540
+COMMAND=PYTHONPATH=. /tmp/zero-mem-v123-py311-venv/bin/python -m pytest -q tests/integration/test_v123_public_composition.py tests/unit/test_wp28_public_api.py tests/unit/test_m5_authorized_read.py
+WORKING_DIRECTORY=/home/lenovo/Hermes Workspace/zero-mem-v123-engineering
+ENVIRONMENT=isolated HOME/XDG/TMPDIR under /dev/shm/zero-mem-v123-r01-evidence; Python 3.11.16; pytest 9.1.1
+RESULT=exit_code=0; 42 passed; 0 skipped; 0 failed
+RAW_LOG=logs/r01-focused-py311.log
+RAW_LOG_SHA256=9eb8e0e0d7fa258d05b40481db11168cb918b065a19da8ee92a5a9b3e275d295
