@@ -570,19 +570,36 @@ def safe_unlink(path: Path) -> None:
 
 
 def ensure_private_directory(path: Path) -> None:
-    """Create/validate a directory tree without symlink/reparse nodes."""
+    """Create/validate a directory tree without symlink/reparse nodes.
+
+    R124-07/R124-10: only the leaf (capture_root and its owned descendants) is
+    forced to 0o700. Intermediate ancestors that already existed before this
+    call (e.g. ``/``, ``/tmp``, ``/dev/shm``) are validated for symlink/reparse
+    safety but are NOT chmodded - attempting to chmod ``/tmp`` to 0o700 fails
+    with EPERM and would corrupt the host if it succeeded. Recursion validates
+    parents without mutating them; only the leaf created/validated here is
+    chmodded when newly created or when it is the requested leaf.
+    """
+    _ensure_private_directory(path, is_leaf=True)
+
+
+def _ensure_private_directory(path: Path, *, is_leaf: bool) -> None:
     try:
         _check_absolute(path)
         if path.exists() or path.is_symlink():
             if path.is_symlink() or not path.is_dir():
                 raise PlatformStorageError(PlatformErrorCode.UNSAFE_PATH)
-        else:
-            ensure_private_directory(path.parent)
-            try:
-                path.mkdir(mode=0o700)
-            except FileExistsError:
-                if path.is_symlink() or not path.is_dir():
-                    raise PlatformStorageError(PlatformErrorCode.UNSAFE_PATH) from None
+            _windows_safe(path)
+            if is_leaf:
+                set_mode(path, 0o700)
+            return
+        # Missing: ensure parent exists (validate-only, no chmod on ancestors).
+        _ensure_private_directory(path.parent, is_leaf=False)
+        try:
+            path.mkdir(mode=0o700)
+        except FileExistsError:
+            if path.is_symlink() or not path.is_dir():
+                raise PlatformStorageError(PlatformErrorCode.UNSAFE_PATH) from None
         _windows_safe(path)
         set_mode(path, 0o700)
     except PlatformStorageError:

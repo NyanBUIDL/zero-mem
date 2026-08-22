@@ -111,3 +111,34 @@ def test_private_directory_rejects_symlink(tmp_path: Path) -> None:
     with pytest.raises(PlatformStorageError) as caught:
         ensure_private_directory(link)
     assert caught.value.code is PlatformErrorCode.UNSAFE_PATH
+
+
+def test_ensure_private_directory_never_chmods_existing_ancestors(tmp_path: Path) -> None:
+    """R124-07/R124-10 regression: creating a leaf under a pre-existing
+    directory must NOT chmod the ancestor (e.g. ``/tmp``) to 0o700.
+
+    The pre-fix implementation recursed into ``ensure_private_directory`` for
+    every ancestor and chmodded each to 0o700, which fails with EPERM on CI
+    runners (``/tmp`` is host-owned) and would corrupt the host if it
+    succeeded. Only the leaf created/validated by this call is chmodded.
+    """
+    ancestor = tmp_path / "ancestor"
+    ancestor.mkdir()
+    if os.name != "nt":
+        os.chmod(ancestor, 0o755)
+    leaf = ancestor / "leaf"
+    ensure_private_directory(leaf)
+    assert leaf.is_dir()
+    if os.name == "nt":
+        return  # mode bits are not meaningful on Windows
+    assert os.stat(ancestor).st_mode & 0o777 == 0o755, "existing ancestor mode must be preserved"
+    assert os.stat(leaf).st_mode & 0o777 == 0o700, "leaf must be private"
+
+
+def test_ensure_private_directory_creates_missing_intermediates(tmp_path: Path) -> None:
+    """R124-07: a deep missing path is created with private leaves and
+    validated ancestors, without requiring the caller to pre-create parents."""
+    root = tmp_path / "a" / "b" / "c"
+    ensure_private_directory(root)
+    assert root.is_dir()
+    assert (tmp_path / "a").is_dir()
