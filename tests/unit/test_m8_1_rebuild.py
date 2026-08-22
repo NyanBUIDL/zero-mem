@@ -266,7 +266,7 @@ class TestFoundationDescription:
         d = describe_derived_foundation()
         assert d["canonical_store"] == "jsonl"
         assert d["sqlite_is_derived"] is True
-        assert d["schema_version"] == 10
+        assert d["schema_version"] == 11
 
     def test_declares_deferred_behavior_absent(self):
         d = describe_derived_foundation()

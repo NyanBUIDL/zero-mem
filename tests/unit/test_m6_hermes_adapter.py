@@ -363,7 +363,7 @@ class TestSecuritySurface:
 
     def test_schema_v8(self, adapter):
         from src.storage.migrations import CURRENT_SCHEMA_VERSION
-        assert CURRENT_SCHEMA_VERSION == 10
+        assert CURRENT_SCHEMA_VERSION == 11
 
     def test_raw_sql_jsonl_absent(self, adapter):
         assert get_tool("execute_sql") is None and get_tool("raw_sql") is None

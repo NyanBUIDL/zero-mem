@@ -879,7 +879,7 @@ def test_schema_unchanged_v9(tmp_path):
     vault = tmp_path / "vault"
     vault.mkdir()
     store = fx.build_store(tmp_path)
-    assert store.get_schema_version() == 10
+    assert store.get_schema_version() == 11
     store.close()
 
 

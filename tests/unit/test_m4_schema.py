@@ -77,7 +77,7 @@ def _insert(conn: sqlite3.Connection, table: str, **kw) -> None:
 
 def test_migration_registry_v8() -> None:
     assert 8 in MIGRATIONS
-    assert CURRENT_SCHEMA_VERSION == 10
+    assert CURRENT_SCHEMA_VERSION == 11
     assert MIGRATIONS[8] is migrate_8
     # Deterministic ascending ordering.
     assert list(MIGRATIONS) == sorted(MIGRATIONS)
@@ -90,8 +90,8 @@ def test_v6_to_v8_upgrade(tmp_path: Path) -> None:
     try:
         assert store.get_schema_version() == 0
         v = store.ensure_schema()
-        assert v == 10
-        assert store.get_schema_version() == 10
+        assert v == 11
+        assert store.get_schema_version() == 11
         # Ledger rows present for every applied migration (1..CURRENT).
         cur = store._conn.cursor()
         cur.execute("SELECT version FROM zm_migrations ORDER BY version")
@@ -128,9 +128,9 @@ def test_v8_reopen_idempotent(tmp_path: Path) -> None:
     # Reopen the already-migrated DB: ledger persists on disk, version stays 8.
     store2 = SQLiteStore(_config(tmp_path))
     try:
-        assert store2.get_schema_version() == 10
+        assert store2.get_schema_version() == 11
         v = store2.ensure_schema()
-        assert v == 10
+        assert v == 11
         # No duplicate tables / double migration leds.
         cur = store2._conn.cursor()
         cur.execute("SELECT COUNT(*) AS n FROM zm_migrations WHERE version=8")
@@ -146,7 +146,7 @@ def test_v8_reopen_idempotent(tmp_path: Path) -> None:
 def test_v8_to_v7_downgrade(tmp_path: Path) -> None:
     store = _open(tmp_path)
     try:
-        assert store.get_schema_version() == 10
+        assert store.get_schema_version() == 11
         store.downgrade_to(7)
         assert store.get_schema_version() == 7
         # M5.4 derived tables dropped by the one-step downgrade.

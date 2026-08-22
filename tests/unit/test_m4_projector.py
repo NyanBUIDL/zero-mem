@@ -43,7 +43,7 @@ def _config(p: Path) -> SQLiteStoreConfig:
 def _open(p: Path) -> SQLiteStore:
     store = SQLiteStore(_config(p))
     store.ensure_schema()  # apply v7 (derived M4 tables)
-    assert store.get_schema_version() == 10
+    assert store.get_schema_version() == 11
     return store
 
 
@@ -273,7 +273,7 @@ def test_charter_transaction_rollback_on_error(tmp_path: Path) -> None:
         assert store._conn.execute(
             "SELECT charter_id FROM zm_project_charters").fetchone()["charter_id"] == "A"
         # schema version untouched
-        assert store.get_schema_version() == 10
+        assert store.get_schema_version() == 11
     finally:
         store.close()
 
@@ -579,10 +579,10 @@ def test_no_raw_sqlite_error_leakage(tmp_path: Path) -> None:
 def test_schema_remains_v8(tmp_path: Path) -> None:
     store = _open(tmp_path)
     try:
-        assert CURRENT_SCHEMA_VERSION == 10
+        assert CURRENT_SCHEMA_VERSION == 11
         project_charter(store._conn, _charter())
         project_requirement(store._conn, _req())
-        assert store.get_schema_version() == 10
+        assert store.get_schema_version() == 11
     finally:
         store.close()
 
@@ -619,7 +619,7 @@ def test_no_m3_readonly_regression(tmp_path: Path) -> None:
         # M3 read-only path still works and is independent.
         rs = open_readonly(store.path)
         try:
-            assert rs.get_schema_version() == 10
+            assert rs.get_schema_version() == 11
         finally:
             rs.close()
     finally:

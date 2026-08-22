@@ -44,6 +44,7 @@ _EQUAL_FILTERS = (
     "lifecycle_status",
     "verification_status",
     "retention",
+    "knowledge_space_id",  # V130-02: exact-equality ks scope filter
 )
 
 # Time-range (inclusive) filters, mapped to the backing column.

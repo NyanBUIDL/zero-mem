@@ -46,6 +46,8 @@ ZM_META_COLUMNS = (
     "project_id", "task_id", "turn_id", "parent_trace_id", "lifecycle_status",
     "verification_status", "confidence", "sensitivity", "retention",
     "content_hash", "redaction_applied", "ingested_at", "origin_jsonl",
+    # V130-02: denormalized knowledge-space scope (NULL = unscoped).
+    "knowledge_space_id",
 )
 
 
@@ -185,6 +187,9 @@ def _project_row(env: dict, source_id: str) -> tuple:
         redaction,
         _now(),
         source_id,
+        # V130-02: denormalized knowledge-space scope from the canonical envelope.
+        # NULL = unscoped (visible under global-default-read, D-2026-08-22-03).
+        env.get("knowledge_space_id"),
     )
 
 

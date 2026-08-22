@@ -452,4 +452,4 @@ class TestSecurity:
         store.close()
 
     def test_schema_remains_v8(self):
-        assert CURRENT_SCHEMA_VERSION == 10
+        assert CURRENT_SCHEMA_VERSION == 11

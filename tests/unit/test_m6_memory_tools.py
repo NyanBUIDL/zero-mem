@@ -365,7 +365,7 @@ class TestContractRegression:
 class TestReadOnly:
     def test_schema_v8(self, rt):
         from src.storage.migrations import CURRENT_SCHEMA_VERSION
-        assert CURRENT_SCHEMA_VERSION == 10
+        assert CURRENT_SCHEMA_VERSION == 11
 
     def test_no_forbidden_writable_imports(self, rt):
         base = REPO_ROOT / "src" / "integration" / "m6"

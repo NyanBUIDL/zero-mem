@@ -445,7 +445,7 @@ def describe_temporal_read() -> dict[str, Any]:
     """Introspectable description of the M8.4 temporal read layer."""
     return {
         "projection_version": PROJECTION_VERSION,
-        "schema_version": 10,
+        "schema_version": 11,
         "source_table": TEMPORAL_TABLE,
         "derived": True,
         "authorization_first": True,

@@ -348,7 +348,7 @@ class TestStateless:
 class TestEnvironment:
     def test_schema_v8(self):
         from src.storage.migrations import CURRENT_SCHEMA_VERSION
-        assert CURRENT_SCHEMA_VERSION == 10
+        assert CURRENT_SCHEMA_VERSION == 11
 
     def test_router_module_no_forbidden_imports(self):
         tree = ast.parse((REPO_ROOT / "src/integration/m7/memory_router.py").read_text())

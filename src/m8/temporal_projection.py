@@ -366,7 +366,7 @@ def describe_temporal_projection() -> dict[str, Any]:
     """Introspectable description of the M8.4 temporal projection."""
     return {
         "projection_version": PROJECTION_VERSION,
-        "schema_version": 10,
+        "schema_version": 11,
         "target_table": TEMPORAL_TABLE,
         "derived": True,
         "canonical_store": "jsonl",

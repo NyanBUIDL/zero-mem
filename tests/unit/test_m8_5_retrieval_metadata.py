@@ -309,7 +309,7 @@ class TestReadOnlyNoPersistence:
                 assert "zm_calibration" not in src, name
 
     def test_schema_version_nine(self):
-        assert describe_retrieval_metadata()["schema_version"] == 10
+        assert describe_retrieval_metadata()["schema_version"] == 11
 
     def test_request_is_frozen_and_validated(self):
         with pytest.raises(CalibrationError):

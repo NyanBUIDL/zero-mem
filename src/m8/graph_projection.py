@@ -465,7 +465,7 @@ def describe_projection() -> dict[str, Any]:
     """Introspectable description of what M8.2 projection does and does not do."""
     return {
         "graph_projection_version": GRAPH_PROJECTION_VERSION,
-        "schema_version": 10,
+        "schema_version": 11,
         "relation_sources": sorted(member.value for member in RelationSource),
         "m2_relation_map": dict(sorted(M2_RELATION_TYPE_MAP.items())),
         "verification_subject_map": dict(sorted(M4_VERIFICATION_SUBJECT_MAP.items())),

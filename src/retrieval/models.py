@@ -59,6 +59,9 @@ class QueryRequest:
     lifecycle_status: Optional[str] = None
     verification_status: Optional[str] = None
     retention: Optional[str] = None
+    # V130-02: exact-equality knowledge-space scope filter. NULL events are
+    # excluded when this is set (NULL = unscoped, D-2026-08-22-03).
+    knowledge_space_id: Optional[str] = None
     created_at_after: Optional[str] = None
     created_at_before: Optional[str] = None
     observed_at_after: Optional[str] = None
