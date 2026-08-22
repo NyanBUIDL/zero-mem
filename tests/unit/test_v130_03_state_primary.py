@@ -64,6 +64,15 @@ def test_assistant_claim_never_promoted_in_project():
     assert not res.as_primary
 
 
+def test_direct_api_misuse_cannot_promote_nonpromotable_via_state_path():
+    """F2 defense-in-depth (Verifier V130-03): even a direct is_eligible call that
+    mislabels an assistant_claim as resource_type='state' cannot promote it."""
+    res = is_eligible(_Item(memory_type="assistant_claim"),
+                      MemoryRoute.PROJECT.value, resource_type="state",
+                      promote_state_in_project=True)
+    assert not res.as_primary
+
+
 # --- invariant 3: non-PROJECT routes byte-for-byte unchanged -----------------
 
 @pytest.mark.parametrize("route", [MemoryRoute.SESSION, MemoryRoute.USER,

@@ -202,9 +202,10 @@ def is_eligible(
     # exclusion decided above and never applies to other routes.
     if (
         promote_state_in_project
-        and route is MemoryRoute.PROJECT.value
+        and route == MemoryRoute.PROJECT.value
         and resource_type == "state"
         and is_active
+        and memory_type not in _NON_PROMOTABLE_TYPE
     ):
         primary = True
 

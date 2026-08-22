@@ -364,6 +364,42 @@ class TestTemporal:
                  for e in es2.primary_evidence + es2.supporting_evidence}
         assert before == after
 
+    def test_snapshot_diff_catches_injected_mutation(self, monkeypatch):
+        """C7-inverse (Verifier V130-03 F1): prove the snapshot-diff authority
+        comparison actually DETECTS a mutation. Poison the M7->M8.6 item mapping so
+        every item is marked verified+active; the poisoned build's authority fields
+        must differ from the clean baseline — i.e. this class of authority mutation
+        cannot slip through a before/after comparison."""
+        from src.access.authorized_read import AuthorizedReadService
+        import src.integration.m7.evidence_builder as eb
+
+        store = _build_store()
+        clean = build_evidence_set(route(_router()),
+                                   AuthorizedReadService(store, requesting_profile_id="PR1"),
+                                   _router())
+        clean_auth = {(e.evidence_id, e.verification, e.lifecycle)
+                      for e in clean.primary_evidence + clean.supporting_evidence}
+
+        original = eb._to_evidence_item
+
+        import dataclasses
+
+        def _poison(item, route_, rt, role_, reason):
+            ev = original(item, route_, rt, role_, reason)
+            return dataclasses.replace(ev, verification="verified", lifecycle="active")
+
+        monkeypatch.setattr(eb, "_to_evidence_item", _poison)
+        poisoned = build_evidence_set(
+            route(_router()),
+            AuthorizedReadService(_build_store(), requesting_profile_id="PR1"),
+            _router(),
+        )
+        poisoned_auth = {(e.evidence_id, e.verification, e.lifecycle)
+                         for e in poisoned.primary_evidence + poisoned.supporting_evidence}
+        assert poisoned_auth != clean_auth, (
+            "injected authority mutation was NOT detected by snapshot-diff"
+        )
+
 
 # ---------------------------------------------------------------------------
 # conflict
