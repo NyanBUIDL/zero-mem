@@ -3,7 +3,10 @@
 **Date:** 2026-08-22
 **Working tree:** `/home/lenovo/Hermes Workspace/zero-mem-v123-engineering`
 **Branch:** `v124-post-release-closure` (local, no push / no publish / no tag mutation)
-**HEAD after work:** `a81b26287ed807015907f39c57c10aa4c3a3e463`
+**HEAD after work:** `9efe073d8e9a08f0780f11387390dad2db00b37a`
+**Commits (local, on `v124-post-release-closure`):**
+- `a81b262` `fix(test):` align packaging_status baseline assertions
+- `9efe073` `docs(v1.2.4):` add P0 autofix handoff (this record)
 **Scope:** Only the two authorized P0 items (P0-1 test-state desync fix, P0-2 local ref sync). No product code, no `project-state.yaml`, no historical evidence, no migration, no schema change.
 
 ---
