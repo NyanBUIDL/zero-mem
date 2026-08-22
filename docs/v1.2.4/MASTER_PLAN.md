@@ -113,9 +113,12 @@ HITL tối thiểu: inspect → propose correction/supersession/delete-request �
 matrix GREEN (run 32550606746, head `fa803b6`): Windows/Linux/macOS ×
 CPython 3.11/3.12/3.13 all pass focused, platform, full-suite, security,
 concurrency, benchmark gates; packaging + clean-install + CLI/sidecar/Hermes
-smoke pass on all 3.11 cells. Remaining work before v1.2.4 is marked
-RELEASE_QUALIFIED: merge decision on PR #2 and independent verifier sign-off
-(see work-packages/R124-07-11-cross-platform).
+smoke pass on all 3.11 cells. v1.2.4 is now **RELEASED_VERIFIED**: PR #2 was
+merged into `release/v1.2.4` as `547cb7d7104c9752b181c32ee28432f20a6d00f6`
+(final release CI run `32554276147` success); tag `v1.2.4` was created and the
+GitHub Release `v1.2.4` was published and independently verified; `master` was
+fast-forwarded to the verified release SHA. See
+`evidence/POST_RELEASE_CLOSURE.md` for the post-release closure record.
 
 - Thay mọi POSIX-only assumption còn lọt ra khỏi platform backend.
 - Kiểm tra Windows/Linux/macOS, CPython 3.11–3.13.

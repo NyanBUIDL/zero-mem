@@ -1480,8 +1480,26 @@ v124_06_status: IMPLEMENTED_PENDING_VERIFICATION
 v124_06_commit: c7c9b75
 v124_ci_workflow: .github/workflows/v1.2.4-qualification.yml
 v124_prior_claims_superseded: "V124-02/03/04 IMPLEMENTED_VERIFIED claims in docs/v1.2.4/MASTER_PLAN.md are historical only"
-v124_release_qualified: false
-v124_release_qualified_reason: "all 9-cell gates pass at fa803b6 (run 32550606746); release gate pending PR #2 merge decision and operator authorization; no tag/release created"
-v124_master_merged: false
-v124_tag_created: false
-v124_github_release_created: false
+v124_release_qualified: true
+v124_release_qualified_reason: "all 9-cell gates pass at fa803b6 (run 32550606746); PR #2 merged into release/v1.2.4 as 547cb7d7104c9752b181c32ee28432f20a6d00f6 (final release CI run 32554276147 success); tag v1.2.4 created; GitHub Release v1.2.4 published and independently verified"
+v124_release_sha: 547cb7d7104c9752b181c32ee28432f20a6d00f6
+v124_release_branch_sha: 547cb7d7104c9752b181c32ee28432f20a6d00f6
+v124_tag_object: 743cc4d64dfc2a0e94f82c2f5cdf525cf991c5e2
+v124_tag_target: 547cb7d7104c9752b181c32ee28432f20a6d00f6
+v124_tag_status: v1.2.4_VERIFIED
+v124_master_merged: true
+v124_master_sync_method: fast-forward
+v124_master_before: dd696093c5bfcd8b8d3e225532092ea5d3e7de64
+v124_master_after: 547cb7d7104c9752b181c32ee28432f20a6d00f6
+v124_tag_created: true
+v124_github_release_created: true
+v124_github_release: https://github.com/NyanBUIDL/zero-mem/releases/tag/v1.2.4
+v124_publication_status: RELEASED_VERIFIED
+v124_wheel: zero_mem-1.2.4-py3-none-any.whl
+v124_wheel_sha256: 7942fbe15867ce3506a16355b7edda061228514e128542ea4d25091d2d53cb6d
+v124_sdist: zero_mem-1.2.4.tar.gz
+v124_sdist_sha256: 424091f652006ad4a52ef2d3e21db2718513aa9b01db0f3e15b8980a8fcdb2ee
+v124_final_release_ci_run: 32554276147
+v124_force_push: false
+v124_tag_moved: false
+v124_destructive_operation: false
