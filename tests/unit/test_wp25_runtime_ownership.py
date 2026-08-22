@@ -115,3 +115,44 @@ def test_registration_adapter_uses_runtime_owned_injected_test_store(tmp_path: P
     finally:
         adapter.shutdown()
     assert adapter.runtime.health().status == "CLOSED"
+
+
+def test_runtime_never_claims_hermes_soul_or_cron_ownership(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Production-path #16: SOUL.md and Hermes cron ownership remain outside Zero-Mem.
+
+    A Hermes profile home contains SOUL.md and cron/. Zero-Mem must fail closed
+    when asked to capture inside that home, and must never create or rewrite
+    SOUL.md or any cron artifact anywhere in its own capture root.
+    """
+    hermes_home = tmp_path / "hermes-home"
+    (hermes_home / ".hermes").mkdir(parents=True)
+    soul = hermes_home / ".hermes" / "SOUL.md"
+    soul.write_text("# SOUL placeholder", encoding="utf-8")
+    cron_dir = hermes_home / ".hermes" / "cron"
+    cron_dir.mkdir()
+    (cron_dir / "jobs.json").write_text("[]", encoding="utf-8")
+
+    # Make Path.home() resolve to the simulated Hermes profile home on every OS.
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: hermes_home))
+
+    # Fail closed: capture_root inside the Hermes profile home (SOUL/cron parent)
+    # is rejected before any directory is created.
+    for bad in (hermes_home / ".hermes", hermes_home / ".hermes" / "cron"):
+        with pytest.raises(ValueError, match="real home"):
+            ZeroMemRuntime.open(RuntimeConfig(capture_root=bad))
+        assert not (bad / "canonical").exists()
+
+    # A legitimate capture root must never produce SOUL.md or cron artifacts,
+    # and must leave the Hermes home byte-identical.
+    root = tmp_path / "legit-capture"
+    runtime = ZeroMemRuntime.open(RuntimeConfig(capture_root=root))
+    try:
+        assert runtime.health().status == "OPEN"
+    finally:
+        runtime.close()
+    assert not list(root.rglob("SOUL.md"))
+    assert not list(root.rglob("cron"))
+    assert soul.read_text(encoding="utf-8") == "# SOUL placeholder"
+    assert (cron_dir / "jobs.json").read_text(encoding="utf-8") == "[]"
