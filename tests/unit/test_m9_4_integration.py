@@ -168,6 +168,12 @@ def test_e2e_one_change_exact_write_set(tmp_path):
     # updated. The archive of unaffected notes is untouched.
     assert any("do-x-changed" in rel for rel, st in affected if st == "CREATED")
     assert any("do-x--" in rel for rel, st in affected if st == "RETIRED")
+    if not any("project-home" in rel for rel, st in affected if st == "UPDATED"):
+        # R124-10 DIAGNOSTIC (temporary): surface the home-note write outcomes.
+        print("M94DIAG home-related writes:", [
+            (w.relative_path, w.status.name, w.reason) for w in r3.writes
+            if "project-home" in w.relative_path or w.status.name in ("UPDATED", "CREATED", "RETIRED")
+        ], flush=True)
     assert any("project-home" in rel for rel, st in affected if st == "UPDATED")
     # Unrelated requirement/decision/verification notes: zero writes.
     untouched = [w for w in r3.writes

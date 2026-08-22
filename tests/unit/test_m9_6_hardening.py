@@ -287,6 +287,12 @@ def test_single_change_exact_write_set(tmp_path):
                 if w[1] in ("UPDATED", "CREATED", "RETIRED")}
     assert any("do-x-changed" in rel for rel, st in affected if st == "CREATED")
     assert any("do-x--" in rel for rel, st in affected if st == "RETIRED")
+    if not any("project-home" in rel for rel, st in affected if st == "UPDATED"):
+        # R124-10 DIAGNOSTIC (temporary): surface the home-note write outcomes.
+        print("M96DIAG home-related writes:", [
+            (w.relative_path, w.status.name, w.reason) for w in r3.writes
+            if "project-home" in w.relative_path or w.status.name in ("UPDATED", "CREATED", "RETIRED")
+        ], flush=True)
     assert any("project-home" in rel for rel, st in affected if st == "UPDATED")
     untouched = [w for w in r3.writes
                   if w.status is WriteStatus.SKIPPED_UNCHANGED]
