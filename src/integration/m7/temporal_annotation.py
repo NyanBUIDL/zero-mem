@@ -75,7 +75,8 @@ def annotate_temporal(
     """
     # Fail-closed gate: malformed as_of raises before anything else runs.
     normalized = normalize_timestamp("as_of", as_of_raw)
-    as_of = normalized.utc if normalized is not None else None
+    assert normalized is not None, "normalize_timestamp returned None for a present as_of"
+    as_of = normalized.raw
 
     try:
         entries: List[ResourceTemporalInfo] = []
@@ -87,7 +88,11 @@ def annotate_temporal(
             if rid in seen:
                 continue
             seen.add(rid)
-            rtype = getattr(e, "resource_type", "") or "event"
+            rtype = getattr(e, "resource_type", "") or ""
+            if not rtype:
+                # V130-04 Verifier F3: a missing resource_type is a mapping bug,
+                # never a silent authorization skip.
+                raise ValueError(f"evidence item missing resource_type: {rid}")
             req = TemporalReadRequest(
                 requester=requesting_profile_id or "",
                 resource_type=rtype,
