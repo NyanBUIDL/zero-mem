@@ -482,3 +482,77 @@ class TestDeferredAbsence:
         for p in REPO_ROOT.rglob("src/integration/m7/*.py"):
             t = p.read_text().lower()
             assert "vector retrieval" not in t and "embeddings" not in t
+
+
+# ---------------------------------------------------------------------------
+# Option B — PROJECT route active-state priority (P1 ordering)
+# ---------------------------------------------------------------------------
+class TestProjectStatePriority:
+    """Regression: in the PROJECT route, active M4 state records must not be
+    starved out of the bounded set by same-timestamp decisions."""
+
+    def _state(self, eid, lifecycle="active", resource_type="state",
+               verification="none", created="2026-08-05T00:00:00Z", as_primary=False):
+        from src.integration.m7.eligibility import EligibilityResult
+        item = EvidenceItem(evidence_id=eid, resource_type=resource_type,
+                            lifecycle=lifecycle, verification=verification,
+                            created_at=created, role=EvidenceRole.PRIMARY if as_primary else EvidenceRole.SUPPORTING)
+        return (item, EligibilityResult(True, "eligible", as_primary=as_primary))
+
+    def _decision(self, eid, verification=None, created="2026-08-05T00:00:00Z"):
+        from src.integration.m7.eligibility import EligibilityResult
+        item = EvidenceItem(evidence_id=eid, resource_type="decision",
+                            lifecycle="active", verification=verification,
+                            created_at=created, role=EvidenceRole.PRIMARY)
+        return (item, EligibilityResult(True, "eligible", as_primary=True))
+
+    def test_active_state_prioritized_in_project_route(self):
+        from src.integration.m7.budget import select_evidence
+        # A state and a decision, both active, same timestamp: in the PROJECT route the
+        # active state sorts ahead within its pool; a superseded state does NOT.
+        cands = [
+            self._decision("D1", created="2026-08-05T00:00:00Z"),
+            self._state("S-active", lifecycle="active", created="2026-08-05T00:00:00Z"),
+            self._state("S-superseded", lifecycle="superseded", created="2026-08-05T00:00:00Z"),
+        ]
+        sel = select_evidence(cands, max_primary=5, max_supporting=3,
+                              route=MemoryRoute.PROJECT)
+        supporting_ids = [e.evidence_id for e in sel.supporting]
+        # Active state must be present and ranked before the superseded state.
+        assert "S-active" in supporting_ids
+        assert supporting_ids.index("S-active") < supporting_ids.index("S-superseded")
+        # Superseded remains supporting (never primary) — stale-safe by role.
+        assert "S-superseded" not in [e.evidence_id for e in sel.primary]
+
+    def test_non_project_routes_unchanged(self):
+        from src.integration.m7.budget import select_evidence
+        cands = [
+            self._decision("D1", created="2026-08-05T00:00:00Z"),
+            self._state("S-active", lifecycle="active", created="2026-08-05T00:00:00Z"),
+            self._state("S-superseded", lifecycle="superseded", created="2026-08-05T00:00:00Z"),
+        ]
+        # Without a route (None), state priority must NOT engage: active state and
+        # superseded state tie on role/verified/lifecycle and order by evidence_id.
+        sel_none = select_evidence(cands, max_primary=5, max_supporting=3, route=None)
+        sup_none = [e.evidence_id for e in sel_none.supporting]
+        sel_session = select_evidence(cands, max_primary=5, max_supporting=3,
+                                      route=MemoryRoute.SESSION)
+        sup_session = [e.evidence_id for e in sel_session.supporting]
+        assert sup_none == sup_session
+        # No state (active or superseded) is elevated to primary on non-PROJECT routes.
+        assert set(sup_none) == {"S-active", "S-superseded"}
+        assert [e.evidence_id for e in sel_none.primary] == ["D1"]
+        assert [e.evidence_id for e in sel_session.primary] == ["D1"]
+
+    def test_budget_5_3_8_preserved_with_state_priority(self):
+        from src.integration.m7.budget import select_evidence
+        cands = [
+            self._decision(f"D{i}", created=f"2026-08-{i:02d}T00:00:00Z") for i in range(1, 7)
+        ] + [
+            self._state(f"S{j}", lifecycle="active", created="2026-08-05T00:00:00Z") for j in range(1, 5)
+        ]
+        sel = select_evidence(cands, max_primary=5, max_supporting=3,
+                              route=MemoryRoute.PROJECT)
+        assert len(sel.primary) <= 5
+        assert len(sel.supporting) <= 3
+        assert len(sel.primary) + len(sel.supporting) <= 8
