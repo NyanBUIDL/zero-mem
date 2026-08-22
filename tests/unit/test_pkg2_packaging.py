@@ -13,6 +13,11 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 BUNDLE_BUILDER = ROOT / "release_helpers" / "build_bundle.py"
+
+def _venv_python(venv: Path) -> Path:
+    """R124-09: the venv layout is Scripts/python.exe on Windows, bin/python elsewhere."""
+    return venv / "Scripts" / "python.exe" if os.name == "nt" else venv / "bin" / "python"
+
 INSTALLER = ROOT / "release_helpers" / "install.py"
 UNINSTALLER = ROOT / "release_helpers" / "uninstall.py"
 
@@ -81,7 +86,7 @@ def bundle(tmp_path_factory: pytest.TempPathFactory) -> Path:
     build_env = _env(build_home)
     build_env["UV"] = str(root / "uv must not be used")
     _run([sys.executable, "-m", "venv", str(builder)], env=build_env)
-    build_python = builder / "bin" / "python"
+    build_python = _venv_python(builder)
     # R124-09: Python 3.12+ venvs no longer bundle setuptools, and the
     # setuptools bundled with CPython 3.11 (68.x) cannot build a wheel without
     # the separate `wheel` package. The release build toolchain installs a
@@ -158,7 +163,7 @@ def test_fresh_offline_install_custom_xdg_and_cli(bundle: Path, tmp_path: Path) 
     env = _env(home)
     assert _run([str(cli), "--help"], env=env, cwd=tmp_path).returncode == 0
     assert _run([str(cli), "--version"], env=env, cwd=tmp_path).stdout.strip() == "zero-mem 1.2.4"
-    imports = _run([str(runtime / "current" / "venv" / "bin" / "python"), "-c", "import zero_mem, src; print(zero_mem.__version__)"], env=env, cwd=tmp_path)
+    imports = _run([str(_venv_python(runtime / "current" / "venv")), "-c", "import zero_mem, src; print(zero_mem.__version__)"], env=env, cwd=tmp_path)
     assert imports.stdout.strip() == "1.2.4"
 
 
@@ -187,7 +192,7 @@ def test_interrupted_install_preserves_previous_active_runtime(bundle: Path, tmp
     assert result.returncode != 0
     assert (runtime / "current").resolve() == before
     assert not list((runtime / "runtimes").glob(".staging-*"))
-    assert _run([str(runtime / "current" / "venv" / "bin" / "python"), "-m", "zero_mem.cli", "--version"], env=env, cwd=tmp_path).stdout.strip() == "zero-mem 1.2.4"
+    assert _run([str(_venv_python(runtime / "current" / "venv")), "-m", "zero_mem.cli", "--version"], env=env, cwd=tmp_path).stdout.strip() == "zero-mem 1.2.4"
 
 
 def test_same_version_reinstall_is_non_destructive(bundle: Path, tmp_path: Path) -> None:
@@ -251,14 +256,14 @@ def test_installer_has_no_repository_dependency(bundle: Path, tmp_path: Path) ->
     home = tmp_path / "home with spaces"
     venv = home / "data root with spaces" / "zero-mem" / "current" / "venv"
     env = _env(home)
-    output = _run([str(venv / "bin" / "python"), "-c", "import zero_mem, src; print(zero_mem.__file__); print(src.__path__[0])"], env=env, cwd=tmp_path).stdout
+    output = _run([str(_venv_python(venv)), "-c", "import zero_mem, src; print(zero_mem.__file__); print(src.__path__[0])"], env=env, cwd=tmp_path).stdout
     assert str(ROOT) not in output
 
 
 def test_pypdf_remains_optional(bundle: Path, tmp_path: Path) -> None:
     _install(bundle, tmp_path)
     home = tmp_path / "home with spaces"
-    python = home / "data root with spaces" / "zero-mem" / "current" / "venv" / "bin" / "python"
+    python = _venv_python(home / "data root with spaces" / "zero-mem" / "current" / "venv")
     result = _run([str(python), "-c", "import importlib.util; print(importlib.util.find_spec('pypdf'))"], env=_env(home), cwd=tmp_path)
     assert result.stdout.strip() == "None"
 
