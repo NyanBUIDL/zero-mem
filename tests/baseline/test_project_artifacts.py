@@ -220,7 +220,9 @@ def test_project_state_reflects_verified_m9_binding() -> None:
     assert "next_milestone_status: feature_freeze_active" in state
     assert "feature_freeze_status: active" in state
     assert "post_m10_audit_status: not_started" in state
-    assert "packaging_status: not_started" in state
+    # Post-release closure (2026-08-22, POST_RELEASE_CLOSURE.md) advanced
+    # packaging_status to "verified"; see docs/v1.2.4/evidence/POST_RELEASE_CLOSURE.md.
+    assert "packaging_status: verified" in state
     assert "m1_production_code_started: true" in state
     assert "m1_increment_4_6_status: verified" in state
     assert "m1_status: verified" in state
@@ -302,7 +304,9 @@ def test_m9_effective_parsed_state_is_verified() -> None:
     assert state["m10_current_increment_status"] == "verified"
     assert state["feature_freeze_status"] == "active"
     assert state["post_m10_audit_status"] == "not_started"
-    assert state["packaging_status"] == "not_started"
+    # Post-release closure (2026-08-22, POST_RELEASE_CLOSURE.md) advanced
+    # packaging_status to "verified"; see docs/v1.2.4/evidence/POST_RELEASE_CLOSURE.md.
+    assert state["packaging_status"] == "verified"
     # M10 is the final approved milestone: no M10.8 and no M11 may be invented.
     # _effective_state yields raw scalar STRINGS, so compare as text.
     assert state["m10_increment_count"] == "7"
