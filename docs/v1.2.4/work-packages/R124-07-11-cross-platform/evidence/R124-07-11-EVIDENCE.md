@@ -89,5 +89,7 @@ tooling, corpus-config quoting, PDF binary fixtures, timestamp drift).
 
 **PASS** — all required gates pass on all 9 cells at the exact tested SHA;
 packaging and clean-install gates pass; evidence and state files synchronized.
+Machine-readable verdict artifact:
+`docs/v1.2.4/work-packages/R124-07-11-cross-platform/evidence/verifier-verdict.json`
 `v1.2.4` remains `NOT_RELEASE_QUALIFIED` only pending the merge decision on
 PR #2 (draft) and the explicit release gate; no tag/release was created.

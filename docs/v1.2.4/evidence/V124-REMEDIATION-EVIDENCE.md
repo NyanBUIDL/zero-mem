@@ -268,8 +268,17 @@ Exact counts and checksums are reproducible from the run artifacts
 
 A separate verifier agent performed a fresh detached checkout at the exact
 final SHA and ran the full suite independently before seeing this document.
-Verdict: **PASS** — see `docs/v1.2.4/work-packages/R124-07-11-cross-platform/`
-for the machine-readable verdict artifact.
+Verdict: **PASS** — machine-readable artifact at
+`docs/v1.2.4/work-packages/R124-07-11-cross-platform/evidence/verifier-verdict.json`
+(tree `78e94be2708d89b097a2ed070ae523877fb062dd`, tested SHA
+`fa803b6ca0884e099202b28f0e75a84acada8b8a`; all six gates at exact counts,
+all 16 production paths PASS, security sweep clean, packaging clean-install
+`zero-mem 1.2.4`, both pollution-order checks PASS, zero blocking findings).
+
+Final branch-head confirmation: the docs-only reconciliation commit
+`c519d43dc7fdbe24a3a12c561c87a2dac81ef8e3` (product tree identical to
+`fa803b6`) was pushed and re-qualified by run `32551024972` — all 9 cells
+green with the same counts (68 / 57 / 3369-3366 / 152 / 5 / 7).
 
 ## Git protocol compliance
 

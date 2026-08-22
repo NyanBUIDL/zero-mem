@@ -1,0 +1,80 @@
+{
+  "verdict": "PASS",
+  "tested_sha": "fa803b6ca0884e099202b28f0e75a84acada8b8a",
+  "tree_hash": "78e94be2708d89b097a2ed070ae523877fb062dd",
+  "os": "Linux 7.0.0-30-generic x86_64 (Ubuntu 26.04 LTS)",
+  "python": "3.11.16",
+  "arch": "x86_64",
+  "verifier_identity": "independent-verifier-agent-20260822",
+  "gates": {
+    "gate1_focused": {
+      "passed": 68,
+      "failed": 0,
+      "skipped": 0,
+      "command": "pytest -q tests/unit/test_v124_hitl_correction.py tests/unit/test_v124_storage_topology.py tests/unit/test_v124_runtime_modes.py tests/unit/test_v124_message_contract.py tests/integration/test_v123_hermes_host_composition.py"
+    },
+    "gate2_platform_storage": {
+      "passed": 57,
+      "failed": 0,
+      "skipped": 0,
+      "command": "pytest -q tests/unit/test_v122_platform_storage.py tests/unit/test_v122_short_write.py tests/unit/test_wp27_recovery.py tests/unit/test_wp25_runtime_ownership.py tests/unit/test_runtime_gate_isolation.py"
+    },
+    "gate3_full_suite": {
+      "passed": 3369,
+      "failed": 0,
+      "skipped": 5,
+      "command": "pytest -q tests/unit tests/integration"
+    },
+    "gate4_security_redaction_authz": {
+      "passed": 152,
+      "failed": 0,
+      "skipped": 0,
+      "command": "pytest -q tests/unit/test_m1_redaction.py tests/unit/test_wp29_authorization.py tests/unit/test_m8_3_authorization_first.py tests/unit/test_m5_authorized_read.py tests/unit/test_m5_policy_rebuild.py tests/unit/test_m5_access_policy.py"
+    },
+    "gate5_concurrency_lock": {
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0,
+      "command": "pytest -q tests/unit/test_v122_lock_modes.py tests/unit/test_wp11_sync_async.py"
+    },
+    "gate6_benchmark": {
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0,
+      "command": "pytest -q tests/integration/test_m1_capture_rate.py"
+    }
+  },
+  "production_paths": {
+    "direct_api_capture_to_canonical_jsonl": "PASS",
+    "hermes_host_hook_registration": "PASS",
+    "off_registers_no_hooks_tools_writers": "PASS",
+    "observe_captures_no_reads_or_injection": "PASS",
+    "assist_registers_reads": "PASS",
+    "inject_controlled_only": "PASS",
+    "canonical_append_projection_read": "PASS",
+    "projection_failure_preserves_canonical": "PASS",
+    "restart_identity": "PASS",
+    "health_sync_truthful": "PASS",
+    "authorization_before_retrieval": "PASS",
+    "hitl_preview_confirm": "PASS",
+    "delete_request_preserves_canonical": "PASS",
+    "secrets_never_leak": "PASS",
+    "skills_skill_md_never_rewritten": "PASS",
+    "soul_cron_ownership_outside_zero_mem": "PASS"
+  },
+  "security_scan": {
+    "secrets_found": false,
+    "details": "Swept zero_mem/, src/, docs/v1.2.4/evidence/ for gho_/ghp_ tokens, sk- keys, Google AIza keys, Slack xox tokens, AWS AKIA keys, PEM private keys, api_key/password/secret assignments, and .env files: zero matches. Only grep hit was src/corpus/redact.py's own 'contained_secret' boolean field in the fail-closed redactor (benign, not a secret). git diff --check on the verifier snapshot: CLEAN."
+  },
+  "packaging": {
+    "wheel_built": true,
+    "sdist_built": true,
+    "clean_install_version": "zero-mem 1.2.4"
+  },
+  "pollution_checks": {
+    "integration_first": "PASS",
+    "unit_first": "PASS"
+  },
+  "blocking_findings": [],
+  "summary": "Independent verification of Zero-Mem v1.2.4 release candidate at tree 78e94be2708d89b097a2ed070ae523877fb062dd (tested_sha fa803b6ca0884e099202b28f0e75a84acada8b8a). All six gates passed with exact expected counts (68, 57, 3369+5 skipped, 152, 5, 7). All 16 production-path spot checks passed (79 explicit test-node runs, zero failures). Security sweep found no leaked secrets and git diff --check is clean. Wheel and sdist built from the checkout; fresh-venv install reports 'zero-mem 1.2.4'. Both process-global runtime-gate pollution-order checks passed (16 passed in each order). Tests were run with TMPDIR=/dev/shm/zm-v124-verify and HOME=/tmp/zm-tmp isolation and PYTHONPATH pinned to the checkout (verified zero_mem imports from /tmp/v124-verifier-checkout). No blocking findings. Verdict: PASS."
+}
