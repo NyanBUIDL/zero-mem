@@ -42,6 +42,7 @@ Xem `docs/v1.3.0/MASTER-SPEC-RECONCILIATION.md`. Verifier tự extract độc l�
 | WP | Evidence | Verdict |
 |---|---|---|
 | V130-01 | Focused: 49 passed (`tests/unit/test_v130_01_fts_or_fallback.py` + `test_m3_fts.py` + sidecar integration). Full suite run3: **3388 passed / 5 skipped / 0 failed** ≥ baseline 3378 — `zero-mem-dev-data/evidence/v130-wp01-full-suite-run3.log`. C7: revert fix → 8 failed; restore → xanh. RED trước implement: 5 failed (match_mode AttributeError). Graphify pre: `graphify/v130/phase-a-baseline`; post: `graphify/v130/wp01-post`. Commit `620e76b`. Integration test `test_sidecar_advertises_and_dispatches_the_same_public_reads` đổi probe zero-result sang single nonce `zm_probe_no_such_token_v130` theo GATE-A-REPLY-V130-01.md (probe cũ → test dương or_fallback trong unit test). | **PASS-WITH-NOTES** (re-audit deleg_1951a089) — CLOSED |
+| V130-02 | RED: 7 failed/1 passed trước implement. GREEN: 8/8 unit mới. Full suite run2: **3396 passed / 5 skipped / 0 failed** ≥ baseline — `zero-mem-dev-data/evidence/v130-wp02-full-suite-run2.log`. C7: stash migration+ingest+retrieval → 7 failed; restore → 8 passed. R1 rebuild test xanh; R2 3 test NULL-ks policy đủ; R3 fingerprint bind ks qua req.to_dict() từ đầu. Schema-version bump 36 test files theo precedent a861ff0 (literal 10→11, không xóa/weaken assertion). Graphify post: `graphify/v130/wp02-post`. Commit `cdada94`. | PENDING AUDIT (deleg_9d091714) |
 | (chưa có) | | |
 
 ## Verifier
