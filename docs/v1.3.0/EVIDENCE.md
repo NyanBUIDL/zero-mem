@@ -56,6 +56,13 @@ Xem `docs/v1.3.0/MASTER-SPEC-RECONCILIATION.md`. Verifier tự extract độc l�
 - Commits: chỉ stage exact paths; `git diff --check` sạch; không `git add .`.
 - Release invariant: `MASTER_SHA = RELEASE_BRANCH_SHA = TAG_TARGET = ARTIFACT_SOURCE_SHA`.
 
+## Gate D — End-to-end review (deleg_d48c6bf3, 2026-08-23)
+
+- **Verdict: PASS-WITH-NOTES.** Full suite độc lập: 3423 passed / 0 failed.
+- Tất cả tầng D4 ✓ (canonical untouched, auth boundaries, fail-open/closed matrix, migration, rebuild, perf, isolation, portability).
+- Finding #1 MEDIUM: F3-hardening bị nuốt bởi except-generic → **ĐÃ FIX**: `_MissingResourceType` raise ngoài fail-open + test chứng minh (`test_missing_resource_type_surfaces_not_swallowed`). Finding #2 LOW: comment sai nghĩa → đã sửa. Final suite sau remediation: **3424 passed / 0 failed** — `zero-mem-dev-data/evidence/v130-gateD-final-suite.log`.
+- EVIDENCE số final cập nhật 3424 (Gate D chạy 3423 trước khi thêm 1 test remediation).
+
 ## Known limitations
 - **Runtime requirement mới (V130-02):** migration 11 `down` yêu cầu SQLite ≥ 3.35 (ALTER TABLE DROP COLUMN); up không có yêu cầu này. Tracker (user-approved APPROVE-V130-02): (1) mục này; (2) V130-05 benchmark phải kiểm tra SQLite version trước khi chạy rebuild trên môi trường khác; (3) release notes v1.3.0 phải ghi rõ. Tick cả 3 trước Gate D.
 - Master spec `.docx` đã extract và đối chiếu (`MASTER-SPEC-RECONCILIATION.md`) — không còn limitation.
