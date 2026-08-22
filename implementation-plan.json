@@ -81,7 +81,7 @@
       {
         "id": "V124-05",
         "name": "Cross-platform qualification and documentation",
-        "status": "approved",
+        "status": "verified",
         "depends_on": ["V124-01", "V124-02", "V124-03", "V124-04"],
         "scope": [
           "docs/v1.2.4/ARCHITECTURE.md",
@@ -89,7 +89,10 @@
           "docs/v1.2.4/TECH_STACK.md",
           "docs/v1.2.4/VALIDATION_SPEC.md",
           "Linux/macOS/Windows CPython 3.11-3.13 validation"
-        ]
+        ],
+        "evidence": "docs/v1.2.4/evidence/V124-REMEDIATION-EVIDENCE.md",
+        "tested_sha": "e2825ecb7df80a803a0d0f81c818f5a541bb708a",
+        "matrix_run": "https://github.com/NyanBUIDL/zero-mem/actions/runs/32548091181"
       }
     ],
     "open_questions": [],
