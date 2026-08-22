@@ -64,7 +64,7 @@ BUILT_AT = "2026-06-01T00:00:00+00:00"
 
 
 def _new_store() -> SQLiteStore:
-    d = tempfile.mkdtemp(prefix="m8_4_")
+    d = Path(tempfile.mkdtemp(prefix="m8_4_")).resolve()
     store = SQLiteStore(SQLiteStoreConfig(path=Path(d) / "meta.sqlite"))
     store.ensure_schema()  # migrate_4/7/8/9
     return store

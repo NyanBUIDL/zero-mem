@@ -165,9 +165,15 @@ def build_store(tmp: Path, project_ids=("P", "Q", "H")):
     if existing.exists():
         existing.unlink()
     store = open_store(tmp)
-    for pid in project_ids:
-        rebuild_project_memory(store, corpus, project_id=pid)
-    return open_readonly(store.path)
+    try:
+        for pid in project_ids:
+            rebuild_project_memory(store, corpus, project_id=pid)
+    finally:
+        # R124-10: close the writable connection deterministically. Leaking it
+        # left m4.sqlite open on Windows, so a later build_store's existing.unlink()
+        # failed with WinError 32 and stale WAL could poison the next rebuild.
+        store.close()
+    return open_readonly(tmp / "m4.sqlite")
 
 
 def make_service(store: SQLiteStore, requesting_profile_id: str = "PR1") -> AuthorizedReadService:

@@ -41,7 +41,7 @@ from src.m8.vocabulary import RESOURCE_TYPES
 # 1. registry append is append-first and idempotent
 # ---------------------------------------------------------------------------
 def _tmp_root() -> Path:
-    return Path(tempfile.mkdtemp(prefix="m10_1_"))
+    return Path(tempfile.mkdtemp(prefix="m10_1_")).resolve()
 
 
 def test_register_appends_and_is_idempotent_by_content_and_scope():

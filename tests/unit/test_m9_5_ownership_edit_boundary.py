@@ -91,7 +91,10 @@ def _seed(managed_root, note):
     """Write a note file exactly the way M9.2 would (carries the marker)."""
     path = managed_root / note.relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(note.content)
+    # R124-10: write bytes (LF) exactly like the product writer. write_text()
+    # translates \n -> CRLF on Windows, so the on-disk bytes differed from the
+    # recorded LF fingerprint and every generated note looked human-modified.
+    path.write_bytes(note.content.encode("utf-8"))
 
 
 def _rebuild_dir(tmp_path):

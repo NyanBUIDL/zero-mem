@@ -248,7 +248,13 @@ def test_optional_command_does_not_install_hermes(monkeypatch, tmp_path):
 def test_config_write_is_private(monkeypatch, tmp_path):
     _ready(monkeypatch, tmp_path)
     hi.configure_integration(project_id="P", profile_id="PR")
-    assert hi.integration_config_path().stat().st_mode & 0o077 == 0
+    # R124-10: POSIX mode bits are meaningless on Windows (st_mode reports
+    # 0o100666 and chmod only toggles the read-only attribute); the file must
+    # still exist and be a regular file there. On POSIX the group/other bits
+    # must be cleared.
+    if os.name != "nt":
+        assert hi.integration_config_path().stat().st_mode & 0o077 == 0
+    assert hi.integration_config_path().is_file()
 
 
 def test_config_path_is_xdg_owned(monkeypatch, tmp_path):

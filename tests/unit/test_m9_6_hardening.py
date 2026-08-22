@@ -155,6 +155,7 @@ def test_unconfigured_returns_unavailable_and_creates_nothing(tmp_path):
     assert snapshot_home == set(p.name for p in Path.home().iterdir())
 
 
+@pytest.mark.skipif(os.name == "nt", reason="R124-10: chmod does not make a directory read-only on Windows (ACL-based); POSIX permission semantics do not exist there")
 def test_readonly_vault_is_rejected_closed(tmp_path):
     # A vault root we cannot write to must fail closed at config validation,
     # producing no managed subtree and no note.
@@ -181,6 +182,7 @@ def test_readonly_vault_unconfigured_creates_nothing(tmp_path):
         os.chmod(vault, 0o700)
 
 
+@pytest.mark.skipif(os.name == "nt", reason="R124-10: chmod does not make a directory read-only on Windows (ACL-based); POSIX permission semantics do not exist there")
 def test_permission_denied_managed_root_fails_closed(tmp_path):
     # If the managed root cannot be written (permission denied / read-only), the
     # projection must FAIL CLOSED: no unhandled exception, manifest simply not

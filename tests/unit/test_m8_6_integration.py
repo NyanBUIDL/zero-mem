@@ -54,7 +54,7 @@ import tests.unit.test_m3_query as m3base  # noqa: E402
 
 
 def _tmp() -> Path:
-    return Path(tempfile.mkdtemp())
+    return Path(tempfile.mkdtemp()).resolve()
 
 
 def _build_store_with_payload(payload: str):

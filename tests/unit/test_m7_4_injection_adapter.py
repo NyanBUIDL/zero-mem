@@ -88,7 +88,7 @@ class CapturedModelRequest:
 
 def _build_store():
     """Build a populated store with M3 events + M4 project memory (PR1/P)."""
-    tmp = Path(tempfile.mkdtemp()); sp = tmp / "m4.sqlite"
+    tmp = Path(tempfile.mkdtemp()).resolve(); sp = tmp / "m4.sqlite"
     store = SQLiteStore(SQLiteStoreConfig(path=sp)); store.ensure_schema()
     m4base._seed_m2_artifacts(store._conn)
     jl = tmp / "m3.jsonl"

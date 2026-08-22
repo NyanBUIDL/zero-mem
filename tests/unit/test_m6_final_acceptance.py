@@ -374,7 +374,7 @@ class TestSanitizationAndFailure:
 
     def test_db_missing_safe(self, store_path):
         cfg = BridgeConfig(enabled=True)
-        ad = HermesReadAdapter(cfg, store_path=Path(tempfile.mkdtemp()) / "missing.sqlite")
+        ad = HermesReadAdapter(cfg, store_path=Path(tempfile.mkdtemp()).resolve() / "missing.sqlite")
         with pytest.raises(RegistrationFailure):
             ad.startup()
         ctx = _Ctx(); ad.register(ctx)
@@ -391,7 +391,7 @@ class TestSanitizationAndFailure:
 
     def test_no_raw_fallback(self, store_path):
         cfg = BridgeConfig(enabled=True)
-        ad = HermesReadAdapter(cfg, store_path=Path(tempfile.mkdtemp()) / "missing.sqlite")
+        ad = HermesReadAdapter(cfg, store_path=Path(tempfile.mkdtemp()).resolve() / "missing.sqlite")
         try:
             ad.startup()
         except RegistrationFailure:

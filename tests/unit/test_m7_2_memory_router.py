@@ -36,7 +36,7 @@ ALL_ROUTES = (
 
 
 def _tmp() -> Path:
-    return Path(tempfile.mkdtemp())
+    return Path(tempfile.mkdtemp()).resolve()
 
 
 # ---------------------------------------------------------------------------

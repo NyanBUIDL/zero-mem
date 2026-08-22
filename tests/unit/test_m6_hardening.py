@@ -458,7 +458,7 @@ class TestDirectMcpParity:
 class TestFailureIsolation:
     def test_missing_db_safe(self, rt):
         from src.integration.m6 import configure as cfg
-        cfg(Path(tempfile.mkdtemp()) / "missing.sqlite")
+        cfg(Path(tempfile.mkdtemp()).resolve() / "missing.sqlite")
         r = dispatch({"tool": "project_get_charter", "requesting_profile_id": "PR1",
                       "project_ids": ["P"], "target_profile_ids": ["PR1"]})
         assert r.status in (ResponseStatus.CAPABILITY_UNAVAILABLE, ResponseStatus.DOWNSTREAM_ERROR)
