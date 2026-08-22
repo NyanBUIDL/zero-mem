@@ -45,7 +45,9 @@
         "id": "V124-02",
         "name": "Explicit runtime modes and observation-only enforcement",
         "status": "approved",
-        "depends_on": ["V124-01"],
+        "depends_on": [
+          "V124-01"
+        ],
         "scope": [
           "zero_mem/hermes_integration.py",
           "zero_mem/cli.py",
@@ -57,7 +59,9 @@
         "id": "V124-03",
         "name": "Single storage composition and truthful freshness",
         "status": "approved",
-        "depends_on": ["V124-02"],
+        "depends_on": [
+          "V124-02"
+        ],
         "scope": [
           "zero_mem/local.py",
           "zero_mem/hermes_integration.py",
@@ -69,7 +73,11 @@
         "id": "V124-04",
         "name": "Hermes pillars, HITL control and Agent Skills compatibility",
         "status": "approved",
-        "depends_on": ["V124-01", "V124-02", "V124-03"],
+        "depends_on": [
+          "V124-01",
+          "V124-02",
+          "V124-03"
+        ],
         "scope": [
           "Hermes memory/FTS5 ownership boundary",
           "skill lifecycle observation without skill mutation",
@@ -82,7 +90,12 @@
         "id": "V124-05",
         "name": "Cross-platform qualification and documentation",
         "status": "verified",
-        "depends_on": ["V124-01", "V124-02", "V124-03", "V124-04"],
+        "depends_on": [
+          "V124-01",
+          "V124-02",
+          "V124-03",
+          "V124-04"
+        ],
         "scope": [
           "docs/v1.2.4/ARCHITECTURE.md",
           "docs/v1.2.4/ROADMAP.md",
@@ -91,8 +104,8 @@
           "Linux/macOS/Windows CPython 3.11-3.13 validation"
         ],
         "evidence": "docs/v1.2.4/evidence/V124-REMEDIATION-EVIDENCE.md",
-        "tested_sha": "e2825ecb7df80a803a0d0f81c818f5a541bb708a",
-        "matrix_run": "https://github.com/NyanBUIDL/zero-mem/actions/runs/32548091181"
+        "tested_sha": "fa803b6ca0884e099202b28f0e75a84acada8b8a",
+        "matrix_run": "https://github.com/NyanBUIDL/zero-mem/actions/runs/32550606746"
       }
     ],
     "open_questions": [],
@@ -809,7 +822,7 @@
       "increment_6": {
         "name": "Retention tombstones, logical deletion, secret scanning, and rollback",
         "status": "verified",
-        "decision": "B \u2014 logical deletion only; canonical JSONL immutable and append-only",
+        "decision": "B — logical deletion only; canonical JSONL immutable and append-only",
         "evidence": "docs/acceptance/m2/acceptance-m2-increment-6.md",
         "focused_test": "tests/unit/test_m2_tombstones.py",
         "focused_result": "35 passed in 1.52s",

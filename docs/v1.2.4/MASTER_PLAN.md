@@ -110,7 +110,7 @@ HITL tối thiểu: inspect → propose correction/supersession/delete-request �
 ### V124-05 — Cross-platform and release qualification
 
 **Trạng thái:** `IMPLEMENTED_VERIFIED` — full 9-cell × 12-gate GitHub Actions
-matrix GREEN (run 32548091181, head `e2825ec`): Windows/Linux/macOS ×
+matrix GREEN (run 32550606746, head `fa803b6`): Windows/Linux/macOS ×
 CPython 3.11/3.12/3.13 all pass focused, platform, full-suite, security,
 concurrency, benchmark gates; packaging + clean-install + CLI/sidecar/Hermes
 smoke pass on all 3.11 cells. Remaining work before v1.2.4 is marked
@@ -124,12 +124,14 @@ RELEASE_QUALIFIED: merge decision on PR #2 and independent verifier sign-off
 
 **Đã thực thi (local Linux + GitHub Actions 9-cell matrix):**
 - `compileall src zero_mem benchmarks release_helpers` → exit 0.
-- Full suite local: 3364 passed, 0 failed, 5 skipped (TMPDIR/HOME isolated).
-- GitHub matrix run `32548091181` (head `e2825ecb7df80a803a0d0f81c818f5a541bb708a`):
-  Gate 1 68 passed, Gate 2 52 passed, Gate 3 3364 passed (5 skipped POSIX /
+- Full suite local: 3369 passed, 0 failed, 5 skipped (TMPDIR/HOME isolated).
+- GitHub matrix run `32550606746` (head `fa803b6ca0884e099202b28f0e75a84acada8b8a`):
+  Gate 1 68 passed, Gate 2 57 passed, Gate 3 3369 passed (5 skipped POSIX /
   8 skipped Windows: documented POSIX-chmod + platform skips), Gate 4 152 passed,
   Gate 5 5 passed, Gate 6 7 passed on ALL 9 cells; Gates 7–11 (wheel/sdist,
   clean install, CLI, sidecar, Hermes composition smoke) pass on 3.11 cells.
+  (Gate 2 and Gate 3 counts include the +4 R124-10 runtime-gate isolation
+  regression tests added at the final head.)
 - Root causes fixed (R124-07/08/09/10): Windows atomic-promotion identity fence,
   CRT text-mode handles (O_BINARY) for canonical JSONL/notes/manifest,
   locale-default read_text (cp1252) fingerprint mismatch, read-only WAL

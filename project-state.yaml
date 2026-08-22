@@ -465,8 +465,8 @@ next_milestone_status: feature_freeze_active
 feature_freeze_status: active
 post_m10_audit_status: not_started
 packaging_status: verified
-packaging_verified_sha: e2825ecb7df80a803a0d0f81c818f5a541bb708a
-packaging_verified_note: "wheel+sdist build, clean wheel install, CLI/sidecar/Hermes smoke pass on 3.11 cells of run 32548091181; package version 1.2.4"
+packaging_verified_sha: fa803b6ca0884e099202b28f0e75a84acada8b8a
+packaging_verified_note: "wheel+sdist build, clean wheel install, CLI/sidecar/Hermes smoke pass on 3.11 cells of run 32550606746; package version 1.2.4"
 m1_current_increment: increment_4_3_redaction_capture_adapter
 m1_increment_3_status: verified
 m1_increment_3_evidence: docs/acceptance/m1/acceptance-m1-increment-3.md
@@ -1473,15 +1473,15 @@ v124_03_commit: 5647b2e
 v124_04_status: IMPLEMENTED_PENDING_VERIFICATION
 v124_04_commit: 6cbe221
 v124_05_status: IMPLEMENTED_VERIFIED
-v124_05_tested_sha: e2825ecb7df80a803a0d0f81c818f5a541bb708a
-v124_05_matrix_run: https://github.com/NyanBUIDL/zero-mem/actions/runs/32548091181
+v124_05_tested_sha: fa803b6ca0884e099202b28f0e75a84acada8b8a
+v124_05_matrix_run: https://github.com/NyanBUIDL/zero-mem/actions/runs/32550606746
 v124_05_matrix_result: "9/9 cells success (ubuntu/windows/macos x py3.11-3.13, 12 gates); Gate1 68, Gate2 52, Gate3 3364 pass (5-8 skip), Gate4 152, Gate5 5, Gate6 7; Gates7-11 pass on 3.11 cells"
 v124_06_status: IMPLEMENTED_PENDING_VERIFICATION
 v124_06_commit: c7c9b75
 v124_ci_workflow: .github/workflows/v1.2.4-qualification.yml
 v124_prior_claims_superseded: "V124-02/03/04 IMPLEMENTED_VERIFIED claims in docs/v1.2.4/MASTER_PLAN.md are historical only"
 v124_release_qualified: false
-v124_release_qualified_reason: "all 9-cell gates pass at e2825ec; release gate pending PR #2 merge decision and operator authorization; no tag/release created"
+v124_release_qualified_reason: "all 9-cell gates pass at fa803b6 (run 32550606746); release gate pending PR #2 merge decision and operator authorization; no tag/release created"
 v124_master_merged: false
 v124_tag_created: false
 v124_github_release_created: false

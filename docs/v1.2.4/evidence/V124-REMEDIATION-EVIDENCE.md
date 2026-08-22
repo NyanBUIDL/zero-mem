@@ -3,7 +3,7 @@
 Package: `zero-mem`
 Branch: `release/v1.2.4` (remediation work on `codex/v124-full-remediation`)
 Baseline (release HEAD before remediation): `2d42b384a94fcac62cf3c2424b7f4504051c7661`
-Final tested SHA (product code, CI-tested): `e2825ecb7df80a803a0d0f81c818f5a541bb708a`
+Final tested SHA (product code, CI-tested): `fa803b6ca0884e099202b28f0e75a84acada8b8a`
 
 This document is the single synchronized evidence record for the v1.2.4
 remediation (R124-01..06) and the cross-platform remediation (R124-07..11).
@@ -42,11 +42,11 @@ export HOME=/tmp/zm-tmp
 ## Local results at the final tested SHA
 
 - Focused v1.2.4 suite (R124-01..04 acceptance): **68 passed**
-- v1.2.2 / WP platform + recovery subset: **50 passed**
+- v1.2.2 / WP platform + recovery subset (Gate 2, incl. isolation regression): **57 passed**
 - Security / redaction / authorization suite (Gate 4): **152 passed**
 - Concurrency / lock suite (Gate 5): **5 passed**
 - Benchmark suite (Gate 6): **7 passed**
-- Full unit + integration suite: **3364 passed, 0 failed, 5 skipped**
+- Full unit + integration suite: **3369 passed, 0 failed, 5 skipped**
 
 ## R124-08 runtime-contract alignment
 
@@ -135,6 +135,23 @@ The following product defects were found and fixed:
 13. **Concurrent transient store errors** (`tests/unit/test_m6_hardening.py`):
     the identity-separation test retries transient DOWNSTREAM_ERROR results
     (bounded, non-leaking) before asserting the strict final statuses.
+14. **Process-global runtime-gate test pollution** (root `conftest.py`, new
+    `tests/unit/test_runtime_gate_isolation.py`): `HermesBoundary.register()`
+    in OFF/invalid mode runs
+    `src.integration.zero_mem_runtime.configure(enabled=False, source="boundary")`,
+    mutating the module-level `_default_runtime` gate. That process-global state
+    leaked into later tests in the same pytest process: a `RegistrationAdapter`
+    composed from an explicit `BridgeConfig(enabled=True, ...)` observed a
+    disabled gate and silently opened NO writer (canonical JSONL never created;
+    `test_wp25_runtime_ownership` FileNotFoundError; `test_wp31` sidecar never
+    started). This was order-dependent — CI's unit-before-integration collection
+    order masked it, and any `pytest tests/integration tests/unit` (or a
+    combined production-path run) exposed it. Product fail-closed OFF semantics
+    are intentional and asserted; the defect was TEST isolation. A root
+    autouse fixture now snapshots/restores both module-level gate cells
+    (`_default_runtime`, `_BOUNDARY_DISABLED_RUNTIME`) around every test, and
+    regression tests prove both orderings are stable and explicit-disabled
+    still fails closed.
 
 ## R124-09 packaging and CI-environment fixes
 
@@ -162,48 +179,56 @@ The following product defects were found and fixed:
    the logical snapshot normalizes second-granularity `*_at` bookkeeping
    columns so a slow second-boundary crossing cannot fail a no-op upgrade test.
 
-## GitHub cross-platform matrix (FINAL, run 32548091181)
+## GitHub cross-platform matrix (FINAL, run 32550606746)
 
 The qualification workflow (`v1.2.4-qualification.yml`) was genuinely executed
 on GitHub runners for all 9 OS/Python cells with 12 gates each.
 
-Run URL: `https://github.com/NyanBUIDL/zero-mem/actions/runs/32548091181`
-Head SHA: `e2825ecb7df80a803a0d0f81c818f5a541bb708a`
+Run URL: `https://github.com/NyanBUIDL/zero-mem/actions/runs/32550606746`
+Head SHA: `fa803b6ca0884e099202b28f0e75a84acada8b8a`
 
 | Cell          | Gate 1 focused | Gate 2 platform | Gate 3 full | Gate 4 security | Gate 5 concurrency | Gate 6 benchmark |
 |---------------|----------------|-----------------|-------------|-----------------|--------------------|------------------|
-| ubuntu/3.11   | 68 passed      | 52 passed       | 3364 passed, 5 skipped | 152 passed | 5 passed | 7 passed |
-| ubuntu/3.12   | 68 passed      | 52 passed       | 3364 passed, 5 skipped | 152 passed | 5 passed | 7 passed |
-| ubuntu/3.13   | 68 passed      | 52 passed       | 3364 passed, 5 skipped | 152 passed | 5 passed | 7 passed |
-| windows/3.11  | 68 passed      | 52 passed       | 3361 passed, 8 skipped | 152 passed | 5 passed | 7 passed |
-| windows/3.12  | 68 passed      | 52 passed       | 3361 passed, 8 skipped | 152 passed | 5 passed | 7 passed |
-| windows/3.13  | 68 passed      | 52 passed       | 3361 passed, 8 skipped | 152 passed | 5 passed | 7 passed |
-| macos/3.11    | 68 passed      | 52 passed       | 3364 passed, 5 skipped | 152 passed | 5 passed | 7 passed |
-| macos/3.12    | 68 passed      | 52 passed       | 3364 passed, 5 skipped | 152 passed | 5 passed | 7 passed |
-| macos/3.13    | 68 passed      | 52 passed       | 3364 passed, 5 skipped | 152 passed | 5 passed | 7 passed |
+| ubuntu/3.11   | 68 passed      | 57 passed       | 3369 passed, 5 skipped | 152 passed | 5 passed | 7 passed |
+| ubuntu/3.12   | 68 passed      | 57 passed       | 3369 passed, 5 skipped | 152 passed | 5 passed | 7 passed |
+| ubuntu/3.13   | 68 passed      | 57 passed       | 3369 passed, 5 skipped | 152 passed | 5 passed | 7 passed |
+| windows/3.11  | 68 passed      | 57 passed       | 3366 passed, 8 skipped | 152 passed | 5 passed | 7 passed |
+| windows/3.12  | 68 passed      | 57 passed       | 3366 passed, 8 skipped | 152 passed | 5 passed | 7 passed |
+| windows/3.13  | 68 passed      | 57 passed       | 3366 passed, 8 skipped | 152 passed | 5 passed | 7 passed |
+| macos/3.11    | 68 passed      | 57 passed       | 3369 passed, 5 skipped | 152 passed | 5 passed | 7 passed |
+| macos/3.12    | 68 passed      | 57 passed       | 3369 passed, 5 skipped | 152 passed | 5 passed | 7 passed |
+| macos/3.13    | 68 passed      | 57 passed       | 3369 passed, 5 skipped | 152 passed | 5 passed | 7 passed |
 
 Windows skips (8 vs 5) are the two documented POSIX-chmod tests plus the
 pre-existing platform skip counts; no gate is skipped. Python 3.11 cells
 additionally pass Gates 7–11 (wheel + sdist build, clean wheel install, CLI
 smoke, sidecar smoke, Hermes composition smoke).
 
-Earlier runs in this remediation (for the record, all superseded by
-32548091181): `32488756127` (baseline failures), `32543430368`,
-`32544677173`, `32545783295`, `32546904299`, `32547394494`, `32547736671`
-(intermediate states during root-cause work).
+Prior green run on the previous head (for the record; superseded by
+32550606746): run `32549170014` at head
+`169fa90141b6bdafb122e2471d56ab8c8cdcb6ba` — all 9 cells green with
+Gate 2 53 passed and Gate 3 3365 passed (5-8 skipped); the SOUL/cron
+ownership regression test (production-path #16) was added at that head and the
+runtime-gate isolation regression (R124-10) was added at the final head.
 
-Raw log checksums (SHA-256), representative cells (artifacts via `gh run download 32548091181`):
+Earlier runs in this remediation (for the record, all superseded by
+32550606746): `32488756127` (baseline failures), `32543430368`,
+`32544677173`, `32545783295`, `32546904299`, `32547394494`, `32547736671`
+(intermediate states during root-cause work), `32548091181` (first green
+9-cell run), `32549170014` (head 169fa90, prior green run).
+
+Raw log checksums (SHA-256), representative cells (artifacts via `gh run download 32550606746`):
 - `ubuntu-latest-py3.11-g3-full.log`:
-  `2c071b82f555e11f0eb22a6ef7344ccadf49a67e695dc9b915fe3797195fe83a`
+  `db6ee5cf1e88bea1aca3d058bc1c610da2c874990e381750e3dbdb0a069005ac`
 - `windows-latest-py3.11-g3-full.log`:
-  `144aa48836ebe78838473636c5d0732a34ae633d41efe68b07d2afcae1d0d9aa`
+  `86ec4f820747eb460b32c0bd81396cf1414ac1e4e4b21cf03b963a8a0c1fabb6`
 - `macos-latest-py3.11-g3-full.log`:
-  `3fc1575ca818a5fbdd21389bbcf493ff3da7ff78bdf72f452d6e9c5cc883068f`
+  `b61839cac0784637c3033f3ca5358eacecf63c5214d3f39fc4148aaf1c4a4039`
 - `windows-latest-py3.12-g2-platform.log`:
-  `7bf15370fe034da557b86052f708593029f7ac6f5224e5eca0fab5117984174a`
+  `25537079bc089c3284fb4784d0a868387fefa0d015b403e66e38faad22d7ac9c`
 
 Exact counts and checksums are reproducible from the run artifacts
-(`gh run download 32548091181`).
+(`gh run download 32550606746`).
 
 ## R124-07 regression tests added
 
