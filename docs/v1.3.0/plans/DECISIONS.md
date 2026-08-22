@@ -17,6 +17,22 @@
 - **Phương án bị loại:** deny-by-default cho NULL ks — trái global-default-read của AGENTS.md + master spec, không có yêu cầu nguồn.
 - **Trạng thái:** ĐÃ QUYẾT (user-approved).
 
+## D-2026-08-22-06 — Verification-strength cho memory type ngoài bảng closed (state)
+
+- **Quyết định:** `derive_verification_strength` fallback: memory type không có row trong `VERIFICATION_STRENGTH_VALUES` → dùng strength của `verification_status` của chính item qua bảng mới `VERIFICATION_STATUS_STRENGTH` (giá trị tái sử dụng từ bảng đã duyệt: none=0.5, direct_tool_output=0.9, deterministic_verification=1.0, user_confirmation=0.9, approval=1.0). Không phát minh số mới.
+- **Ngày:** 2026-08-23 (user chốt qua clarify trong V130-03).
+- **Lý do:** V130-03 promotion làm state vào primary → M8.5 lần đầu phải score 'state' → CalibrationError (bảng closed thiếu) → score=None. User chốt: strength = strength_lookup(event.verification_status); phương án unscored/hằng số bị loại vì làm mất calibration metadata cho một loại evidence hợp lệ và phá invariant "mọi primary có score" trong test m8_6.
+- **Phương án bị loại:** unscored + nới test m8_6 (user: "Không nới test"); thêm hằng số mới 0.85 cho state (phát minh số).
+- **Trạng thái:** ĐÃ QUYẾT (user-directed).
+
+## D-2026-08-22-05 — ProjectArtifactView.lifecycle_status mặc định "active"
+
+- **Quyết định:** `ProjectArtifactView` thêm field `lifecycle_status` với giá trị tường minh `"active"`; `EvidenceItem.lifecycle` không bao giờ None từ đường artifact.
+- **Ngày:** 2026-08-23 (phát hiện trong V130-03; user chốt xử lý qua clarify)
+- **Lý do:** `zm_project_artifacts` (migrate_7) không có cột lifecycle — artifact linkage là current-truth record (tạo active, update tại chỗ, không supersede). Trước V130-03 latent bug chưa lộ vì ART1 bị cắt khỏi bounded set; promotion đổi selection làm nó vào supporting với `lifecycle=None`, vi phạm well-formed authority fields (9 test m8_6 fail). User chốt: fix ở view (artifact lifecycle = active), KHÔNG nới allowed_life nhận None.
+- **Phương án bị loại:** thêm None vào allowed_life trong test m8_6 (nới lỏng assertion authority); loại artifact thiếu lifecycle khỏi eligibility set (mất evidence hợp lệ).
+- **Trạng thái:** ĐÃ QUYẾT (user-directed).
+
 ## D-2026-08-22-02 — V130-01 và V130-02 tách hay gộp WP
 
 - **Quyết định:** TÁCH thành 2 WP độc lập (V130-01 FTS OR-fallback; V130-02 ks schema+enforce).

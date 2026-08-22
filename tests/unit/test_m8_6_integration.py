@@ -343,17 +343,26 @@ class TestTemporal:
     def test_recency_not_truth(self):
         store = _build_store()
         es = _es(store)
-        # M8.6 calibration/temporal metadata must NOT mutate EvidenceItem authority
-        # fields. The frozen EvidenceItem carries the same verification/lifecycle
-        # M7 produced; calibration never promotes 'none' -> 'verified'.
-        allowed_ver = (None, "none", "verified")
+        # V130-03 (user-directed): the old hard-coded allowed_ver list encoded the
+        # PRE-promotion selection shape, not an authority invariant. The real
+        # invariant is: M8.6 calibration/temporal metadata must NOT MUTATE any
+        # EvidenceItem authority field. Prove it with a snapshot-diff: build a
+        # second EvidenceSet from the same store and compare authority tuples.
+        # Sanity: every observed value must be inside the closed enum.
+        from src.project_memory.contracts import VERIFICATION_STATUS_ENUM
         allowed_life = ("active", "candidate", "conflicted", "superseded",
                         "archived", "deleted", "none")
-        for e in es.primary_evidence + es.supporting_evidence:
-            assert e.verification in allowed_ver, e.evidence_id
+        items = es.primary_evidence + es.supporting_evidence
+        for e in items:
+            assert e.verification is None or e.verification in VERIFICATION_STATUS_ENUM, e.evidence_id
             assert e.lifecycle in allowed_life, e.evidence_id
-            # Authoritative state is never altered by scoring.
-            assert e.verification != "verified" or e.lifecycle in allowed_life
+        # Mutation check: rebuilding yields identical authority fields (M8.6 is
+        # request-time metadata; nothing persists back into evidence).
+        es2 = _es(store)
+        before = {(e.evidence_id, e.verification, e.lifecycle) for e in items}
+        after = {(e.evidence_id, e.verification, e.lifecycle)
+                 for e in es2.primary_evidence + es2.supporting_evidence}
+        assert before == after
 
 
 # ---------------------------------------------------------------------------
@@ -390,20 +399,31 @@ class TestDataSafety:
         # authorization, become a command, or flip verification/lifecycle. We seed
         # the payload into E1's canonical sanitized content (the realistic vector)
         # via the JSONL fixture, then assert M8.6 leaves authority untouched.
+        # V130-03 (user-directed): authority well-formedness uses the closed enum +
+        # snapshot-diff (not the old selection-shaped allowed_ver list); the real
+        # mutation check is that a hostile payload produces byte-identical
+        # authority fields to the clean baseline below.
+        from src.project_memory.contracts import VERIFICATION_STATUS_ENUM
+        allowed_life = ("active", "candidate", "conflicted", "superseded",
+                        "archived", "deleted", "none")
         store = _build_store_with_payload(payload)
         svc = AuthorizedReadService(store, requesting_profile_id="PR1")
         es = build_evidence_set(route(_router()), svc, _router())
         roles = [e.role.value for e in es.primary_evidence + es.supporting_evidence]
         assert all(r in ("primary", "supporting") for r in roles)
-        allowed_ver = (None, "none", "verified")
-        allowed_life = ("active", "candidate", "conflicted", "superseded",
-                        "archived", "deleted", "none")
         for e in es.primary_evidence + es.supporting_evidence:
             # Calibration/metadata never mutate authoritative state.
-            assert e.verification in allowed_ver, e.evidence_id
+            assert e.verification is None or e.verification in VERIFICATION_STATUS_ENUM, e.evidence_id
             assert e.lifecycle in allowed_life, e.evidence_id
-            # The payload did not become a verification/authorization action.
-            assert e.verification != "verified" or e.lifecycle in allowed_life
+        # The payload did not change the authority snapshot vs the clean corpus.
+        clean = build_evidence_set(route(_router()),
+                                   AuthorizedReadService(_build_store(), requesting_profile_id="PR1"),
+                                   _router())
+        before = {(e.evidence_id, e.verification, e.lifecycle, e.role.value)
+                  for e in clean.primary_evidence + clean.supporting_evidence}
+        after = {(e.evidence_id, e.verification, e.lifecycle, e.role.value)
+                 for e in es.primary_evidence + es.supporting_evidence}
+        assert before == after
 
 
 # ---------------------------------------------------------------------------

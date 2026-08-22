@@ -173,6 +173,11 @@ class ProjectArtifactView:
     linked_requirement_ids: Optional[str]
     linked_decision_ids: Optional[str]
     linked_state_keys: Optional[str]
+    # V130-03 (D-2026-08-22-05): zm_project_artifacts has no lifecycle column —
+    # an M4.5 artifact linkage is a current-truth record by definition (created
+    # active, updated in place, never superseded). Surfaced as a concrete enum
+    # value so downstream authority fields are always well-formed.
+    lifecycle_status: str = "active"
     # Joined M2 safe metadata (no stored_path, no content).
     kind: Optional[str] = None
     content_hash: Optional[str] = None
@@ -379,6 +384,8 @@ def _artifact_view(row) -> ProjectArtifactView:
         created_at=row["created_at"], verification_status=row["verification_status"],
         linked_requirement_ids=row["linked_requirement_ids"], linked_decision_ids=row["linked_decision_ids"],
         linked_state_keys=row["linked_state_keys"],
+        # V130-03 / D-2026-08-22-05: current-truth record, no lifecycle column.
+        lifecycle_status="active",
         kind=row["kind"] if "kind" in row.keys() else None,
         content_hash=row["content_hash"] if "content_hash" in row.keys() else None,
         retention=row["retention"] if "retention" in row.keys() else None,
