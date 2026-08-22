@@ -28,7 +28,12 @@ def _writer(root: str, start: int, count: int = 50) -> None:
 
 
 def test_two_processes_share_canonical_writer_without_loss(tmp_path: Path) -> None:
-    ctx = multiprocessing.get_context("fork")
+    # R124-07: 'fork' does not exist on Windows; use spawn there while keeping
+    # the fast fork path on POSIX.
+    if "fork" in multiprocessing.get_all_start_methods():
+        ctx = multiprocessing.get_context("fork")
+    else:
+        ctx = multiprocessing.get_context("spawn")
     processes = [ctx.Process(target=_writer, args=(str(tmp_path), start)) for start in (0, 50)]
     for process in processes:
         process.start()

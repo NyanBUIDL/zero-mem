@@ -793,7 +793,17 @@ def atomic_promote(source: Path, destination: Path, *, expected_source: FileIden
         ):
             raise PlatformStorageError(PlatformErrorCode.UNSAFE_PATH)
         opened = os.fstat(fd)
-        if not _is_regular_stat(opened) or (opened.st_dev, opened.st_ino) != (current.device, current.inode):
+        if not _is_regular_stat(opened):
+            raise PlatformStorageError(PlatformErrorCode.UNSAFE_PATH)
+        # R124-07: on Windows os.fstat().st_dev/st_ino are NOT the volume/file
+        # index identity that _identity_from_fd records; comparing them made the
+        # identity fence fail on every Windows promotion. Use the same Windows
+        # handle-identity source for the comparison.
+        if os.name == "nt":
+            opened_identity = _windows_handle_identity(fd)
+        else:
+            opened_identity = (opened.st_dev, opened.st_ino)
+        if opened_identity != (current.device, current.inode):
             raise PlatformStorageError(PlatformErrorCode.UNSAFE_PATH)
         if os.name == "nt":
             _windows_replace_handle(fd, source, destination)
