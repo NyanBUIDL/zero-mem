@@ -26,7 +26,7 @@
 - [x] B2. 5 spec WP tại `docs/v1.3.0/plans/V130-0N-SPEC.md` — contract + acceptance criteria + migration + rollback; V130-02 mang đủ 2 ràng buộc D-03 (Verifier note N3 đã track và đóng).
 - [x] B3. Invariant giữ nguyên khung AGENTS.md (JSONL canonical, zero-LLM, authorization, redaction, rebuildable) — trong ROADMAP.md §Nguyên tắc.
 - [x] B4. ARCHITECTURE.md / TECH_STACK.md cập nhật (component topology v1.3, no new dependency).
-- [ ] B5. GATE B: tạo branch `release/v1.3.0`.
+- [x] B5. GATE B: branch `release/v1.3.0` tạo từ `e2c0d7ac…`; commit docs `011c1f3` (stage exact paths, `git diff --check` sạch, working tree sạch sau commit).
 
 ## MASTER-SPEC-RECONCILIATION
 Xem `docs/v1.3.0/MASTER-SPEC-RECONCILIATION.md`. Verifier tự extract độc lập docx — khớp byte-for-byte.
@@ -35,10 +35,13 @@ Xem `docs/v1.3.0/MASTER-SPEC-RECONCILIATION.md`. Verifier tự extract độc l�
 | Artifact | Verdict | Findings | Xử lý |
 |---|---|---|---|
 | Pha A authority-chain audit (deleg_54e820b1, 2026-08-22) | **PASS-WITH-NOTES** | N1: D-01/D-02 status cũ → đã cập nhật "user-approved"; N2: L156 paraphrase → đã đánh dấu rõ; N3: V130-02 spec chưa có khi audit → đã viết với đủ ràng buộc D-03 | Cả 3 notes đã xử lý |
+| WP V130-01 pre-merge audit (deleg_44b4b317, 2026-08-22) | **DEVIATED** → remediated | MEDIUM: fingerprint chưa bind match_mode → đã bind (`make_fingerprint(..., match_mode=)` + encode theo mode hiện hành + chỉ fallthrough với `cursor_query_mismatch`); LOW: test cross-mode yếu → đã siết (corpus paginate được, same-mode pagination assert) | Re-audit cần trước khi WP V130-02 bắt đầu implement |
+| WP V130-01 re-audit sau remediation (deleg_1951a089, 2026-08-22) | **PASS-WITH-NOTES** | Note 1: spec invariant "cursor chéo chế độ bị từ chối" mâu thuẫn với fallthrough qf_and→qf_or → đã soften spec text khớp hành vi; Note 2: quote chống injection là điểm cộng | Đã xử lý note 1. **V130-01 CLOSED — V130-02 được phép bắt đầu** |
 
 ## Work-package evidence
 | WP | Evidence | Verdict |
 |---|---|---|
+| V130-01 | Focused: 49 passed (`tests/unit/test_v130_01_fts_or_fallback.py` + `test_m3_fts.py` + sidecar integration). Full suite run3: **3388 passed / 5 skipped / 0 failed** ≥ baseline 3378 — `zero-mem-dev-data/evidence/v130-wp01-full-suite-run3.log`. C7: revert fix → 8 failed; restore → xanh. RED trước implement: 5 failed (match_mode AttributeError). Graphify pre: `graphify/v130/phase-a-baseline`; post: `graphify/v130/wp01-post`. Commit `620e76b`. Integration test `test_sidecar_advertises_and_dispatches_the_same_public_reads` đổi probe zero-result sang single nonce `zm_probe_no_such_token_v130` theo GATE-A-REPLY-V130-01.md (probe cũ → test dương or_fallback trong unit test). | **PASS-WITH-NOTES** (re-audit deleg_1951a089) — CLOSED |
 | (chưa có) | | |
 
 ## Verifier
