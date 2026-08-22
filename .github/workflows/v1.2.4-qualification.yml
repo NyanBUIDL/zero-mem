@@ -134,6 +134,7 @@ jobs:
             tests/unit/test_v122_short_write.py \
             tests/unit/test_wp27_recovery.py \
             tests/unit/test_wp25_runtime_ownership.py \
+            tests/unit/test_runtime_gate_isolation.py \
             2>&1 | tee "ci-logs/${{ matrix.os }}-py${{ matrix.python-version }}-g2-platform.log"
 
       # ============= GATE 3: full unit + integration suite (ALL 9 cells) ======
