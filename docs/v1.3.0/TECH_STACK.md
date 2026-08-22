@@ -28,3 +28,7 @@
 - Capture append synchronous qua durability receipt; projection decoupled.
 - Benchmark phải ghi corpus size, repeats, platform, Python version, seed.
 - Mục tiêu v1.3: token-savings ratio và Recall@K có baseline production (từ P1 scale harness).
+
+## Thay đổi stack v1.3
+- KHÔNG thêm dependency/framework mới. Migration 11 thuần SQLite stdlib; benchmark generator dùng stdlib (random với seed cố định, hashlib, json).
+- Benchmark corpus N=5.000+ nằm ở `zero-mem-dev-data/benchmarks/v130/` (ngoài repo); generator + runner vào `benchmarks/`.

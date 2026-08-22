@@ -1,11 +1,8 @@
-# Zero-Mem v1.3.0 — <tên ngắn>
+# Zero-Mem v1.3.0 — Retrieval Quality & Temporal Correctness
 
-**Status:** `PLANNING`
-**Branch:** `release/v1.3.0` (chưa tạo; tạo khi bắt đầu)
-**Purpose:** <1-2 câu: v1.3 giải quyết gì — ví dụ: nâng retrieval quality, đóng các P1 findings (FTS-AND brittleness, state-as-primary, knowledge-space filter), scale benchmark lên production>
-
-> Khung này được tạo từ `docs/VERSION-TEMPLATE.md`. Điền đầy đủ **trước khi code**.
-> Xoá các dòng `<...>` và ghi chú.
+**Status:** `IN_PROGRESS` (Pha B)
+**Branch:** `release/v1.3.0` (tạo tại Gate B)
+**Purpose:** Đóng 5 P1 findings kế thừa từ v1.2.4 — nâng chất lượng retrieval (FTS OR-fallback, knowledge-space filter, state-as-primary promotion), tích hợp temporal read vào EvidenceSet, và chứng minh trên benchmark quy mô thực (N=5.000+ synthetic + real corpus đã redact).
 
 ## Đọc theo thứ tự
 1. [`ROADMAP.md`](ROADMAP.md) — lộ trình
@@ -13,15 +10,23 @@
 3. [`TECH_STACK.md`](TECH_STACK.md) — công nghệ
 4. [`DEVELOPMENT.md`](DEVELOPMENT.md) — cách phát triển
 5. [`EVIDENCE.md`](EVIDENCE.md) — bằng chứng
+6. [`MASTER-SPEC-RECONCILIATION.md`](MASTER-SPEC-RECONCILIATION.md) — đối chiếu master spec .docx
 
 ## Work packages
 | ID | Nội dung | Status |
 |---|---|---|
-| V130-01 | ... | PLANNED |
+| V130-01 | FTS OR-fallback + normalization, giữ precision guard | PLANNED |
+| V130-02 | Knowledge-space filter: schema zm_meta + enforce search_text | PLANNED |
+| V130-03 | State-as-primary promotion (PROJECT route) | PLANNED |
+| V130-04 | Temporal read integration: B29 → EvidenceSet | PLANNED |
+| V130-05 | Hybrid corpus benchmark N=5.000+ | PLANNED |
 
 ## Kế thừa từ v1.2.4 (P1 findings chưa đóng)
-- FTS-AND brittleness (query nhiều từ, 1 từ không có → 0 kết quả) — cần OR/fallback/normalization mở rộng.
-- State-as-primary: quyết định nâng state active lên primary trong PROJECT route (đang chờ triển khai).
-- Knowledge-space filter chưa enforced trên memory events (`search_text` không truyền ks; zm_meta không có cột ks) — cần quyết định schema/design.
-- Benchmark hiện là functional baseline trên corpus tổng hợp nhỏ; cần scale lên corpus lớn hơn (N=5.000+) để có token-savings production.
-- History/as-of read (B29) chưa wired vào EvidenceSet (cần M8.4 temporal_read integration).
+- FTS-AND brittleness → V130-01.
+- State-as-primary promotion → V130-03.
+- Knowledge-space filter chưa enforced → V130-02.
+- Benchmark functional nhỏ → V130-05.
+- Temporal/as-of read (B29) chưa wired vào EvidenceSet → V130-04.
+
+## Quyết định thiết kế
+Xem `plans/DECISIONS.md`: D-01 ks cột đơn; D-02 tách V130-01/02; D-03 NULL-ks = unscoped visible (user-approved Gate A).
