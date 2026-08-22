@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import os
 import sqlite3
 from pathlib import Path
@@ -75,6 +76,9 @@ def _files(root: Path) -> dict[str, bytes]:
     }
 
 
+_UTC_SECOND_TS = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+
+
 def _logical_snapshot(path: Path) -> dict[str, list[tuple]]:
     conn = sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True)
     try:
@@ -87,8 +91,19 @@ def _logical_snapshot(path: Path) -> dict[str, list[tuple]]:
             and not row[0].endswith("_fts_idx") and not row[0].endswith("_fts_docsize")
             and not row[0].endswith("_fts_config")
         ]
+        # R124-10: the rebuild re-stamps bookkeeping *_at columns with the wall
+        # clock (second granularity); on a slow runner the second upgrade can
+        # cross a second boundary and differ only in those cells. Normalize
+        # UTC-second timestamp cells so the assertion proves content/identity
+        # equality, not wall-clock drift.
+        def _norm(row):
+            return tuple(
+                "TIMESTAMP" if isinstance(value, str) and _UTC_SECOND_TS.match(value) else value
+                for value in row
+            )
+
         return {
-            table: conn.execute(f"SELECT * FROM {table} ORDER BY 1").fetchall()
+            table: [_norm(row) for row in conn.execute(f"SELECT * FROM {table} ORDER BY 1").fetchall()]
             for table in tables
         }
     finally:
