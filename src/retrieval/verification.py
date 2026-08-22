@@ -154,6 +154,9 @@ def search_filtered(
     if lifecycle_status is not None:
         validate_lifecycle_status(lifecycle_status)
     effective_limit = query_mod._validate_limit(limit)
+    # Normalize the FTS text (same as search_text) so hyphenated compound terms match
+    # the index tokenization instead of raising malformed_fts_expression.
+    text = search_mod._normalize_fts_query(text)
     # Cursor fingerprint binds text + verification + lifecycle so a cursor is not reusable across
     # differently-filtered searches.
     qf = cursor_mod.make_fingerprint(

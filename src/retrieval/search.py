@@ -35,6 +35,24 @@ from .models import (
 from src.storage.ingest import ZM_META_COLUMNS  # noqa: E402
 
 
+# In the default unicode61 tokenizer an unquoted ``-`` is ALWAYS parsed by FTS5 as a
+# column-filter operator (``walk-forward`` -> ``no such column: forward``), because FTS5
+# negation is the ``NOT`` keyword, not ``-``. The index itself splits ``walk-forward``
+# into ``walk`` + ``forward``, so replacing every ``-`` with whitespace re-tokenizes the
+# query exactly like the index and restores the hit. Other legitimate FTS5 syntax
+# (quotes / OR / AND / NOT / grouping) contains no ``-`` and is left untouched.
+
+
+def _normalize_fts_query(text: str) -> str:
+    """Deterministic FTS5 MATCH-text normalization. No schema, no migration, no LLM.
+
+    Collapses whitespace and replaces hyphens with a space so a compound query term
+    matches the way the index tokenized it. Well-formed operator queries without a
+    hyphen are returned verbatim (modulo whitespace collapse).
+    """
+    return " ".join(text.split()).replace("-", " ")
+
+
 def _fts_substrate_present(store: ReadonlyStore) -> bool:
     """Read-only capability detection: does this database actually have zm_fts?"""
     try:
@@ -97,6 +115,12 @@ def search_text(
         req = QueryRequest()
     if not isinstance(req, QueryRequest):
         raise QueryError(code="invalid_query", message="not_a_query_request")
+
+    # Normalize the FTS text before the cursor fingerprint and MATCH so compound
+    # hyphenated terms (``walk-forward``) re-tokenize the same way the unicode61 index
+    # did, instead of being parsed as a column operator and collapsing into
+    # ``malformed_fts_expression``. Deterministic; a no-op for well-formed queries.
+    text = _normalize_fts_query(text)
 
     effective_limit = query_mod._validate_limit(limit)
     qf = cursor_mod.make_fingerprint(req, text=text)

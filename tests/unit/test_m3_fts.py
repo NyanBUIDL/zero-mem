@@ -503,6 +503,104 @@ def test_error_contains_no_secret(tmp_path: Path):
     rs.close(); store.close()
 
 
+# ============================ hyphen normalization ============================
+
+def test_hyphenated_compound_query_returns_hit(tmp_path: Path):
+    # Index text tokenizes ``walk-forward`` as ``walk`` + ``forward`` (unicode61). A raw
+    # query ``walk-forward validation`` would parse ``-`` as a column operator and raise
+    # ``malformed_fts_expression``. Normalization must restore the hit.
+    jl = _ingest_fts_corpus(tmp_path, [
+        _fts_env("e1", "walk-forward validation splits data by time"),
+    ])
+    store = _open_store(tmp_path, "m.sqlite")
+    rs = r.open_readonly(store.path)
+    res = r.search_text(rs, "walk-forward validation")
+    assert res.error is None
+    assert [h.event_id for h in res.results] == ["e1"]
+    rs.close(); store.close()
+
+
+def test_hyphenated_query_matches_whitespace_form(tmp_path: Path):
+    # Both the hyphenated and whitespace wordings must surface the same hit.
+    jl = _ingest_fts_corpus(tmp_path, [
+        _fts_env("e1", "walk forward validation splits data by time"),
+    ])
+    store = _open_store(tmp_path, "m.sqlite")
+    rs = r.open_readonly(store.path)
+    hyp = r.search_text(rs, "walk-forward validation")
+    ws = r.search_text(rs, "walk forward validation")
+    assert hyp.error is None and ws.error is None
+    assert [h.event_id for h in hyp.results] == [h.event_id for h in ws.results] == ["e1"]
+    rs.close(); store.close()
+
+
+def test_hyphen_normalization_is_noop_for_wellformed_query(tmp_path: Path):
+    # Existing well-formed (operator/plain) queries must be byte-for-byte unchanged in
+    # result content (normalization only touches word-internal hyphens).
+    jl = _ingest_fts_corpus(tmp_path, [
+        _fts_env("e1", "alpha module handles deployment cleanly"),
+        _fts_env("e2", "beta parser rejects malformed tokens"),
+        _fts_env("e3", "alpha beta gamma all present here"),
+    ])
+    store = _open_store(tmp_path, "m.sqlite")
+    rs = r.open_readonly(store.path)
+    for q in ("alpha", "alpha beta", "deployment"):
+        res = r.search_text(rs, q)
+        assert res.error is None
+    # A genuinely unrelated term still yields a legitimate zero (not an error).
+    res = r.search_text(rs, "nonexistentterm")
+    assert res.results == [] and res.error is None
+    rs.close(); store.close()
+
+
+def test_hyphenated_no_match_is_legitimate_zero_not_error(tmp_path: Path):
+    # A hyphenated query whose terms are absent must return empty + error=None, NOT
+    # ``malformed_fts_expression`` (the normalization must not let malformed-hyphen
+    # collapses masquerade as a real match, nor report an error for a true no-match).
+    jl = _ingest_fts_corpus(tmp_path, [_fts_env("e1", "alpha module deployment")])
+    store = _open_store(tmp_path, "m.sqlite")
+    rs = r.open_readonly(store.path)
+    res = r.search_text(rs, "quantitative-finance")  # normalizes to "quantitative finance"
+    assert res.results == []
+    assert res.error is None
+    rs.close(); store.close()
+
+
+def test_operator_false_not_hyphen_is_normalized(tmp_path: Path):
+    # FTS5 has no ``-token`` NOT operator (negation is the ``NOT`` keyword); a bare ``-``
+    # is always a column filter. A user writing ``alpha -beta`` means a compound
+    # ``alpha-beta`` term, so normalization must treat it as ``alpha beta`` — which is a
+    # legitimate AND (not a malformed error). The explicit NOT keyword must keep working.
+    jl = _ingest_fts_corpus(tmp_path, [
+        _fts_env("e1", "alpha beta one"),
+        _fts_env("e2", "alpha two beta"),
+    ])
+    store = _open_store(tmp_path, "m.sqlite")
+    rs = r.open_readonly(store.path)
+    res = r.search_text(rs, "alpha -beta")  # -> "alpha beta" (AND), both rows match
+    assert res.error is None
+    assert sorted(h.event_id for h in res.results) == ["e1", "e2"]
+    # The documented NOT keyword is preserved untouched by normalization.
+    res_not = r.search_text(rs, "alpha NOT two")
+    assert res_not.error is None
+    assert sorted(h.event_id for h in res_not.results) == ["e1"]
+    rs.close(); store.close()
+
+
+def test_search_filtered_hyphen_normalization(tmp_path: Path):
+    # The M3.5 composition path applies the same normalization.
+    jl = _ingest_fts_corpus(tmp_path, [
+        _fts_env("e1", "walk-forward validation splits data by time"),
+        _fts_env("e2", "walk-forward validation notes"),
+    ])
+    store = _open_store(tmp_path, "m.sqlite")
+    rs = r.open_readonly(store.path)
+    res = r.search_filtered(rs, "walk-forward validation")
+    assert res.error is None
+    assert sorted(h.event_id for h in res.results) == ["e1", "e2"]
+    rs.close(); store.close()
+
+
 # ============================ read-only proof ============================
 
 def test_sqlite_and_jsonl_unchanged_by_fts(tmp_path: Path):
