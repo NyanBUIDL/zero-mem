@@ -288,11 +288,21 @@ def test_single_change_exact_write_set(tmp_path):
     assert any("do-x-changed" in rel for rel, st in affected if st == "CREATED")
     assert any("do-x--" in rel for rel, st in affected if st == "RETIRED")
     if not any("project-home" in rel for rel, st in affected if st == "UPDATED"):
-        # R124-10 DIAGNOSTIC (temporary): surface the home-note write outcomes.
-        print("M96DIAG home-related writes:", [
-            (w.relative_path, w.status.name, w.reason) for w in r3.writes
-            if "project-home" in w.relative_path or w.status.name in ("UPDATED", "CREATED", "RETIRED")
-        ], flush=True)
+        # R124-10 DIAGNOSTIC (temporary): surface the home-note write outcomes
+        # and fingerprint comparison.
+        from src.projection.ownership import observed_fingerprint as _obs_fp
+        home_writes = [w for w in r3.writes if "project-home" in w.relative_path]
+        home_desired = [n for n in r3.notes if "project-home" in n.relative_path]
+        home_disk = list(cfg.managed_root.rglob("*project-home*"))
+        diag = {
+            "writes": [(w.relative_path, w.status.name, w.reason) for w in home_writes],
+            "desired_fps": [n.content_fingerprint for n in home_desired],
+            "on_disk_fps": [_obs_fp(p) for p in home_disk if p.is_file()],
+            "recorded_manifest_fp": r1.manifest.get(home_writes[0].note_id).content_fingerprint if home_writes else None,
+            "on_disk_head": repr(home_disk[0].read_bytes()[:80]) if home_disk and home_disk[0].is_file() else None,
+            "desired_head": repr(home_desired[0].content[:80].encode("utf-8")) if home_desired else None,
+        }
+        print("M96DIAG home:", diag, flush=True)
     assert any("project-home" in rel for rel, st in affected if st == "UPDATED")
     untouched = [w for w in r3.writes
                   if w.status is WriteStatus.SKIPPED_UNCHANGED]
