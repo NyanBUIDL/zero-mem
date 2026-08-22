@@ -70,7 +70,11 @@ def test_sidecar_rejects_identity_mismatch_and_overload() -> None:
     try:
         mismatch = sidecar.handle(b'{"tool":"memory_query","requesting_profile_id":"other"}', identity="profile-a")
         assert mismatch.status is SidecarStatus.INVALID_REQUEST
-        first = sidecar.handle(b'{"tool":"memory_query"}', identity="profile-a", wait_timeout=0.1)
+        # R124-10: the dispatcher sleeps 0.05s; a 0.1s wait timeout was flaky on
+        # slow macOS CI where thread scheduling pushed the worker past the
+        # deadline. The semantic assertion is that the first (non-mismatched,
+        # non-queued) request completes OK, so use a generous timeout.
+        first = sidecar.handle(b'{"tool":"memory_query"}', identity="profile-a", wait_timeout=1.0)
         assert first.status is SidecarStatus.OK
     finally:
         sidecar.close()
