@@ -244,29 +244,34 @@ class GoldQuery:
 
 GOLD = [
     # --- task continuation / project state ---
+    # NOTE (P1 ordering): M4 state evidence_id is the zm_project_state ROWID ("1","2","3"),
+    # not the m4 `identity` field ("S1"/"S2"/"S3"). The state projector ignores `identity`
+    # (classify_event_for_m4 requires only domain+op) and keys state by state_key; the
+    # projection view exposes `id` (rowid), which _to_evidence_item surfaces as evidence_id.
+    # id=1 step (active), id=2 docker failed (superseded), id=3 docker fixed (active).
     GoldQuery("B01", "What is the current project step?", MemoryRoute.PROJECT,
-              gold_ids=("S1",), explicit={"project": True}, note="gold = M4 state step"),
+              gold_ids=("1",), explicit={"project": True}, note="gold = M4 state step (rowid 1)"),
     GoldQuery("B02", "What remains unverified?", MemoryRoute.PROJECT,
               gold_ids=(), explicit={"project": True}, note="non-promotion covered by C-CLAIM"),
     GoldQuery("B03", "Continue the current task after a new session", MemoryRoute.PROJECT,
-              gold_ids=("S1",), explicit={"project": True}),
+              gold_ids=("1",), explicit={"project": True}),
     GoldQuery("B04", "Which task is blocked?", MemoryRoute.PROJECT,
               gold_ids=(), explicit={"project": True}, note="no blocked task in corpus; route-only"),
     GoldQuery("B05", "What was the next action?", MemoryRoute.PROJECT,
               gold_ids=(), explicit={"project": True}, note="route-only"),
     # --- stale state ---
     GoldQuery("B06", "Is the old docker login failure still active?", MemoryRoute.PROJECT,
-              gold_ids=("S3",), explicit={"project": True}, assert_no=("S2",),
+              gold_ids=("3",), explicit={"project": True}, assert_no=("2",),
               note="active superseding state must be present; superseded must be absent"),
     GoldQuery("B07", "What decision superseded the earlier choice?", MemoryRoute.PROJECT,
               gold_ids=("D2",), explicit={"project": True}),
     GoldQuery("B08", "What is the latest verified state?", MemoryRoute.PROJECT,
-              gold_ids=("S1",), explicit={"project": True}, contract_route=MemoryRoute.EXTERNAL_CURRENT,
+              gold_ids=("1",), explicit={"project": True}, contract_route=MemoryRoute.EXTERNAL_CURRENT,
               note="freshness precedence routes 'latest' to EXTERNAL_CURRENT (fail-safe)"),
     GoldQuery("B09", "Which error was fixed?", MemoryRoute.PROJECT,
-              gold_ids=("S3",), explicit={"project": True}, assert_no=("S2",)),
+              gold_ids=("3",), explicit={"project": True}, assert_no=("2",)),
     GoldQuery("B10", "When did the state become valid?", MemoryRoute.PROJECT,
-              gold_ids=("S1",), explicit={"project": True}),
+              gold_ids=("1",), explicit={"project": True}),
     # --- exact facts ---
     GoldQuery("B21", "Which store is canonical?", MemoryRoute.PROJECT,
               gold_ids=("D2", "D1"), explicit={"project": True}),
@@ -279,7 +284,7 @@ GOLD = [
               gold_ids=("D4",), explicit={"project": True}, contract_route=MemoryRoute.EXTERNAL_CURRENT,
               note="freshness precedence routes 'latest' to EXTERNAL_CURRENT (fail-safe)"),
     GoldQuery("B29", "What was true before the superseding fix?", MemoryRoute.PROJECT,
-              gold_ids=("S2",), explicit={"project": True},
+              gold_ids=("2",), explicit={"project": True},
               note="history/as-of read not wired into standard EvidenceSet; superseded expected absent"),
     GoldQuery("B30", "Which evidence was valid at the prior session time?", MemoryRoute.SESSION,
               gold_ids=("E-SESS1",), session_id="S1", explicit={"session": True}),
@@ -510,7 +515,7 @@ def main(argv: list[str] | None = None) -> int:
         # read-service instance). Profile-OWNED records of pr1 must not leak.
         # NULL-profile (unowned) records ARE globally readable by design (M5.2:
         # global read = requester profile + NULL-profile default records only).
-        OWNED_M4 = {"C1", "R1", "D1", "D2", "D3", "D4", "D5", "S1", "S2", "S3"}
+        OWNED_M4 = {"C1", "R1", "D1", "D2", "D3", "D4", "D5", "1", "2", "3"}
         foreign_req = _request_for(GOLD[0], profile="foreign")
         dec_f = route(foreign_req)
         es_f = build_evidence_set(dec_f, AuthorizedReadService(store, requesting_profile_id="foreign"), foreign_req)
