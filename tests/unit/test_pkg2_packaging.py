@@ -82,6 +82,20 @@ def bundle(tmp_path_factory: pytest.TempPathFactory) -> Path:
     build_env["UV"] = str(root / "uv must not be used")
     _run([sys.executable, "-m", "venv", str(builder)], env=build_env)
     build_python = builder / "bin" / "python"
+    # R124-09: Python 3.12+ venvs no longer bundle setuptools, and the
+    # setuptools bundled with CPython 3.11 (68.x) cannot build a wheel without
+    # the separate `wheel` package. The release build toolchain installs a
+    # modern setuptools; mirror that here so the offline wheel build works on
+    # every supported interpreter. `build`/`wheel` must STILL be absent so the
+    # build is proven to use the pip+setuptools path only.
+    installed = _run(
+        [str(build_python), "-m", "pip", "install", "-q", "--upgrade", "setuptools"],
+        env=build_env,
+        cwd=builder,
+        check=False,
+    )
+    if installed.returncode:
+        raise AssertionError(f"setuptools install into build venv failed: {installed.stderr[-2000:]}")
     tooling = _run(
         [
             str(build_python),
