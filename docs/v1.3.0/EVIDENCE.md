@@ -44,6 +44,7 @@ Xem `docs/v1.3.0/MASTER-SPEC-RECONCILIATION.md`. Verifier tự extract độc l�
 |---|---|---|
 | V130-01 | Focused: 49 passed (`tests/unit/test_v130_01_fts_or_fallback.py` + `test_m3_fts.py` + sidecar integration). Full suite run3: **3388 passed / 5 skipped / 0 failed** ≥ baseline 3378 — `zero-mem-dev-data/evidence/v130-wp01-full-suite-run3.log`. C7: revert fix → 8 failed; restore → xanh. RED trước implement: 5 failed (match_mode AttributeError). Graphify pre: `graphify/v130/phase-a-baseline`; post: `graphify/v130/wp01-post`. Commit `620e76b`. Integration test `test_sidecar_advertises_and_dispatches_the_same_public_reads` đổi probe zero-result sang single nonce `zm_probe_no_such_token_v130` theo GATE-A-REPLY-V130-01.md (probe cũ → test dương or_fallback trong unit test). | **PASS-WITH-NOTES** (re-audit deleg_1951a089) — CLOSED |
 | V130-02 | RED: 7 failed/1 passed trước implement. GREEN: 8/8 unit mới. Full suite run2: **3396 passed / 5 skipped / 0 failed** ≥ baseline — `zero-mem-dev-data/evidence/v130-wp02-full-suite-run2.log`. C7: stash migration+ingest+retrieval → 7 failed; restore → 8 passed. R1 rebuild test xanh; R2 3 test NULL-ks policy đủ; R3 fingerprint bind ks qua req.to_dict() từ đầu (Verifier probe thực nghiệm: cursor ks-a bị từ chối ở ks-b). Schema-version bump 36 test files theo precedent a861ff0 (literal 10→11, Verifier xác nhận 0 dòng suspicious). Graphify post: `graphify/v130/wp02-post`. Commit `cdada94`. | **PASS-WITH-NOTES** (deleg_9d091714) — CLOSED. Notes: leak-test có thể gộp thêm NULL event (minor, xử lý trong V130-05 benchmark case); rebuild compare trực tiếp ≡ byte-compare (info) |
+| V130-03 | RED: 10 failed trước implement. GREEN focused: 122 passed. Full suite run2: **3410 passed / 5 skipped / 0 failed** ≥ baseline — `zero-mem-dev-data/evidence/v130-wp03-full-suite-run2.log`. C7 ngược 2 hướng (eligibility/builder/reader → 10 failed; calibration → 1 failed). Phát sinh + xử lý theo user: D-05 (artifact lifecycle='active', không nới allowed_life), D-06 (verification-strength fallback reuse bảng đã duyệt), m8_6 refactor snapshot-diff. Commits `20bbe3e` (fix) + `ffaf7ba` (promotion), tách theo yêu cầu user. Handoff + quét hard-code table: `artifacts/handoffs/V130-03-HANDOFF.md`. | PENDING AUDIT (deleg_1dfdc4c5) |
 | (chưa có) | | |
 
 ## Verifier
@@ -54,6 +55,7 @@ Xem `docs/v1.3.0/MASTER-SPEC-RECONCILIATION.md`. Verifier tự extract độc l�
 - Release invariant: `MASTER_SHA = RELEASE_BRANCH_SHA = TAG_TARGET = ARTIFACT_SOURCE_SHA`.
 
 ## Known limitations
-- Master spec `.docx` chưa được parse trong Pha A (định dạng binary docx; cần extraction). Authority chain hiện dựa trên: AGENTS.md (tóm tắt invariant đã duyệt) + v1.2.4 closure + ADR-009 reference. Nếu Gate A duyệt, Pha B phải extract docx và đối chiếu trước khi chốt spec — hoặc user xác nhận AGENTS.md + ADR là đủ cho scope 5 P1 này.
-- Baseline P1 (v1.2.4): functional, corpus tổng hợp nhỏ; chưa phải gate release.
+- **Runtime requirement mới (V130-02):** migration 11 `down` yêu cầu SQLite ≥ 3.35 (ALTER TABLE DROP COLUMN); up không có yêu cầu này. Tracker (user-approved APPROVE-V130-02): (1) mục này; (2) V130-05 benchmark phải kiểm tra SQLite version trước khi chạy rebuild trên môi trường khác; (3) release notes v1.3.0 phải ghi rõ. Tick cả 3 trước Gate D.
+- Master spec `.docx` đã extract và đối chiếu (`MASTER-SPEC-RECONCILIATION.md`) — không còn limitation.
+- Baseline P1 (v1.2.4): functional, corpus tổng hợp nhỏ; chưa phải gate release — V130-05 xử lý.
 - Graphify: 8 file JSON sinh zero-node (warning #1666 của graphify, không phải code product).
