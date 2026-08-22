@@ -48,7 +48,7 @@ import tests.unit.test_m3_query as m3base
 
 
 def _build_store():
-    tmp = Path(tempfile.mkdtemp()); sp = tmp / "m4.sqlite"
+    tmp = Path(tempfile.mkdtemp()).resolve(); sp = tmp / "m4.sqlite"
     store = SQLiteStore(SQLiteStoreConfig(path=sp)); store.ensure_schema()
     m4base._seed_m2_artifacts(store._conn)
     jl = tmp / "m3.jsonl"
@@ -614,7 +614,7 @@ class TestEndToEndHardened:
     def test_malicious_evidence_through_full_pipeline(self):
         """Adversarial stored evidence through the full pipeline remains data."""
         # Build store with adversarial content
-        tmp = Path(tempfile.mkdtemp()); sp = tmp / "m4.sqlite"
+        tmp = Path(tempfile.mkdtemp()).resolve(); sp = tmp / "m4.sqlite"
         store = SQLiteStore(SQLiteStoreConfig(path=sp)); store.ensure_schema()
         m4base._seed_m2_artifacts(store._conn)
         jl = tmp / "m3.jsonl"

@@ -44,7 +44,7 @@ import tests.unit.test_m3_query as m3base
 
 
 def _tmp() -> Path:
-    return Path(tempfile.mkdtemp())
+    return Path(tempfile.mkdtemp()).resolve()
 
 
 def _build_store():

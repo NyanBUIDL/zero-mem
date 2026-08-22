@@ -281,7 +281,7 @@ class TestDirectAdapterParity:
 class TestFailureIsolation:
     def test_missing_db_startup_safe(self, store_path):
         cfg = BridgeConfig(enabled=True)
-        ad = HermesReadAdapter(cfg, store_path=Path(tempfile.mkdtemp()) / "missing.sqlite")
+        ad = HermesReadAdapter(cfg, store_path=Path(tempfile.mkdtemp()).resolve() / "missing.sqlite")
         with pytest.raises(RegistrationFailure):
             ad.startup()
         ctx = _Ctx()

@@ -62,3 +62,36 @@ blocks per `src/capture/validation.py`), redacts user-controlled fields before
 persistence/log, mints occurrence-safe unique proposal/event IDs (no fixed
 `ctrl-{target}` collision), and exposes correction only via the reviewed operator/HITL
 surface — never as an automatic read tool.
+
+## COMPAT-005 — Distribution version 1.2.3 → 1.2.4 (R124-09)
+
+**Change:** `zero_mem/version.py` and the release manifest now report `1.2.4`.
+The `release/v1.2.4` branch previously built wheels labeled `1.2.3`, which made
+every packaging/upgrade assertion and any downstream version check inconsistent
+with the branch name.
+
+**Migration guidance:** No data migration; the derived schema and canonical JSONL
+are unchanged. Downstream version checks should expect `zero-mem 1.2.4`.
+
+## COMPAT-006 — Windows byte-determinism and installer layout (R124-07/09)
+
+**Change:** All data-write file handles now open in binary mode (`O_BINARY`) on
+Windows, so canonical JSONL, projected notes, and the manifest are byte-identical
+across platforms (previously CRT text mode translated `\n` → `\r\n`). The
+ownership fingerprint check reads managed notes with explicit UTF-8 encoding
+(previously platform locale, e.g. cp1252, could mangle non-ASCII content).
+The installer now creates Windows venv layout (`Scripts/`), a `.cmd` CLI shim,
+and a directory-junction `current` pointer where symlink privileges are absent.
+
+**Impact:** Canonical JSONL produced on Windows before this change may contain
+CRLF line endings; such files remain valid JSONL (line-oriented readers already
+tolerate trailing `\r`) but are superseded by LF output from this version.
+Fingerprints computed under the old locale-default read are corrected going
+forward; no stored data was invalidated.
+
+## COMPAT-007 — Release helper package renamed (R124-09)
+
+**Change:** The repository-local `packaging/` helper package (build/install
+tooling) was renamed to `release_helpers/` because its name shadowed the PyPI
+`packaging` distribution and broke `python -m build` from the repo root.
+Downstream tooling must import `release_helpers.*` instead of `packaging.*`.

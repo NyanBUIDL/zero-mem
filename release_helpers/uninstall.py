@@ -9,7 +9,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from release_common import absolute_path, contained, default_paths, fail, managed_child, reject_home_or_root, script_bytes, ReleaseError
+from release_common import absolute_path, cli_shim_bytes, cli_shim_name, contained, default_paths, fail, managed_child, reject_home_or_root, ReleaseError
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -73,10 +73,10 @@ def uninstall(args: argparse.Namespace) -> int:
     if metadata_path.exists():
         metadata_path.unlink()
 
-    shim = bin_dir / "zero-mem"
+    shim = bin_dir / cli_shim_name()
     if shim.is_symlink():
         raise fail("refusing to remove symlinked CLI shim")
-    if shim.is_file() and shim.read_bytes() == script_bytes(runtime_root):
+    if shim.is_file() and shim.read_bytes() == cli_shim_bytes(runtime_root):
         shim.unlink()
     return 0
 

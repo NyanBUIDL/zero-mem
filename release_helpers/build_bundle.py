@@ -12,7 +12,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGING = ROOT / "packaging"
+PACKAGING = ROOT / "release_helpers"
 
 
 def sha256(path: Path) -> str:

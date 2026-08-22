@@ -1,0 +1,5 @@
+# R124-10: these fixtures are binary and must never undergo CRLF conversion
+# (git autocrlf on Windows would corrupt the PDF byte layout).
+tests/fixtures/corpus/*.pdf binary
+tests/fixtures/**/*.pdf binary
+*.pdf binary

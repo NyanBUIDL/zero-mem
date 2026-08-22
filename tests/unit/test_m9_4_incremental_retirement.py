@@ -218,7 +218,7 @@ def _seed_managed_file(vault, note):
     """Write a note file the way M9.2 would, so it carries the marker."""
     path = vault / note.relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(note.content)
+    path.write_bytes(note.content.encode("utf-8"))  # R124-10 LF, matches product writer
 
 
 def test_stale_retirement_ownership_proven_deletes(tmp_path):

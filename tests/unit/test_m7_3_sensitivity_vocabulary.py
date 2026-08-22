@@ -243,7 +243,7 @@ class TestEventReachesEvidenceSet:
         from src.access.authorized_read import AuthorizedReadService
         from src.access.contracts import AccessRequest
 
-        tmp = Path(tempfile.mkdtemp())
+        tmp = Path(tempfile.mkdtemp()).resolve()
         sp = tmp / "m7fix.sqlite"
         store = SQLiteStore(SQLiteStoreConfig(path=sp))
         store.ensure_schema()

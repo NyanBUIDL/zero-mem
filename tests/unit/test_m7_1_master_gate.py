@@ -63,18 +63,18 @@ class TestConfigParsing:
                 parse_zero_mem_enabled(bad)
 
     def test_bridge_config_default_true(self):
-        cfg = BridgeConfig(enabled=False, capture_root=Path(tempfile.mkdtemp()) / "c")
+        cfg = BridgeConfig(enabled=False, capture_root=Path(tempfile.mkdtemp()).resolve() / "c")
         assert cfg.zero_mem_enabled is True
 
     def test_bridge_config_explicit_false(self):
         cfg = BridgeConfig(
-            enabled=False, capture_root=Path(tempfile.mkdtemp()) / "c", zero_mem_enabled=False
+            enabled=False, capture_root=Path(tempfile.mkdtemp()).resolve() / "c", zero_mem_enabled=False
         )
         assert cfg.zero_mem_enabled is False
 
     def test_bridge_config_to_dict_includes_flag(self):
         cfg = BridgeConfig(
-            enabled=False, capture_root=Path(tempfile.mkdtemp()) / "c", zero_mem_enabled=False
+            enabled=False, capture_root=Path(tempfile.mkdtemp()).resolve() / "c", zero_mem_enabled=False
         )
         assert cfg.to_dict()["zero_mem_enabled"] is False
 
@@ -85,7 +85,7 @@ class TestConfigParsing:
 class TestSingleAuthority:
     def test_config_is_canonical_source(self):
         cfg_off = BridgeConfig(
-            enabled=True, capture_root=Path(tempfile.mkdtemp()) / "c", zero_mem_enabled=False
+            enabled=True, capture_root=Path(tempfile.mkdtemp()).resolve() / "c", zero_mem_enabled=False
         )
         m1 = RegistrationAdapter(cfg_off)
         m6 = HermesReadAdapter(cfg_off, store_path=REPO_ROOT / "nonexistent.sqlite")
@@ -155,7 +155,7 @@ class TestM1CaptureGate:
         from src.integration.bridge_config import BridgeConfig as BC
         from src.integration.hermes_registration import RegistrationAdapter as RA
         store = self.SpyStore()
-        cfg = BC(enabled=True, capture_root=Path(tempfile.mkdtemp()) / "c", zero_mem_enabled=master)
+        cfg = BC(enabled=True, capture_root=Path(tempfile.mkdtemp()).resolve() / "c", zero_mem_enabled=master)
         return store, RA(cfg, store=store)
 
     def test_on_capture_appends(self):

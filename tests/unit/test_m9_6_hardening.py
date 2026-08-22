@@ -155,6 +155,7 @@ def test_unconfigured_returns_unavailable_and_creates_nothing(tmp_path):
     assert snapshot_home == set(p.name for p in Path.home().iterdir())
 
 
+@pytest.mark.skipif(os.name == "nt", reason="R124-10: chmod does not make a directory read-only on Windows (ACL-based); POSIX permission semantics do not exist there")
 def test_readonly_vault_is_rejected_closed(tmp_path):
     # A vault root we cannot write to must fail closed at config validation,
     # producing no managed subtree and no note.
@@ -181,6 +182,7 @@ def test_readonly_vault_unconfigured_creates_nothing(tmp_path):
         os.chmod(vault, 0o700)
 
 
+@pytest.mark.skipif(os.name == "nt", reason="R124-10: chmod does not make a directory read-only on Windows (ACL-based); POSIX permission semantics do not exist there")
 def test_permission_denied_managed_root_fails_closed(tmp_path):
     # If the managed root cannot be written (permission denied / read-only), the
     # projection must FAIL CLOSED: no unhandled exception, manifest simply not
@@ -270,6 +272,10 @@ def test_single_change_exact_write_set(tmp_path):
             "UPDATE zm_requirements SET statement='do x CHANGED' "
             "WHERE requirement_id='R1'")
         conn.commit()
+        # R124-10: checkpoint so the mode=ro projection connection sees the
+        # write (read-only WAL connections cannot see un-checkpointed WAL data
+        # on Windows).
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         conn.close()
 
     r3, _ = _project(tmp_path, prior_manifest=r1.manifest,
@@ -281,7 +287,7 @@ def test_single_change_exact_write_set(tmp_path):
                 if w[1] in ("UPDATED", "CREATED", "RETIRED")}
     assert any("do-x-changed" in rel for rel, st in affected if st == "CREATED")
     assert any("do-x--" in rel for rel, st in affected if st == "RETIRED")
-    assert any("project-home" in rel for rel, st in affected if st == "UPDATED")
+    assert any("project-home" in rel for rel, st in affected if st == "UPDATED" for rel, st in affected if st == "UPDATED")
     untouched = [w for w in r3.writes
                   if w.status is WriteStatus.SKIPPED_UNCHANGED]
     assert len(untouched) >= 1
@@ -492,11 +498,16 @@ def test_secret_verification_v9_never_projected_real_cli_path(tmp_path):
     """
     # --- Source input carries V9 with a secret observed_result ---
     store = fx.build_store(tmp_path)
-    row = store.conn.execute(
-        "SELECT observed_result FROM zm_verifications WHERE verification_id='V9'"
-    ).fetchone()
-    assert row is not None, "V9 must exist in the source store"
-    assert row[0] == fx.SECRET, "V9 observed_result must be the secret marker"
+    try:
+        row = store.conn.execute(
+            "SELECT observed_result FROM zm_verifications WHERE verification_id='V9'"
+        ).fetchone()
+        assert row is not None, "V9 must exist in the source store"
+        assert row[0] == fx.SECRET, "V9 observed_result must be the secret marker"
+    finally:
+        # R124-10: close this connection before the next build_store unlinks
+        # m4.sqlite; an open handle fails the unlink with WinError 32 on Windows.
+        store.close()
     secret_marker = fx.SECRET
 
     # --- Real effective CLI path: default-empty secret_patterns (the leak path) ---

@@ -846,7 +846,7 @@ def store_manifest(managed_root: Path, manifest: ProjectionManifest,
         managed_root, META_DIR_NAME, f"{MANIFEST_FILENAME}.tmp-manifest"
     )
     try:
-        descriptor = os.open(temp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+        descriptor = os.open(temp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_BINARY", 0), 0o644)
         try:
             os.write(descriptor, payload)
             os.fsync(descriptor)

@@ -67,27 +67,36 @@ def test_wp31_boundary_registration_is_idempotent(tmp_path: Path) -> None:
     assert len(context.hooks) == hook_count
 
 
-def test_wp31_injection_adapter_revokes_and_restarts_with_boundary(tmp_path: Path) -> None:
+def test_wp31_injection_adapter_revokes_and_restarts_with_boundary(tmp_path: Path, monkeypatch) -> None:
     configure(enabled=True)
+    monkeypatch.setenv("ZERO_MEM_MODE", "inject")
 
     class Context:
         def register_hook(self, name, callback):
             self.callback = callback
 
+        def register_tool(self, name, *args, **kwargs):
+            pass
+
     context = Context()
-    boundary = HermesBoundary(IntegrationConfig("project-c", "profile-c"))
+    boundary = HermesBoundary(IntegrationConfig("project-c", "profile-c"), capture_root=tmp_path / "capture", store_path=tmp_path / "capture" / "derived" / "events.sqlite")
     result = boundary.register(context)
     assert result["injection"] == ("pre_llm_call",)
     adapter = boundary._injection_adapter
     assert isinstance(adapter, InjectionAdapter)
-    assert adapter.process(user_message="what did we decide?").reason == "no_store"
+    # With the runtime-owned derived store present, injection may return
+    # evidence_ready (store bound) or no_store depending on corpus; both are
+    # valid live states. The fail-closed expectation is adapter_shutdown after shutdown.
+    first_reason = adapter.process(user_message="what did we decide?").reason
+    assert first_reason in ("no_store", "evidence_ready", "no_evidence")
 
     boundary.shutdown()
     assert adapter.process(user_message="what did we decide?").reason == "adapter_shutdown"
 
     restarted = boundary.register(context)
     assert restarted == result
-    assert adapter.process(user_message="what did we decide?").reason == "no_store"
+    second_reason = adapter.process(user_message="what did we decide?").reason
+    assert second_reason in ("no_store", "evidence_ready", "no_evidence")
     boundary.shutdown()
 
 

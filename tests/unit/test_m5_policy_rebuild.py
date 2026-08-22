@@ -48,7 +48,7 @@ def _canonical_writer_factory(path: Path):
 
 
 def _build_corpus(seed: str = ""):
-    d = Path(tempfile.mkdtemp(prefix="zt-m56-"))
+    d = Path(tempfile.mkdtemp(prefix="zt-m56-")).resolve()
     jl = d / "policy.jsonl"
     conn = _mdb()
     svc = admin.GrantAdminService(conn, _canonical_writer_factory(jl), vlookup)
@@ -80,7 +80,7 @@ def _build_corpus(seed: str = ""):
 
 
 def _build_full_corpus(seed: str = ""):
-    d = Path(tempfile.mkdtemp(prefix="zt-m56-full-"))
+    d = Path(tempfile.mkdtemp(prefix="zt-m56-full-")).resolve()
     jl = d / "policy.jsonl"
     store = SQLiteStore(SQLiteStoreConfig(path=d / "m.sqlite"))
     store.ensure_schema()
@@ -184,14 +184,14 @@ class TestRebuild:
     )
     def test_policy_rebuild_rejects_invalid_canonical_framing(self, contents, error_code):
         conn, _jl = _build_corpus("-framing")
-        bad = Path(tempfile.mkdtemp(prefix="zt-m56-framing-")) / "bad.jsonl"
+        bad = Path(tempfile.mkdtemp(prefix="zt-m56-framing-")).resolve() / "bad.jsonl"
         bad.write_text(contents)
         with pytest.raises(CanonicalReplayError, match=error_code):
             rebuild.rebuild_policy_state(conn, bad)
         conn.close()
 
     def test_incremental_vs_rebuild_audit(self):
-        d = Path(tempfile.mkdtemp(prefix="zt-m56-aud-"))
+        d = Path(tempfile.mkdtemp(prefix="zt-m56-aud-")).resolve()
         jl = d / "audit.jsonl"
         w = _canonical_writer_factory(jl)
         conn = _mdb()
@@ -300,7 +300,7 @@ class TestReadIntegration:
 
 class TestStateImmediacy:
     def test_revoke_then_deny(self):
-        d = Path(tempfile.mkdtemp(prefix="zt-m56-imm-"))
+        d = Path(tempfile.mkdtemp(prefix="zt-m56-imm-")).resolve()
         jl = d / "policy.jsonl"
         conn = _mdb()
         svc = admin.GrantAdminService(conn, _canonical_writer_factory(jl), vlookup)
@@ -318,7 +318,7 @@ class TestStateImmediacy:
 
 class TestAuditSafety:
     def test_deny_audit_no_protected_leak(self):
-        d = Path(tempfile.mkdtemp(prefix="zt-m56-auds-"))
+        d = Path(tempfile.mkdtemp(prefix="zt-m56-auds-")).resolve()
         jl = d / "audit.jsonl"
         w = _canonical_writer_factory(jl)
 

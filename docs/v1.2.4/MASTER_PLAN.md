@@ -109,26 +109,42 @@ HITL tối thiểu: inspect → propose correction/supersession/delete-request �
 
 ### V124-05 — Cross-platform and release qualification
 
-**Trạng thái:** `NOT_RELEASE_QUALIFIED` (phần thực thi được trên Linux đã xong; ma trận Windows/macOS × Py3.11–3.13 **BLOCKED** — không có môi trường đó ở đây).
+**Trạng thái:** `IMPLEMENTED_VERIFIED` — full 9-cell × 12-gate GitHub Actions
+matrix GREEN (run 32550606746, head `fa803b6`): Windows/Linux/macOS ×
+CPython 3.11/3.12/3.13 all pass focused, platform, full-suite, security,
+concurrency, benchmark gates; packaging + clean-install + CLI/sidecar/Hermes
+smoke pass on all 3.11 cells. Remaining work before v1.2.4 is marked
+RELEASE_QUALIFIED: merge decision on PR #2 and independent verifier sign-off
+(see work-packages/R124-07-11-cross-platform).
 
 - Thay mọi POSIX-only assumption còn lọt ra khỏi platform backend.
 - Kiểm tra Windows/Linux/macOS, CPython 3.11–3.13.
 - Wheel/sdist clean-install và Hermes smoke test từ candidate SHA.
 - Evidence manifest chứa SHA, commands, environment, logs, checksums và support matrix.
 
-**Đã thực thi (Linux x86_64, Python 3.11.16):**
-- `compileall src zero_mem` → exit 0 (toàn bộ package import/parse sạch).
-- `test_v122_platform_storage.py` + `test_m5_cross_profile.py` → 6 passed.
-- Không có decorator skip không điều kiện theo OS trong test tree (core path không bị skip).
-- `src/storage/platform.py` là boundary duy nhất; mọi nhánh `os.name == "nt"` được cô lập.
+**Đã thực thi (local Linux + GitHub Actions 9-cell matrix):**
+- `compileall src zero_mem benchmarks release_helpers` → exit 0.
+- Full suite local: 3369 passed, 0 failed, 5 skipped (TMPDIR/HOME isolated).
+- GitHub matrix run `32550606746` (head `fa803b6ca0884e099202b28f0e75a84acada8b8a`):
+  Gate 1 68 passed, Gate 2 57 passed, Gate 3 3369 passed (5 skipped POSIX /
+  8 skipped Windows: documented POSIX-chmod + platform skips), Gate 4 152 passed,
+  Gate 5 5 passed, Gate 6 7 passed on ALL 9 cells; Gates 7–11 (wheel/sdist,
+  clean install, CLI, sidecar, Hermes composition smoke) pass on 3.11 cells.
+  (Gate 2 and Gate 3 counts include the +4 R124-10 runtime-gate isolation
+  regression tests added at the final head.)
+- Root causes fixed (R124-07/08/09/10): Windows atomic-promotion identity fence,
+  CRT text-mode handles (O_BINARY) for canonical JSONL/notes/manifest,
+  locale-default read_text (cp1252) fingerprint mismatch, read-only WAL
+  busy_timeout, macOS /tmp-symlink temp roots, POSIX-only benchmark constants,
+  fork→spawn, leaked SQLite connections, installer Windows layout + junction,
+  packaging version 1.2.4 + license table form + setuptools tooling,
+  corpus-config quoting, PDF binary fixtures, timestamp-drift normalization.
+- Release helpers renamed `packaging/` → `release_helpers/` to stop shadowing
+  the PyPI `packaging` distribution (Gate 7 previously never passed).
 
-**BLOCKED (không thực thi được tại đây — phải chạy bởi CI/operator trên target OS):**
-- Windows/macOS × CPython 3.11/3.12/3.13.
-- Build wheel/sdist + clean-install + CLI/sidecar/Hermes smoke trên mỗi OS.
-- Path-attack/symlink/reparse suites trên Windows.
-- SHA-256 artifact reconciliation.
-
-**Exit gate:** không còn unconditional skip cho core path; full suite, security, concurrency, benchmark, packaging và E2E đạt trên mọi platform được công bố.
+**Exit gate:** no unconditional skip for core path; full suite, security,
+concurrency, benchmark, packaging and E2E pass on every published platform —
+**met** (see evidence/V124-REMEDIATION-EVIDENCE.md).
 
 ## Parallelism policy
 

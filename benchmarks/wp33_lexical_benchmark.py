@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import sys
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -90,12 +91,28 @@ def _reject_symlinked_components(path: Path) -> None:
 
 @contextmanager
 def _secure_run_root(run_root: Path) -> Iterator[Path]:
-    """Create and hold a new run root through directory descriptors."""
+    """Create and hold a new run root through directory descriptors.
+
+    R124-07/R124-10: the descriptor-based path (``/proc/self/fd`` + dir_fd) is
+    Linux-only. On Windows there is no ``O_DIRECTORY``/``dir_fd`` support at
+    all; on macOS/BSD there is no ``/proc``. The parent is always rejected if
+    it contains any symlink component (``_reject_symlinked_components``), so
+    the real path is a safe fallback on those platforms.
+    """
     parent = run_root.parent
     if not parent.exists():
         raise ValueError("run_root_parent_missing")
     _reject_symlinked_components(parent)
-    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    if os.name == "nt":
+        # Windows: no dir_fd support; parent components already proven
+        # symlink-free above.
+        try:
+            run_root.mkdir(mode=0o700)
+        except FileExistsError as exc:
+            raise ValueError("run_root_must_be_new") from exc
+        yield run_root
+        return
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | os.O_NOFOLLOW
     try:
         parent_fd = os.open(parent, flags)
     except OSError as exc:
@@ -107,7 +124,12 @@ def _secure_run_root(run_root: Path) -> Iterator[Path]:
         except FileExistsError as exc:
             raise ValueError("run_root_must_be_new") from exc
         root_fd = os.open(run_root.name, flags, dir_fd=parent_fd)
-        yield Path(f"/proc/self/fd/{root_fd}")
+        if sys.platform == "linux":
+            yield Path(f"/proc/self/fd/{root_fd}")
+        else:
+            # macOS/BSD: no /proc/self/fd; parent symlink components were
+            # already rejected, so the real path is safe.
+            yield run_root
     except FileNotFoundError as exc:
         raise ValueError("run_root_descriptor_unavailable") from exc
     finally:

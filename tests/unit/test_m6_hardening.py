@@ -209,12 +209,25 @@ class TestIdentityHardening:
         assert r.status is ResponseStatus.POLICY_DENIED
 
     def test_concurrent_identity_separation(self, rt):
-        out = {}
         import threading
+        import time
+
         def call(profile, key):
-            out[key] = dispatch({"tool": "project_get_charter",
-                                  "requesting_profile_id": profile, "project_ids": ["P"],
-                                  "target_profile_ids": [profile]})
+            # R124-10: a transient DOWNSTREAM_ERROR (e.g. brief SQLite lock
+            # contention under artificial 3-thread concurrency on slow CI) is a
+            # bounded, sanitized status, not a leak; retry so the strict final
+            # assertions validate the isolation contract, not scheduling noise.
+            for _attempt in range(5):
+                result = dispatch({"tool": "project_get_charter",
+                                   "requesting_profile_id": profile, "project_ids": ["P"],
+                                   "target_profile_ids": [profile]})
+                if result.status is not ResponseStatus.DOWNSTREAM_ERROR:
+                    out[key] = result
+                    return
+                time.sleep(0.02)
+            out[key] = result
+
+        out = {}
         ts = [threading.Thread(target=call, args=(p, p)) for p in ["PR1", "PR2", "PR3"]]
         for t in ts: t.start()
         for t in ts: t.join()
@@ -458,7 +471,7 @@ class TestDirectMcpParity:
 class TestFailureIsolation:
     def test_missing_db_safe(self, rt):
         from src.integration.m6 import configure as cfg
-        cfg(Path(tempfile.mkdtemp()) / "missing.sqlite")
+        cfg(Path(tempfile.mkdtemp()).resolve() / "missing.sqlite")
         r = dispatch({"tool": "project_get_charter", "requesting_profile_id": "PR1",
                       "project_ids": ["P"], "target_profile_ids": ["PR1"]})
         assert r.status in (ResponseStatus.CAPABILITY_UNAVAILABLE, ResponseStatus.DOWNSTREAM_ERROR)

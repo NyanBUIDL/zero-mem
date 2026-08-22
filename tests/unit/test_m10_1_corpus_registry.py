@@ -35,13 +35,14 @@ from src.corpus.contracts import (
     ValidationError,
 )
 from src.m8.vocabulary import RESOURCE_TYPES
+import json
 
 
 # ---------------------------------------------------------------------------
 # 1. registry append is append-first and idempotent
 # ---------------------------------------------------------------------------
 def _tmp_root() -> Path:
-    return Path(tempfile.mkdtemp(prefix="m10_1_"))
+    return Path(tempfile.mkdtemp(prefix="m10_1_")).resolve()
 
 
 def test_register_appends_and_is_idempotent_by_content_and_scope():
@@ -386,7 +387,10 @@ def test_root_resolution_unconfigured_is_none(monkeypatch):
 
 def _write_corpus_config(path: Path, value: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(f'  # optional comment\ncorpus_root: "{value}"  # inline comment\n')
+    # R124-10: JSON-escape the scalar so Windows drive paths (backslashes) are
+    # valid inside double quotes; json.loads rejects raw "\z", "\c", ... escapes.
+    quoted = json.dumps(value)
+    path.write_text(f"  # optional comment\ncorpus_root: {quoted}  # inline comment\n")
     return path
 
 

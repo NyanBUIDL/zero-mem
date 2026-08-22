@@ -44,7 +44,7 @@ def _new_store():
     # Build a real file-backed SQLiteStore so the full M3/M4/M5 facade (which
     # expects a store object with ._conn) works end to end; the derived graph
     # and grants live on the same connection.
-    d = tempfile.mkdtemp(prefix="m8_3_")
+    d = Path(tempfile.mkdtemp(prefix="m8_3_")).resolve()
     cfg = SQLiteStoreConfig(path=Path(d) / "meta.sqlite")
     store = SQLiteStore(cfg)
     store.ensure_schema()  # applies migrate_4/7/8/9 in order

@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "Local-first Zero-Mem evidence and memory sidecar"
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
-license = "MIT"
+license = { text = "MIT" }
 authors = [{name = "Zero-Mem contributors"}]
 dependencies = []
 

@@ -193,7 +193,7 @@ def write_note(
 
     try:
         # O_EXCL: refuse to reuse an existing temp file rather than truncate it.
-        descriptor = os.open(temp_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+        descriptor = os.open(temp_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o644)
         try:
             os.write(descriptor, payload)
             os.fsync(descriptor)
@@ -298,7 +298,7 @@ def overwrite_note(
                             WriteStatus.SKIPPED_UNSAFE_PATH, exc.reason)
 
     try:
-        descriptor = os.open(temp_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+        descriptor = os.open(temp_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o644)
         try:
             os.write(descriptor, payload)
             os.fsync(descriptor)

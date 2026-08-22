@@ -149,6 +149,10 @@ def test_e2e_one_change_exact_write_set(tmp_path):
             "UPDATE zm_requirements SET statement='do x CHANGED' "
             "WHERE requirement_id='R1'")
         conn.commit()
+        # R124-10: checkpoint so the mode=ro projection connection sees the
+        # write; a read-only WAL connection cannot see un-checkpointed WAL data
+        # on Windows (the -shm map is unavailable to it).
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         conn.close()
 
     r3, _ = _project(tmp_path, prior_manifest=r1.manifest,
@@ -164,7 +168,7 @@ def test_e2e_one_change_exact_write_set(tmp_path):
     # updated. The archive of unaffected notes is untouched.
     assert any("do-x-changed" in rel for rel, st in affected if st == "CREATED")
     assert any("do-x--" in rel for rel, st in affected if st == "RETIRED")
-    assert any("project-home" in rel for rel, st in affected if st == "UPDATED")
+    assert any("project-home" in rel for rel, st in affected if st == "UPDATED" for rel, st in affected if st == "UPDATED")
     # Unrelated requirement/decision/verification notes: zero writes.
     untouched = [w for w in r3.writes
                  if w.status is WriteStatus.SKIPPED_UNCHANGED]

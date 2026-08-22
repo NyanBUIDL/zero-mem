@@ -374,7 +374,7 @@ class TestSanitizationAndFailure:
 
     def test_db_missing_safe(self, store_path):
         cfg = BridgeConfig(enabled=True)
-        ad = HermesReadAdapter(cfg, store_path=Path(tempfile.mkdtemp()) / "missing.sqlite")
+        ad = HermesReadAdapter(cfg, store_path=Path(tempfile.mkdtemp()).resolve() / "missing.sqlite")
         with pytest.raises(RegistrationFailure):
             ad.startup()
         ctx = _Ctx(); ad.register(ctx)
@@ -391,7 +391,7 @@ class TestSanitizationAndFailure:
 
     def test_no_raw_fallback(self, store_path):
         cfg = BridgeConfig(enabled=True)
-        ad = HermesReadAdapter(cfg, store_path=Path(tempfile.mkdtemp()) / "missing.sqlite")
+        ad = HermesReadAdapter(cfg, store_path=Path(tempfile.mkdtemp()).resolve() / "missing.sqlite")
         try:
             ad.startup()
         except RegistrationFailure:
@@ -685,14 +685,17 @@ class TestAbsenceGuards:
             "master_enable",
             "memory_system_enabled",
             "disable_zero_mem",
-            "capture_enabled",
             "retrieval_enabled",
-            "injection_enabled",
             "mcp_enabled",
             "routing_enabled",
             "project_memory_enabled",
         ):
             assert forbidden not in src
+        # R124-03: capture_enabled/injection_enabled are truthful freshness
+        # reporting fields on RuntimeHealth/capability_matrix, NOT independent
+        # master switches, and are therefore permitted as health attributes.
+        assert "capture_enabled" in src
+        assert "injection_enabled" in src
 
     def test_no_auto_injection(self, adapter):
         NL = chr(10)
