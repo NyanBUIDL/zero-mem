@@ -320,7 +320,8 @@ def build_evidence_set(
 
     conflicts = _conflict_groups([e for e, _ in eligible])
     sel = select_evidence(eligible, max_primary=max_primary,
-                          max_supporting=max_supporting, token_budget=token_budget)
+                          max_supporting=max_supporting, token_budget=token_budget,
+                          route=route)
 
     used_scopes = frozenset(
         s for s in (

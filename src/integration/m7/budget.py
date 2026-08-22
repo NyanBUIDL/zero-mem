@@ -7,9 +7,9 @@ Stable ordering uses existing trustworthy metadata; no vector/learned scoring.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 
-from .contracts import EvidenceItem, EvidenceRole
+from .contracts import EvidenceItem, EvidenceRole, MemoryRoute
 from .eligibility import EligibilityResult
 
 DEFAULT_MAX_PRIMARY = 5
@@ -35,13 +35,28 @@ def _item_text(item: Any) -> str:
     return " ".join(p for p in parts if p)
 
 
-def _order_key(item: EvidenceItem, elig: EligibilityResult) -> Tuple:
-    """Stable deterministic ordering: primary first, verified, route-relevant,
-    lifecycle strength, then (created_at, evidence_id) tie-break."""
+def _order_key(item: EvidenceItem, elig: EligibilityResult, route: Optional[MemoryRoute] = None) -> Tuple:
+    """Stable deterministic ordering: primary first, then (in the PROJECT route only)
+    active state records above other resource types, then verified, route-relevant,
+    lifecycle strength, then (created_at, evidence_id) tie-break.
+
+    Option B: in the PROJECT route, active M4 ``state`` records (current step / docker
+    status) answer "current step / latest state" questions and must not be pushed out of
+    the bounded set by same-timestamp decisions. The state-priority rank sits AFTER the
+    primary/supporting role split (so the 5-primary / 3-supporting budget is preserved)
+    but BEFORE the verified/lifecycle/tie-break ranks, so it applies within each role
+    pool without reordering any non-PROJECT route.
+    """
     role_rank = 0 if elig.as_primary else 1
     verified_rank = 0 if (item.verification or "").lower() in ("verified", "confirmed") else 1
     lifecycle_rank = 0 if (item.lifecycle or "").lower() == "active" else 1
-    return (role_rank, verified_rank, lifecycle_rank, item.created_at or "", item.evidence_id or "")
+    state_rank = 0 if (
+        route is MemoryRoute.PROJECT
+        and item.resource_type == "state"
+        and (item.lifecycle or "").lower() == "active"
+    ) else 1
+    return (role_rank, state_rank, verified_rank, lifecycle_rank,
+            item.created_at or "", item.evidence_id or "")
 
 
 @dataclass
@@ -58,6 +73,7 @@ def select_evidence(
     max_primary: int = DEFAULT_MAX_PRIMARY,
     max_supporting: int = DEFAULT_MAX_SUPPORTING,
     token_budget: int | None = None,
+    route: Optional[MemoryRoute] = None,
 ) -> BudgetSelection:
     """Deterministic bounded selection. Returns primary/supporting lists, count of
     authorized eligible items omitted by the budget (NOT unauthorized items), and an
@@ -65,12 +81,16 @@ def select_evidence(
 
     `omitted_count` only reflects evidence the requester was already authorized to
     know existed (never leaks protected existence).
+
+    `route` (optional) enables route-conditioned ordering (Option B: PROJECT route
+    prioritizes active state records within their role pool). None preserves the
+    default ordering for callers that do not carry a route.
     """
     # Split by intended role, then stable-sort each.
     primary_pool = [c for c in candidates if c[1].as_primary]
     supporting_pool = [c for c in candidates if not c[1].as_primary]
-    primary_pool.sort(key=lambda c: _order_key(c[0], c[1]))
-    supporting_pool.sort(key=lambda c: _order_key(c[0], c[1]))
+    primary_pool.sort(key=lambda c: _order_key(c[0], c[1], route))
+    supporting_pool.sort(key=lambda c: _order_key(c[0], c[1], route))
 
     chosen_primary = primary_pool[:max_primary]
     chosen_supporting = supporting_pool[:max_supporting]
