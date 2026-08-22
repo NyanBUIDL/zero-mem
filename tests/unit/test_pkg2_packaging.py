@@ -18,6 +18,18 @@ def _venv_python(venv: Path) -> Path:
     """R124-09: the venv layout is Scripts/python.exe on Windows, bin/python elsewhere."""
     return venv / "Scripts" / "python.exe" if os.name == "nt" else venv / "bin" / "python"
 
+
+def _cli(bindir: Path) -> Path:
+    """R124-09: the installed CLI shim is zero-mem.cmd on Windows."""
+    return bindir / ("zero-mem.cmd" if os.name == "nt" else "zero-mem")
+
+
+def _cli_invocation(cli: Path) -> list[str]:
+    """R124-09: .cmd files must be executed through cmd.exe on Windows."""
+    if os.name == "nt":
+        return ["cmd", "/c", str(cli)]
+    return [str(cli)]
+
 INSTALLER = ROOT / "release_helpers" / "install.py"
 UNINSTALLER = ROOT / "release_helpers" / "uninstall.py"
 
@@ -158,11 +170,11 @@ def test_fresh_offline_install_custom_xdg_and_cli(bundle: Path, tmp_path: Path) 
     bindir = home / "bin root with spaces"
     assert (runtime / "current").is_symlink()
     assert (runtime / "runtimes" / "1.2.4" / "venv").is_dir()
-    cli = bindir / "zero-mem"
+    cli = _cli(bindir)
     assert cli.is_file() and os.access(cli, os.X_OK)
     env = _env(home)
-    assert _run([str(cli), "--help"], env=env, cwd=tmp_path).returncode == 0
-    assert _run([str(cli), "--version"], env=env, cwd=tmp_path).stdout.strip() == "zero-mem 1.2.4"
+    assert _run(_cli_invocation(cli) + ["--help"], env=env, cwd=tmp_path).returncode == 0
+    assert _run(_cli_invocation(cli) + ["--version"], env=env, cwd=tmp_path).stdout.strip() == "zero-mem 1.2.4"
     imports = _run([str(_venv_python(runtime / "current" / "venv")), "-c", "import zero_mem, src; print(zero_mem.__version__)"], env=env, cwd=tmp_path)
     assert imports.stdout.strip() == "1.2.4"
 
@@ -218,7 +230,7 @@ def test_default_uninstall_preserves_user_data(bundle: Path, tmp_path: Path) -> 
     result = _run([sys.executable, str(UNINSTALLER), "--non-interactive"], env=env, check=True)
     assert result.returncode == 0
     assert not (runtime / "current").exists()
-    assert not (home / "bin root with spaces" / "zero-mem").exists()
+    assert not _cli(home / "bin root with spaces").exists()
     assert sentinel.read_text() == "synthetic canonical data"
 
 
@@ -272,10 +284,10 @@ def test_installed_runtime_exposes_pkg3_setup_and_doctor(bundle: Path, tmp_path:
     assert _install(bundle, tmp_path).returncode == 0
     home = tmp_path / "home with spaces"
     env = _env(home)
-    cli = home / "bin root with spaces" / "zero-mem"
-    setup = _run([str(cli), "setup"], env=env, cwd=tmp_path)
+    cli = _cli(home / "bin root with spaces")
+    setup = _run(_cli_invocation(cli) + ["setup"], env=env, cwd=tmp_path)
     assert setup.stdout.strip() == "READY"
-    doctor = _run([str(cli), "doctor", "--json"], env=env, cwd=tmp_path)
+    doctor = _run(_cli_invocation(cli) + ["doctor", "--json"], env=env, cwd=tmp_path)
     report = json.loads(doctor.stdout)
     assert report["overall"] == "READY"
     assert any(check["id"] == "hermes" and check["status"] == "WARN" for check in report["checks"])
@@ -285,18 +297,18 @@ def test_installed_runtime_upgrade_check_and_same_version_reinstall_preserve_sta
     assert _install(bundle, tmp_path).returncode == 0
     home = tmp_path / "home with spaces"
     env = _env(home)
-    cli = home / "bin root with spaces" / "zero-mem"
-    assert _run([str(cli), "setup"], env=env, cwd=tmp_path).returncode == 0
+    cli = _cli(home / "bin root with spaces")
+    assert _run(_cli_invocation(cli) + ["setup"], env=env, cwd=tmp_path).returncode == 0
     data_root = home / "data root with spaces" / "zero-mem"
     canonical = data_root / "data" / "memory" / "traces" / "events-v1.jsonl"
     canonical.write_text('{"event_id":"pkg6-installed","event_type":"user_statement"}\n', encoding="utf-8")
     before = canonical.read_bytes()
 
-    checked = json.loads(_run([str(cli), "upgrade", "--check", "--json"], env=env, cwd=tmp_path).stdout)
+    checked = json.loads(_run(_cli_invocation(cli) + ["upgrade", "--check", "--json"], env=env, cwd=tmp_path).stdout)
     assert checked["status"] == "READY"
     assert checked["compatibility"] == "NO_MIGRATION_REQUIRED"
     assert canonical.read_bytes() == before
-    upgraded = json.loads(_run([str(cli), "upgrade", "--json"], env=env, cwd=tmp_path).stdout)
+    upgraded = json.loads(_run(_cli_invocation(cli) + ["upgrade", "--json"], env=env, cwd=tmp_path).stdout)
     assert upgraded["status"] == "SUCCESS"
     assert canonical.read_bytes() == before
     assert _install(bundle, tmp_path).returncode == 0

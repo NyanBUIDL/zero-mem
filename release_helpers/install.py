@@ -14,6 +14,8 @@ from pathlib import Path
 from release_common import (
     absolute_path,
     atomic_write,
+    cli_shim_bytes,
+    cli_shim_name,
     contained,
     default_paths,
     ensure_managed_root,
@@ -23,6 +25,8 @@ from release_common import (
     require_compatible_python,
     script_bytes,
     sha256_file,
+    venv_console,
+    venv_python,
     verify_bundle,
     ReleaseError,
 )
@@ -46,7 +50,7 @@ def _run(command: list[str], *, cwd: Path, env: dict[str, str], message: str) ->
 
 
 def _runtime_python(venv: Path) -> Path:
-    return venv / "bin" / "python"
+    return venv_python(venv)
 
 
 def _paths(args: argparse.Namespace) -> tuple[Path, Path]:
@@ -69,7 +73,7 @@ def _verify_runtime(venv: Path, version: str, cwd: Path) -> None:
         f"assert m.version('zero-mem') == {version!r}"
     )
     _run([str(_runtime_python(venv)), "-c", code], cwd=cwd, env=env, message="installed runtime verification failed")
-    _run([str(venv / "bin" / "zero-mem"), "--version"], cwd=cwd, env=env, message="installed CLI verification failed")
+    _run([str(venv_console(venv, "zero-mem")), "--version"], cwd=cwd, env=env, message="installed CLI verification failed")
 
 
 def _check_active_pointer(runtime_root: Path) -> None:
@@ -81,6 +85,29 @@ def _check_active_pointer(runtime_root: Path) -> None:
     target = (current.parent / os.readlink(current)).resolve()
     if not contained(runtime_root / "runtimes", target):
         raise fail("active runtime pointer escapes managed root")
+
+
+def _make_dir_link(link: Path, target: Path) -> None:
+    """Create a directory link for the active-runtime pointer.
+
+    R124-09: ``os.symlink`` to a directory requires Developer Mode or elevated
+    privileges on Windows. Fall back to a directory junction (``mklink /J``),
+    which needs no privilege; junctions are reparse points, so ``is_symlink()``
+    and ``os.readlink`` keep working for the existing safety checks.
+    """
+    if os.name == "nt":
+        try:
+            os.symlink(str(target), str(link), target_is_directory=True)
+            return
+        except OSError:
+            _run(
+                ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+                cwd=Path.home(),
+                env=dict(os.environ),
+                message="unable to create activation junction",
+            )
+            return
+    os.symlink(str(target), str(link), target_is_directory=True)
 
 
 def install(args: argparse.Namespace) -> int:
@@ -99,6 +126,7 @@ def install(args: argparse.Namespace) -> int:
     version_root = managed_child(runtimes, version, label="version runtime")
     _check_active_pointer(runtime_root)
     current = runtime_root / "current"
+    shim_name = cli_shim_name()
     controlled_failure = os.environ.get("ZERO_MEM_TEST_FAIL_BEFORE_ACTIVATION") == "1"
     active_same = current.is_symlink() and current.resolve() == version_root.resolve() and version_root.is_dir()
     for candidate in runtimes.iterdir():
@@ -134,8 +162,8 @@ def install(args: argparse.Namespace) -> int:
         if controlled_failure:
             raise fail("controlled pre-activation failure")
         bin_dir = ensure_managed_root(bin_dir, home=home, label="binary root")
-        shim = managed_child(bin_dir, "zero-mem", label="CLI shim")
-        shim_data = script_bytes(runtime_root)
+        shim = managed_child(bin_dir, shim_name, label="CLI shim")
+        shim_data = cli_shim_bytes(runtime_root)
         if shim.exists() or shim.is_symlink():
             if shim.is_symlink() or shim.read_bytes() != shim_data:
                 raise fail("existing zero-mem command is not owned by Zero-Mem")
@@ -149,7 +177,7 @@ def install(args: argparse.Namespace) -> int:
         metadata_data = (json.dumps(metadata, sort_keys=True) + "\n").encode("utf-8")
 
         # Prepare every fallible artifact before changing the active pointer.
-        shim_tmp = bin_dir / ".zero-mem.tmp"
+        shim_tmp = bin_dir / f".{shim_name}.tmp"
         metadata_tmp = runtime_root / ".install.json.tmp"
         if shim_tmp.exists() or shim_tmp.is_symlink() or metadata_tmp.exists() or metadata_tmp.is_symlink():
             raise fail("stale installer temporary file")
@@ -161,7 +189,7 @@ def install(args: argparse.Namespace) -> int:
         pointer_tmp = runtime_root / ".current.tmp"
         if pointer_tmp.exists() or pointer_tmp.is_symlink():
             raise fail("stale activation pointer")
-        os.symlink(Path("runtimes") / version, pointer_tmp)
+        _make_dir_link(pointer_tmp, Path("runtimes") / version)
         os.replace(pointer_tmp, current)
         pointer_changed = True
         os.replace(shim_tmp, shim)
@@ -172,7 +200,7 @@ def install(args: argparse.Namespace) -> int:
             if current.exists() or current.is_symlink():
                 current.unlink()
             if previous_current is not None:
-                os.symlink(previous_current, current)
+                _make_dir_link(current, previous_current)
         if shim is not None:
             if previous_shim is None and (shim.exists() or shim.is_symlink()):
                 shim.unlink()
@@ -187,7 +215,7 @@ def install(args: argparse.Namespace) -> int:
             shutil.rmtree(staging, ignore_errors=True)
         if runtime_moved and (version_root.exists() or version_root.is_symlink()):
             shutil.rmtree(version_root, ignore_errors=True)
-        for temporary in (bin_dir / ".zero-mem.tmp", runtime_root / ".install.json.tmp", runtime_root / ".current.tmp"):
+        for temporary in (bin_dir / f".{shim_name}.tmp", runtime_root / ".install.json.tmp", runtime_root / ".current.tmp"):
             if temporary.exists() or temporary.is_symlink():
                 temporary.unlink()
         raise

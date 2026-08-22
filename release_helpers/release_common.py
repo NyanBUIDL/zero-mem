@@ -201,7 +201,36 @@ def default_paths() -> tuple[Path, Path]:
     )
 
 
+def venv_python(venv: Path) -> Path:
+    """R124-09: the venv layout is Scripts/python.exe on Windows."""
+    return venv / "Scripts" / "python.exe" if os.name == "nt" else venv / "bin" / "python"
+
+
+def venv_console(venv: Path, name: str) -> Path:
+    """R124-09: pip console-script entry point location per platform."""
+    return venv / "Scripts" / (name + ".exe") if os.name == "nt" else venv / "bin" / name
+
+
+def cli_shim_name() -> str:
+    """R124-09: the CLI shim is zero-mem.cmd on Windows (batch), zero-mem elsewhere."""
+    return "zero-mem.cmd" if os.name == "nt" else "zero-mem"
+
+
+def cli_shim_bytes(runtime_root: Path) -> bytes:
+    """R124-09: platform-correct CLI shim invoking the managed venv python."""
+    if os.name == "nt":
+        python = runtime_root / "current" / "venv" / "Scripts" / "python.exe"
+        return (
+            "@echo off\r\n"
+            + '"' + str(python) + '" -m zero_mem.cli %*\r\n'
+        ).encode("utf-8")
+    python = runtime_root / "current" / "venv" / "bin" / "python"
+    quoted = "'" + str(python).replace("'", "'\\''") + "'"
+    return ("#!/bin/sh\nset -eu\nexec " + quoted + " -m zero_mem.cli \"$@\"\n").encode("utf-8")
+
+
 def script_bytes(runtime_root: Path) -> bytes:
+    """POSIX shell shim (kept for callers that need the exact POSIX variant)."""
     python = runtime_root / "current" / "venv" / "bin" / "python"
     quoted = "'" + str(python).replace("'", "'\\''") + "'"
     return ("#!/bin/sh\nset -eu\nexec " + quoted + " -m zero_mem.cli \"$@\"\n").encode("utf-8")
