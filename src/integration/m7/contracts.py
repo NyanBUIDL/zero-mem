@@ -98,6 +98,10 @@ class RouterRequest:
     explicit_freshness_intent: bool = False
     # Trusted explicit route hint from the typed caller contract only.
     trusted_route_hint: Optional[MemoryRoute] = None
+    # V130-04: explicit as-of timestamp (ISO-8601) for temporal annotation of the
+    # EvidenceSet. Validated at the request boundary via M8.1 normalize_timestamp;
+    # malformed values fail closed. None = no temporal annotation (default).
+    as_of: Optional[str] = None
 
     def __post_init__(self) -> None:
         # Normalize tuples to avoid accidental mutable state.
@@ -205,6 +209,10 @@ class EvidenceSet:
     # evidence. This field is a convenience mirror of the corpus items selected
     # into primary/supporting; it is never an additional unbounded channel.
     corpus_evidence: Tuple[EvidenceItem, ...] = ()
+    # V130-04: bounded, DATA-ONLY temporal annotation (as-of view per authorized
+    # resource). None = no as_of on the request, or temporal read degraded
+    # gracefully. Annotation-only: never changes selection/order/budget.
+    temporal: Optional[Any] = None
 
     def to_dict(self) -> dict:
         return {

@@ -369,6 +369,26 @@ def build_evidence_set(
         # Fail closed: keep the upstream validated EvidenceSet untouched.
         pass
 
+    # V130-04 — bounded temporal annotation (annotation-only, fail-open).
+    # as_of validated via M8.1 normalize_timestamp; malformed raises (fail closed).
+    # Internal read failures keep the validated EvidenceSet with temporal=None.
+    as_of = getattr(router, "as_of", None)
+    if as_of is not None:
+        try:
+            from .temporal_annotation import annotate_temporal
+            conn = getattr(store, "conn", None) if store is not None else None
+            ks = tuple(getattr(router, "knowledge_space_ids", ()) or ())
+            es = annotate_temporal(
+                es, svc, conn,
+                requesting_profile_id=getattr(router, "requesting_profile_id", None),
+                project_id=getattr(router, "project_id", None),
+                knowledge_space_id=ks[0] if ks else None,
+                as_of_raw=as_of,
+            )
+        except Exception:
+            # Fail closed on request validation errors (malformed as_of).
+            raise
+
     return es
 
 
