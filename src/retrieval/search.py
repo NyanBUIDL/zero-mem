@@ -53,6 +53,46 @@ def _normalize_fts_query(text: str) -> str:
     return " ".join(text.split()).replace("-", " ")
 
 
+def _quote_fts_term(term: str) -> str:
+    """Safely double-quote a single term for an FTS5 MATCH expression (V130-01).
+
+    Embedded double quotes are doubled per the FTS5 phrase-quoting rule, so caller
+    text can never inject FTS operators (OR/AND/NOT/NEAR/column filters) — the whole
+    term always matches as a literal token sequence.
+    """
+    return '"' + term.replace('"', '""') + '"'
+
+
+def _term_list(normalized_text: str) -> List[str]:
+    """Whitespace-split terms of the normalized query, non-empty only."""
+    return [t for t in normalized_text.split() if t]
+
+
+def _run_match(store: ReadonlyStore, match_expr: str,
+               structured_where: str, structured_params: List[object],
+               keyset: Optional[tuple], effective_limit: int):
+    """One parameterized FTS candidate fetch. Returns raw rows (may be empty).
+
+    Raises sqlite3.OperationalError on malformed MATCH (caller decides handling).
+    """
+    cols = ", ".join(f"zm_meta.{c}" for c in ZM_META_COLUMNS)
+    sql = (
+        f"SELECT {cols}, snippet(zm_fts, 1, '[' , ']', '...', 8) AS snip "
+        f"FROM zm_meta "
+        f"JOIN zm_fts ON zm_fts.event_id = zm_meta.event_id "
+        f"WHERE zm_fts MATCH ? "
+        f"AND {structured_where} "
+    )
+    params: List[object] = [match_expr]
+    params.extend(structured_params)
+    if keyset is not None:
+        sql += " AND (zm_meta.created_at, zm_meta.event_id) > (?, ?)"
+        params.extend([keyset[0], keyset[1]])
+    sql += " ORDER BY zm_meta.created_at ASC, zm_meta.event_id ASC LIMIT ?"
+    params.append(effective_limit)
+    return store.conn.execute(sql, params).fetchall()
+
+
 def _fts_substrate_present(store: ReadonlyStore) -> bool:
     """Read-only capability detection: does this database actually have zm_fts?"""
     try:
@@ -123,7 +163,11 @@ def search_text(
     text = _normalize_fts_query(text)
 
     effective_limit = query_mod._validate_limit(limit)
-    qf = cursor_mod.make_fingerprint(req, text=text)
+    # V130-01: the cursor is bound to the MATCH strategy that produced it. Both
+    # mode-specific fingerprints are derived up front; validation uses the one for
+    # the pass whose rows are returned.
+    qf_and = cursor_mod.make_fingerprint(req, text=text, match_mode="and")
+    qf_or = cursor_mod.make_fingerprint(req, text=text, match_mode="or_fallback")
 
     # Read-only capability detection against the actual database state.
     if not _fts_substrate_present(store):
@@ -131,33 +175,37 @@ def search_text(
 
     keyset: Optional[tuple] = None
     if cursor is not None:
-        data = cursor_mod.validate_cursor_binding(cursor, qf, effective_limit)
-        keyset = (data["sort"][0], data["sort"][1])
+        try:
+            data = cursor_mod.validate_cursor_binding(cursor, qf_and, effective_limit)
+            keyset = (data["sort"][0], data["sort"][1])
+        except QueryError as exc:
+            # Only a MODE binding mismatch falls through to the OR fingerprint;
+            # limit mismatches / structural errors must surface unchanged.
+            if exc.code != cursor_mod.CURSOR_QUERY_MISMATCH:
+                raise
+            # A cursor minted by an OR-fallback pass binds to qf_or instead.
+            data = cursor_mod.validate_cursor_binding(cursor, qf_or, effective_limit)
+            keyset = (data["sort"][0], data["sort"][1])
 
     structured_where, structured_params = query_mod._build_where(req)
-    cols = ", ".join(f"zm_meta.{c}" for c in ZM_META_COLUMNS)
-    # Intersect the FTS candidate set (parameterized MATCH) with the structured-filtered,
-    # deleted-excluded zm_meta rows. Snippet comes from zm_fts (sanitized content only).
-    # NOTE: FTS5 snippet() markers/token-count must be literals (not bound params); they are
-    # fixed constants here, so no caller-controlled value enters the SQL text.
-    # All selected/compared columns are qualified with zm_meta. to avoid ambiguity with zm_fts.
-    sql = (
-        f"SELECT {cols}, snippet(zm_fts, 1, '[' , ']', '...', 8) AS snip "
-        f"FROM zm_meta "
-        f"JOIN zm_fts ON zm_fts.event_id = zm_meta.event_id "
-        f"WHERE zm_fts MATCH ? "
-        f"AND {structured_where} "
-    )
-    params: List[object] = [text]
-    params.extend(structured_params)
-    if keyset is not None:
-        sql += " AND (zm_meta.created_at, zm_meta.event_id) > (?, ?)"
-        params.extend([keyset[0], keyset[1]])
-    sql += " ORDER BY zm_meta.created_at ASC, zm_meta.event_id ASC LIMIT ?"
-    params.append(effective_limit)
-
     try:
-        rows = store.conn.execute(sql, params).fetchall()
+        rows = _run_match(store, text, structured_where,
+                          structured_params, keyset, effective_limit)
+        match_mode = "and"
+        # V130-01 precision-guarded OR fallback: only when the implicit-AND pass
+        # returned zero rows AND the query has >= 2 terms. Terms are FTS5-quoted so
+        # caller text can never introduce operators; the expression stays a bound
+        # parameter. Ordering/filters/pagination are identical in both modes.
+        if not rows:
+            terms = _term_list(text)
+            if len(terms) >= 2:
+                or_expr = " OR ".join(_quote_fts_term(t) for t in terms)
+                # A paginated OR pass would need its own fingerprint binding (the
+                # AND-mode cursor's keyset belongs to the same logical query, so
+                # reuse is safe: identical sort key and filter set).
+                rows = _run_match(store, or_expr, structured_where,
+                                  structured_params, keyset, effective_limit)
+                match_mode = "or_fallback"
     except sqlite3.OperationalError:
         # Malformed FTS expression (or other FTS engine error). Sanitized, no raw text.
         return SearchResult(results=[], error=MALFORMED_FTS_EXPRESSION, next_cursor=None)
@@ -169,8 +217,11 @@ def search_text(
     next_cursor: Optional[str] = None
     if len(hits) >= effective_limit:
         last = hits[effective_limit - 1]
+        # Encode with the fingerprint of the mode that actually produced the rows.
+        qf = qf_or if match_mode == "or_fallback" else qf_and
         next_cursor = cursor_mod.encode_cursor(
             qf, last.created_at, last.event_id, effective_limit
         )
 
-    return SearchResult(results=hits, error=None, next_cursor=next_cursor)
+    return SearchResult(results=hits, error=None, next_cursor=next_cursor,
+                        match_mode=match_mode)

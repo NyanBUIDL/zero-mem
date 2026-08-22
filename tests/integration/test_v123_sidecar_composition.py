@@ -39,12 +39,18 @@ def test_sidecar_advertises_and_dispatches_the_same_public_reads(tmp_path: Path)
         routed_event_ids = [item["value"]["event_id"] for item in routed["items"]]
         assert routed_event_ids == direct_event_ids
 
-        empty_direct = client.search({"text": "no such sidecar fixture", "consistency": "require_current"})
+        # V130-01: a zero-result probe must be a SINGLE nonce term — single terms
+        # never trigger the OR fallback (precision guard), so this query returns
+        # zero hits both before and after V130-01. The former multi-term probe
+        # ("no such sidecar fixture") now legitimately matches via OR-fallback and
+        # is covered as a positive or_fallback case in
+        # tests/unit/test_v130_01_fts_or_fallback.py.
+        empty_direct = client.search({"text": "zm_probe_no_such_token_v130", "consistency": "require_current"})
         empty_routed = sidecar.dispatch(
             {
                 "identity": "profile-r02",
                 "capability": "search",
-                "text": "no such sidecar fixture",
+                "text": "zm_probe_no_such_token_v130",
                 "consistency": "require_current",
             }
         )

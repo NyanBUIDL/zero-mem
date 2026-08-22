@@ -20,6 +20,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+from typing import Optional
 
 from .models import (
     CURSOR_LIMIT_MISMATCH,
@@ -38,14 +39,17 @@ MAX_LIMIT = 500
 _DELETED_EXCLUSION_MARKER = {"_deleted_excluded": True}
 
 
-def make_fingerprint(req: QueryRequest, text: Optional[str] = None) -> str:
-    """SHA-256 of the canonical normalized filter set (+ optional FTS text).
+def make_fingerprint(req: QueryRequest, text: Optional[str] = None,
+                     match_mode: Optional[str] = None) -> str:
+    """SHA-256 of the canonical normalized filter set (+ optional FTS text/mode).
 
     Normalization: sorted keys, None values excluded, deterministic separators, a
-    constant deleted-exclusion marker, and the normalized FTS ``text`` when present.
-    Equivalent structured queries (and equivalent text) produce the same ``qf``; different
-    filter sets or different text produce different ``qf`` with practical determinism.
-    No raw SQL, FTS internals, secrets, or paths are included.
+    constant deleted-exclusion marker, the normalized FTS ``text`` when present, and
+    the FTS ``match_mode`` ("and" | "or_fallback") when present (V130-01: a cursor is
+    bound to the MATCH strategy that produced it — cross-mode reuse is rejected).
+    Equivalent structured queries (and equivalent text + mode) produce the same ``qf``;
+    different filter sets, text, or mode produce different ``qf`` with practical
+    determinism. No raw SQL, FTS internals, secrets, or paths are included.
     """
     if not isinstance(req, QueryRequest):
         raise QueryError(code="invalid_query", message="not_a_query_request")
@@ -56,6 +60,10 @@ def make_fingerprint(req: QueryRequest, text: Optional[str] = None) -> str:
             raise QueryError(code="invalid_query", message="empty_fts_text")
         # Normalize the FTS text deterministically: collapse runs of whitespace, strip.
         normalized["text"] = " ".join(text.split())
+    if match_mode is not None:
+        if match_mode not in ("and", "or_fallback"):
+            raise QueryError(code="invalid_query", message="invalid_match_mode")
+        normalized["match_mode"] = match_mode
     canonical = json.dumps(normalized, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 

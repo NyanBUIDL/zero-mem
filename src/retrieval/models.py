@@ -160,6 +160,10 @@ class SearchResult:
     results: List[SearchHit] = field(default_factory=list)
     error: Optional[str] = None
     next_cursor: Optional[str] = None
+    #: V130-01: which MATCH strategy produced the rows. ``and`` = plain implicit-AND
+    #: MATCH; ``or_fallback`` = the AND pass returned zero rows and an OR expansion of
+    #: the same terms ran instead (precision guard: fallback never replaces AND hits).
+    match_mode: Optional[str] = "and"
 
 
 @dataclass
