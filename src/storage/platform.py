@@ -24,6 +24,10 @@ LockMode = Literal["shared", "exclusive"]
 DEFAULT_TIMEOUT = 5.0
 NO_FOLLOW = getattr(os, "O_NOFOLLOW", 0)
 DIRECTORY_FLAG = getattr(os, "O_DIRECTORY", 0)
+# R124-07: on Windows the CRT defaults os.open/msvcrt handles to TEXT mode and
+# translates \n -> CRLF on write (corrupting canonical JSONL, notes, manifests).
+# O_BINARY is 0 on POSIX so this is a no-op there.
+O_BINARY = getattr(os, "O_BINARY", 0)
 
 
 class PlatformErrorCode(str, Enum):
@@ -212,6 +216,7 @@ def _open_flags(access: str, *, append: bool = False, create: bool = False, excl
         flags |= os.O_EXCL
     if nonblocking and hasattr(os, "O_NONBLOCK"):
         flags |= os.O_NONBLOCK
+    flags |= O_BINARY
     return flags
 
 
@@ -338,6 +343,9 @@ def open_regular(path: Path, flags: int, *, create: bool = False, exclusive: boo
                     raise FileNotFoundError(error_code, "CreateFileW")
                 raise OSError(error_code, "CreateFileW")
             fd_flags = os.O_RDWR if (flags & os.O_RDWR) else os.O_WRONLY if (flags & os.O_WRONLY) else os.O_RDONLY
+            # R124-07: without O_BINARY, msvcrt.open_osfhandle produces a TEXT-mode
+            # CRT descriptor and every os.write translates \n -> CRLF.
+            fd_flags |= O_BINARY
             if flags & os.O_APPEND:
                 fd_flags |= os.O_APPEND
             fd = msvcrt.open_osfhandle(handle, fd_flags)
@@ -710,6 +718,23 @@ def _digest_handle(fd: int) -> str:
         raise PlatformStorageError(PlatformErrorCode.IO_ERROR) from None
 
 
+def handle_identity_parts(fd: int) -> tuple[int, int, int, int]:
+    """Platform-correct ``(device, inode, size, mtime_ns)`` for an open handle.
+
+    R124-07: on Windows ``os.fstat().st_dev/st_ino`` are NOT the volume
+    serial/file index that ``_identity_from_fd`` records (Python 3.12+ changed
+    the fstat values again), so comparing one against the other makes every
+    identity fence fail. This returns the same identity source the rest of the
+    platform layer uses for the open handle.
+    """
+    info = os.fstat(fd)
+    if os.name == "nt":
+        device, inode = _windows_handle_identity(fd)
+    else:
+        device, inode = info.st_dev, info.st_ino
+    return device, inode, info.st_size, info.st_mtime_ns
+
+
 def _identity_from_fd(fd: int) -> FileIdentity:
     info = os.fstat(fd)
     digest_value = _digest_handle(fd)
@@ -860,8 +885,9 @@ def safe_cleanup(path: Path) -> None:
 
 
 __all__ = [
-    "DIRECTORY_FLAG", "FileIdentity", "NO_FOLLOW", "PlatformErrorCode", "PlatformStorageError",
+    "DIRECTORY_FLAG", "FileIdentity", "NO_FOLLOW", "O_BINARY", "PlatformErrorCode", "PlatformStorageError",
     "atomic_promote", "close_handle", "coordinated", "ensure_private_directory", "file_identity",
+    "handle_identity_parts",
     "fsync_handle", "handle_info", "handle_size", "is_regular_info", "is_symlink_info", "list_relative",
     "locked", "open_parent_dir", "open_relative", "open_regular", "paths_alias", "read_all", "read_bytes", "read_from",
     "rename_relative", "safe_cleanup", "safe_unlink", "set_mode", "stat_relative", "unlink_relative", "validate_directory",

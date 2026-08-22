@@ -116,6 +116,13 @@ def open_readonly(database_path: Path) -> ReadonlyStore:
                 conn.close()
                 raise QueryError(code="database_unavailable", message="unsafe_database_path") from None
             try:
+                # R124-10: without a busy timeout, concurrent readonly opens can
+                # fail transiently with "database is locked" when another reader
+                # is checkpointing; wait instead of erroring.
+                conn.execute("PRAGMA busy_timeout = 5000")
+            except sqlite3.Error:
+                pass
+            try:
                 # Blocks write-adjacent pragmas (e.g. checkpoint) where supported.
                 conn.execute("PRAGMA query_only = ON")
             except sqlite3.Error:

@@ -20,6 +20,7 @@ from src.storage.platform import (
     FileIdentity,
     atomic_promote,
     close_handle,
+    handle_identity_parts,
     handle_info,
     fsync_handle,
     is_regular_info,
@@ -481,10 +482,10 @@ class RecoveryCoordinator:
         directory = open_parent_dir(building_path)
         try:
             build_fd = open_relative(directory, building_path.name, access="readwrite", create=True, exclusive=True)
-            build_info = handle_info(build_fd)
+            build_device, build_inode, _size, _mtime = handle_identity_parts(build_fd)
             close_handle(build_fd)
             marker_fd = open_relative(directory, marker.name, access="write", create=True, exclusive=True)
-            owner = {"token": token, "build": str(building_path), "build_identity": {"device": build_info.st_dev, "inode": build_info.st_ino}, "pid": os.getpid(), "canonical": {"device": identity.device, "inode": identity.inode, "size": identity.size, "mtime_ns": identity.mtime_ns, "digest": identity.digest}, "destination": str(self.derived_path)}
+            owner = {"token": token, "build": str(building_path), "build_identity": {"device": build_device, "inode": build_inode}, "pid": os.getpid(), "canonical": {"device": identity.device, "inode": identity.inode, "size": identity.size, "mtime_ns": identity.mtime_ns, "digest": identity.digest}, "destination": str(self.derived_path)}
             try:
                 write_all(marker_fd, json.dumps(owner, sort_keys=True).encode("utf-8"))
                 fsync_handle(marker_fd)
@@ -520,10 +521,11 @@ class RecoveryCoordinator:
                 raise RuntimeError("recovery_owner_mismatch")
             build_fd = open_relative(directory, building_path.name, access="read", nonblocking=True)
             build_info = handle_info(build_fd)
+            build_device, build_inode, build_size, build_mtime_ns = handle_identity_parts(build_fd)
             expected_build = data.get("build_identity")
             if (not is_regular_info(build_info) or not isinstance(expected_build, dict) or set(expected_build) != {"device", "inode"}
                     or not _strict_identity(expected_build["device"]) or not _strict_identity(expected_build["inode"])
-                    or expected_build != {"device": build_info.st_dev, "inode": build_info.st_ino}):
+                    or expected_build != {"device": build_device, "inode": build_inode}):
                 raise RuntimeError("recovery_build_identity_mismatch")
             try:
                 destination_info = stat_relative(directory, self.derived_path.name)
@@ -550,7 +552,7 @@ class RecoveryCoordinator:
                 atomic_promote(
                     building_path,
                     self.derived_path,
-                    expected_source=FileIdentity(build_info.st_dev, build_info.st_ino, build_info.st_size, build_info.st_mtime_ns, ""),
+                    expected_source=FileIdentity(build_device, build_inode, build_size, build_mtime_ns, ""),
                 )
                 unlink_relative(directory, building_path.name)
             except Exception as promotion_error:
