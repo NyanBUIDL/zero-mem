@@ -510,7 +510,11 @@ def _reconcile_desired(
     # edit-resolution workflow. We record and leave the bytes intact.
     if prior_entry is not None:
         try:
-            on_disk_fingerprint = content_fingerprint(path.read_text())
+            # R124-07/10: Path.read_text() without encoding uses the platform
+            # default (cp1252 on Windows), which mangles UTF-8 non-ASCII bytes
+            # (e.g. the em dash in "P — Project Home") and makes every managed
+            # note with non-ASCII look human-edited. The writer emits UTF-8.
+            on_disk_fingerprint = content_fingerprint(path.read_text(encoding="utf-8"))
         except OSError:
             on_disk_fingerprint = None
         if on_disk_fingerprint != prior_entry.content_fingerprint:
