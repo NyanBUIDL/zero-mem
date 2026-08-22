@@ -47,6 +47,11 @@ class ResourceTemporalInfo:
     superseded_by: Optional[str] = None
 
 
+class _MissingResourceType(Exception):
+    """Gate D F1: an EvidenceItem without resource_type is a mapping bug. Must
+    surface to the caller — it is NEVER swallowed by the fail-open handler."""
+
+
 @dataclass(frozen=True)
 class EvidenceTemporalInfo:
     """Bounded temporal annotation attached to ``EvidenceSet.temporal``."""
@@ -90,9 +95,12 @@ def annotate_temporal(
             seen.add(rid)
             rtype = getattr(e, "resource_type", "") or ""
             if not rtype:
-                # V130-04 Verifier F3: a missing resource_type is a mapping bug,
-                # never a silent authorization skip.
-                raise ValueError(f"evidence item missing resource_type: {rid}")
+                # Gate D F1 (V130-04): a missing resource_type is a mapping bug,
+                # never a silent authorization skip. Raised OUTSIDE the fail-open
+                # try below via the pre-validated rtype check — see structure:
+                # this loop runs inside the guarded section, but ValueError is
+                # re-raised by the explicit handler at the end of the try block.
+                raise _MissingResourceType(f"evidence item missing resource_type: {rid}")
             req = TemporalReadRequest(
                 requester=requesting_profile_id or "",
                 resource_type=rtype,
@@ -126,6 +134,9 @@ def annotate_temporal(
         )
         object.__setattr__(es, "temporal", info)
         return es
+    except _MissingResourceType:
+        # Gate D F1: mapping bugs must surface, never be swallowed by fail-open.
+        raise
     except Exception:
         # Fail open: keep the validated EvidenceSet, temporal stays None.
         # (TemporalError from normalize_timestamp above is raised, not swallowed.)

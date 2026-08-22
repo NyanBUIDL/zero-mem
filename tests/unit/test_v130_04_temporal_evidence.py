@@ -13,6 +13,8 @@ RED until V130-04 implemented.
 """
 from __future__ import annotations
 
+import sqlite3
+
 import pytest
 
 
@@ -83,6 +85,28 @@ def test_as_of_builds_temporal_annotation():
         assert entry.history_count <= MAX_HISTORY_VERSIONS
         # annotation-only: superseded_by is provenance verbatim (str or None)
         assert entry.superseded_by is None or isinstance(entry.superseded_by, str)
+
+
+def test_missing_resource_type_surfaces_not_swallowed():
+    """Gate D F1: a mapping bug (missing resource_type) must RAISE, not be
+    silently swallowed by the fail-open handler."""
+    from src.integration.m7.temporal_annotation import (
+        _MissingResourceType, annotate_temporal)
+
+    class _BrokenItem:
+        evidence_id = "broken-1"
+        resource_type = ""  # mapping bug
+        lifecycle = "active"
+        verification = "none"
+
+    class _ES:
+        primary_evidence = (_BrokenItem(),)
+        supporting_evidence = ()
+
+    with pytest.raises(_MissingResourceType):
+        annotate_temporal(_ES(), service=None, store_conn=sqlite3.connect(":memory:"),
+                          requesting_profile_id="PR1", project_id="P",
+                          knowledge_space_id=None, as_of_raw="2026-08-01T00:00:00Z")
 
 
 # --- contract: annotation does not change selection --------------------------
