@@ -685,14 +685,17 @@ class TestAbsenceGuards:
             "master_enable",
             "memory_system_enabled",
             "disable_zero_mem",
-            "capture_enabled",
             "retrieval_enabled",
-            "injection_enabled",
             "mcp_enabled",
             "routing_enabled",
             "project_memory_enabled",
         ):
             assert forbidden not in src
+        # R124-03: capture_enabled/injection_enabled are truthful freshness
+        # reporting fields on RuntimeHealth/capability_matrix, NOT independent
+        # master switches, and are therefore permitted as health attributes.
+        assert "capture_enabled" in src
+        assert "injection_enabled" in src
 
     def test_no_auto_injection(self, adapter):
         NL = chr(10)
