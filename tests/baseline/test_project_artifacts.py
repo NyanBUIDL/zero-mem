@@ -41,24 +41,11 @@ M9_STATE_BINDING_KEYS: tuple[str, ...] = (
     "m9_increment_5_status",
 )
 
-# Historical duplicate top-level entries that predate AUD-007 and are retained
-# as governance history. The whole-file gate below makes this inventory closed:
-# any new duplicate or changed historical value is a structural regression.
-KNOWN_HISTORICAL_DUPLICATES: dict[str, list[str]] = {
-    "m1_increment_4_2_status": ["verified", "verified"],
-    "m1_increment_4_3_status": ["verified", "verified"],
-    "m1_increment_4_4_status": ["verified", "verified"],
-    "m1_increment_4_4_evidence": [
-        "docs/acceptance/m1/acceptance-m1-increment-4-4.md",
-        "docs/acceptance/m1/acceptance-m1-increment-4-4.md",
-    ],
-    "m1_increment_4_status": ["in_progress", "verified"],
-    "m3_increment_1_plan_commit": ["46be195", "46be195"],
-    "m1_increment_4_4_plan": [
-        ".hermes/plans/2026-08-05_000000-m1-increment-4-4-verified-hook-registration.md",
-        ".hermes/plans/2026-08-05_000000-m1-increment-4-4-verified-hook-registration.md",
-    ],
-}
+# Duplicate top-level state keys that previously predated AUD-007 have been
+# resolved in the post-M10 governance cleanup (2026-08-22). The whole-file gate
+# below keeps the inventory empty: any duplicate top-level key is now a
+# structural regression.
+KNOWN_HISTORICAL_DUPLICATES: dict[str, list[str]] = {}
 
 
 def _state_text() -> str:
@@ -175,7 +162,7 @@ def test_implementation_plan_is_machine_readable_and_gated() -> None:
     assert plan["next_incomplete_milestone"] == "none"
     assert plan["next_milestone_status"] == "feature_freeze_active"
     assert plan["feature_freeze_status"] == "active"
-    assert plan["post_m10_audit_status"] == "not_started"
+    assert plan["post_m10_audit_status"] == "completed"
     assert plan["packaging_status"] == "not_started"
     assert not any(key.startswith("m10_8") for key in plan)
     assert not any(key.startswith("m11") for key in plan)
@@ -219,7 +206,7 @@ def test_project_state_reflects_verified_m9_binding() -> None:
     assert "next_incomplete_milestone: none" in state
     assert "next_milestone_status: feature_freeze_active" in state
     assert "feature_freeze_status: active" in state
-    assert "post_m10_audit_status: not_started" in state
+    assert "post_m10_audit_status: completed" in state
     # Post-release closure (2026-08-22, POST_RELEASE_CLOSURE.md) advanced
     # packaging_status to "verified"; see docs/v1.2.4/evidence/POST_RELEASE_CLOSURE.md.
     assert "packaging_status: verified" in state
@@ -303,7 +290,7 @@ def test_m9_effective_parsed_state_is_verified() -> None:
     )
     assert state["m10_current_increment_status"] == "verified"
     assert state["feature_freeze_status"] == "active"
-    assert state["post_m10_audit_status"] == "not_started"
+    assert state["post_m10_audit_status"] == "completed"
     # Post-release closure (2026-08-22, POST_RELEASE_CLOSURE.md) advanced
     # packaging_status to "verified"; see docs/v1.2.4/evidence/POST_RELEASE_CLOSURE.md.
     assert state["packaging_status"] == "verified"

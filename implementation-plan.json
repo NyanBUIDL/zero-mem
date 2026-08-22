@@ -206,7 +206,7 @@
     "destructive_data_operations": "not_authorized",
     "release_publication": "not_authorized"
   },
-  "post_m10_audit_status": "not_started",
+  "post_m10_audit_status": "completed",
   "packaging_status": "not_started",
   "scope": "External Zero-Mem sidecar for Hermes Agent; local-first, observation-only before controlled injection",
   "principles": [
