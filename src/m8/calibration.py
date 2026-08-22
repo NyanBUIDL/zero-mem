@@ -129,6 +129,20 @@ VERIFICATION_STRENGTH_VALUES: Final[Mapping[str, float]] = {
     "inference": 0.5,
 }
 
+#: V130-03 (D-2026-08-22-06): strength contributions keyed by the M1 CLOSED
+#: ``VerificationStatus`` enum (src/capture/event_types.py) — the SAME values the
+#: memory-type table assigns to equivalently-verified types, so a state record
+#: carrying ``deterministic_verification`` scores exactly like any other
+#: deterministically-verified item. No new invented constant; pure reuse of the
+#: approved value set for types absent from VERIFICATION_STRENGTH_VALUES.
+VERIFICATION_STATUS_STRENGTH: Final[Mapping[str, float]] = {
+    "none": 0.5,
+    "direct_tool_output": 0.9,
+    "deterministic_verification": 1.0,
+    "user_confirmation": 0.9,
+    "approval": 1.0,
+}
+
 #: Provenance completeness classification.
 PROVENANCE_COMPLETE: Final[str] = "complete"
 PROVENANCE_REQUIRED_ONLY: Final[str] = "required_only"
@@ -261,6 +275,11 @@ class CalibrationCandidate:
     profile_id: Optional[str] = None
     project_id: Optional[str] = None
     knowledge_space_id: Optional[str] = None
+    #: V130-03 (D-2026-08-22-06): the item's OWN authoritative M1 verification
+    # status, carried as an observation only. It is NOT the M8.1 result echo and
+    # participates in NO factor except the D-06 verification-strength fallback for
+    # memory types absent from VERIFICATION_STRENGTH_VALUES.
+    verification_status: Optional[str] = None
 
     def __post_init__(self) -> None:
         # Cross-module vocabulary errors are re-raised as this domain's own
@@ -384,13 +403,29 @@ def derive_verification_strength(candidate: CalibrationCandidate) -> float:
 
     An unrecognized type fails closed. Calibration never guesses a value for a
     type the owner has not approved, and never promotes a claim by scoring it.
+
+    V130-03 (D-2026-08-22-06): for memory types with NO row in the closed
+    ``VERIFICATION_STRENGTH_VALUES`` table, the strength is derived from the
+    candidate's OWN authoritative ``verification_status`` via the existing
+    ``VERIFICATION_STATUS_STRENGTH`` lookup — no new invented constant. A state
+    record carrying ``deterministic_verification`` therefore scores like any other
+    deterministically-verified item; one with no verification scores like
+    unverified. Types present in the closed table keep their approved value.
     """
     try:
-        value = VERIFICATION_STRENGTH_VALUES[candidate.memory_type]
+        return _bounded_unit_value(
+            VERIFICATION_STRENGTH_VALUES[candidate.memory_type], "verification_strength"
+        )
     except KeyError:
+        pass
+    # D-2026-08-22-06 fallback: reuse the verification-status strength table.
+    try:
+        return _bounded_unit_value(
+            VERIFICATION_STATUS_STRENGTH[candidate.verification_status or "none"],
+            "verification_strength",
+        )
+    except KeyError as exc:
         raise CalibrationError("verification_strength", "unknown_memory_type") from None
-    return _bounded_unit_value(value, "verification_strength")
-
 
 def derive_provenance_completeness(candidate: CalibrationCandidate) -> float:
     """Complete 1.0 / required-only 0.75. Incomplete is excluded upstream."""

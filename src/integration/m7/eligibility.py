@@ -18,6 +18,8 @@ from typing import Any, Optional
 
 from src.capture.event_types import Sensitivity
 
+from .contracts import MemoryRoute
+
 # Lifecycle that must never become eligible evidence (current truth).
 _INELIGIBLE_LIFECYCLE = {"deleted"}
 # Lifecycle that is not current truth and must not be PRIMARY.
@@ -125,12 +127,17 @@ def is_eligible(
     sensitivity_ceiling: str = DEFAULT_SENSITIVITY_CEILING,
     allow_non_current_as_supporting: bool = True,
     resource_type: Optional[str] = None,
+    promote_state_in_project: bool = False,
 ) -> EligibilityResult:
     """Deterministic eligibility decision for one authorized candidate.
 
     Returns (eligible, reason, as_primary). Fails closed on unknown sensitivity
     (M3 events) or incomplete provenance. M4 authorized items carry no sensitivity
     field and are governed by M5; they pass the sensitivity gate once authorized.
+
+    V130-03: ``promote_state_in_project`` (default False, opt-in from the PROJECT
+    route builder) enables route-conditioned active-state promotion — see the
+    promotion block at the end of this function.
     """
     lifecycle = (_attr(item, "lifecycle_status", "lifecycle") or "active").lower()
     sensitivity = _attr(item, "sensitivity")
@@ -187,5 +194,18 @@ def is_eligible(
     # supporting only; they must not become high-confidence primary evidence.
     if memory_type in _NON_PROMOTABLE_TYPE:
         primary = False
+
+    # V130-03 — route-conditioned active-state promotion (Option B, second half).
+    # Placed AFTER every guard above: it can only raise an already-eligible,
+    # current-lifecycle, promotable-type state from supporting to primary when the
+    # caller explicitly opted in for the PROJECT route. It never overrides any
+    # exclusion decided above and never applies to other routes.
+    if (
+        promote_state_in_project
+        and route is MemoryRoute.PROJECT.value
+        and resource_type == "state"
+        and is_active
+    ):
+        primary = True
 
     return EligibilityResult(True, "eligible", as_primary=primary)

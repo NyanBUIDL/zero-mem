@@ -301,7 +301,8 @@ def build_evidence_set(
     eligible: List[Tuple[EvidenceItem, Any]] = []
     for item, rt in (raw + corpus_items):
         res = is_eligible(item, route.value, sensitivity_ceiling=sensitivity_ceiling,
-                          resource_type=rt)
+                          resource_type=rt,
+                          promote_state_in_project=(route is MemoryRoute.PROJECT))
         if not res.eligible:
             continue
         ev = _to_evidence_item(item, route, rt,

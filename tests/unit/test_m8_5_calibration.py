@@ -204,8 +204,33 @@ class TestVerificationStrength:
         assert _decision_score(memory_type="inference") == 0.5
 
     def test_unknown_type_fails_closed(self):
+        # D-2026-08-22-06: unknown memory type now falls back to the item's own
+        # verification_status. Fail-closed is preserved when that fallback ALSO
+        # has no approved value (unknown verification_status here).
         with pytest.raises(CalibrationError):
-            calibrate_candidate(_base(memory_type="prediction_model"))
+            calibrate_candidate(_base(memory_type="prediction_model",
+                                      verification_status="unheard_of_status"))
+
+    def test_unknown_type_uses_own_verification_status_fallback(self):
+        """D-2026-08-22-06: a memory type absent from VERIFICATION_STRENGTH_VALUES
+        scores via its own authoritative verification_status (no invented value)."""
+        d = calibrate_candidate(_base(memory_type="state",
+                                      verification_status="deterministic_verification"))
+        assert d.included and d.result.score is not None
+        # deterministic_verification maps to 1.0 -> VERIFIED_SOURCE reason code.
+        assert "VERIFIED_SOURCE" in d.result.reason_codes
+        d2 = calibrate_candidate(_base(memory_type="state", verification_status="none"))
+        assert "UNVERIFIED_SOURCE" in d2.result.reason_codes
+        assert d2.result.score < d.result.score
+
+    def test_memory_type_table_still_wins_over_verification_fallback(self):
+        """Types present in the closed table keep their approved value regardless
+        of their verification status: assistant_claim stays at its table strength
+        (0.6, UNVERIFIED_SOURCE) even when the item carries strong verification."""
+        r = calibrate_candidate(_base(memory_type="assistant_claim",
+                                      verification_status="deterministic_verification"))
+        assert "UNVERIFIED_SOURCE" in r.result.reason_codes
+        assert abs(r.result.factor_values["verification_strength"] - 0.6) < 1e-9
 
 
 class TestProvenanceCompleteness:

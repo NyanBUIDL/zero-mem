@@ -349,7 +349,6 @@ def build_candidate(
 
     key = f"{resource_type}:{identity}"
     distance = request.relation_distances.get(key)
-
     return CalibrationCandidate(
         resource_type=resource_type,
         resource_id=identity,
@@ -368,6 +367,10 @@ def build_candidate(
         profile_id=_nonempty_str(_attr(item, "profile_id")),
         project_id=_nonempty_str(_attr(item, "project_id")),
         knowledge_space_id=_nonempty_str(_attr(item, "knowledge_space_id")),
+        # V130-03 (D-2026-08-22-06): the item's own authoritative verification
+        # observation, for the verification-strength fallback of memory types
+        # absent from the closed memory-type strength table.
+        verification_status=verification,
     )
 
 
