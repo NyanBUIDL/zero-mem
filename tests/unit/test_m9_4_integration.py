@@ -172,6 +172,7 @@ def test_e2e_one_change_exact_write_set(tmp_path):
         # R124-10 DIAGNOSTIC (temporary): surface the home-note write outcomes
         # and fingerprint comparison.
         from src.projection.ownership import observed_fingerprint as _obs_fp
+        from src.projection.identity import content_fingerprint as _cfp
         home_writes = [w for w in r3.writes if "project-home" in w.relative_path]
         home_desired = [n for n in r3.notes if "project-home" in n.relative_path]
         home_disk = list(cfg.managed_root.rglob("*project-home*"))
@@ -182,6 +183,13 @@ def test_e2e_one_change_exact_write_set(tmp_path):
             "recorded_manifest_fp": r1.manifest.get(home_writes[0].note_id).content_fingerprint if home_writes else None,
             "on_disk_head": repr(home_disk[0].read_bytes()[:80]) if home_disk and home_disk[0].is_file() else None,
             "desired_head": repr(home_desired[0].content[:80].encode("utf-8")) if home_desired else None,
+            "home_dir_files": sorted(
+                (str(p2.relative_to(cfg.managed_root)), _obs_fp(p2) if p2.is_file() else None)
+                for p2 in (cfg.managed_root / "Projects").rglob("*") if p2.is_file()
+            ),
+            "reconcile_read_text_fp": _cfp(
+                (cfg.managed_root / "Projects" / "p" / "p-project-home--a604f42c967ee480.md").read_text()
+            ) if (cfg.managed_root / "Projects" / "p" / "p-project-home--a604f42c967ee480.md").is_file() else None,
         }
         print("M94DIAG home:", diag, flush=True)
     assert any("project-home" in rel for rel, st in affected if st == "UPDATED")
