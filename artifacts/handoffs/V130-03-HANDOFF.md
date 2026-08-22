@@ -42,6 +42,8 @@ Bảng/liệt kê hard-code đã audit:
 - D-06 thay đổi score cho các type chưa từng được score (state, artifact…) — deterministic, tái lập được; benchmark V130-05 đo before/after.
 - m8_6 test refactor: snapshot-diff mạnh hơn list hard-code, nhưng cần Verifier xác nhận không weaken ý đồ chống mutation.
 
+- `artifacts/handoffs/V130-03-HANDOFF.md` — bổ sung registry: `docs/v1.3.0/selection-shape-registry.md` (commit `3b10a6f`). Phát hiện OPEN đáng chú ý nhất (hàng #5): eligibility `is_verified` check `"verified"/"confirmed"` không khớp M1 VerificationStatus enum → is_verified luôn False cho memory events; đây là behavior baseline M7.3 đã duyệt, KHÔNG sửa trong V130-03 (việc sửa sẽ đổi role classification toàn hệ thống — NEEDS DECISION nếu user muốn).
+
 ## Next integration
 - V130-04 (temporal→EvidenceSet): EvidenceSet giờ chứa promoted states với lifecycle='active' đầy đủ.
 - V130-05: benchmark case PROJECT-route hit-rate B01/B06/B09.
