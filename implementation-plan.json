@@ -1,4 +1,7 @@
 {
+  "record_role": "historical_record_frozen",
+  "superseded_by": "project-state.yaml",
+  "frozen_note": "HISTORICAL RECORD, NOT MACHINE STATE (D-02 Option A, v1.3.2, 2026-08-23): this file is frozen as a historical log of milestone/increment verification up to v1.3.1. Current and future machine state lives ONLY in project-state.yaml. Do not update fields in this file; see scripts/check_machine_state.py.",
   "schema_version": 1,
   "authority": "Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx",
   "v124_contract_correction": {
