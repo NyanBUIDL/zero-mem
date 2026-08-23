@@ -1524,3 +1524,8 @@ v131_final_suite: "3448 passed, 6 skipped (baseline 3434/5)"
 v131_decision_d01: "ADR-V131-01 (option A: pdf-advanced optional extra, AGPL tooling-only)"
 v131_open_question_wp8: docs/v1.3.1/analysis/is-verified-enum-mismatch.md
 v131_behavior_changes: "WP-6 redaction gate passes already-redacted markers; real secrets still fail-closed"
+
+# --- V132 overlay (added after all WPs PASS, G6 closure 2026-08-23) ---
+v132_status: IMPLEMENTATION_COMPLETE   # NOT released; awaiting APPROVE-RELEASE-V132
+v132_branch: release/v1.3.2-remediation
+v132_final_suite: "3474 passed / 6 skipped"
