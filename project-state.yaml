@@ -1541,3 +1541,8 @@ v133_def001_green: "51 passed in 0.90s (defect + m7 evidence-builder + v130 stat
 v133_final_suite: "3477 passed, 7 skipped, 0 failed (Python 3.13.15, isolated HOME, full canonical run)"
 v133_schema_version: 12
 v133_scope_addendum: "DEF-006 version-pin propagation + DEF-007 zm_verifications provenance columns (migration v12) discovered and fixed during full-suite verification; see docs/defects/DEFECT-REGISTRY.md"
+
+# --- V134 overlay (DEF-003 crash-durability proof + DEF-008 dead code; maintainer authorization 2026-08-23) ---
+v134_status: IMPLEMENTED
+v134_scope: "DEF-003 SIGKILL-mid-ingest + torn-tail durability proofs (test-only, no production change); DEF-008 cursor.py dead code removal; DEF-009 registered deferred to v1.4.x"
+v134_final_suite: "3479 passed, 7 skipped, 0 failed (Python 3.13.15, isolated HOME)"

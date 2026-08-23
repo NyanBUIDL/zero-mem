@@ -96,8 +96,6 @@ def make_relation_fingerprint(event_id: str, direction: Optional[str], relation_
     }
     canonical = json.dumps(normalized, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-    canonical = json.dumps(normalized, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def encode_cursor(qf: str, created_at: str, event_id: str, limit: int) -> str:
