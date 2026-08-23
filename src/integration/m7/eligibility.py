@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from src.capture.event_types import Sensitivity
+from src.capture.event_types import Sensitivity, VerificationStatus
 
 from .contracts import MemoryRoute
 
@@ -175,7 +175,15 @@ def is_eligible(
 
     # 4. role classification (deterministic)
     verification = (_attr(item, "verification_status", "verification") or "").lower()
-    is_verified = verification in ("verified", "confirmed")
+    # V132-01 (D-01 Option A): align with the real VerificationStatus enum
+    # (src/capture/event_types.py). The previous tuple ("verified",
+    # "confirmed") matched NO enum member ("confirmed" belongs to
+    # LifecycleStatus), so is_verified was always False for memory events.
+    # Explicit set derived from the enum, excluding the explicit "none" value.
+    _VERIFIED_STATUSES = frozenset(
+        v.value for v in VerificationStatus if v.value != "none"
+    )
+    is_verified = verification in _VERIFIED_STATUSES
     is_active = lifecycle == "active"
     primary = (
         (is_active and is_verified)
