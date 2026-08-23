@@ -14,6 +14,9 @@ dependencies = []
 
 [project.optional-dependencies]
 pdf = ["pypdf"]
+# AGPL/commercial dual-license — tooling-only (corpus PDF extraction scripts),
+# NOT a runtime dependency. Do not move into core/pdf extras.
+pdf-advanced = ["pymupdf"]
 
 [project.scripts]
 zero-mem = "zero_mem.cli:main"

@@ -8,7 +8,9 @@ import sys
 sys.path.insert(0, ".")
 from pathlib import Path
 from io import BytesIO
-import pymupdf
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _pdf_tooling_guard import require_pymupdf
 
 from src.corpus.adapters.registry import ADAPTER_REGISTRY
 from src.corpus.extract import ExtractionResult, ExtractionStatus, ExtractionUnit
@@ -18,12 +20,17 @@ class PyMuPdfAdapter:
     parser_name = "pymupdf"
 
     def is_available(self) -> bool:
-        return True
+        try:
+            require_pymupdf()
+            return True
+        except SystemExit:
+            return False
 
     def supports(self, kind_hint: str) -> bool:
         return kind_hint in ("primary-pdf", "pdf")
 
     def extract(self, *, source_ref: str, content: bytes, kind_hint: str):
+        pymupdf = require_pymupdf()
         try:
             doc = pymupdf.open(stream=BytesIO(content), filetype="pdf")
         except Exception:

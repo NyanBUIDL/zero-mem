@@ -17,12 +17,15 @@ import json
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _pdf_tooling_guard import require_pymupdf
+
 MIN_CHARS_PER_PAGE = 200  # below this a PDF is likely scanned/image-only
 
 
 def extract_pdf_text(pdf_path: Path) -> dict:
     """Extract per-page text. Returns {status, pages: [{page, text}], reason}."""
-    import pymupdf
+    pymupdf = require_pymupdf()
 
     try:
         doc = pymupdf.open(pdf_path.as_posix())

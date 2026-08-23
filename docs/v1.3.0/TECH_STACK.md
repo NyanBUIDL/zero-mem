@@ -30,5 +30,6 @@
 - Mục tiêu v1.3: token-savings ratio và Recall@K có baseline production (từ P1 scale harness).
 
 ## Thay đổi stack v1.3
-- KHÔNG thêm dependency/framework mới. Migration 11 thuần SQLite stdlib; benchmark generator dùng stdlib (random với seed cố định, hashlib, json).
+- KHÔNG thêm RUNTIME dependency/framework mới. Migration 11 thuần SQLite stdlib; benchmark generator dùng stdlib (random với seed cố định, hashlib, json).
+- Sửa (v1.3.1 WP-2): tooling PDF-extraction (`scripts/corpus_extract_pdfs.py`, `scripts/corpus_project_quant_lab.py`) dùng pymupdf — khai báo optional-extra `pdf-advanced` (AGPL/commercial dual-license), không phải runtime dependency; `pdf = ["pypdf"]` (BSD) vẫn là default BSD-safe. Xem `docs/v1.3.1/decisions/ADR-V131-01-PYMuPDF-LICENSE.md`.
 - Benchmark corpus N=5.000+ nằm ở `zero-mem-dev-data/benchmarks/v130/` (ngoài repo); generator + runner vào `benchmarks/`.

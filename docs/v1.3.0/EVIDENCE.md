@@ -25,7 +25,7 @@
 - [x] B1. ROADMAP.md + README.md fill đủ, không còn placeholder `<...>` (2026-08-22).
 - [x] B2. 5 spec WP tại `docs/v1.3.0/plans/V130-0N-SPEC.md` — contract + acceptance criteria + migration + rollback; V130-02 mang đủ 2 ràng buộc D-03 (Verifier note N3 đã track và đóng).
 - [x] B3. Invariant giữ nguyên khung AGENTS.md (JSONL canonical, zero-LLM, authorization, redaction, rebuildable) — trong ROADMAP.md §Nguyên tắc.
-- [x] B4. ARCHITECTURE.md / TECH_STACK.md cập nhật (component topology v1.3, no new dependency).
+- [x] B4. ARCHITECTURE.md / TECH_STACK.md cập nhật (component topology v1.3, no new RUNTIME dependency; tooling-only optional extra `pdf-advanced` [pymupdf] khai báo riêng từ v1.3.1 — xem ADR-V131-01).
 - [x] B5. GATE B: branch `release/v1.3.0` tạo từ `e2c0d7ac…`; commit docs `011c1f3` (stage exact paths, `git diff --check` sạch, working tree sạch sau commit).
 
 ## MASTER-SPEC-RECONCILIATION
