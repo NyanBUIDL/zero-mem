@@ -1509,3 +1509,18 @@ v130_closure: docs/v1.3.0/CLOSURE.md
 v130_post_release_closure: docs/v1.3.0/evidence/POST_RELEASE_CLOSURE.md
 v130_sqlite_min_for_migration_down: "3.35"
 v130_final_suite: "3424 passed, 5 skipped, 0 failed (baseline 3378)"
+
+# Zero-Mem v1.3.1 remediation overlay (V131 series) — 2026-08-23
+v131_status: IMPLEMENTATION_COMPLETE   # NOT released; awaiting APPROVE-RELEASE-V131
+v131_branch: release/v1.3.1-remediation
+v131_base_sha: 82647116454c1eaaff35525b00150b78ee101ca0
+v131_tag: none                          # no tag until approval
+v131_pushed: false
+v131_release_notes: docs/releases/RELEASE-NOTES-v1.3.1.md
+v131_closure: docs/v1.3.1/CLOSURE.md
+v131_evidence: docs/v1.3.1/EVIDENCE.md
+v131_baseline_suite: "3434 passed, 5 skipped"
+v131_final_suite: "3448 passed, 6 skipped (baseline 3434/5)"
+v131_decision_d01: "ADR-V131-01 (option A: pdf-advanced optional extra, AGPL tooling-only)"
+v131_open_question_wp8: docs/v1.3.1/analysis/is-verified-enum-mismatch.md
+v131_behavior_changes: "WP-6 redaction gate passes already-redacted markers; real secrets still fail-closed"
