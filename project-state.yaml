@@ -1511,7 +1511,7 @@ v130_sqlite_min_for_migration_down: "3.35"
 v130_final_suite: "3424 passed, 5 skipped, 0 failed (baseline 3378)"
 
 # Zero-Mem v1.3.1 remediation overlay (V131 series) — 2026-08-23
-v131_status: IMPLEMENTATION_COMPLETE   # NOT released; awaiting APPROVE-RELEASE-V131
+v131_status: RELEASED_PUBLISHED   # v1.3.1 tagged+pushed+GH Release 2026-08-23
 v131_branch: release/v1.3.1-remediation
 v131_base_sha: 82647116454c1eaaff35525b00150b78ee101ca0
 v131_tag: none                          # no tag until approval
