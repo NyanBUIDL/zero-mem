@@ -99,11 +99,14 @@ def parse_papers() -> list[PaperDir]:
     return dirs
 
 
-def register(registry, blobs, dry_run: bool):
+def register(registry, blobs, dry_run: bool, papers=None):
     stats = {"dirs": 0, "primary_pdf": 0, "derived_md": 0, "orphan_md": 0,
              "new_sources": 0, "dedup_hits": 0, "skipped": [],
              "pdf_extract_ok": 0, "pdf_extract_skip": 0}
-    for pd in parse_papers():
+    if papers is None:
+        papers = parse_papers()
+    before = len(registry.all_records())
+    for pd in papers:
         stats["dirs"] += 1
         meta = {"arxiv_id": pd.arxiv_id, "published": pd.date, "title": pd.title}
 
@@ -122,23 +125,13 @@ def register(registry, blobs, dry_run: bool):
             else:
                 stats["pdf_extract_ok"] += 1
             if not dry_run:
-                rec = registry.register_source_with_blob(
-                    content=content,
-                    external_ref=str(pdf_path.relative_to(QUANT_LAB)),
-                    kind="primary-pdf",
-                    profile_id=PROFILE, project_id=PROJECT, knowledge_space_id=KS,
-                    custom_meta={**meta, "source_kind": "primary-pdf",
-                                 "original_filename": pd.pdf_name,
-                                 "extract_status": ex["status"],
-                                 "page_count": ex.get("page_count"),
-                                 "text_chars": ex.get("total_chars")},
-                    provenance={"source_path": str(pdf_path), "bytes": len(content)},
-                    blob_store=blobs,
-                )
-                _count_new(rec, stats)
-            else:
+                _register_pdf(registry, blobs, pd, pdf_path, content, ex, meta,
+                              stats)
                 stats["primary_pdf"] += 1
-                stats["new_sources"] += 1  # dry-run estimate assumes unique
+            else:
+                if ex["status"] == "OK":
+                    stats["primary_pdf"] += 1
+                    stats["new_sources"] += 1  # dry-run estimate assumes unique
 
         # The .md: derived when a PDF exists for the same paper; orphan otherwise.
         if pd.md_file is not None:
@@ -151,31 +144,58 @@ def register(registry, blobs, dry_run: bool):
             if kind == "orphan-md":
                 prov["note"] = "original-pdf-unavailable"
             if not dry_run:
-                rec = registry.register_source(
-                    content=content,
-                    external_ref=str(pd.md_file.relative_to(QUANT_LAB)),
-                    kind=kind,
-                    profile_id=PROFILE, project_id=PROJECT, knowledge_space_id=KS,
-                    custom_meta={**meta, "source_kind": kind},
-                    provenance=prov,
-                )
-                _count_new(rec, stats)
+                _register_md(registry, pd, kind, content, meta, prov, stats)
+                stats["derived_md" if kind == "derived-md" else "orphan_md"] += 1
             else:
                 stats["derived_md" if kind == "derived-md" else "orphan_md"] += 1
                 stats["new_sources"] += 1
         else:
             stats["skipped"].append({"dir": dname(pd), "reason": "no .md file found"})
+    stats["actually_new"] = len(registry.all_records()) - before
     return stats
+
+
+def _register_pdf(registry, blobs, pd, pdf_path, content, ex, meta, stats) -> None:
+    """Register one primary PDF; classify new vs dedup by registry size delta."""
+    size_before = len(registry.all_records())
+    registry.register_source_with_blob(
+        content=content,
+        external_ref=str(pdf_path.relative_to(QUANT_LAB)),
+        kind="primary-pdf",
+        profile_id=PROFILE, project_id=PROJECT, knowledge_space_id=KS,
+        custom_meta={**meta, "source_kind": "primary-pdf",
+                     "original_filename": pd.pdf_name,
+                     "extract_status": ex["status"],
+                     "page_count": ex.get("page_count"),
+                     "text_chars": ex.get("total_chars")},
+        provenance={"source_path": str(pdf_path), "bytes": len(content)},
+        blob_store=blobs,
+    )
+    if len(registry.all_records()) > size_before:
+        stats["new_sources"] += 1
+    else:
+        stats["dedup_hits"] += 1
+
+
+def _register_md(registry, pd, kind, content, meta, prov, stats) -> None:
+    """Register one .md source; classify new vs dedup by registry size delta."""
+    size_before = len(registry.all_records())
+    registry.register_source(
+        content=content,
+        external_ref=str(pd.md_file.relative_to(QUANT_LAB)),
+        kind=kind,
+        profile_id=PROFILE, project_id=PROJECT, knowledge_space_id=KS,
+        custom_meta={**meta, "source_kind": kind},
+        provenance=prov,
+    )
+    if len(registry.all_records()) > size_before:
+        stats["new_sources"] += 1
+    else:
+        stats["dedup_hits"] += 1
 
 
 def dname(pd: PaperDir) -> str:
     return pd.path.name
-
-
-def _count_new(rec, stats: dict) -> None:
-    # Registry dedup returns the SAME record object on identical re-registration.
-    # Counting new vs dedup needs the pre-call size delta; caller tracks totals.
-    stats["new_sources"] += 1
 
 
 def main() -> None:
@@ -210,11 +230,11 @@ def main() -> None:
         print("DRY-RUN ONLY — no writes performed.")
         return
 
-    res = register(registry, blobs, dry_run=False)
+    res = register(registry, blobs, dry_run=False, papers=papers)
     after = len(registry.all_records())
     print(json.dumps({**{k: v for k, v in res.items() if k != "skipped"},
                       "registered_total": after,
-                      "actually_new": None}, indent=2))
+                      "actually_new": after - before}, indent=2))
 
 
 if __name__ == "__main__":
