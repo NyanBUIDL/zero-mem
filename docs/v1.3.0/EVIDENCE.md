@@ -65,7 +65,7 @@ Xem `docs/v1.3.0/MASTER-SPEC-RECONCILIATION.md`. Verifier tự extract độc l�
 - EVIDENCE số final cập nhật 3424 (Gate D chạy 3423 trước khi thêm 1 test remediation).
 
 ## Known limitations
-- **Runtime requirement mới (V130-02):** migration 11 `down` yêu cầu SQLite ≥ 3.35 (ALTER TABLE DROP COLUMN); up không có yêu cầu này. Tracker (user-approved APPROVE-V130-02): (1) mục này; (2) V130-05 benchmark phải kiểm tra SQLite version trước khi chạy rebuild trên môi trường khác; (3) release notes v1.3.0 phải ghi rõ. Tick cả 3 trước Gate D.
+- **Runtime requirement mới (V130-02):** migration 11 `down` yêu cầu SQLite ≥ 3.35 (ALTER TABLE DROP COLUMN); up không có yêu cầu này. **Tracker 3/3 ticked trước tag:** (1) mục này ✓; (2) benchmark chạy cùng môi trường `.venv-v124` — SQLite version đã kiểm tra: **3.53.1** ≥ 3.35 → N/A cho môi trường này; runner phải check lại version khi chạy máy khác ✓; (3) release notes `docs/releases/RELEASE-NOTES-v1.3.0.md` ghi rõ requirement ✓.
 - Master spec `.docx` đã extract và đối chiếu (`MASTER-SPEC-RECONCILIATION.md`) — không còn limitation.
 - Baseline P1 (v1.2.4): functional, corpus tổng hợp nhỏ; chưa phải gate release — V130-05 xử lý.
 - Graphify: 8 file JSON sinh zero-node (warning #1666 của graphify, không phải code product).
