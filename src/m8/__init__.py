@@ -35,6 +35,6 @@ M8_CONTRACT_VERSION: Final[str] = "m8.1"
 #: M10.4 (migrate_10) extends the derived store to v10 (additive corpus tables)
 #: without altering any M8.1 structure. This tracks the current derived schema
 #: version the M8 contracts are coherent with.
-M8_SCHEMA_VERSION: Final[int] = 11
+M8_SCHEMA_VERSION: Final[int] = 12
 
 __all__ = ["M8_CONTRACT_VERSION", "M8_SCHEMA_VERSION"]

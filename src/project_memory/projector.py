@@ -851,11 +851,14 @@ def project_verification(conn: sqlite3.Connection, op: VerificationOp) -> dict:
             "INSERT INTO zm_verifications "
             "(verification_id, subject_type, subject_id, project_id, method, command_ref, "
             "observed_result, tested_commit, source_event_id, timestamp, verification_status, "
-            "artifact_references) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            "artifact_references, trace_id, session_id, profile_id) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (op.verification_id, op.subject_type, op.subject_id, op.project_id, op.method,
              op.command_ref, op.observed_result, op.tested_commit, op.source_event_id,
-             ts, op.verification_status, op.artifact_references),
+             ts, op.verification_status, op.artifact_references,
+             # DEF-007 (v1.3.3): persist the provenance the VerificationOp already
+             # carries — previously silently dropped (columns missing pre-migration 12).
+             op.trace_id, op.session_id, op.profile_id),
         )
         _commit(conn)
         return {"action": "created", "verification_id": op.verification_id}

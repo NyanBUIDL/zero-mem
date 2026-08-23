@@ -290,4 +290,4 @@ class TestVocabulary:
 
     def test_module_versions_frozen(self):
         assert M8_CONTRACT_VERSION == "m8.1"
-        assert M8_SCHEMA_VERSION == 11
+        assert M8_SCHEMA_VERSION == 12

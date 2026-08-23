@@ -86,6 +86,12 @@ def _to_evidence_item(item: Any, route: MemoryRoute, resource_type: str,
     summary = _item_attr(item, "statement", "title", "summary", "content",
                         "verification_summary", "decision_summary")
     # Redaction: do not surface raw secret bodies; M3 view is metadata_only.
+    # DEF-007 (v1.3.3): zm_verifications has no lifecycle_status column (migrate_7),
+    # so verification rows surface lifecycle=None here, violating the closed
+    # lifecycle enum that M8.6 authority checks and M8.5 calibration assert.
+    # Normalize missing lifecycle to "active", matching the pre-existing
+    # convention in eligibility.py (_check_lifecycle: None -> "active").
+    _lifecycle = _item_attr(item, "lifecycle_status", "lifecycle") or "active"
     return EvidenceItem(
         evidence_id=evidence_id,
         resource_type=resource_type,
@@ -96,7 +102,7 @@ def _to_evidence_item(item: Any, route: MemoryRoute, resource_type: str,
         summary=(str(summary)[:280] if summary else None),
         source=_item_attr(item, "source"),
         created_at=_item_attr(item, "created_at", "effective_at", "timestamp"),
-        lifecycle=_item_attr(item, "lifecycle_status", "lifecycle"),
+        lifecycle=_lifecycle,
         verification=_item_attr(item, "verification_status", "verification"),
         confidence=_item_attr(item, "confidence"),
         sensitivity=_item_attr(item, "sensitivity"),

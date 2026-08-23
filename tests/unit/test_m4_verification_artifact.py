@@ -642,7 +642,7 @@ def test_schema_remains_v8(tmp_path: Path) -> None:
     store = _open(tmp_path)
     try:
         from src.storage.migrations import CURRENT_SCHEMA_VERSION
-        assert store.get_schema_version() == CURRENT_SCHEMA_VERSION == 11
+        assert store.get_schema_version() == CURRENT_SCHEMA_VERSION == 12
     finally:
         store.close()
 

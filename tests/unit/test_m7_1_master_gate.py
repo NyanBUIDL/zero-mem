@@ -390,7 +390,7 @@ class TestEnvironment:
         from src.storage.migrations import CURRENT_SCHEMA_VERSION
         # Schema is v10 as of M10.4 (additive derived corpus store). M7.1
         # introduced no migration of its own; the latest migration is migrate_10.
-        assert CURRENT_SCHEMA_VERSION == 11
+        assert CURRENT_SCHEMA_VERSION == 12
         assert (REPO_ROOT / "src/storage/migrations/migrate_10.py").exists()
 
     def test_gate_module_no_forbidden_imports(self):

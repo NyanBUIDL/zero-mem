@@ -227,9 +227,14 @@ def _recreate_m4_tables(conn) -> None:
     the partial unique indexes carry the same guard. M2 surfaces are untouched.
     """
     from src.storage.migrations.migrate_7 import up as migrate_7_up
+    # DEF-007 (v1.3.3): the rebuild recreates M4 tables from migrate_7, which
+    # predates the zm_verifications provenance columns; re-apply migration 12
+    # so recreated tables match the current schema.
+    from src.storage.migrations.migrate_12 import up as migrate_12_up
     conn.execute("BEGIN")
     try:
         migrate_7_up(conn, note="m4.7_rebuild")
+        migrate_12_up(conn, note="m4.7_rebuild")
         conn.commit()
     except Exception:
         try:

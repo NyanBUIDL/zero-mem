@@ -112,7 +112,7 @@ def test_backup_create_verify_and_restore_rebuilds_derived_state(monkeypatch, tm
     rebuilt = SQLiteStore(SQLiteStoreConfig(derived_db()))
     try:
         assert rebuilt._conn.execute("SELECT COUNT(*) FROM zm_meta").fetchone()[0] == 4
-        assert rebuilt._conn.execute("SELECT MAX(version) FROM zm_migrations").fetchone()[0] == 11
+        assert rebuilt._conn.execute("SELECT MAX(version) FROM zm_migrations").fetchone()[0] == 12
     finally:
         rebuilt.close()
 

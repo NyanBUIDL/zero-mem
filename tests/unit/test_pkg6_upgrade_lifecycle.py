@@ -144,8 +144,8 @@ def test_upgrade_check_is_read_only_and_classifies_current_state(monkeypatch, tm
     assert result["status"] == "READY"
     assert result["compatibility"] == NO_MIGRATION_REQUIRED
     assert result["migration_required"] is False
-    assert result["schema_version"] == 11
-    assert result["package_version"] == "1.3.1"
+    assert result["schema_version"] == 12
+    assert result["package_version"] == "1.3.3"
     assert _files(data_root()) == before_data
     assert _files(config_path().parent) == before_config
     assert _files(corpus) == before_corpus

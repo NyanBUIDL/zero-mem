@@ -158,6 +158,13 @@ class VerificationView:
     timestamp: Optional[str]
     verification_status: str
     artifact_references: Optional[str]
+    # DEF-007 (v1.3.3): provenance columns added by migration 12; lifecycle is
+    # a current-truth marker (no lifecycle column on this table) — same
+    # convention as ProjectArtifactView (D-2026-08-22-05).
+    trace_id: Optional[str] = None
+    session_id: Optional[str] = None
+    profile_id: Optional[str] = None
+    lifecycle_status: str = "active"
 
 
 @dataclass
@@ -368,12 +375,19 @@ def _state_view(row) -> ProjectStateView:
 
 
 def _verification_view(row) -> VerificationView:
+    keys = row.keys()
     return VerificationView(
         verification_id=row["verification_id"], subject_type=row["subject_type"], subject_id=row["subject_id"],
         project_id=row["project_id"], method=row["method"], command_ref=row["command_ref"],
         observed_result=row["observed_result"], tested_commit=row["tested_commit"],
         source_event_id=row["source_event_id"], timestamp=row["timestamp"],
         verification_status=row["verification_status"], artifact_references=row["artifact_references"],
+        # DEF-007 (v1.3.3): provenance columns exist post-migration 12; tolerate
+        # legacy databases where they are absent.
+        trace_id=row["trace_id"] if "trace_id" in keys else None,
+        session_id=row["session_id"] if "session_id" in keys else None,
+        profile_id=row["profile_id"] if "profile_id" in keys else None,
+        lifecycle_status="active",
     )
 
 

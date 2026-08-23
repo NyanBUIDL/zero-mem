@@ -91,13 +91,13 @@ def db_v8(tmp_path: Path):
 
 class TestSchemaVersion:
     def test_current_schema_version_is_9(self):
-        assert CURRENT_SCHEMA_VERSION == 11
+        assert CURRENT_SCHEMA_VERSION == 12
 
     def test_migration_9_registered(self):
         assert 9 in MIGRATIONS
 
     def test_migration_chain_contiguous(self):
-        assert sorted(MIGRATIONS) == list(range(1, 12))
+        assert sorted(MIGRATIONS) == list(range(1, 13))
 
     def test_migration_9_has_up_and_down(self):
         assert callable(MIGRATIONS[9].up)
@@ -106,7 +106,7 @@ class TestSchemaVersion:
 
 class TestFreshInitialization:
     def test_fresh_db_reports_version_9(self, db):
-        assert db.get_schema_version() == 11
+        assert db.get_schema_version() == 12
 
     def test_all_v9_tables_created(self, db):
         for table in M8_DERIVED_TABLES:
@@ -132,8 +132,8 @@ class TestFreshInitialization:
 
     def test_ensure_schema_is_idempotent(self, db):
         before = _table_names(db) | _index_names(db)
-        assert db.ensure_schema() == 11
-        assert db.ensure_schema() == 11
+        assert db.ensure_schema() == 12
+        assert db.ensure_schema() == 12
         assert (_table_names(db) | _index_names(db)) == before
 
 
@@ -146,7 +146,7 @@ class TestUpgradeFromV8:
 
     def test_upgrade_creates_m8_tables(self, db_v8):
         db_v8.ensure_schema()
-        assert db_v8.get_schema_version() == 11
+        assert db_v8.get_schema_version() == 12
         for table in M8_DERIVED_TABLES:
             assert db_v8.table_exists(table), table
 
@@ -184,7 +184,7 @@ class TestUpgradeFromV8:
             "SELECT version FROM zm_migrations ORDER BY version"
         ).fetchall()
         assert [tuple(r) for r in before] == [tuple(r) for r in after][:len(before)]
-        assert [tuple(r)[0] for r in after][-1] == 11
+        assert [tuple(r)[0] for r in after][-1] == 12
 
     def test_rollback_removes_only_v9_structures(self, db_v8):
         v8_tables = _table_names(db_v8)

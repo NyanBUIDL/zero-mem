@@ -295,7 +295,7 @@ class TestTransportRegression:
 class TestReadOnlySecurity:
     def test_schema_v8(self, rt):
         from src.storage.migrations import CURRENT_SCHEMA_VERSION
-        assert CURRENT_SCHEMA_VERSION == 11
+        assert CURRENT_SCHEMA_VERSION == 12
 
     def test_no_forbidden_writable_imports(self, rt):
         base = REPO_ROOT / "src" / "integration" / "m6"

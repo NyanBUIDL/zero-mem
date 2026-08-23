@@ -32,6 +32,10 @@ The authoritative specification is `Tai_lieu_thong_nhat_Hermes_External_ZeroMem.
 6. Update project state only after acceptance criteria pass.
 7. Create a checkpoint before destructive changes; never install system-wide packages or perform destructive operations without explicit approval.
 
+## Defect registry (mandatory)
+
+Every discovered defect (from audit, review, test, or inspection) MUST be registered in `docs/defects/DEFECT-REGISTRY.md` BEFORE any fix code is written. Fix order: registry entry → RED-first test → smallest fix → focused test → full suite → entry closed with verbatim evidence. Commits fixing a defect MUST reference the DEFECT-ID. Entries are append-only. See the registry for the full process and per-defect tech-stack guidance.
+
 ## Mandatory Git/GitHub governance
 
 Before any Git or GitHub mutation, the agent **MUST** read [`docs/governance/GITHUB-POLICY.md`](docs/governance/GITHUB-POLICY.md). This includes commit, branch creation/update, merge, rebase, tag, push, release, hotfix, rollback, and remote modification. The policy is mandatory and its stop/escalation conditions apply.

@@ -47,8 +47,17 @@ def _order_key(item: EvidenceItem, elig: EligibilityResult, route: Optional[Memo
     but BEFORE the verified/lifecycle/tie-break ranks, so it applies within each role
     pool without reordering any non-PROJECT route.
     """
+    from src.capture.event_types import VerificationStatus
+
+    # DEF-001 (v1.3.3): align with the real VerificationStatus enum, same as
+    # eligibility._VERIFIED_STATUSES. The previous tuple ("verified",
+    # "confirmed") matched NO enum member ("confirmed" belongs to
+    # LifecycleStatus), so genuinely verified items never ranked first.
+    _VERIFIED_STATUSES = frozenset(
+        v.value for v in VerificationStatus if v.value != "none"
+    )
     role_rank = 0 if elig.as_primary else 1
-    verified_rank = 0 if (item.verification or "").lower() in ("verified", "confirmed") else 1
+    verified_rank = 0 if (item.verification or "").lower() in _VERIFIED_STATUSES else 1
     lifecycle_rank = 0 if (item.lifecycle or "").lower() == "active" else 1
     state_rank = 0 if (
         route is MemoryRoute.PROJECT

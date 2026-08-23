@@ -478,7 +478,7 @@ def test_read_only_after_rebuild_no_mutation(tmp_path: Path) -> None:
     list_project_artifacts(rs, "P", limit=2)
     after = {t: store._conn.execute(f"SELECT COUNT(*) n FROM {t}").fetchone()["n"] for t in before}
     assert before == after
-    assert rs.get_schema_version() == 11
+    assert rs.get_schema_version() == 12
     rs.close(); store.close()
 
 

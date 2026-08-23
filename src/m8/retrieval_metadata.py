@@ -440,7 +440,7 @@ def describe_retrieval_metadata() -> dict[str, Any]:
     """Introspectable description of this internal integration boundary."""
     return {
         "retrieval_metadata_version": RETRIEVAL_METADATA_VERSION,
-        "schema_version": 11,
+        "schema_version": 12,  # DEF-007 (v1.3.3): track current schema version
         "authorization_first": True,
         "makes_authorization_decisions": False,
         "consumes_m5_decision": True,

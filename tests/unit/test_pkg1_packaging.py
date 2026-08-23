@@ -27,7 +27,7 @@ def test_single_version_source_matches_project_metadata() -> None:
     assert document["tool"]["setuptools"]["dynamic"]["version"]["attr"] == (
         "zero_mem.version.__version__"
     )
-    assert __version__ == "1.3.1"
+    assert __version__ == "1.3.3"
 
 
 def test_release_and_core_namespaces_are_importable() -> None:
