@@ -5,7 +5,6 @@ the whole export; a clean corpus passes; fixtures stay outside git tracking.
 """
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 from benchmarks.v130_real_corpus_pipeline import export_corpus, scan_line_secret
@@ -77,24 +76,24 @@ def test_clean_corpus_exports_ok(tmp_path):
 
 
 def test_real_archive_fixture_outside_git_tracking(tmp_path):
-    """D2: the actual exported fixture from the archive lives under dev-data and
-    is NOT tracked by git (release-artifact safety)."""
+    """D2: the exported fixture from the archive stays OUTSIDE the repo.
+
+    v1.3.1 (WP-7) portability: archive source path comes from env var
+    ZERO_MEM_V130_ARCHIVE_FIXTURE (skip when unset/missing); output goes to
+    tmp_path, never dev-data. The assertion becomes "output path is not inside
+    the repo" (tmp is outside the repo by construction).
+    """
+    import os
+
     repo = Path(__file__).resolve().parents[2]
-    archive = Path("/home/lenovo/Hermes Workspace/_archive/zero-mem-v1.2.2-work/"
-                   "artifacts/evidence/v1.2.2/af01e494a29410b11dd6d5c4c78275e6e08604df/"
-                   "benchmark-run-1/corpus.jsonl")
-    if not archive.exists():
+    archive = os.environ.get("ZERO_MEM_V130_ARCHIVE_FIXTURE", "")
+    if not archive or not Path(archive).exists():
         # archive unavailable on this machine: skip rather than fail (environment)
         import pytest
-        pytest.skip("archive source not available")
-    devdata_out = repo.parent / "zero-mem-dev-data" / "benchmarks" / "v130" / "real-corpus.jsonl"
-    res = export_corpus(archive, devdata_out, limit=5000)
+        pytest.skip("archive source not available (ZERO_MEM_V130_ARCHIVE_FIXTURE unset)")
+    out = tmp_path / "exported" / "real-corpus.jsonl"
+    res = export_corpus(Path(archive), out, limit=5000)
     assert res["status"] == "OK"
-    tracked = subprocess.run(
-        ["git", "-C", str(repo), "ls-files", "--error-unmatch",
-         "zero-mem-dev-data/benchmarks/v130/real-corpus.jsonl"],
-        capture_output=True, text=True)
-    assert tracked.returncode != 0  # NOT tracked
-    status = subprocess.run(["git", "-C", str(repo), "status", "--porcelain"],
-                            capture_output=True, text=True).stdout
-    assert "real-corpus.jsonl" not in status  # and not even visible as untracked in-repo
+    # not tracked by git == never written inside the repo tree
+    assert not out.resolve().is_relative_to(repo.resolve())
+    assert not out.exists() or "zero-mem-dev-data" not in str(out)
