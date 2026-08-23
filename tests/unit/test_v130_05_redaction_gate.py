@@ -17,7 +17,27 @@ def _write_lines(path: Path, lines):
 
 
 def test_known_secret_line_is_detected():
-    line = '{"sanitized_content": {"text": "key sk-DEADBEEF123456"}}'
+    """(a) REAL secret (raw, unredacted) must be detected — fail-closed kept."""
+    line = '{"sanitized_content": {"text": "key sk-abcdef123456"}}'
+    assert scan_line_secret(line)
+    # even wrapped in prose
+    assert scan_line_secret('{"t": "token ghp_AB...7890 leaked"}')
+
+
+def test_redacted_marker_line_passes_scan():
+    """(b) v1.3.1 WP-6: already-redacted marker carries NO live secret.
+
+    Intentional behavior change: previously the substring "sk-" inside the
+    redaction marker tripped the gate and blocked corpus export.
+    """
+    line = '{"sanitized_content": {"text": "key «redacted:sk-live1234» ok"}}'
+    assert not scan_line_secret(line)
+
+
+def test_secret_outside_marker_still_detected():
+    """Redacted marker present but a LIVE secret elsewhere on the line."""
+    line = ('{"sanitized_content": {"text": "old «redacted:sk-old» ", '
+            '"note": "live sk-newsecret99"}}')
     assert scan_line_secret(line)
 
 

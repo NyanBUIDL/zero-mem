@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -28,10 +29,21 @@ _SECRET_MARKERS = (
     "BEGIN RSA PRIVATE", "BEGIN OPENSSH PRIVATE",
 )
 
+# v1.3.1 (WP-6): production-redacted markers are already sanitized by the
+# redaction pipeline; strip them BEFORE marker scanning so an already-redacted
+# line passes while real secrets still fail closed.
+_REDACTED_MARKER_RE = re.compile(r"«redacted:[^»]*»")
+
 
 def scan_line_secret(line: str) -> bool:
-    """True when the raw line contains a secret marker (gate trips)."""
-    low = line.lower()
+    """True when the raw line contains a live secret marker (gate trips).
+
+    Already-redacted markers («redacted:…») are stripped first — they carry no
+    live secret. This is an intentional v1.3.1 behavior change: previously a
+    redacted line containing the substring "sk-" tripped the gate.
+    """
+    scanned = _REDACTED_MARKER_RE.sub("", line)
+    low = scanned.lower()
     return any(m.lower() in low for m in _SECRET_MARKERS)
 
 
