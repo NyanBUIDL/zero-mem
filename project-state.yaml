@@ -1531,7 +1531,7 @@ v132_branch: release/v1.3.2-remediation
 v132_final_suite: "3474 passed / 6 skipped"
 
 # --- V133 overlay (DEF-001/DEF-002 fixes, maintainer self-decide authorization 2026-08-23) ---
-v133_status: IMPLEMENTED
+v133_status: RELEASED_PUBLISHED   # v1.3.3 tagged+pushed+GH Release 2026-08-23
 v133_scope: "DEF-001 budget verified_rank enum alignment + DEF-002 version bump 1.3.1->1.3.3; defect registry docs/defects/DEFECT-REGISTRY.md established"
 v133_def001_fix: "src/integration/m7/budget.py _order_key verified_rank now uses frozenset(VerificationStatus) - none, same pattern as eligibility._VERIFIED_STATUSES"
 v133_def002_fix: "zero_mem/version.py __version__ 1.3.1 -> 1.3.3 (pyproject dynamic)"
