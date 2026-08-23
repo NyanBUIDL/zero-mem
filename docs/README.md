@@ -48,8 +48,30 @@ docs/
 | `docs/v1.2.0/` | Release cũ (historical) | SPEC-AMENDMENT-001 (canonical truth), decisions/ADR-009, work-packages |
 | `docs/v1.2.2/` | Historical | agent-development-system, audit, decisions, handoff, work-packages |
 | `docs/v1.2.3/` | Historical | README, BASELINE-AUDIT, RELEASE-NOTES, evidence, work-packages |
-| `docs/v1.2.4/` | **Version active (đã release)** | README, MASTER_PLAN, ARCHITECTURE, TECH_STACK, VALIDATION_SPEC, AGENT_PROTOCOL, evidence, work-packages |
-| `docs/v1.3.0/` | Chưa tồn tại | Tạo từ `docs/VERSION-TEMPLATE.md` khi bắt đầu |
+| `docs/v1.2.4/` | Historical (đã release) | README, MASTER_PLAN, ARCHITECTURE, TECH_STACK, VALIDATION_SPEC, AGENT_PROTOCOL, evidence, work-packages |
+| `docs/v1.3.0/` | Released | README, ROADMAP, ARCHITECTURE, TECH_STACK, DEVELOPMENT, EVIDENCE, CLOSURE, MASTER-SPEC-RECONCILIATION, analysis, plans |
+| `docs/v1.3.1/` | Released | RELEASE-NOTES + evidence (patch release — không folder riêng; xem "Patch-release exemption" dưới) |
+| `docs/v1.3.2/` | **Released** | README, ROADMAP, TECH-STAND, MODULE-MAP, EVIDENCE, CLOSURE, APPROVE template, analysis/, decisions/ (ADR-V132-01..02), evidence/, plans/ |
+| `docs/v1.3.3/`, `docs/v1.3.4/` | Released (patch) | Không có folder riêng — trạng thái trong `project-state.yaml` (V133/V134 overlay), release notes tại `docs/releases/`, defects tại `docs/defects/`. Áp dụng patch-release exemption |
+
+### Patch-release exemption
+
+Patch releases (thay đổi nhỏ, không mở work-package kiến trúc mới) KHÔNG bắt
+buộc tạo `docs/vX.Y.Z/` đầy đủ. Điều kiện miễn trừ: (a) scope chỉ là defect fix
+đã đăng ký trong `docs/defects/`, (b) trạng thái ghi vào overlay của
+`project-state.yaml`, (c) release notes đầy đủ tại `docs/releases/`.
+Minor/major version (x.y.0 hoặc x.0) luôn cần folder đầy đủ.
+
+## Defect registry, reviews, releases
+
+- `docs/defects/DEFECT-REGISTRY.md` — **hệ thống file lỗi bắt buộc** (append-only):
+  mọi defect phải đăng ký trước khi fix; quy trình RED-first + tech-stack guidance per-defect.
+  Hiện trạng: DEF-001..009 (7 CLOSED/FIXED, DEF-004/005/009 OPEN-deferred v1.4.x+).
+- `docs/reviews/` — đánh giá hệ thống độc lập theo version, đặt tên
+  `REVIEW-v<version>-<reviewer>[mô tả].md`: pre-V132 review, GLM 5.3 review v1.3.3,
+  comprehensive review v1.3.4 (kiến trúc/thuật toán/bảo mật/code/hiệu suất/provenance/modular/token).
+- `docs/releases/RELEASE-NOTES-v*.md` — release notes MỌI version (v1.1.0 → v1.3.4),
+  gồm cả notes cũ từng nằm ở root (`RELEASE_NOTES.md` → `docs/releases/RELEASE-NOTES-v1.1.0.md`).
 
 ## Bằng chứng phát triển gần đây (P1 — retrieval quality)
 
@@ -80,3 +102,5 @@ Các work-package và handoff đã thực hiện trên nhánh `v124-post-release
 - `docs/governance/GITHUB-POLICY.md` — bắt buộc đọc trước mọi thao tác Git/GitHub.
 - `docs/acceptance/` — acceptance M0..M10 (evidence chính của milestone).
 - `docs/audits/` — audit tổng hợp (post-m10, packaging).
+- `docs/defects/` — registry lỗi bắt buộc (xem mục trên).
+- `docs/reviews/` — đánh giá độc lập theo version (xem mục trên).
