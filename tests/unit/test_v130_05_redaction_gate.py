@@ -24,12 +24,17 @@ def test_known_secret_line_is_detected():
 
 
 def test_redacted_marker_line_passes_scan():
-    """(b) v1.3.1 WP-6: already-redacted marker carries NO live secret.
+    """(a) v1.3.1 WP-6 kept, v1.3.2 WP-02 hardened: an EXACT-format
+    production marker «redacted:[REDACTED:<rule>]» carries no live secret
+    and passes the gate.
 
-    Intentional behavior change: previously the substring "sk-" inside the
-    redaction marker tripped the gate and blocked corpus export.
+    v1.3.2 change: the old loose marker test case («redacted:sk-live1234»,
+    free-form inner text) was the marker-abuse hole (audit P1-3) — such
+    content is now scanned normally and BLOCKED; see
+    tests/unit/test_v132_02_marker_abuse.py.
     """
-    line = '{"sanitized_content": {"text": "key «redacted:sk-live1234» ok"}}'
+    line = ('{"sanitized_content": {"text": "key '
+            '«redacted:[REDACTED:api_key_assignment]» ok"}}')
     assert not scan_line_secret(line)
 
 

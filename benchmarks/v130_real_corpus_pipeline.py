@@ -32,15 +32,31 @@ _SECRET_MARKERS = (
 # v1.3.1 (WP-6): production-redacted markers are already sanitized by the
 # redaction pipeline; strip them BEFORE marker scanning so an already-redacted
 # line passes while real secrets still fail closed.
-_REDACTED_MARKER_RE = re.compile(r"«redacted:[^»]*»")
+#
+# v1.3.2 (WP-02, audit P1-3) marker-abuse hardening: the loose pattern
+# «redacted:[^»]*» let attacker-controlled marker-LIKE content (free-form
+# inner text, e.g. a live secret token) bypass the scan. A marker is now
+# exempt ONLY when it matches the EXACT production emission format
+# «redacted:[REDACTED:<rule>]» with <rule> from the closed rule set of
+# src/redaction/redactor.py (_RULES). Every near-miss is scanned normally.
+_REDACTION_RULES = (
+    "api_key_assignment", "authorization_header", "bearer_token",
+    "credential_url_userinfo", "oauth_secret", "password_assignment",
+    "private_key_block",
+)
+_REDACTED_MARKER_RE = re.compile(
+    r"«redacted:\[REDACTED:(" + "|".join(_REDACTION_RULES) + r")\]»"
+)
 
 
 def scan_line_secret(line: str) -> bool:
     """True when the raw line contains a live secret marker (gate trips).
 
-    Already-redacted markers («redacted:…») are stripped first — they carry no
-    live secret. This is an intentional v1.3.1 behavior change: previously a
-    redacted line containing the substring "sk-" tripped the gate.
+    Exact-format already-redacted markers («redacted:[REDACTED:<rule>]») are
+    stripped first — they carry no live secret and cannot be forged with
+    free-form content (v1.3.1 behavior kept, v1.3.2 hardened). Any
+    marker-like variant is scanned normally; this change only ever BLOCKS
+    more, never less.
     """
     scanned = _REDACTED_MARKER_RE.sub("", line)
     low = scanned.lower()
