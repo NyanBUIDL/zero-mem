@@ -32,6 +32,22 @@ The authoritative specification is `Tai_lieu_thong_nhat_Hermes_External_ZeroMem.
 6. Update project state only after acceptance criteria pass.
 7. Create a checkpoint before destructive changes; never install system-wide packages or perform destructive operations without explicit approval.
 
+## Workspace layout (mandatory reading)
+
+Before any work session, read the **Workspace Policy** at
+`_workspace-docs/WORKSPACE-POLICY.md` in the Hermes workspace root
+(`../_workspace-docs/WORKSPACE-POLICY.md` relative to this repository).
+It defines: canonical paths (active repo, dev-data, archive, gates-done,
+workspace-docs, private secrets, other projects), directory mutability, and
+the root-level rule. Highlights every agent MUST respect:
+
+- The active repo is `zero-mem-v123-engineering/`; never create shadow repos.
+- Closed gate approvals and full-lifecycle prompts live in
+  `_gates-done/<version>/` (read-only by default; mv-out/delete requires user confirmation).
+- Credentials exist ONLY under `_private/secrets/` — never read contents, never copy into logs/evidence/reports.
+- Non-Zero-Mem personal assets live in `other-projects/` — do not touch during Zero-Mem work.
+- Workspace root holds only directories plus at most ONE active prompt file.
+
 ## Defect registry (mandatory)
 
 Every discovered defect (from audit, review, test, or inspection) MUST be registered in `docs/defects/DEFECT-REGISTRY.md` BEFORE any fix code is written. Fix order: registry entry → RED-first test → smallest fix → focused test → full suite → entry closed with verbatim evidence. Commits fixing a defect MUST reference the DEFECT-ID. Entries are append-only. See the registry for the full process and per-defect tech-stack guidance.
@@ -50,4 +66,12 @@ Do not replace canonical stores with Obsidian, inject memory automatically befor
 
 ## Current workflow
 
-Planning and environment inspection are in progress. Do not begin milestone implementation until the user approves `implementation-plan.json` and the open questions recorded there.
+The v1.3.x line is COMPLETE (v1.3.0 → v1.3.4 all RELEASED_PUBLISHED; final
+suite 3479 passed / 7 skipped / 0 failed). `implementation-plan.json` is a
+FROZEN HISTORICAL RECORD — never gate work on it; machine state lives solely
+in `project-state.yaml`. The next planned work package is v1.4 (quant_lab
+ingest + MCP adapter), driven by the active workspace-root prompt
+`CORPUS-QUANT-LAB-PROMPT.md` (re-baseline its preconditions to the v1.3.4
+state before starting — its written preconditions reference the closed
+v1.3.0 release). Open deferred defects (DEF-004/009) require an ADR approved
+by the maintainer before any code.
