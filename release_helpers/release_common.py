@@ -124,7 +124,7 @@ def verify_bundle(bundle: Path) -> tuple[dict, dict[str, Path]]:
     manifest_path = bundle / MANIFEST_NAME
     checksums_path = bundle / CHECKSUMS_NAME
     manifest = load_json(manifest_path, "release manifest")
-    if manifest.get("schema_version") != 1 or manifest.get("version") != "1.2.4":
+    if manifest.get("schema_version") != 1 or manifest.get("version") != "1.3.1":
         raise fail("unsupported release manifest")
     if manifest.get("platform") != "linux-x86_64":
         raise fail("unsupported release bundle platform")
