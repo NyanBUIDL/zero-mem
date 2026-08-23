@@ -1,5 +1,9 @@
 # Zero-Mem v1.3.0 — Post-Release Closure Record (local release)
 
+> SUPERSEDED 2026-08-23: release đã PUSH — xem
+> `docs/v1.3.0/evidence/GITHUB-PUBLICATION-RECORD.md` + `project-state.yaml`
+> (`v130_status: RELEASED_PUBLISHED`). Nội dung dưới là bản ghi thời điểm local-only.
+
 **Status:** `RELEASED_LOCAL` — no remote push
 **Date:** 2026-08-23
 **Operator:** Builder (v1.3.0 lifecycle) under user approval `APPROVE-RELEASE-V130.md`

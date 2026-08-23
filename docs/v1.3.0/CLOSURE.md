@@ -1,6 +1,10 @@
 # Zero-Mem v1.3.0 — Closure Handoff
 
-**Status:** `IMPLEMENTATION_COMPLETE` — chờ Gate D verdict + user phê duyệt release
+> SUPERSEDED 2026-08-23: release đã PUSH — xem
+> `docs/v1.3.0/evidence/GITHUB-PUBLICATION-RECORD.md` + `project-state.yaml`
+> (`v130_status: RELEASED_PUBLISHED`). Nội dung dưới là bản ghi thời điểm local-only.
+
+**Status:** `IMPLEMENTATION_COMPLETE` → `RELEASED_PUBLISHED`
 **Branch:** `release/v1.3.0` | **Baseline SHA:** `e2c0d7ac` | **Date:** 2026-08-23
 **Scope:** Đóng 5 P1 findings kế thừa v1.2.4 + benchmark production-grade.
 
