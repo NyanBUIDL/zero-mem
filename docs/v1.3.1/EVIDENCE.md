@@ -35,6 +35,14 @@ chặn storage root resolve được vào Path.home()).
 - 2× pypdf not installed — môi trường.
 - 1× archive fixture unset — WP-7 portability (trước đây là hardcode pass).
 
+## Graphify read-only (final tree, G6)
+
+`zero-mem-dev-data/graphify/v131/g6-final/graphify-out/graph.json` — 8610
+nodes / 24348 edges (code-only AST, no LLM). Impact check: WP-4/5/6 changed
+modules (`scripts_corpus_*`, `benchmarks_v130_real_corpus_pipeline`) have
+neighbors only inside their own module + test importers — no src/ runtime
+coupling introduced. Output kept outside the repo (never committed).
+
 ## Ràng buộc cứng
 
 - `_archive/`: không đụng ✓ · JSONL canonical schema: không đổi ✓
