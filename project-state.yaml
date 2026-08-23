@@ -1499,11 +1499,11 @@ v124_tag_moved: false
 v124_destructive_operation: false
 
 # Zero-Mem v1.3.0 release overlay (V130 series) — 2026-08-23
-v130_status: RELEASED_LOCAL
+v130_status: RELEASED_PUBLISHED
 v130_release_sha: 498375668ff8fdad07a536826b15a213eec194b7
 v130_tag: v1.3.0
 v130_master_after_ff: 498375668ff8fdad07a536826b15a213eec194b7
-v130_pushed: false
+v130_pushed: true
 v130_release_notes: docs/releases/RELEASE-NOTES-v1.3.0.md
 v130_closure: docs/v1.3.0/CLOSURE.md
 v130_post_release_closure: docs/v1.3.0/evidence/POST_RELEASE_CLOSURE.md
