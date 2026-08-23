@@ -2,7 +2,9 @@
 
 ## Authority
 
-The authoritative specification is `Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx` in this repository. Read the relevant section before implementing a milestone. Generated summaries, assistant claims, and Obsidian projections never replace the master document or canonical evidence.
+The authoritative specification is `Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx` in this repository (frozen + hash-anchored per `docs/v1.3.2/decisions/ADR-V132-02-MASTER-SPEC-FREEZE.md`; enforced by `scripts/check_master_spec_hash.py` — a changed .docx hash blocks spec-touching work until the projection is reconciled). Read the relevant section before implementing a milestone. Generated summaries, assistant claims, and Obsidian projections never replace the master document or canonical evidence.
+
+**Machine state precedence (D-02 Option A, v1.3.2):** `project-state.yaml` is the SINGLE machine state for current and future milestone/increment status. `implementation-plan.json` is a FROZEN HISTORICAL RECORD (`record_role: historical_record_frozen`, superseded by project-state.yaml) — do not update it; enforcement in `scripts/check_machine_state.py`. Verified bug-fix decisions are recorded in `docs/v1.3.2/decisions/` (see ADR-V132-01 for the is_verified enum alignment).
 
 ## Architecture constraints
 
