@@ -124,7 +124,11 @@
       không claim subsumption (EVIDENCE.md V140-04 section).
 [x] Kết quả là INPUT cho quyết định v1.5 semantic — không tự đề xuất v1.5
     → EVIDENCE ghi rõ; SOUL/WP rule tuân thủ (no v1.5 proposal in this WP).
-[ ] Verifier độc lập PASS (GATE-4 chờ duyệt) — chưa dispatch
+[x] Verifier độc lập PASS (GATE-4 chờ duyệt) — deleg_afbc5f73 OVERALL PASS (7/7)
+    → evidence: zero-mem-dev-data/evidence/v140-04/verifier-report-v140-04.txt
+    → harness stdlib-only reuses product path; 2-run reproducible=true; 3-run
+      test passes; full suite 3425 passed 0 failed; EVIDENCE đúng scope (no
+      subsumption claim vs recall@8 0.519).
 ```
 
 ## V140-05 — Closure
