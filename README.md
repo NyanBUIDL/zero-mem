@@ -3,6 +3,13 @@
 Zero-Mem v1.2.0 is a local-first evidence and memory sidecar. The PKG-1 distribution
 provides the installable package and release CLI foundation.
 
+> **Corpus tooling is generic.** `quant_lab/` is a **sample corpus** used for
+> development and showcase — it is NOT fixed product data. The ingest/extract/
+> project pipeline is parameterized (`--source-dir`, `--ks-name`, `--adapter`,
+> `--skip-list`) so users can import their own document collections (legal,
+> medical, finance, ...) through the same mechanism. `quant_lab` is exercised
+> as the first `arxiv-quant` adapter instance, not as the tool's default shape.
+
 ```text
 zero-mem --help
 zero-mem --version

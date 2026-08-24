@@ -55,6 +55,8 @@
 [ ] FTS smoke: "Kelly criterion" / "limit order book" / "rough volatility" trả hit hợp lý
 [ ] Skip list tường minh kèm lý do từng file (KHÔNG skip im lặng)
 [ ] git status sạch sau khi chạy (không corpus vào repo)
+[ ] Tooling nhận --source-dir/--ks-name/--adapter (generic — GATE-0-ADDENDUM)
+[ ] arxiv-quant là adapter instance, không hardcode (GATE-0-ADDENDUM)
 ```
 
 ## V140-02 — ADR DEF-004 knowledge-space resolution
