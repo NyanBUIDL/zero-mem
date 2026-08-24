@@ -35,7 +35,15 @@ $ pytest tests/unit/test_v140_02_ks_resolution.py \
 ```
 run1: 3521 passed, 6 skipped in 87.43s (/tmp/zm_full_v141b_run1.txt)
 run2: 3521 passed, 6 skipped in 89.30s (/tmp/zm_full_v141b_run2.txt)
+run3 (post-commit): 3521 passed, 6 skipped in 88.63s (/tmp/zm_full_final.txt)
 ```
+
+Sự cố môi trường ghi nhận riêng (KHÔNG phải product evidence): một lần chạy giữa
+run2 và run3 báo `46 failed … OSError(122, 'Disk quota exceeded')` + pytest
+INTERNALERROR — nguyên nhân xác định: `/tmp` là tmpfs bị đầy bởi rác pytest tích tụ
+(`/tmp/pytest-of-lenovo` = 3.1G). Sau khi dọn thư mục pytest-tmp, chạy lại trên cùng
+commit → sạch `3521/6/0`. Phân loại: disk-I/environment, không phải regression.
+Bài học vận hành: dọn định kỳ `/tmp/pytest-of-lenovo` trên máy này trước full-suite.
 
 Giải trình chênh lệch số giữa các lần đo trong lịch sử v1.4.1:
 
