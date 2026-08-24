@@ -63,17 +63,20 @@
 
 ```
 [x] SCOUT: impact-set Graphify cho cả 2 phương án A/B
-    → Graphify code-only (graphify-out/, 8719 nodes) + corroborated source:
-      _scope_allows (authorized_read.py:176-179) non-authorizing space branch;
-      zm_meta DDL (migrate_1.py:12) THIẾU ks col; corpus path ĐÃ có ks
-      (corpus/retrieval.py AuthorizedCorpusScope) → DEF-004 chỉ ảnh hưởng
-      event-store path. Evidence: ADR-V140-01-DEF004.md §Impact-set.
-[x] ADR draft: so sánh A (migration v13 column) vs B (resolution layer) —
-    storage cost, rebuildability, migration risk, token cost
-    → docs/v1.4/ADR-V140-01-DEF004.md (Option A/B đầy đủ + gợi ý Builder=A).
-[ ] USER chọn phương án tại GATE-2 (bằng văn bản)  ← CHỜ maintainer
-[ ] Implement theo phương án được duyệt (RED-first nếu code product)
-[ ] Migration test nếu chọn A; resolution tests nếu chọn B
+    → graphify-out/ (8719 nodes) + corroborated source (commit 5a99ce4).
+[x] ADR draft: so sánh A (migration v13 column) vs B (resolution layer)
+    → docs/v1.4/ADR-V140-01-DEF004.md. GATE-2 CHỌN B (no zm_meta schema change).
+[x] Implement theo B (resolution layer):
+    - src/access/knowledge_space_resolver.py (resolve space->(profile,project)
+      từ zm_corpus_sources/units, derived/rebuildable).
+    - src/access/authorized_read.py: _scope_allows nhận space_members param
+      (fail-closed khi None); facade AuthorizedReadService.corpus_conn +
+      _expand_scope_with_spaces gắn members vào scope profile/project.
+    - KHÔNG migrate_13, zm_meta schema UNCHANGED (tuân thủ GATE-2).
+[x] RED-first test: space-grant authorizing event-read đúng; fail-closed khi
+    ks không map → test_v140_02_ks_resolution.py (9 tests, RED→GREEN).
+[x] Full suite (isolated HOME, Py 3.13.15): 3412 passed, 7 skipped, 0 failed.
+[x] Verifier độc lập PASS (GATE-2b chờ duyệt).
 ```
 
 ## V140-03 — MCP adapter + import tool
