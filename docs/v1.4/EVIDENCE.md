@@ -67,13 +67,26 @@ Status: `DONE` (GATE-4 APPROVED).
 
 ## V140-05 — Closure
 
-Status: `DONE` (GATE-FINAL pending duyệt).
+Status: `RELEASED_PUBLISHED` (GATE-FINAL APPROVED 2026-08-25).
 - EVIDENCE tổng hợp (file này) ✓
 - RELEASE-NOTES-v1.4.0.md ✓ (KHÔNG dùng precision@k làm selling point)
 - version bump `zero_mem/version.py` 1.3.4 → 1.4.0 ✓
 - Preflight: tag↔HEAD↔version verify + full suite green ✓
 - GATE-FINAL draft (template) — KHÔNG tag/push (local only) ✓
 - Tag v1.4.0 (local) ✓ @ 83194ba
+
+### Publication record (RELEASED_PUBLISHED)
+
+```
+RELEASE_TAG          = v1.4.0
+ARTIFACT_SOURCE_SHA  = 83194ba0761066fa3de47a05a4ca72937e6c691f
+REMOTE_MASTER        = 83194ba (ff from 789db91, pushed 2026-08-25)
+REMOTE_TAG v1.4.0    = annotated, deref -> 83194ba (cd10e43 tag object)
+INVARIANT            = MASTER_SHA = TAG_TARGET = ARTIFACT_SOURCE_SHA = 83194ba  ✓
+GITHUB_RELEASE_URL   = https://github.com/NyanBUIDL/zero-mem/releases/tag/v1.4.0
+PUBLISHED_AT         = 2026-08-24T18:41:16Z (UTC)
+FINAL_SUITE          = 3425 passed / 7 skipped / 0 failed (Py 3.13.15, isolated HOME)
+```
 
 ### Preflight evidence
 

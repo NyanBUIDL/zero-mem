@@ -149,9 +149,12 @@
 +    → 3425 passed / 7 skipped / 0 failed (Py 3.13.15, isolated HOME).
 +[x] Preflight publication (version↔HEAD↔tag verify)
 +    → zero_mem/version.py=1.4.0; git tag v1.4.0 @ 83194ba; capture /tmp/v140_05_preflight_suite3.txt.
-+[ ] GATE-FINAL duyệt → tag v1.4.0 + GH Release (DỪNG tại GATE-FINAL, chưa push)
++[x] GATE-FINAL duyệt → tag v1.4.0 + GH Release (DỪNG tại GATE-FINAL, chưa push)
++    → GATE-FINAL APPROVED 2026-08-25. Pushed master (ff 789db91..83194ba) +
++      tag v1.4.0 (annotated, deref 83194ba) + GH Release created.
++      Invariant: remote master = tag^{} = ARTIFACT_SOURCE_SHA = 83194ba ✓.
 +[ ] Gates file mv vào _gates-done/v1.4.0/ + WORKSPACE-POLICY inventory refresh (sau GATE-FINAL)
-```
++```
 
 ## Gate log (điền khi duyệt)
 
@@ -163,4 +166,4 @@
 | GATE-2b | 2026-08-24 | APPROVED | V140-02-HANDOFF, verifier 6/6 |
 | GATE-3 | 2026-08-24 | APPROVED | V140-03-HANDOFF, verifier 11/11 |
 | GATE-4 | 2026-08-25 | APPROVED | V140-04-HANDOFF, verifier 7/7; EVIDENCE upper-bound note |
-| GATE-FINAL | | | |
+| GATE-FINAL | 2026-08-25 | APPROVED — RELEASED_PUBLISHED | tag v1.4.0 @ 83194ba; GH Release https://github.com/NyanBUIDL/zero-mem/releases/tag/v1.4.0 |
