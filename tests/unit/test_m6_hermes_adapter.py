@@ -103,7 +103,7 @@ class TestRegistration:
         ctx = _Ctx()
         reg = adapter.register(ctx)
         assert set(reg) == set(ALL)
-        assert len(reg) == 10
+        assert len(reg) == 11
 
     def test_no_extra_or_missing(self, adapter):
         ctx = _Ctx()
@@ -209,6 +209,7 @@ class TestAuthorization:
             "memory_search": {"search_text": "anything"},
             "memory_get_event": {"filters": {"event_id": "e1"}},
             "memory_get_related": {"filters": {"event_id": "e1"}, "relation": "incoming"},
+            "corpus_search": {"search_text": "anything"},
         }
         for tool in ALL:
             r = adapter.call(tool, {"requesting_profile_id": "PR1", "project_ids": ["P"],
@@ -273,6 +274,7 @@ class TestDirectAdapterParity:
             "memory_search": {"search_text": "x"},
             "memory_get_event": {"filters": {"event_id": "e1"}},
             "memory_get_related": {"filters": {"event_id": "e1"}, "relation": "incoming"},
+            "corpus_search": {"search_text": "x"},
         }.get(tool, {})
         raw = {"requesting_profile_id": "PR1", "project_ids": ["P"], "target_profile_ids": ["PR2"], **fields}
         assert dispatch({"tool": tool, **raw}).status.value == adapter.call(tool, raw)["status"] == "POLICY_DENIED"

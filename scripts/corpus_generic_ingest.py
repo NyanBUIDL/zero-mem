@@ -52,7 +52,7 @@ def _load_adapter(spec: str):
     return getattr(module, attr)
 
 
-def main() -> None:
+def main(argv: list | None = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--source-dir", required=True)
     ap.add_argument("--ks-name", required=True)
@@ -62,7 +62,7 @@ def main() -> None:
     ap.add_argument("--papers-subdir", default="papers")
     ap.add_argument("--project", action="store_true", help="also run project_corpus")
     ap.add_argument("--apply", action="store_true")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     from src.corpus.registry import CorpusSourceRegistry
     from src.corpus.blob_store import CorpusBlobStore

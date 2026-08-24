@@ -63,6 +63,11 @@ TOOL_REGISTRY: dict[str, ToolSpec] = {
     "project_list_artifacts": ToolSpec(
         "project_list_artifacts", ResourceType.ARTIFACT,
         description="Artifact metadata only (no file contents)."),
+    # M6.5 — corpus knowledge-base read (derived corpus units, authorization-safe)
+    "corpus_search": ToolSpec(
+        "corpus_search", ResourceType.CORPUS_UNIT,
+        description="Authorized FTS search over the derived corpus knowledge base (units).",
+        accepts_search=True),
 }
 
 

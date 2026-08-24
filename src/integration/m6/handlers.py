@@ -289,6 +289,25 @@ def handle_project_list_artifacts(req: M6Request, runtime: Optional[M6Runtime] =
         store.close()
 
 
+# -------------------------------------------------------------------------
+# M6.5 — derived corpus knowledge-base read (authorization-safe, reuse M5)
+# -------------------------------------------------------------------------
+def handle_corpus_search(req: M6Request, runtime: Optional[M6Runtime] = None) -> List[Dict[str, Any]]:
+    runtime = runtime or get_runtime()
+    if not req.search_text:
+        raise M6Error(M6ErrorCode.INVALID_REQUEST, "search_text required")
+    svc, store, grants = _open_facade(runtime, req)
+    try:
+        # corpus_unit_search forces resource_type="corpus_unit" internally and
+        # enumerates the authorized scope before any FTS discovery (M5/M6.6).
+        ar = svc.corpus_unit_search(
+            build_access_request(req, resource_type=ResourceType.CORPUS_UNIT),
+            req.search_text, grants=grants, limit=req.limit)
+        return _translate_items(ar)
+    finally:
+        store.close()
+
+
 # --------------------------------------------------------------------------
 # Registration
 # --------------------------------------------------------------------------
@@ -305,6 +324,7 @@ def register_wired_handlers(dispatcher, runtime: Optional[M6Runtime] = None) -> 
     dispatcher.register("project_get_state", lambda req: handle_project_get_state(req, rt))
     dispatcher.register("project_list_verifications", lambda req: handle_project_list_verifications(req, rt))
     dispatcher.register("project_list_artifacts", lambda req: handle_project_list_artifacts(req, rt))
+    dispatcher.register("corpus_search", lambda req: handle_corpus_search(req, rt))
 
 
 # --------------------------------------------------------------------------
@@ -335,6 +355,7 @@ def audit_tool_surface() -> Dict[str, Dict[str, Any]]:
         "project_get_state": "handle_project_get_state",
         "project_list_verifications": "handle_project_list_verifications",
         "project_list_artifacts": "handle_project_list_artifacts",
+        "corpus_search": "handle_corpus_search",
     }
     # Forbidden tools must remain unreachable.
     forbidden_reachable = {n for n in FORBIDDEN_TOOL_NAMES if getattr(_h, "handle_" + n, None) is not None}

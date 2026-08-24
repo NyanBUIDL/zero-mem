@@ -550,9 +550,10 @@ class TestArchitecture:
     def test_59_m6_tools_unchanged(self):
         from src.integration.m6.mcp_wrapper import tool_schemas
         names = {s["name"] for s in tool_schemas()}
-        assert len(names) == 10
+        assert len(names) == 11
         assert "memory_query" in names
         assert "project_get_charter" in names
+        assert "corpus_search" in names  # M6.5 added (V140-03)
 
     def test_60_m8_absent(self):
         for p in REPO_ROOT.glob("src/integration/m7/*.py"):

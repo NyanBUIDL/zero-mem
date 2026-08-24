@@ -25,6 +25,7 @@ class ResourceType(str, enum.Enum):
     VERIFICATION = "verification"
     ARTIFACT = "artifact"
     RELATION = "relation"
+    CORPUS_UNIT = "corpus_unit"   # M6.5: derived corpus knowledge-base read
 
 
 # --- Response envelope status. ---

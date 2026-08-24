@@ -542,9 +542,10 @@ class TestM6AndIsolation:
         from src.integration.m6.mcp_wrapper import tool_schemas
         schemas = tool_schemas()
         names = {s["name"] for s in schemas}
-        assert len(names) == 10
+        assert len(names) == 11
         assert "memory_query" in names
         assert "project_get_charter" in names
+        assert "corpus_search" in names  # M6.5 added (V140-03)
 
     def test_resource_type_isolation_preserved(self):
         store, sp = _build_store()

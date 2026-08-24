@@ -105,7 +105,7 @@ class TestFinalRegistry:
     def test_exactly_ten(self, adapter):
         ctx = _Ctx()
         reg = adapter.register(ctx)
-        assert len(reg) == 10
+        assert len(reg) == 11
         assert set(reg) == set(ALL)
 
     def test_no_duplicate_registration(self, adapter):
@@ -448,12 +448,12 @@ class TestLifecycleAndConcurrency:
             ad.startup()
             ctx = _Ctx()
             reg = ad.register(ctx)
-            assert len(reg) == 10
+            assert len(reg) == 11
             ad.shutdown()
         cfg = BridgeConfig(enabled=True)
         ad = HermesReadAdapter(cfg, store_path=store_path); ad.startup()
         ctx = _Ctx()
-        assert len(ad.register(ctx)) == 10
+        assert len(ad.register(ctx)) == 11
 
     def test_concurrent_identity_separation(self, adapter):
         out = {}
@@ -726,6 +726,7 @@ class TestContractConsistency:
             "project_list_requirements": "requirement", "project_list_decisions": "decision",
             "project_get_state": "project_state", "project_list_verifications": "verification",
             "project_list_artifacts": "artifact",
+            "corpus_search": "corpus_unit",
         }
         for name in ALL:
             assert surf[name]["resource_type"] == expected[name]

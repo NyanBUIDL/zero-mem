@@ -46,6 +46,7 @@ ALL_READ_TOOLS: Final[tuple[str, ...]] = (
     "project_get_state",
     "project_list_verifications",
     "project_list_artifacts",
+    "corpus_search",  # M6.5: derived corpus knowledge-base read (authorization-safe)
 )
 
 # Forbidden convenience/write/admin tool names that must NEVER be registered.

@@ -76,6 +76,7 @@ ALL_TOOLS = [
     "memory_query", "memory_search", "memory_get_event", "memory_get_related",
     "project_get_charter", "project_list_requirements", "project_list_decisions",
     "project_get_state", "project_list_verifications", "project_list_artifacts",
+    "corpus_search",  # M6.5
 ]
 
 
@@ -258,6 +259,7 @@ class TestGrantAndCrossProfile:
             "memory_search": {"search_text": "anything"},
             "memory_get_event": {"filters": {"event_id": "e1"}},
             "memory_get_related": {"filters": {"event_id": "e1"}, "relation": "incoming"},
+            "corpus_search": {"search_text": "anything"},
         }
         for t in ALL_TOOLS:
             r = dispatch({"tool": t, "requesting_profile_id": "PR1", "project_ids": ["P"],
@@ -454,6 +456,7 @@ class TestDirectMcpParity:
             "memory_search": {"search_text": "x"},
             "memory_get_event": {"filters": {"event_id": "e1"}},
             "memory_get_related": {"filters": {"event_id": "e1"}, "relation": "incoming"},
+            "corpus_search": {"search_text": "x"},
         }.get(tool, {})
         raw = {"tool": tool, "requesting_profile_id": "PR1",
                "project_ids": ["P"], "target_profile_ids": ["PR2"], **fields}
