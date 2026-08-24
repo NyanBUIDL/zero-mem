@@ -28,8 +28,33 @@ Status: `PLANNED` — chưa thực thi.
 
 ## V140-04 — Benchmark baseline
 
-Status: `PLANNED` — chưa thực thi.
-Baseline tham chiếu cũ (corpus tổng hợp N=500): recall@8 0.519, p95 2.09ms.
+Status: `DONE` — đã thực thi (commit pending GATE-4).
+
+- Held-out QA set: `benchmarks/qa_quant_lab_heldout.jsonl` — **42 queries** (≥30),
+  drawn from 41 distinct corpus sources (quant_lab derived units). Self-retrieval
+  probe: query = first 14 words of a real unit; ground-truth = that unit_id.
+- Harness: `benchmarks/v140_04_retrieval_bench.py` — stdlib-only, deterministic,
+  zero-LLM, reuses product path `src.corpus.retrieval.retrieve_corpus` +
+  `AuthorizedCorpusScope` + `build_query_plan` (no re-implementation).
+- Precision@k (authorized ks=quant-theory, limit=10, 2 runs identical):
+
+| k | precision@k |
+|---|---|
+| 1 | 0.0952 |
+| 3 | 0.3095 |
+| 5 | 0.3095 |
+| 8 | 0.3095 |
+| 10 | 0.3095 |
+
+- Latency: mean 75.2 ms, p95 164.8 ms (N=42 queries, isolated HOME, Py 3.13.15).
+- Reproducibility: **2 runs byte-identical on precision-bearing keys** (fingerprint
+  `aee554fee8059494`). Latency excluded from equivalence (timing noise).
+- Legacy baseline ref (context only, NOT comparable — different corpus + metric):
+  recall@8 0.519 (N=500 synthetic). precision@k ≠ recall@k; reported side-by-side
+  per GATE-3 condition, không claim subsumption.
+- **INPUT cho quyết định v1.5 semantic** — WP này KHÔNG đề xuất v1.5.
+- Test: `tests/unit/test_v140_04_benchmark.py` (3 passed: held-out≥30, reproducible 3 runs, rejects<30).
+- Commit: V140-04 implement (harness + query set + test + EVIDENCE) pending GATE-4.
 
 ## V140-05 — Closure
 

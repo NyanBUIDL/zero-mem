@@ -108,11 +108,23 @@
 ## V140-04 — Retrieval-quality benchmark
 
 ```
-[ ] QA held-out set ≥30 câu từ quant_lab (không trùng training-ish queries)
-[ ] precision@k harness stdlib-only, deterministic (seed cố định nếu sampling)
-[ ] ≥2 runs trùng kết quả (reproducibility proof)
-[ ] Baseline số liệu ghi vào EVIDENCE.md + so sánh baseline tổng hợp cũ (recall@8 0.519 N=500)
-[ ] Kết quả là INPUT cho quyết định v1.5 semantic — không tự đề xuất v1.5 trong WP này
+[x] QA held-out set ≥30 câu từ quant_lab (không trùng training-ish queries)
+    → benchmarks/qa_quant_lab_heldout.jsonl: 42 queries / 41 distinct sources.
+      Self-retrieval probe (query = đầu unit, gt = unit đó). Không có "training".
+[x] precision@k harness stdlib-only, deterministic (seed cố định nếu sampling)
+    → benchmarks/v140_04_retrieval_bench.py: tái dùng retrieve_corpus +
+      AuthorizedCorpusScope + build_query_plan (product path, no re-impl).
+      Không sampling → deterministic. Zero-LLM.
+[x] ≥2 runs trùng kết quả (reproducibility proof)
+    → 3 runs byte-identical trên precision keys (fp aee554fee8059494).
+      test_v140_04_benchmark.py::test_benchmark_runs_and_is_reproducible PASS.
+[x] Baseline số liệu ghi vào EVIDENCE.md + so sánh baseline tổng hợp cũ
+    → precision@1=0.095, @3-10=0.310; latency mean 75ms/p95 165ms.
+      So sánh recall@8 0.519 (N=500 synthetic) — KHÁC metric/corpus, ghi rõ
+      không claim subsumption (EVIDENCE.md V140-04 section).
+[x] Kết quả là INPUT cho quyết định v1.5 semantic — không tự đề xuất v1.5
+    → EVIDENCE ghi rõ; SOUL/WP rule tuân thủ (no v1.5 proposal in this WP).
+[ ] Verifier độc lập PASS (GATE-4 chờ duyệt) — chưa dispatch
 ```
 
 ## V140-05 — Closure
