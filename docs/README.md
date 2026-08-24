@@ -53,6 +53,7 @@ docs/
 | `docs/v1.3.1/` | Released | RELEASE-NOTES + evidence (patch release — không folder riêng; xem "Patch-release exemption" dưới) |
 | `docs/v1.3.2/` | **Released** | README, ROADMAP, TECH-STAND, MODULE-MAP, EVIDENCE, CLOSURE, APPROVE template, analysis/, decisions/ (ADR-V132-01..02), evidence/, plans/ |
 | `docs/v1.3.3/`, `docs/v1.3.4/` | Released (patch) | Không có folder riêng — trạng thái trong `project-state.yaml` (V133/V134 overlay), release notes tại `docs/releases/`, defects tại `docs/defects/`. Áp dụng patch-release exemption |
+| `docs/v1.4/` | **Version active (PLANNING)** | README, ROADMAP (6 WP + 6 Gates, swarm model), TECH_STACK, DEVELOPMENT (SCOUT/BUILDER/VERIFIER/SCRIBE), CHECKLIST (2 tầng), EVIDENCE |
 
 ### Patch-release exemption
 
