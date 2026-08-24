@@ -82,13 +82,27 @@
 ## V140-03 — MCP adapter + import tool
 
 ```
-[ ] SCOUT: M6 surface survey + thiết kế điểm cắt MCP server
-[ ] MCP server wrapper implement (tái dùng M6 dispatcher, không fork core)
-[ ] Import CLI tool hoạt động offline
-[ ] POC: MCP client KHÔNG-PHẢI-Hermes query knowledge base OK
-    (verifier ngoài thực hiện — chống xung đột lợi ích)
-[ ] Demo script tái lập được POC từ máy sạch
-[ ] Authorization-first giữ nguyên qua MCP path (grant/resource-type isolation test)
+[x] SCOUT: M6 surface survey + thiết kế điểm cắt MCP server
+    → M6 stack đã wired (M6.1 contracts/dispatcher/mcp_wrapper, M6.2/3 handlers,
+      runtime readonly). M6 query event store (zm_meta); corpus units ở
+      zm_corpus_units. Thêm M6.5 corpus_search tái dùng svc.corpus_unit_search (M5).
+[x] MCP server wrapper implement (tái dùng M6 dispatcher, không fork core)
+    → src/integration/m6/mcp_server.py: stdio JSON-RPC (initialize/tools/list/
+      tools/call) gọi configure()+handle_call (mcp_wrapper) + Dispatcher.
+      KHÔNG import GrantAdminService/AuthorizedWriteService/migrations/ingest.
+[x] Import CLI tool hoạt động offline
+    → scripts/corpus_import_cli.py (wrapper quanh corpus_generic_ingest.py,
+      main(argv) parameterized). Dry-run: 600 dirs / 470 derived-md / 129 orphan-md.
+[x] POC: MCP client KHÔNG-PHẢI-Hermes query knowledge base OK (verifier ngoài)
+    → examples/mcp_client_poc.py (stdlib subprocess) + mcp_demo.py.
+      Thực tế: corpus_search "kelly criterion" → SUCCESS 3 units (authorized_corpus_match).
+[x] Demo script tái lập được POC từ máy sạch
+    → examples/mcp_demo.py (documented reproduce-from-clean-machine steps).
+[x] Authorization-first giữ nguyên qua MCP path (grant/resource-type isolation)
+    → test_v140_03_mcp_corpus.py: test_corpus_search_authorization_isolated
+      (intruder-profile → DENIED/EMPTY, no leak). corpus_search resource_type
+      corpus_unit (M6.6 isolation). 11 tools (was 10).
+[ ] Verifier độc lập PASS (GATE-3 chờ duyệt) — deleg_4926897a chạy
 ```
 
 ## V140-04 — Retrieval-quality benchmark
