@@ -1,0 +1,15 @@
+{
+  "_meta": {
+    "description": "Explicit quant_lab skip-list. Every non-ingested source file MUST have an entry here. Maintainer-controlled (GATE approvals).",
+    "reconciliation": "disk_total == ingested_sources + len(entries)"
+  },
+  "entries": [
+    {
+      "path": "papers/2002-10-22 - cond-mat_0210475 - Statistical theory of the continuous double auction.md",
+      "reason": "garbage-ocr-mirror-of-primary-pdf",
+      "decided_by": "maintainer-GATE-0",
+      "date": "2026-08-24",
+      "note": "Corrupted OCR mirror inside papers/. The same paper is already registered as primary-pdf (papers/*.pdf) plus a clean derived-md article copy."
+    }
+  ]
+}
