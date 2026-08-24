@@ -62,10 +62,16 @@
 ## V140-02 — ADR DEF-004 knowledge-space resolution
 
 ```
-[ ] SCOUT: impact-set Graphify cho cả 2 phương án A/B
-[ ] ADR draft: so sánh A (migration v13 column) vs B (resolution layer) —
+[x] SCOUT: impact-set Graphify cho cả 2 phương án A/B
+    → Graphify code-only (graphify-out/, 8719 nodes) + corroborated source:
+      _scope_allows (authorized_read.py:176-179) non-authorizing space branch;
+      zm_meta DDL (migrate_1.py:12) THIẾU ks col; corpus path ĐÃ có ks
+      (corpus/retrieval.py AuthorizedCorpusScope) → DEF-004 chỉ ảnh hưởng
+      event-store path. Evidence: ADR-V140-01-DEF004.md §Impact-set.
+[x] ADR draft: so sánh A (migration v13 column) vs B (resolution layer) —
     storage cost, rebuildability, migration risk, token cost
-[ ] USER chọn phương án tại GATE-2 (bằng văn bản)
+    → docs/v1.4/ADR-V140-01-DEF004.md (Option A/B đầy đủ + gợi ý Builder=A).
+[ ] USER chọn phương án tại GATE-2 (bằng văn bản)  ← CHỜ maintainer
 [ ] Implement theo phương án được duyệt (RED-first nếu code product)
 [ ] Migration test nếu chọn A; resolution tests nếu chọn B
 ```
