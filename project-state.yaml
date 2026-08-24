@@ -1546,3 +1546,8 @@ v133_scope_addendum: "DEF-006 version-pin propagation + DEF-007 zm_verifications
 v134_status: RELEASED_PUBLISHED   # v1.3.4 tagged+pushed+GH Release 2026-08-23
 v134_scope: "DEF-003 SIGKILL-mid-ingest + torn-tail durability proofs (test-only, no production change); DEF-008 cursor.py dead code removal; DEF-009 registered deferred to v1.4.x"
 v134_final_suite: "3479 passed, 7 skipped, 0 failed (Python 3.13.15, isolated HOME)"
+
+# --- V140 overlay (v1.4.0 automation; WP-0 recon 2026-08-24) ---
+v140_status: IN_PROGRESS
+v140_00_status: "CLOSED_PENDING_GATE0 — recon PASS: registry 1070 sources (471 primary-pdf w/ 9863 units + FTS, 470 derived-md + 129 orphan-md w/ 0 units), content_hash sweep 1070/1070 match disk, blob sample 50/50 ok, FTS smoke pass; gap cho V140-01 = extract units cho 599 md-sources; prompt CORPUS-QUANT-LAB-PROMPT.md re-baselined v1.3.4/789db91"
+v140_00_handoff: artifacts/handoffs/V140-00-HANDOFF.md

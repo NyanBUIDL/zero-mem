@@ -26,11 +26,22 @@
 ## V140-00 — Re-baseline & recon
 
 ```
-[ ] SCOUT: corpus-derived.sqlite tồn tại? source/unit counts hiện tại?
-[ ] SCOUT: đối chiếu với mục tiêu 600 md + 471 pdf → gap chính xác
-[ ] SCOUT: preconditions prompt quant_lab nào đã stale (v1.3.0 refs)?
-[ ] BUILDER: cập nhật prompt preconditions + ghi V140 overlay vào project-state
-[ ] Gap-analysis report trình GATE-0
+[x] SCOUT: corpus-derived.sqlite tồn tại? source/unit counts hiện tại?
+    → DB 123MB; zm_corpus_sources=1070, zm_corpus_units=9863, zm_corpus_fts=9863;
+      kinds: primary-pdf 471 / derived-md 470 / orphan-md 129; ks: quant-theory 100%.
+      Evidence: artifacts/handoffs/V140-00-HANDOFF.md (Scout report §1–2)
+[x] SCOUT: đối chiếu với mục tiêu 600 md + 471 pdf → gap chính xác
+    → PDF: 471/471 đủ, extract OK 471/471 (9 863 units). MD: 599 article-md đã
+      register + 0 units; file md thứ 600 nằm trong papers/ (mirror hỏng của
+      cond-mat_0210475, text garbage — không đăng ký là đúng). Gap V140-01 =
+      extract units cho 599 md-sources. Evidence: handoff §Gap analysis.
+[x] SCOUT: preconditions prompt quant_lab nào đã stale (v1.3.0 refs)?
+    → v1.3.0/14e52ff/release-gate refs stale → Builder re-baseline sang v1.3.4/789db91.
+[x] BUILDER: cập nhật prompt preconditions + ghi V140 overlay vào project-state
+    → CORPUS-QUANT-LAB-PROMPT.md (header, Current state section, QL-1 note,
+      Bước 0); project-state.yaml v140_status/v140_00_status overlay.
+[x] Gap-analysis report trình GATE-0
+    → artifacts/handoffs/V140-00-HANDOFF.md; Verifier verdict nguyên văn: PASS.
 ```
 
 ## V140-01 — Ingest quant_lab
