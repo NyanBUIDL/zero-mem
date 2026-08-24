@@ -1556,3 +1556,13 @@ v140_release_invariant: "remote master = tag^{} = ARTIFACT_SOURCE_SHA = 83194ba 
 v140_final_suite: "3425 passed, 7 skipped, 0 failed (Python 3.13.15, isolated HOME)"
 v140_00_status: "CLOSED_PENDING_GATE0 — recon PASS: registry 1070 sources (471 primary-pdf w/ 9863 units + FTS, 470 derived-md + 129 orphan-md w/ 0 units), content_hash sweep 1070/1070 match disk, blob sample 50/50 ok, FTS smoke pass; gap cho V140-01 = extract units cho 599 md-sources; prompt CORPUS-QUANT-LAB-PROMPT.md re-baselined v1.3.4/789db91"
 v140_00_handoff: artifacts/handoffs/V140-00-HANDOFF.md
+
+# --- V141 remediation overlay (DEF-013..016; maintainer ủy quyền gate A/B 2026-08-25) ---
+v141_status: RELEASE_READY_LOCAL   # tree cuối verify xong; tag/push chờ duyệt riêng
+v141_scope: "DEF-012 wiring hotfix (69c337b/3a40b7a) + remediation DEF-013..016: thu hồi grant CLI khỏi v1.4.1 (GATE-R1 Option A — store tách biệt đường ủy quyền production, nguồn sự thật kép), connection lifecycle fix, doctor honesty, acceptance test qua _open_facade thật; version 1.4.1 (c3e721e)"
+v141_gates: "GATE-R0 APPROVED + GATE-R1 APPROVED (Option A) — duyệt bởi maintainer ủy quyền 'chọn cái tốt nhất cho hệ thống' 2026-08-25; GATE-FINAL-V141 draft tại workspace root"
+v141_adr: docs/v1.4.1/ADR-V141-01-GRANT-CLI.md   # CHỌN A
+v141_remediation_tests: tests/unit/test_v141_r2_remediation.py   # RED-first 4F→9P
+v141_final_suite: "3521 passed, 6 skipped, 0 failed ×2 runs liên tiếp (.venv-v124 Py 3.11, isolated HOME); giải trình chênh lệch vs 3515: +9 test remediation −3 test superseded"
+v141_defects_closed: "DEF-012 FIXED (wiring), DEF-013 FIXED (revert), DEF-014 FIXED (conn lifecycle), DEF-015 FIXED (doctor honesty), DEF-016 FIXED (real-facade acceptance + evidence reconciliation)"
+v141_handoff: artifacts/handoffs/V141-HANDOFF.md (+ V141-R2-R4-REMEDIATION-HANDOFF.md)
