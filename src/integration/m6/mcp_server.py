@@ -29,6 +29,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from zero_mem.version import __version__ as _zm_version
+
 try:
     from . import configure
     from .dispatcher import _default_dispatcher
@@ -70,7 +72,7 @@ def _handle_rpc(method: str, params: Dict[str, Any], request_id: Optional[Any]) 
         return _respond(request_id, result={
             "protocolVersion": "2024-11-05",
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "zero-mem-m6", "version": "1.4.0"},
+            "serverInfo": {"name": "zero-mem-m6", "version": _zm_version},
         })
 
     if method == "tools/list":
