@@ -122,6 +122,31 @@ def collect() -> dict[str, Any]:
     except ConfigurationError as exc:
         checks.append(_check("configuration", "FAIL", str(exc)))
 
+    # V141 (DEF-012): corpus authorization configuration status.
+    try:
+        from zero_mem import userconfig
+
+        corpus_val = userconfig.get_corpus_store_path()
+        env_val = os.environ.get("ZM_M6_CORPUS_STORE_PATH")
+        if corpus_val:
+            checks.append(_check(
+                "corpus_authorization", "PASS",
+                f"corpus store configured ({corpus_val}) — knowledge-space grants "
+                "authorize on the event path"))
+        elif env_val:
+            checks.append(_check(
+                "corpus_authorization", "PASS",
+                f"corpus store via env ({env_val})"))
+        else:
+            checks.append(_check(
+                "corpus_authorization", "WARN",
+                "not configured — knowledge-space grants on the event path are "
+                "non-authorizing (fail-closed). Set with: zero-mem config set "
+                "corpus-store-path <path>"))
+    except Exception as exc:  # pragma: no cover - defensive
+        checks.append(_check("corpus_authorization", "FAIL", str(exc)))
+
+
     memory_status, memory_message = _memory_check()
     checks.append(_check("memory", memory_status, memory_message))
 

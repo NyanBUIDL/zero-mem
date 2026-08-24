@@ -93,7 +93,12 @@ def _open_facade(runtime: M6Runtime, req: M6Request):
     from src.access.authorized_read import AuthorizedReadService
     store = runtime.open_store()
     grants = _resolve_grants(runtime, req)
-    svc = AuthorizedReadService(store, req.requesting_profile_id, grant_conn=store.conn)
+    # DEF-012 (v1.4.1): pass the optional read-only corpus connection so the
+    # DEF-004 knowledge-space resolution layer authorizes space grants on the
+    # event path. None when unconfigured => fail-closed preserved.
+    svc = AuthorizedReadService(store, req.requesting_profile_id,
+                                grant_conn=store.conn,
+                                corpus_conn=runtime.open_corpus_conn())
     return svc, store, grants
 
 
