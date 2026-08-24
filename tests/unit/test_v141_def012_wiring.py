@@ -257,92 +257,13 @@ class TestConfigCli:
 
 
 # ---------------------------------------------------------------------------
-# 4. Grant CLI wraps the trusted canonical admin surface
+# 4. Grant CLI — SUPERSEDED by GATE-R1 Option A (DEF-013 remediation).
+# The `grant` admin surface was REMOVED in V141-R2 because its store was
+# disconnected from the production authorization path (ADR-V141-01). Its
+# replacement pins live in tests/unit/test_v141_r2_remediation.py
+# (TestDef013GrantCliReverted). These round-trip tests are formally
+# superseded, not deleted to force a pass.
 # ---------------------------------------------------------------------------
-
-
-class TestGrantCli:
-    def test_grant_add_list_revoke_roundtrip(self, grant_env, capsys):
-        from zero_mem import cli
-
-        corpus = _corpus_db(grant_env)
-        assert cli.main(["config", "set", "corpus-store-path", str(corpus)]) == 0
-        capsys.readouterr()
-
-        rc = cli.main([
-            "grant", "add", "agent-bob",
-            "--space", "quant-theory", "--read",
-            "--data-root", str(grant_env / "zm-data"),
-        ])
-        assert rc == 0, "grant add via canonical admin surface must succeed"
-        capsys.readouterr()
-
-        assert cli.main([
-            "grant", "list", "--subject", "agent-bob",
-            "--data-root", str(grant_env / "zm-data"),
-        ]) == 0
-        listing = capsys.readouterr().out
-        assert "quant-theory" in listing
-
-        # Revoke by id from the listing output (parse the printed grant id).
-        listed = json.loads(listing.strip().splitlines()[-1])
-        gid = listed[0]["grant_id"]
-        assert cli.main([
-            "grant", "revoke", gid,
-            "--data-root", str(grant_env / "zm-data"),
-        ]) == 0
-
-        # Revocation takes effect immediately on resolve.
-        capsys.readouterr()
-        assert cli.main([
-            "grant", "list", "--subject", "agent-bob",
-            "--data-root", str(grant_env / "zm-data"),
-        ]) == 0
-        after = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
-        active = [g for g in after if g.get("state") != "revoked"]
-        assert active == [], "revoked grant must not remain active"
-
-    def test_grant_add_rejects_unknown_space(self, grant_env, capsys):
-        """Validation uses the resolver: a space absent from the corpus projection
-        cannot receive a grant (prevents dead/ineffective grants)."""
-        from zero_mem import cli
-
-        corpus = _corpus_db(grant_env)
-        assert cli.main(["config", "set", "corpus-store-path", str(corpus)]) == 0
-        capsys.readouterr()
-        rc = cli.main([
-            "grant", "add", "agent-bob",
-            "--space", "no-such-space", "--read",
-            "--data-root", str(grant_env / "zm-data"),
-        ])
-        assert rc != 0, "grant for unknown knowledge space must be rejected"
-
-    def test_grant_persists_across_projection_rebuild(self, grant_env, capsys):
-        """Canonical-boundary guard: grants created via CLI are canonical events;
-        rebuilding the derived projection from events must reproduce them."""
-        from zero_mem import cli
-
-        corpus = _corpus_db(grant_env)
-        assert cli.main(["config", "set", "corpus-store-path", str(corpus)]) == 0
-        capsys.readouterr()
-
-        assert cli.main([
-            "grant", "add", "agent-carol",
-            "--space", "quant-theory", "--read",
-            "--data-root", str(grant_env / "zm-data2"),
-        ]) == 0
-        capsys.readouterr()
-        # Simulate rebuild: drop + re-project from the canonical event log is the
-        # existing rebuild path (rebuild_grants); here we verify the event log
-        # actually received the grant event (canonical write happened).
-        log_path = grant_env / "zm-data2" / "grants-events.jsonl"
-        assert log_path.exists(), "grant CLI must append to canonical event log"
-        lines = [json.loads(l) for l in log_path.read_text().splitlines() if l.strip()]
-        assert any(
-            (e.get("m4", e).get("target_type") == "knowledge_space"
-             and e.get("m4", e).get("target_id") == "quant-theory")
-            for e in lines
-        ), "canonical event log must carry the grant event"
 
 
 # ---------------------------------------------------------------------------

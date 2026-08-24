@@ -36,6 +36,8 @@ guarantees no record outside any authorized scope survives.
 
 from __future__ import annotations
 
+import sqlite3
+
 from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -228,10 +230,22 @@ class AuthorizedReadService:
         return set(resolve_space_members(self._corpus_conn, space_ids))
 
     def close(self) -> None:
-        """Close the owned read-only store connection, if it exposes close()."""
+        """Close the owned read-only store connection, if it exposes close().
+
+        V141-R2 (DEF-014): also close the injected corpus connection so a
+        long-running sidecar does not accumulate open sqlite fds across
+        requests (one corpus conn per _open_facade call).
+        """
         close = getattr(self._store, "close", None)
         if callable(close):
             close()
+        corpus_close = getattr(self._corpus_conn, "close", None)
+        if callable(corpus_close):
+            try:
+                corpus_close()
+            except sqlite3.Error:
+                pass  # already closed / driver-level failure must not mask the read result
+            self._corpus_conn = None
 
     # -- policy gate --------------------------------------------------------
     def _resolve_persistent_grants(self, request: AccessRequest,

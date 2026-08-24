@@ -53,9 +53,9 @@ def build_parser() -> argparse.ArgumentParser:
     upgrade_parser.add_argument("--check", action="store_true", help="inspect upgrade compatibility without changing state")
     upgrade_parser.add_argument("--json", action="store_true", help="emit machine-readable output")
     upgrade_parser.set_defaults(_upgrade=True)
-    from .commands_config_grant import add_cli_parsers
+    from .commands_config_grant import add_config_parsers
 
-    add_cli_parsers(subparsers)
+    add_config_parsers(subparsers)
     return parser
 
 
@@ -138,8 +138,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"zero-mem: upgrade failed: {exc.code}", file=sys.stderr)
             return 2
     if getattr(args, "_config_set", False) or getattr(args, "_config_unset", False) \
-            or getattr(args, "_config_show", False) or getattr(args, "_grant_add", False) \
-            or getattr(args, "_grant_list", False) or getattr(args, "_grant_revoke", False):
+            or getattr(args, "_config_show", False):
         from .commands_config_grant import handle_cli
 
         return handle_cli(args)

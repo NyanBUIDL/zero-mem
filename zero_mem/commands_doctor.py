@@ -123,26 +123,51 @@ def collect() -> dict[str, Any]:
         checks.append(_check("configuration", "FAIL", str(exc)))
 
     # V141 (DEF-012): corpus authorization configuration status.
+    # V141-R2 (DEF-015): status reflects the LIVE usability of the configured
+    # store, not mere configuration existence — a stale/missing/unreadable
+    # store must not be reported PASS.
     try:
         from zero_mem import userconfig
 
         corpus_val = userconfig.get_corpus_store_path()
         env_val = os.environ.get("ZM_M6_CORPUS_STORE_PATH")
-        if corpus_val:
-            checks.append(_check(
-                "corpus_authorization", "PASS",
-                f"corpus store configured ({corpus_val}) — knowledge-space grants "
-                "authorize on the event path"))
-        elif env_val:
-            checks.append(_check(
-                "corpus_authorization", "PASS",
-                f"corpus store via env ({env_val})"))
-        else:
+        effective = env_val or corpus_val
+        if not effective:
             checks.append(_check(
                 "corpus_authorization", "WARN",
                 "not configured — knowledge-space grants on the event path are "
                 "non-authorizing (fail-closed). Set with: zero-mem config set "
                 "corpus-store-path <path>"))
+        else:
+            source = "env" if env_val else "config"
+            corpus_error: Exception | None = None
+            try:
+                from src.integration.m6.runtime import (
+                    CorpusStoreConfigError as _CorpusStoreConfigError,
+                    _validate_corpus_store_path,
+                )
+                from pathlib import Path as _P
+
+                try:
+                    _validate_corpus_store_path(_P(effective))
+                except _CorpusStoreConfigError as exc:
+                    corpus_error = exc
+            except ImportError:
+                corpus_error = RuntimeError(
+                    "corpus validation layer unavailable (src tree missing?)")
+            except Exception as exc:  # defensive: never crash doctor
+                corpus_error = exc
+            if corpus_error is not None:
+                checks.append(_check(
+                    "corpus_authorization", "FAIL",
+                    f"configured via {source} but unusable ({corpus_error}): "
+                    f"{effective} — fix with: zero-mem config set "
+                    "corpus-store-path <path>"))
+            else:
+                checks.append(_check(
+                    "corpus_authorization", "PASS",
+                    f"corpus store usable ({source}: {effective}) — "
+                    "knowledge-space grants authorize on the event path"))
     except Exception as exc:  # pragma: no cover - defensive
         checks.append(_check("corpus_authorization", "FAIL", str(exc)))
 
