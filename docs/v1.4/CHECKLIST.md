@@ -133,25 +133,34 @@
 
 ## V140-05 — Closure
 
+```diff
+-[ ] EVIDENCE.md tổng hợp đầy đủ verdicts mọi Gate
+-[ ] RELEASE-NOTES-v1.4.0.md theo format v1.3.x
+-[ ] Full suite cuối PASS trên HEAD candidate
+-[ ] Preflight publication (remote verify, tag khớp commit)
+-[ ] GATE-FINAL duyệt → tag v1.4.0 + GH Release
+-[ ] Gates file mv vào _gates-done/v1.4.0/ + WORKSPACE-POLICY inventory refresh
++[x] EVIDENCE.md tổng hợp đầy đủ verdicts mọi Gate (V140-00..04 DONE + V140-05 preflight)
++    → docs/v1.4/EVIDENCE.md (consolidated). GATE-4 điều kiện 1: upper-bound note ✓.
++[x] RELEASE-NOTES-v1.4.0.md theo format v1.3.x
++    → docs/releases/RELEASE-NOTES-v1.4.0.md. GATE-4 điều kiện 2: KHÔNG dùng
++      precision@k làm selling point (internal engineering metric, not a claim) ✓.
++[x] Full suite cuối PASS trên HEAD candidate (83194ba)
++    → 3425 passed / 7 skipped / 0 failed (Py 3.13.15, isolated HOME).
++[x] Preflight publication (version↔HEAD↔tag verify)
++    → zero_mem/version.py=1.4.0; git tag v1.4.0 @ 83194ba; capture /tmp/v140_05_preflight_suite3.txt.
++[ ] GATE-FINAL duyệt → tag v1.4.0 + GH Release (DỪNG tại GATE-FINAL, chưa push)
++[ ] Gates file mv vào _gates-done/v1.4.0/ + WORKSPACE-POLICY inventory refresh (sau GATE-FINAL)
 ```
-[ ] EVIDENCE.md tổng hợp đầy đủ verdicts mọi Gate
-[ ] RELEASE-NOTES-v1.4.0.md theo format v1.3.x
-[ ] Full suite cuối PASS trên HEAD candidate
-[ ] Preflight publication (remote verify, tag khớp commit)
-[ ] GATE-FINAL duyệt → tag v1.4.0 + GH Release
-[ ] Gates file mv vào _gates-done/v1.4.0/ + WORKSPACE-POLICY inventory refresh
-```
-
----
 
 ## Gate log (điền khi duyệt)
 
 | Gate | Ngày | Quyết định | Evidence tham chiếu |
 |---|---|---|---|
-| GATE-0 | | | |
-| GATE-1 | | | |
-| GATE-2 (chọn A/B) | | | |
-| GATE-2b | | | |
-| GATE-3 | | | |
-| GATE-4 | | | |
+| GATE-0 | 2026-08-24 | APPROVED | V140-00-HANDOFF |
+| GATE-1 | 2026-08-24 | APPROVED (a) | V140-01-HANDOFF |
+| GATE-2 (chọn A/B) | 2026-08-24 | APPROVED, chọn B | ADR-V140-01-DEF004 |
+| GATE-2b | 2026-08-24 | APPROVED | V140-02-HANDOFF, verifier 6/6 |
+| GATE-3 | 2026-08-24 | APPROVED | V140-03-HANDOFF, verifier 11/11 |
+| GATE-4 | 2026-08-25 | APPROVED | V140-04-HANDOFF, verifier 7/7; EVIDENCE upper-bound note |
 | GATE-FINAL | | | |

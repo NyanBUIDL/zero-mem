@@ -67,13 +67,13 @@ Status: `DONE` (GATE-4 APPROVED).
 
 ## V140-05 — Closure
 
-Status: `IN PROGRESS` (GATE-FINAL pending).
+Status: `DONE` (GATE-FINAL pending duyệt).
 - EVIDENCE tổng hợp (file này) ✓
 - RELEASE-NOTES-v1.4.0.md ✓ (KHÔNG dùng precision@k làm selling point)
 - version bump `zero_mem/version.py` 1.3.4 → 1.4.0 ✓
 - Preflight: tag↔HEAD↔version verify + full suite green ✓
 - GATE-FINAL draft (template) — KHÔNG tag/push (local only) ✓
-- Tag v1.4.0 (local) ✓
+- Tag v1.4.0 (local) ✓ @ 83194ba
 
 ### Preflight evidence
 
