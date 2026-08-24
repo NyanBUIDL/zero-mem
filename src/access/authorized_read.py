@@ -137,7 +137,8 @@ def _project_predicate(scope: AllowedScope) -> Tuple[Optional[str], List[str]]:
 
 
 def _scope_allows(scope: AllowedScope, requester: Optional[str],
-                  profile_id: Optional[str], project_id: Optional[str]) -> bool:
+                  profile_id: Optional[str], project_id: Optional[str],
+                  space_members: Optional[set] = None) -> bool:
     """Defensive post-validation: is (profile_id, project_id) inside this scope?
 
     - global read permits NULL-profile (unowned/default) records.
@@ -148,6 +149,11 @@ def _scope_allows(scope: AllowedScope, requester: Optional[str],
       alone authorizes the row across profiles (a project read grant authorizes
       reading that project regardless of which profile owns the row).
     - cross-profile rows without an explicit grant => DENIED.
+    - knowledge-space grant (DEF-004, Option B): the space is resolved into a set
+      of concrete (profile_id, project_id) members via the resolution layer
+      (``space_members``). The row is authorized iff its (profile, project) is in
+      that set. When ``space_members`` is not supplied (no resolver data), a space
+      grant remains NON-authorizing (fail-closed) — it never silently authorizes.
     """
     # Project/space grant scopes are profile-unrestricted; the project/space clause
     # enforces the boundary. For base / profile-grant / implicit-local scopes, fold
@@ -174,8 +180,13 @@ def _scope_allows(scope: AllowedScope, requester: Optional[str],
     if scope.allowed_project_ids and project_id in scope.allowed_project_ids:
         return True
     if scope.allowed_knowledge_space_ids:
-        # knowledge-space is not a zm_meta column in this substrate; a space grant
-        # cannot be validated against row data, so it is non-authorizing here.
+        # DEF-004 Option B: knowledge-space resolution layer. ``zm_meta`` has no
+        # knowledge_space_id column; instead the granted space maps to concrete
+        # (profile_id, project_id) members resolved from the derived corpus state.
+        # The row is authorized iff its (profile, project) is a resolved member.
+        if space_members is not None and (profile_id, project_id) in space_members:
+            return True
+        # No resolver data (or row not in resolved set) => non-authorizing.
         return False
     return False
 
@@ -188,7 +199,7 @@ class AuthorizedReadService:
     """Gates M3/M4 reads behind the M5.1/M5.3 policy. Store is used read-only."""
 
     def __init__(self, store, requesting_profile_id: Optional[str],
-                 grant_conn=None) -> None:
+                 grant_conn=None, corpus_conn=None) -> None:
         self._store = store
         self._requester = requesting_profile_id
         # Optional writable/derived connection to zm_access_grants. When supplied,
@@ -196,6 +207,25 @@ class AuthorizedReadService:
         # the existing M5.3 compose_effective_scope path WITHOUT redesign. The
         # resolved grants are VALIDATED from their own fields (no caller trust).
         self._grant_conn = grant_conn
+        # Optional read-only connection to the derived corpus DB (zm_corpus_*).
+        # Supplies the DEF-004 Option B knowledge-space resolution layer: a space
+        # grant is mapped to concrete (profile_id, project_id) members from corpus
+        # state. When None, space grants stay fail-closed (non-authorizing).
+        self._corpus_conn = corpus_conn
+
+    def _space_members_for(self, scope) -> Optional[set]:
+        """Resolve (profile, project) members for a scope's granted spaces (B).
+
+        Returns None when no corpus connection is available (callers then keep
+        space grants non-authorizing). Returns a set of (profile_id, project_id)
+        tuples when spaces are present, possibly empty (space with no corpus
+        members => nothing authorized).
+        """
+        space_ids = list(scope.allowed_knowledge_space_ids or [])
+        if not space_ids or self._corpus_conn is None:
+            return None
+        from .knowledge_space_resolver import resolve_space_members
+        return set(resolve_space_members(self._corpus_conn, space_ids))
 
     def close(self) -> None:
         """Close the owned read-only store connection, if it exposes close()."""
@@ -263,16 +293,54 @@ class AuthorizedReadService:
                                 decision=eff)
 
     # -- scope decomposition ----------------------------------------------
+    def _expand_scope_with_spaces(self, scope: AllowedScope) -> AllowedScope:
+        """DEF-004 Option B: resolve a scope's knowledge-space grants into concrete
+        (profile_id, project_id) members and merge them into the scope's
+        profile/project dimensions.
+
+        After expansion, the existing profile/project predicates (used by every
+        read path) transparently authorize rows owned by corpus members of the
+        granted space — no ``zm_meta`` schema change needed. When no corpus
+        connection is available, the scope is returned unchanged (space grants
+        then stay fail-closed via the existing non-authorizing branch).
+        """
+        space_ids = list(scope.allowed_knowledge_space_ids or [])
+        if not space_ids or self._corpus_conn is None:
+            return scope
+        from .knowledge_space_resolver import resolve_space_members
+        members = resolve_space_members(self._corpus_conn, space_ids)
+        if not members:
+            # Space has no corpus members => nothing to authorize; keep scope as-is
+            # (the non-authorizing space branch in _scope_allows enforces denial).
+            return scope
+        profs = list(scope.allowed_profile_ids) + [p for p, _ in members if p is not None]
+        projs = list(scope.allowed_project_ids) + [j for _, j in members if j is not None]
+        return AllowedScope(
+            operation=scope.operation,
+            allowed_profile_ids=sorted(set(profs)),
+            allowed_project_ids=sorted(set(projs)),
+            allowed_knowledge_space_ids=list(scope.allowed_knowledge_space_ids),
+            global_read_allowed=scope.global_read_allowed,
+            resource_types=scope.resource_types,
+            isolated=scope.isolated,
+        )
+
     def _ordered_scopes(self, eff: EffectiveReadScope) -> List[AllowedScope]:
-        """Stable, deduplicated list of scopes to query (base first, then grants)."""
+        """Stable, deduplicated list of scopes to query (base first, then grants).
+
+        Each scope is expanded with its resolved knowledge-space members (DEF-004
+        Option B) so profile/project predicates authorize space-owned rows.
+        """
         import json
-        scopes: List[AllowedScope] = [eff.base]
-        seen = {json.dumps(eff.base.as_dict(), sort_keys=True)}
+        expanded_base = self._expand_scope_with_spaces(eff.base)
+        scopes: List[AllowedScope] = [expanded_base]
+        seen = {json.dumps(expanded_base.as_dict(), sort_keys=True)}
         for g in eff.grant_scopes:
-            d = json.dumps(g.as_dict(), sort_keys=True)
+            eg = self._expand_scope_with_spaces(g)
+            d = json.dumps(eg.as_dict(), sort_keys=True)
             if d not in seen:
                 seen.add(d)
-                scopes.append(g)
+                scopes.append(eg)
         return scopes
 
     # -- M3 structured ------------------------------------------------------
@@ -374,7 +442,7 @@ class AuthorizedReadService:
                 for v in rows:
                     if v.event_id in seen_ids:
                         continue
-                    if not _scope_allows(scope, self._requester, v.profile_id, v.project_id):
+                    if not _scope_allows(scope, self._requester, v.profile_id, v.project_id, space_members=self._space_members_for(scope)):
                         return self._boundary_violation(eff)
                     seen_ids.add(v.event_id)
                     merged.append(v)
@@ -415,7 +483,7 @@ class AuthorizedReadService:
             return AuthorizedResult(allowed=True, denied=False,
                                     reason_code=eff.reason_code, decision=eff)
         for scope in self._ordered_scopes(eff):
-            if _scope_allows(scope, self._requester, view.profile_id, view.project_id):
+            if _scope_allows(scope, self._requester, view.profile_id, view.project_id, space_members=self._space_members_for(scope)):
                 return AuthorizedResult(allowed=True, denied=False,
                                         reason_code=eff.reason_code,
                                         items=[view], decision=eff)
@@ -434,7 +502,7 @@ class AuthorizedReadService:
         for v in views:
             ok = False
             for scope in self._ordered_scopes(eff):
-                if _scope_allows(scope, self._requester, v.profile_id, v.project_id):
+                if _scope_allows(scope, self._requester, v.profile_id, v.project_id, space_members=self._space_members_for(scope)):
                     ok = True
                     break
             if not ok:
@@ -460,10 +528,17 @@ class AuthorizedReadService:
             seen_ids: set = set()
             items: List[Any] = []
             for scope in self._ordered_scopes(eff):
+                # DEF-004 Option B: expanded scope may carry resolved (profile, project)
+                # members from a knowledge-space grant. Prefer the scope's concrete
+                # dimensions (which include resolved members) over the bare request.
                 eff_profile = scope.allowed_profile_ids[0] if scope.allowed_profile_ids else (
                     self._requester if (self._requester is not None and not scope.global_read_allowed) else profile_filter)
-                eff_project = project_filter if project_filter is not None else (
-                    request.project_ids[0] if request.project_ids else None)
+                if project_filter is not None:
+                    eff_project = project_filter
+                elif scope.allowed_project_ids:
+                    eff_project = scope.allowed_project_ids[0]
+                else:
+                    eff_project = request.project_ids[0] if request.project_ids else None
                 req = QueryRequest(
                     profile_id=eff_profile,
                     project_id=eff_project,
@@ -478,7 +553,7 @@ class AuthorizedReadService:
                 for h in res.results:
                     if h.event_id in seen_ids:
                         continue
-                    if not _scope_allows(scope, self._requester, h.profile_id, h.project_id):
+                    if not _scope_allows(scope, self._requester, h.profile_id, h.project_id, space_members=self._space_members_for(scope)):
                         return self._boundary_violation(eff)
                     seen_ids.add(h.event_id)
                     items.append(h)
@@ -559,7 +634,7 @@ class AuthorizedReadService:
             return AuthorizedResult(allowed=True, denied=False,
                                     reason_code=eff.reason_code, decision=eff)
         for scope in self._ordered_scopes(eff):
-            if _scope_allows(scope, self._requester, view.profile_id, view.project_id):
+            if _scope_allows(scope, self._requester, view.profile_id, view.project_id, space_members=self._space_members_for(scope)):
                 return AuthorizedResult(allowed=True, denied=False,
                                         reason_code=eff.reason_code,
                                         items=[view], decision=eff)
@@ -596,7 +671,8 @@ class AuthorizedReadService:
             for scope in self._ordered_scopes(eff):
                 if _scope_allows(scope, self._requester,
                                 getattr(v, "profile_id", None),
-                                getattr(v, "project_id", None)):
+                                getattr(v, "project_id", None),
+                                space_members=self._space_members_for(scope)):
                     ok = True
                     break
             if not ok:
