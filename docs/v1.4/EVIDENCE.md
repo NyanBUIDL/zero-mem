@@ -47,8 +47,9 @@ Status: `DONE` — đã thực thi (commit pending GATE-4).
 | 10 | 0.3095 |
 
 - Latency: mean 75.2 ms, p95 164.8 ms (N=42 queries, isolated HOME, Py 3.13.15).
-- Reproducibility: **2 runs byte-identical on precision-bearing keys** (fingerprint
-  `aee554fee8059494`). Latency excluded from equivalence (timing noise).
+- Reproducibility: **3 runs byte-identical on precision-bearing keys** (fingerprint
+  `aee554fee8059494`; harness demo runs `--runs 2` and the pytest runs 3 — both
+  pass). Latency excluded from equivalence (timing noise).
 - Legacy baseline ref (context only, NOT comparable — different corpus + metric):
   recall@8 0.519 (N=500 synthetic). precision@k ≠ recall@k; reported side-by-side
   per GATE-3 condition, không claim subsumption.
