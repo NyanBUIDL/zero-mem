@@ -115,6 +115,26 @@ Phương án C chỉ mở khi B chứng minh chi phí chấp nhận được mà
 
 ☐ CHỌN A — hardening-only cho v1.5.0
 ☐ CHỌN B — granular enterprise authorization trong v1.5
-☐ CHỌN A + spike B-schema (khuyến nghị)
+☒ CHỌN A + spike B-schema (khuyến nghị) — duyệt chat 2026-08-25; thực thi WP1 (`632706c`) + WP2 (`2906ae6`)
 ☐ CHỌN C — tách tier module riêng (cần ADR con)
 ☐ Khác: ………
+
+## Phụ lục WP3 (2026-08-25) — Đóng DEF-011: bỏ resolution fallback
+
+**Quyết định maintainer:** "nếu nên làm thì phải làm thôi, để đi đúng canonical-first"
+(chat 2026-08-25, sau khi được trình đánh đổi).
+
+**Nội dung:** `_scope_allows` bỏ hẳn nhánh fallback `space_members` cho row NULL-ks.
+Row không mang `knowledge_space_id` trong canonical envelope = unscoped (D-2026-08-22-03)
+⇒ KHÔNG bao giờ được space grant authorize trên event path, bất kể corpus projection
+nói gì. Space authorization trên event path đọc DUY NHẤT `zm_meta.knowledge_space_id`
+(derived từ canonical JSONL, rebuildable) ⇒ hết derived-state-thứ-hai tham gia quyết
+định bảo mật event ⇒ **DEF-011 CLOSED**.
+
+**Giữ nguyên:** resolver + digest gate tiếp tục phục vụ CORPUS path
+(`corpus_unit_search`) — nơi dữ liệu ks thuộc bản chất corpus, không phải lớp bảo
+vật event. Layer không bị xóa, chỉ tách khỏi event authorization.
+
+**Đánh đổi đã duyệt:** row legacy (envelope cũ không ks) mất khả năng được space
+grant authorize qua đường gián tiếp; cần re-ingest envelope mới để gắn ks. Lớp
+profile ownership và global-default-read KHÔNG đổi.

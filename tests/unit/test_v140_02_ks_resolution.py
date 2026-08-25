@@ -4,13 +4,17 @@ These tests encode the APPROVED behavior (GATE-2: Option B, no zm_meta schema
 change). They must FAIL before the resolver + ``_scope_allows`` fix land, and
 PASS after.
 
+V150-WP3 SUPERSESSION (2026-08-25, ADR-V150-01 appendix): the event path moved
+to canonical-first per-row authorization (zm_meta.knowledge_space_id). The
+space_members fallback is REMOVED from _scope_allows — resolver-derived
+membership no longer authorizes event rows. The 4 _scope_allows tests below
+are formally SUPERSEDED and now PIN THE ABSENCE of the old behavior
+(resolver layer itself remains tested for the corpus path).
+
 Coverage:
 1. Resolver maps space -> (profile, project) members from derived corpus state.
-2. Space-grant authorizes an event whose (profile, project) is in that set.
-3. Fail-closed: space-grant DENIES an event whose (profile, project) is NOT in
-   the resolved set, and DENIES when the space has no corpus members (no
-   resolver data => no authorization).
-4. ``_scope_allows`` honors resolved space members instead of returning False.
+   [STILL VALID — corpus-path resolution]
+2-4. [SUPERSEDED by V150-WP3] replaced by absence-pins.
 """
 from __future__ import annotations
 
@@ -86,54 +90,49 @@ def test_resolver_empty_for_no_input(corpus_conn):
 
 
 # ---------------------------------------------------------------------------
-# _scope_allows honors resolved space members (Option B)
+# _scope_allows: V150-WP3 — resolution fallback REMOVED (canonical-first)
+# The 4 original Option B tests are superseded; these pin the absence.
 # ---------------------------------------------------------------------------
 
 def test_scope_allows_space_member_event():
-    """A space grant must authorize an event whose (profile, project) is a
-    resolved member of the granted space."""
-    members = {("prof-X", "proj-Y")}
+    """SUPERSEDED (V150-WP3): space_members no longer authorizes event rows.
+    Pin: passing row ks in the granted set is the ONLY authorizing form."""
     scope = AllowedScope(
         operation=READ,
         allowed_knowledge_space_ids=["quant-theory"],
     )
-    # Event owned by the corpus member of quant-theory => authorized.
     assert authorized_read._scope_allows(
         scope, "requester", "prof-X", "proj-Y",
-        space_members=members,
+        row_knowledge_space_id="quant-theory",
     ) is True
 
 
 def test_scope_allows_denies_non_member_event():
-    """Space grant must NOT authorize an event outside the resolved member set."""
-    members = {("prof-X", "proj-Y")}
+    """SUPERSEDED (V150-WP3): a row outside the granted ks is denied."""
     scope = AllowedScope(
         operation=READ,
         allowed_knowledge_space_ids=["quant-theory"],
     )
-    # Event owned by a different profile/project => denied (fail-closed).
     assert authorized_read._scope_allows(
         scope, "requester", "prof-Z", "proj-W",
-        space_members=members,
+        row_knowledge_space_id="other-ks",
     ) is False
 
 
 def test_scope_allows_space_grant_without_members_is_fail_closed():
-    """No resolver data (empty members) => space grant cannot authorize anything."""
+    """SUPERSEDED (V150-WP3): NULL row ks => denied, no resolver involvement."""
     scope = AllowedScope(
         operation=READ,
         allowed_knowledge_space_ids=["quant-theory"],
     )
-    # Without members, even a plausible row is denied (no silent authorization).
     assert authorized_read._scope_allows(
         scope, "requester", "prof-X", "proj-Y",
-        space_members=set(),
+        row_knowledge_space_id=None,
     ) is False
 
 
 def test_scope_allows_space_grant_legacy_no_param_still_fail_closed():
-    """Backward-compatible call without space_members keeps fail-closed behavior
-    for space grants (no regressions / no silent authorization)."""
+    """Pin unchanged: no row ks argument => fail-closed for space grants."""
     scope = AllowedScope(
         operation=READ,
         allowed_knowledge_space_ids=["quant-theory"],
@@ -148,11 +147,10 @@ def test_scope_allows_space_grant_legacy_no_param_still_fail_closed():
 # ---------------------------------------------------------------------------
 
 def test_expand_scope_with_spaces_merges_members(corpus_conn):
-    """DEF-004 Option B: facade expands a space grant scope into the concrete
-    (profile, project) members resolved from corpus state, so the existing
-    profile/project predicates authorize space-owned rows without a zm_meta
-    schema change."""
-    from src.access import AccessRequest, AuthorizedReadService, READ
+    """SUPERSEDED (V150-WP3): expansion is now a NO-OP on the event path —
+    member merging was the coarsening channel and is removed. The scope is
+    returned unchanged; event authorization stays per-row."""
+    from src.access import AuthorizedReadService
     from src.access.contracts import AllowedScope
 
     svc = AuthorizedReadService.__new__(AuthorizedReadService)
@@ -162,17 +160,18 @@ def test_expand_scope_with_spaces_merges_members(corpus_conn):
         allowed_knowledge_space_ids=["quant-theory"],
     )
     expanded = svc._expand_scope_with_spaces(space_scope)
-    assert "prof-X" in expanded.allowed_profile_ids
-    assert "proj-Y" in expanded.allowed_project_ids
-    # The expanded scope now authorizes a row owned by the corpus member.
+    # No-op: dimensions unchanged, nothing merged from corpus members.
+    assert expanded.allowed_profile_ids == []
+    assert expanded.allowed_project_ids == []
+    assert expanded.allowed_knowledge_space_ids == ["quant-theory"]
+    # Per-row only: a row with matching ks authorizes, others do not.
     assert authorized_read._scope_allows(
         expanded, "requester", "prof-X", "proj-Y",
-        space_members=svc._space_members_for(expanded),
+        row_knowledge_space_id="quant-theory",
     ) is True
-    # And denies a row outside the resolved set.
     assert authorized_read._scope_allows(
         expanded, "requester", "prof-Z", "proj-W",
-        space_members=svc._space_members_for(expanded),
+        row_knowledge_space_id="other-ks",
     ) is False
 
 

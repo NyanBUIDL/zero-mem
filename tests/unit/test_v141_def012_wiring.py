@@ -198,19 +198,21 @@ class TestHandlerPathSpaceGrant:
 
             scope = AllowedScope(operation=READ,
                                  allowed_knowledge_space_ids=["quant-theory"])
+            # V150-WP3: expansion is a no-op on the event path (no merging).
             expanded = svc._expand_scope_with_spaces(scope)
-            assert "prof-X" in expanded.allowed_profile_ids, (
-                "resolver must expand members when corpus_conn is wired"
-            )
+            assert expanded.allowed_profile_ids == [], (
+                "V150-WP3: member expansion must not merge into the scope")
             from src.access.authorized_read import _scope_allows
 
-            members = svc._space_members_for(expanded)
-            assert members is not None and ("prof-X", "proj-Y") in members
+            # V150-WP3: resolver still resolves members (corpus path), but
+            # event authorization is per-row only — member data authorizes nothing.
+            # Per-row authorization still works through the unchanged scope.
             assert _scope_allows(expanded, "requester", "prof-X", "proj-Y",
-                                 space_members=members) is True
-            # And fail-closed for rows outside the resolved member set.
+                                 row_knowledge_space_id="quant-theory") is True
             assert _scope_allows(expanded, "requester", "prof-Z", "proj-W",
-                                 space_members=members) is False
+                                 row_knowledge_space_id="other-ks") is False
+            assert _scope_allows(expanded, "requester", "prof-X", "proj-Y",
+                                 row_knowledge_space_id=None) is False
         finally:
             store.close()
             rt.close_default()

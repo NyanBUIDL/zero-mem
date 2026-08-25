@@ -165,71 +165,63 @@ def _corpus_conn_with_projection(tmp_path: Path, ks: str = "ks-1",
 
 class TestDef011DigestGate:
     def test_digest_gate_exists_and_is_fail_closed(self):
-        """The service must expose a projection-integrity gate used before
-        trusting space-member resolution, failing closed on mismatch."""
-        import hashlib
+        """The digest gate module must exist and fail closed on any error
+        (V150-WP3: gate now guards the CORPUS path resolution; the event path
+        is per-row canonical and no longer consults the resolver)."""
         import inspect
-        from src.access import authorized_read as mod
+        from src.access import projection_integrity as pi
 
-        src_text = inspect.getsource(mod)
-        # A digest/integrity verification hook must be wired into the module.
-        assert "ProjectionDigestGate" in src_text and "_projection_digest" in src_text, (
-            "authorized_read must implement a projection digest/integrity gate")
+        src_text = inspect.getsource(pi)
+        assert "ProjectionDigestGate" in src_text
+        # Fail-closed: verify() returns False, never raises through.
+        import sqlite3 as _sq
+        conn = _sq.connect(":memory:")
+        gate = pi.ProjectionDigestGate(None)
+        assert gate.verify(conn) is False
 
-    def test_stale_projection_denies_space_grant(self, tmp_path):
-        """With digest gate armed and a tampered/stale projection (digest
-        mismatch), space-scoped resolution must refuse to expand members =>
-        deny (fail-closed), regardless of what zm_corpus_sources claims."""
-        pytest.importorskip("src.access.knowledge_space_resolver")
+    def test_gate_still_verifies_corpus_projection(self, tmp_path):
+        """The gate remains meaningful for the corpus path: matching digest
+        verifies; tampered/stale projection does not."""
         from src.access.authorized_read import AuthorizedReadService
         from src.access.contracts import AllowedScope
-        from src.access.knowledge_space_resolver import resolve_space_members
+        from src.access.projection_integrity import (
+            ProjectionDigestGate,
+            compute_corpus_projection_digest,
+        )
 
         conn = _corpus_conn_with_projection(tmp_path)
-        members = resolve_space_members(conn, ["ks-1"])
-        assert ("prof-a", "proj-a") in set(members)
+        digest = compute_corpus_projection_digest(conn)
+        gate = ProjectionDigestGate(digest)
+        assert gate.verify(conn) is True
+        # Tamper: a new row changes the digest.
+        conn.execute(
+            "INSERT INTO zm_corpus_sources VALUES"
+            " ('s2', 'r2', 'txt', 'prof-b', 'proj-b', 'quant-theory')")
+        assert gate.verify(conn) is False
 
-        svc = AuthorizedReadService.__new__(AuthorizedReadService)
-        svc._store = None
-        svc._requester = "prof-other"
-        svc._grant_conn = None
-        svc._corpus_conn = conn
-        # Arm the gate with a digest that CANNOT match the current projection.
-        svc._projection_digest = "0" * 64
-
-        scope = AllowedScope(
-            operation="read", allowed_profile_ids=[], allowed_project_ids=[],
-            allowed_knowledge_space_ids=["ks-1"], global_read_allowed=False,
-            resource_types=["memory_event"], isolated=False)
-        expanded = svc._expand_scope_with_spaces(scope)
-        # Gate mismatch => no member expansion (space stays non-authorizing).
-        assert expanded.allowed_profile_ids == [] and \
-            expanded.allowed_project_ids == [], (
-            "digest mismatch must prevent space-member expansion (fail-closed)")
-
-    def test_matching_digest_allows_expansion(self, tmp_path):
+    def test_expansion_is_noop_on_event_path_regardless_of_gate(self, tmp_path):
+        """V150-WP3: _expand_scope_with_spaces is a no-op — armed or not,
+        no member data may merge into an event-path scope."""
         from src.access.authorized_read import AuthorizedReadService
         from src.access.contracts import AllowedScope
         from src.access.projection_integrity import compute_corpus_projection_digest
 
         conn = _corpus_conn_with_projection(tmp_path)
-        digest = compute_corpus_projection_digest(conn)
-
         svc = AuthorizedReadService.__new__(AuthorizedReadService)
         svc._store = None
         svc._requester = "prof-other"
         svc._grant_conn = None
         svc._corpus_conn = conn
-        svc._projection_digest = digest
+        svc._projection_digest = compute_corpus_projection_digest(conn)
 
         scope = AllowedScope(
             operation="read", allowed_profile_ids=[], allowed_project_ids=[],
             allowed_knowledge_space_ids=["ks-1"], global_read_allowed=False,
             resource_types=["memory_event"], isolated=False)
         expanded = svc._expand_scope_with_spaces(scope)
-        assert ("prof-a" in expanded.allowed_profile_ids) or (
-            "proj-a" in expanded.allowed_project_ids), (
-            "matching digest must allow normal space-member expansion")
+        assert expanded.allowed_profile_ids == [] and \
+            expanded.allowed_project_ids == [], (
+            "expansion must stay a no-op even with a valid armed gate")
 
     def test_open_facade_passes_digest_through_env(self, tmp_path, monkeypatch):
         """DEF-012 lesson: the gate must be armed at the REAL production

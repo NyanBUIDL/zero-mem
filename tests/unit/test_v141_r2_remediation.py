@@ -260,14 +260,18 @@ class TestDef016RealFacadeAcceptance:
                     "real facade must carry corpus_conn when env-configured")
                 scope = AllowedScope(operation=READ,
                                      allowed_knowledge_space_ids=["quant-theory"])
+                # V150-WP3: expansion no-op — nothing merged from corpus members.
                 expanded = svc._expand_scope_with_spaces(scope)
-                assert "prof-X" in expanded.allowed_profile_ids
-                members = svc._space_members_for(expanded)
-                assert members is not None and ("prof-X", "proj-Y") in members
+                assert expanded.allowed_profile_ids == []
+                # V150-WP3: resolver still resolves (corpus path); event path
+                # is per-row only — NULL ks never authorizes via members.
+                # Per-row authorization via zm_meta.ks only.
                 assert _scope_allows(expanded, "requester", "prof-X", "proj-Y",
-                                     space_members=members) is True
+                                     row_knowledge_space_id="quant-theory") is True
                 assert _scope_allows(expanded, "requester", "prof-Z", "proj-W",
-                                     space_members=members) is False
+                                     row_knowledge_space_id="other-ks") is False
+                assert _scope_allows(expanded, "requester", "prof-X", "proj-Y",
+                                     row_knowledge_space_id=None) is False
             finally:
                 svc.close()
         finally:
