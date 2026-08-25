@@ -1,6 +1,12 @@
-# V150-WP1 — Documented Limitation: Space-Grant Coarsening (DEF-010)
+# V150-WP2/WP3 — Documented Limitation: Space-Grant Coarsening (DEF-010)
 
-**Trạng thái:** ACTIVE limitation (chấp nhận có chủ đích theo ADR-V150-01 Option A)
+> **SUPERSEDED (2026-08-25):** limitation này KHÔNG còn đúng. WP2 (`2906ae6`)
+> chuyển event path sang per-row authorization qua `zm_meta.knowledge_space_id`;
+> WP3 (`a5d779f`) loại bỏ hẳn kênh resolution fallback + member expansion.
+> Space grant giờ authorize ĐÚNG các row mang ks đó — coarsening đã bị xóa.
+> Giữ tài liệu này làm bằng chứng lịch sử quyết định Option A → B.
+
+**Trạng thái:** ~~ACTIVE~~ **SUPERSEDED** (bởi V150-WP2/WP3, ADR-V150-01 appendix)
 **Ngày:** 2026-08-25 · **Liên quan:** DEF-010 · Đóng khi: Option B (granular mapping) được duyệt
 
 ## Hành vi hiện tại

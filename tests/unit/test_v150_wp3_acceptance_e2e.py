@@ -109,8 +109,10 @@ class TestV150Wp3RealFacadeAcceptance:
 
             svc, sstore, _grants = handlers._open_facade(r, req)
             try:
-                assert svc._corpus_conn is not None, (
-                    "production construction must carry the corpus connection")
+                # V150-WP3: facade no longer wires corpus_conn on the event
+                # path (per-row canonical authorization via zm_meta.ks).
+                assert svc._corpus_conn is None, (
+                    "V150-WP3: event path must not wire a corpus connection")
 
                 request = AccessRequest(operation="READ",
                                         requesting_profile_id="prof-B",

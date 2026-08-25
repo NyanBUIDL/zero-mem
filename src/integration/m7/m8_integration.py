@@ -197,8 +197,8 @@ def _optional_relation_distances(
         if not isinstance(store, AuthorizedReadService):
             # The service wraps the store; rebuild one keyed to the same store so
             # the read inherits identical read-only + authorization guarantees.
-            # DEF-012 (v1.4.1): corpus_conn unavailable in this context (no
-            # runtime handle here) => space grants stay fail-closed, unchanged.
+            # V150-WP3: event-path space authorization is per-row via
+            # zm_meta.knowledge_space_id; no corpus connection needed here.
             auth = AuthorizedReadService(
                 store,
                 requesting_profile_id=getattr(router, "requesting_profile_id", None) or None,

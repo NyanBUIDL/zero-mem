@@ -279,21 +279,13 @@ class InjectionAdapter:
         try:
             from src.retrieval.db import open_readonly
             from src.access import AuthorizedReadService
-            # DEF-012 (v1.4.1): wire the optional corpus connection so the
-            # DEF-004 resolution layer authorizes space grants on this path.
-            corpus_conn = None
-            try:
-                from src.integration.m6 import runtime as _m6rt
-
-                if _m6rt._default_runtime is not None:
-                    corpus_conn = _m6rt._default_runtime.open_corpus_conn()
-            except Exception:
-                corpus_conn = None  # unconfigured => fail-closed preserved
+            # V150-WP3: event-path space authorization is per-row via
+            # zm_meta.knowledge_space_id — no corpus connection needed here.
+            # (corpus_unit_search opens its own corpus store when configured.)
             ro = open_readonly(self._store_path)
             try:
                 return AuthorizedReadService(
-                    ro, requesting_profile_id=self._requesting_profile_id,
-                    corpus_conn=corpus_conn)
+                    ro, requesting_profile_id=self._requesting_profile_id)
             except Exception:
                 ro.close()
                 return None

@@ -233,21 +233,10 @@ class AuthorizedReadService:
         # stay non-authorizing (deny), never over-authorize on stale/tampered
         # derived state. Unarmed (None) preserves pre-V150 behavior for callers
         # that do not opt in yet (e.g. tests constructing the service directly).
+        # V150-WP3: the EVENT path no longer consults the resolver at all
+        # (per-row zm_meta.ks only); this field is retained solely for the
+        # CORPUS read path (corpus_unit_search) integrity verification.
         self._projection_digest = expected_projection_digest
-
-    def _space_members_for(self, scope) -> Optional[set]:
-        """Resolve (profile, project) members for a scope's granted spaces (B).
-
-        Returns None when no corpus connection is available (callers then keep
-        space grants non-authorizing). Returns a set of (profile_id, project_id)
-        tuples when spaces are present, possibly empty (space with no corpus
-        members => nothing authorized).
-        """
-        space_ids = list(scope.allowed_knowledge_space_ids or [])
-        if not space_ids or self._corpus_conn is None:
-            return None
-        from .knowledge_space_resolver import resolve_space_members
-        return set(resolve_space_members(self._corpus_conn, space_ids))
 
     def close(self) -> None:
         """Close the owned read-only store connection, if it exposes close().
@@ -465,7 +454,9 @@ class AuthorizedReadService:
                 for v in rows:
                     if v.event_id in seen_ids:
                         continue
-                    if not _scope_allows(scope, self._requester, v.profile_id, v.project_id,                                     row_knowledge_space_id=getattr(v, "knowledge_space_id", None)):
+                    if not _scope_allows(scope, self._requester,
+                                             v.profile_id, v.project_id,
+                                             row_knowledge_space_id=getattr(v, "knowledge_space_id", None)):
                         return self._boundary_violation(eff)
                     seen_ids.add(v.event_id)
                     merged.append(v)
@@ -506,7 +497,9 @@ class AuthorizedReadService:
             return AuthorizedResult(allowed=True, denied=False,
                                     reason_code=eff.reason_code, decision=eff)
         for scope in self._ordered_scopes(eff):
-            if _scope_allows(scope, self._requester, view.profile_id, view.project_id,                                     row_knowledge_space_id=getattr(view, "knowledge_space_id", None)):
+            if _scope_allows(scope, self._requester, view.profile_id,
+                             view.project_id,
+                             row_knowledge_space_id=getattr(view, "knowledge_space_id", None)):
                 return AuthorizedResult(allowed=True, denied=False,
                                         reason_code=eff.reason_code,
                                         items=[view], decision=eff)
@@ -525,7 +518,9 @@ class AuthorizedReadService:
         for v in views:
             ok = False
             for scope in self._ordered_scopes(eff):
-                if _scope_allows(scope, self._requester, v.profile_id, v.project_id,                                     row_knowledge_space_id=getattr(v, "knowledge_space_id", None)):
+                if _scope_allows(scope, self._requester, v.profile_id,
+                                 v.project_id,
+                                 row_knowledge_space_id=getattr(v, "knowledge_space_id", None)):
                     ok = True
                     break
             if not ok:
@@ -576,7 +571,9 @@ class AuthorizedReadService:
                 for h in res.results:
                     if h.event_id in seen_ids:
                         continue
-                    if not _scope_allows(scope, self._requester, h.profile_id, h.project_id,                                     row_knowledge_space_id=getattr(h, "knowledge_space_id", None)):
+                    if not _scope_allows(scope, self._requester,
+                                         h.profile_id, h.project_id,
+                                         row_knowledge_space_id=getattr(h, "knowledge_space_id", None)):
                         return self._boundary_violation(eff)
                     seen_ids.add(h.event_id)
                     items.append(h)
@@ -657,7 +654,9 @@ class AuthorizedReadService:
             return AuthorizedResult(allowed=True, denied=False,
                                     reason_code=eff.reason_code, decision=eff)
         for scope in self._ordered_scopes(eff):
-            if _scope_allows(scope, self._requester, view.profile_id, view.project_id,                                     row_knowledge_space_id=getattr(view, "knowledge_space_id", None)):
+            if _scope_allows(scope, self._requester, view.profile_id,
+                             view.project_id,
+                             row_knowledge_space_id=getattr(view, "knowledge_space_id", None)):
                 return AuthorizedResult(allowed=True, denied=False,
                                         reason_code=eff.reason_code,
                                         items=[view], decision=eff)
@@ -695,7 +694,7 @@ class AuthorizedReadService:
                 if _scope_allows(scope, self._requester,
                                 getattr(v, "profile_id", None),
                                 getattr(v, "project_id", None),
-                                                                    row_knowledge_space_id=getattr(v, "knowledge_space_id", None)):
+                                row_knowledge_space_id=getattr(v, "knowledge_space_id", None)):
                     ok = True
                     break
             if not ok:

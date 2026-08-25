@@ -25,7 +25,6 @@ artifact are bound to their tools).
 
 from __future__ import annotations
 
-import os
 from dataclasses import replace
 from typing import Any, Dict, List, Optional
 
@@ -94,36 +93,13 @@ def _open_facade(runtime: M6Runtime, req: M6Request):
     from src.access.authorized_read import AuthorizedReadService
     store = runtime.open_store()
     grants = _resolve_grants(runtime, req)
-    # DEF-012 (v1.4.1): pass the optional read-only corpus connection so the
-    # DEF-004 knowledge-space resolution layer authorizes space grants on the
-    # event path. None when unconfigured => fail-closed preserved.
-    # V150-WP1 (DEF-011): arm the projection integrity gate with the expected
-    # digest so space-member expansion fails closed on stale/tampered derived
-    # state. The expected digest comes from configuration (canonical-side
-    # record); None => gate unarmed (pre-V150 behavior preserved).
-    corpus_conn = runtime.open_corpus_conn()
-    expected_digest = _expected_projection_digest(runtime, req)
+    # V150-WP3: event-path space authorization is per-row via
+    # zm_meta.knowledge_space_id — the corpus connection is NOT consulted on
+    # this path anymore (expansion is a no-op). No digest arming here either;
+    # the corpus path (corpus_unit_search) manages its own integrity.
     svc = AuthorizedReadService(store, req.requesting_profile_id,
-                                grant_conn=store.conn,
-                                corpus_conn=corpus_conn,
-                                expected_projection_digest=expected_digest)
+                                grant_conn=store.conn)
     return svc, store, grants
-
-
-def _expected_projection_digest(runtime: M6Runtime, req) -> Optional[str]:
-    """Resolve the armed expectation for the DEF-011 integrity gate.
-
-    Precedence: explicit request field > env ``ZM_CORPUS_PROJECTION_DIGEST``.
-    Returns None when unset — the gate stays unarmed and space grants behave
-    exactly as in v1.4.x (fail-closed on unconfigured corpus path).
-    """
-    explicit = getattr(req, "corpus_projection_digest", None)
-    if isinstance(explicit, str) and explicit:
-        return explicit
-    env_val = os.environ.get("ZM_CORPUS_PROJECTION_DIGEST")
-    if env_val:
-        return env_val
-    return None
 
 
 def _scalar(w: Any):

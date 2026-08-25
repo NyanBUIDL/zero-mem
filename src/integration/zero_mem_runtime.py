@@ -343,16 +343,8 @@ class ZeroMemRuntime:
         from src.integration.public_read_adapter import AuthorizedPublicReadAdapter
         from src.retrieval.db import open_readonly
         readonly = open_readonly(self._derived.path)
-        # DEF-012 (v1.4.1): wire the optional corpus connection (fail-closed
-        # when the M6 runtime is unconfigured — behavior unchanged).
-        corpus_conn = None
-        try:
-            from src.integration.m6 import runtime as _m6rt
-
-            if _m6rt._default_runtime is not None:
-                corpus_conn = _m6rt._default_runtime.open_corpus_conn()
-        except Exception:
-            corpus_conn = None
+        # V150-WP3: event-path space authorization is per-row via
+        # zm_meta.knowledge_space_id — no corpus connection needed here.
 
         def freshness() -> dict[str, object]:
             snapshot = self.health().projection
@@ -365,8 +357,7 @@ class ZeroMemRuntime:
             }
 
         adapter = AuthorizedPublicReadAdapter(
-            AuthorizedReadService(readonly, requesting_profile_id,
-                                  corpus_conn=corpus_conn),
+            AuthorizedReadService(readonly, requesting_profile_id),
             requesting_profile_id=requesting_profile_id,
             freshness_provider=freshness,
             wait_provider=self.flush_projection,

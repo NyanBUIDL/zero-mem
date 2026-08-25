@@ -140,42 +140,28 @@ class TestDef014CorpusConnLifecycle:
             rt.close_default()
 
     def test_facade_close_releases_corpus_conn(self, tmp_path, monkeypatch):
-        """Real handler path: after svc.close(), the corpus conn it opened via
-        the runtime must be released (closed), not left to GC."""
+        """SUPERSEDED (V150-WP3): _open_facade no longer opens a corpus conn
+        on the event path (per-row authorization). Replacement contract: the
+        facade's store connection IS released on close."""
         from src.integration.m6 import handlers, runtime as rt
 
-        corpus = _corpus_db(tmp_path)
         main = tmp_path / "main.sqlite"
         main.touch()
-        # _open_facade resolves grants against the runtime store; give it the
-        # minimal M5 schema so resolution succeeds (production-style shape).
         from src.storage.migrations import migrate_8
         gconn = sqlite3.connect(str(main))
         gconn.row_factory = sqlite3.Row
         migrate_8.up(gconn, "v141r2")
         gconn.commit()
         gconn.close()
-        monkeypatch.setenv("ZM_M6_CORPUS_STORE_PATH", str(corpus))
         r = rt.configure(main)
         try:
-            opened = []
-
-            class TrackingRuntime(rt.M6Runtime):
-                def open_corpus_conn(self):
-                    c = super().open_corpus_conn()
-                    opened.append(c)
-                    return c
-
             req = handlers.M6Request(tool="memory_query",
                                      requesting_profile_id="requester")
-            svc, store, grants = handlers._open_facade(TrackingRuntime(main), req)
-            try:
-                assert opened and opened[0] is not None, (
-                    "_open_facade must open a corpus conn when configured")
-                probe = opened[0]
-            finally:
-                svc.close()
-            with pytest.raises(sqlite3.ProgrammingError):
+            svc, store, grants = handlers._open_facade(r, req)
+            probe = store.conn
+            assert probe is not None
+            svc.close()
+            with pytest.raises(Exception):
                 probe.execute("SELECT 1")
         finally:
             rt.close_default()
@@ -256,8 +242,10 @@ class TestDef016RealFacadeAcceptance:
                                      requesting_profile_id="requester")
             svc, store, grants = handlers._open_facade(r, req)
             try:
-                assert svc._corpus_conn is not None, (
-                    "real facade must carry corpus_conn when env-configured")
+                # V150-WP3: facade no longer carries corpus_conn (per-row
+                # canonical authorization); assert the new contract.
+                assert svc._corpus_conn is None, (
+                    "V150-WP3: event path must not wire a corpus connection")
                 scope = AllowedScope(operation=READ,
                                      allowed_knowledge_space_ids=["quant-theory"])
                 # V150-WP3: expansion no-op — nothing merged from corpus members.

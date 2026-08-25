@@ -1,12 +1,13 @@
-"""V150-WP1 (DEF-011) — corpus projection integrity gate.
+"""V150-WP1/WP3 (DEF-011) — corpus projection integrity gate.
 
-Space-grant authorization on the event path reads the DERIVED corpus projection
-(``zm_corpus_sources`` / ``zm_corpus_units``) to resolve knowledge-space
-members. ADR-V150-01 Option A requires that this derived input never silently
-drives a security decision: the caller arms :class:`ProjectionDigestGate` with
-a digest computed over canonical corpus state (registry JSONL + blob digests),
-and the service verifies the live derived projection against it before trusting
-member expansion.
+STATUS AFTER V150-WP3: the EVENT path no longer consults the resolver at all
+(per-row ``zm_meta.knowledge_space_id`` authorization, canonical-first). This
+module now serves the CORPUS read path (``corpus_unit_search``) integrity
+verification and is retained as reusable infrastructure: any future feature
+that lets derived corpus state influence a security decision must go through
+this gate.
+
+Original semantics (unchanged):
 
 Semantics:
 

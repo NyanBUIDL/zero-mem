@@ -223,17 +223,17 @@ class TestDef011DigestGate:
             expanded.allowed_project_ids == [], (
             "expansion must stay a no-op even with a valid armed gate")
 
-    def test_open_facade_passes_digest_through_env(self, tmp_path, monkeypatch):
-        """DEF-012 lesson: the gate must be armed at the REAL production
-        construction point (_open_facade), not just library-level."""
+    def test_open_facade_no_longer_wires_corpus_conn(self):
+        """SUPERSEDED by V150-WP3: the event path is per-row canonical —
+        _open_facade must NOT wire a corpus connection or digest anymore.
+        (Formerly: DEF-012-style wiring pin for the resolver path.)"""
         import inspect
 
-        monkeypatch.setenv("ZM_CORPUS_PROJECTION_DIGEST", "deadbeef")
         from src.integration.m6 import handlers as m6_handlers
 
         src_text = inspect.getsource(m6_handlers._open_facade)
-        assert "expected_projection_digest" in src_text, (
-            "_open_facade must arm the DEF-011 integrity gate")
-        assert "ZM_CORPUS_PROJECTION_DIGEST" in (
-            inspect.getsource(m6_handlers)), (
-            "digest expectation must resolve from env/request configuration")
+        assert "corpus_conn" not in src_text.replace(
+            "# corpus connection", ""), (
+            "_open_facade must not pass corpus_conn on the event path")
+        assert "expected_projection_digest" not in src_text, (
+            "_open_facade must not arm a digest gate on the event path")

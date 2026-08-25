@@ -1,6 +1,6 @@
 # ADR-V150-01 — Cụm ủy quyền enterprise v1.5: granular space-grant, derived-state trong authorization, registry scale (DEF-009 / DEF-010 / DEF-011)
 
-**Trạng thái:** DRAFT — chờ maintainer chọn phương án tại GATE-V150-1
+**Trạng thái:** ACCEPTED + IMPLEMENTED (GATE-V150-1: "A + spike B-schema", duyệt chat 2026-08-25; thực thi WP1–WP3, xem Phụ lục WP3)
 **Ngày:** 2026-08-25 · **Liên quan:** DEF-009, DEF-010, DEF-011 (+ admin CLI đa-agent từ ADR-V141-01)
 **Phạm vi quyết định:** thiết kế kiến trúc v1.5 — KHÔNG kèm code trong ADR này.
 
@@ -138,3 +138,16 @@ vật event. Layer không bị xóa, chỉ tách khỏi event authorization.
 **Đánh đổi đã duyệt:** row legacy (envelope cũ không ks) mất khả năng được space
 grant authorize qua đường gián tiếp; cần re-ingest envelope mới để gắn ks. Lớp
 profile ownership và global-default-read KHÔNG đổi.
+
+## Phụ lục thực thi (2026-08-25) — Tóm tắt WP1–WP3
+
+| WP | Commit | Nội dung | DEF |
+|---|---|---|---|
+| R4 | `8d981c3` | Test portability (DEF-017/018, tiền WP) | — |
+| WP1 | `632706c` | Option A hardening: registry O(1), fp_request naming, digest gate | DEF-009 FIXED |
+| WP2 | `2906ae6` | Per-row ks authorization (zm_meta.ks có sẵn từ migration v11) | DEF-010 FIXED |
+| WP3 | `a5d779f` | Canonical-first: bỏ resolver fallback + expansion no-op | DEF-011 CLOSED |
+| Acc | `6972fd5` | E2E acceptance qua ingest thật + `_open_facade` thật | evidence |
+
+**Số suite chuẩn:** 3535 passed / 12 skipped / 0 failed (76.87s, Py 3.13, isolated HOME).
+**Còn backlog enterprise:** admin CLI đa-agent (ADR-V141-01 Option B).
