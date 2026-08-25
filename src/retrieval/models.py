@@ -137,6 +137,7 @@ class SearchHit:
     session_id: Optional[str]
     profile_id: Optional[str]
     project_id: Optional[str]
+    knowledge_space_id: Optional[str]
     task_id: Optional[str]
     turn_id: Optional[str]
     parent_trace_id: Optional[str]

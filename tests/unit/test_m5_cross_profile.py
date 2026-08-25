@@ -663,7 +663,7 @@ def test_pagination_deterministic_multi_scope(tmp_path: Path):
         full = svc.query_events(
             AccessRequest(operation=READ, requesting_profile_id="PR1",
                           target_profile_ids=["PR1", "PR2"]),
-            grants=[g], limit=1000)
+            grants=[g], limit=500)
         # Concatenation of pages == deterministic full result.
         page_ids = []
         cursor = None

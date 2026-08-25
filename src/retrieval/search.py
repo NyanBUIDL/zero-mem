@@ -16,7 +16,7 @@ machinery; the fingerprint also binds the normalized FTS text.
 from __future__ import annotations
 
 import sqlite3
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from .db import ReadonlyStore
 from . import cursor as cursor_mod
@@ -117,6 +117,7 @@ def _row_to_hit(row, snippet: str) -> SearchHit:
         session_id=row["session_id"],
         profile_id=row["profile_id"],
         project_id=row["project_id"],
+        knowledge_space_id=row["knowledge_space_id"],
         task_id=row["task_id"],
         turn_id=row["turn_id"],
         parent_trace_id=row["parent_trace_id"],
@@ -137,6 +138,9 @@ def search_text(
     req: Optional[QueryRequest] = None,
     limit: Optional[int] = None,
     cursor: Optional[str] = None,
+    candidate_where: Optional[str] = None,
+    candidate_params: Optional[List[Any]] = None,
+    fingerprint_extra: str = "",
 ) -> SearchResult:
     """Deterministic FTS5 search over sanitized content. Read-only.
 
@@ -166,8 +170,9 @@ def search_text(
     # V130-01: the cursor is bound to the MATCH strategy that produced it. Both
     # mode-specific fingerprints are derived up front; validation uses the one for
     # the pass whose rows are returned.
-    qf_and = cursor_mod.make_fingerprint(req, text=text, match_mode="and")
-    qf_or = cursor_mod.make_fingerprint(req, text=text, match_mode="or_fallback")
+    fingerprint_text = text + "\x1f" + fingerprint_extra
+    qf_and = cursor_mod.make_fingerprint(req, text=fingerprint_text, match_mode="and")
+    qf_or = cursor_mod.make_fingerprint(req, text=fingerprint_text, match_mode="or_fallback")
 
     # Read-only capability detection against the actual database state.
     if not _fts_substrate_present(store):
@@ -188,9 +193,12 @@ def search_text(
             keyset = (data["sort"][0], data["sort"][1])
 
     structured_where, structured_params = query_mod._build_where(req)
+    if candidate_where:
+        structured_where = f"({structured_where}) AND ({candidate_where})"
+        structured_params = structured_params + list(candidate_params or [])
     try:
         rows = _run_match(store, text, structured_where,
-                          structured_params, keyset, effective_limit)
+                          structured_params, keyset, effective_limit + 1)
         match_mode = "and"
         # V130-01 precision-guarded OR fallback: only when the implicit-AND pass
         # returned zero rows AND the query has >= 2 terms. Terms are FTS5-quoted so
@@ -204,7 +212,7 @@ def search_text(
                 # AND-mode cursor's keyset belongs to the same logical query, so
                 # reuse is safe: identical sort key and filter set).
                 rows = _run_match(store, or_expr, structured_where,
-                                  structured_params, keyset, effective_limit)
+                                  structured_params, keyset, effective_limit + 1)
                 match_mode = "or_fallback"
     except sqlite3.OperationalError:
         # Malformed FTS expression (or other FTS engine error). Sanitized, no raw text.
@@ -223,5 +231,5 @@ def search_text(
             qf, last.created_at, last.event_id, effective_limit
         )
 
-    return SearchResult(results=hits, error=None, next_cursor=next_cursor,
+    return SearchResult(results=hits[:effective_limit], error=None, next_cursor=next_cursor,
                         match_mode=match_mode)

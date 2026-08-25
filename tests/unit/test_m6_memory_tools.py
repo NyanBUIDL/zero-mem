@@ -169,10 +169,12 @@ class TestMemorySearch:
     def test_search_text_not_identity(self, store_path, rt):
         _grant(store_path, subject_profile="A", target_type="profile", target_id="B")
         configure(store_path)
-        # search text mentioning B does not grant B scope on its own
+        # Candidate authorization now occurs in SQL before FTS ranking/snippets.
+        # Text does not grant scope, so the hidden candidate yields no result
+        # rather than a boundary-denial oracle.
         r = dispatch({"tool": "memory_search", "requesting_profile_id": "A",
                       "search_text": "B"})
-        assert r.status is ResponseStatus.POLICY_DENIED
+        assert r.status is ResponseStatus.EMPTY
 
     def test_exact_grant_fts(self, store_path, rt):
         _grant(store_path, subject_profile="A", target_type="profile", target_id="B")

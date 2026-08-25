@@ -205,6 +205,30 @@ def _scope_allows(scope: AllowedScope, requester: Optional[str],
     return False
 
 
+def _scope_predicate(scope: AllowedScope, requester: Optional[str]) -> Tuple[str, List[str]]:
+    """One complete parameterized SQL predicate for a restrictive scope."""
+    clauses: List[str] = []
+    params: List[str] = []
+    for clause, values in (_profile_predicate(scope, requester),
+                           _project_predicate(scope), _ks_predicate(scope)):
+        if clause:
+            clauses.append(f"({clause})")
+            params.extend(values)
+    return (" AND ".join(clauses), params) if clauses else ("1=0", [])
+
+
+def _effective_scope_predicate(eff: EffectiveReadScope,
+                               requester: Optional[str]) -> Tuple[str, List[str]]:
+    """OR-union complete scopes before FTS ranking/snippets/pagination."""
+    parts: List[str] = []
+    params: List[str] = []
+    for scope in [eff.base, *eff.grant_scopes]:
+        clause, values = _scope_predicate(scope, requester)
+        parts.append(f"({clause})")
+        params.extend(values)
+    return (" OR ".join(parts), params) if parts else ("1=0", [])
+
+
 # ---------------------------------------------------------------------------
 # Facade
 # ---------------------------------------------------------------------------
@@ -392,7 +416,9 @@ class AuthorizedReadService:
         if keyset is not None:
             where += " AND (created_at, event_id) > (?, ?)"
             params.extend([keyset[0], keyset[1]])
-        eff_limit = _validate_limit(limit) if limit is not None else -1
+        # Internal callers validate the public limit before adding the look-ahead
+        # row; do not re-apply the public ceiling to ``MAX_LIMIT + 1``.
+        eff_limit = limit if limit is not None else -1
         cols = ",".join(ZM_META_COLUMNS)
         sql = (f"SELECT {cols} FROM zm_meta WHERE {where} "
                f"ORDER BY created_at ASC, event_id ASC")
@@ -413,6 +439,7 @@ class AuthorizedReadService:
                      limit: Optional[int] = None,
                      cursor: Optional[str] = None,
                      grants: Optional[List[AuthorizedReadGrant]] = None) -> AuthorizedResult:
+        eff_limit = _validate_limit_safe(limit)
         eff = self._gate(request, grants)
         if not eff.allow:
             return self._denied(eff)
@@ -437,7 +464,7 @@ class AuthorizedReadService:
         fp = make_fingerprint(fp_request, text=eff_text)
         keyset = None
         if cursor is not None:
-            data = validate_cursor_binding(cursor, fp, _validate_limit_safe(limit))
+            data = validate_cursor_binding(cursor, fp, eff_limit)
             keyset = (data["sort"][0], data["sort"][1])
         proj = project_filter if project_filter is not None else (
             request.project_ids[0] if request.project_ids else None)
@@ -445,12 +472,13 @@ class AuthorizedReadService:
             seen_ids: set = set()
             merged: List[Any] = []
             for scope in self._ordered_scopes(eff):
-                rows = self._select_m3(scope, None, project_filter=proj,
+                rows = self._select_m3(scope, eff_limit + 1, project_filter=proj,
                                        session_filter=session_filter,
                                        verification_filter=verification_filter,
                                        lifecycle_filter=lifecycle_filter,
                                        created_at_after=created_at_after,
-                                       created_at_before=created_at_before)
+                                       created_at_before=created_at_before,
+                                       keyset=keyset)
                 for v in rows:
                     if v.event_id in seen_ids:
                         continue
@@ -466,12 +494,6 @@ class AuthorizedReadService:
             if keyset is not None:
                 merged = [v for v in merged
                           if (v.created_at, v.event_id) > keyset]
-            if limit is None or not isinstance(limit, int) or limit <= 0:
-                eff_limit = DEFAULT_LIMIT
-            elif limit > MAX_LIMIT:
-                eff_limit = MAX_LIMIT
-            else:
-                eff_limit = limit
             items = merged[:eff_limit]
         except QueryError as exc:
             return self._downstream(eff, exc.code)
@@ -538,49 +560,40 @@ class AuthorizedReadService:
                     limit: Optional[int] = None,
                     cursor: Optional[str] = None,
                     grants: Optional[List[AuthorizedReadGrant]] = None) -> AuthorizedResult:
+        # Server validates once, before policy or retrieval.  Invalid caller input
+        # is never silently defaulted or clamped by the facade.
+        eff_limit = _validate_limit_safe(limit)
         eff = self._gate(request, grants)
         if not eff.allow:
             return self._denied(eff)
         from src.retrieval.models import QueryRequest
+        clause, params = _effective_scope_predicate(eff, self._requester)
+        fingerprint_extra = "v151|" + clause + "|" + ",".join(params) + "|" + ",".join(sorted(eff.grant_refs))
         try:
-            seen_ids: set = set()
-            items: List[Any] = []
-            for scope in self._ordered_scopes(eff):
-                # DEF-004 Option B: expanded scope may carry resolved (profile, project)
-                # members from a knowledge-space grant. Prefer the scope's concrete
-                # dimensions (which include resolved members) over the bare request.
-                eff_profile = scope.allowed_profile_ids[0] if scope.allowed_profile_ids else (
-                    self._requester if (self._requester is not None and not scope.global_read_allowed) else profile_filter)
-                if project_filter is not None:
-                    eff_project = project_filter
-                elif scope.allowed_project_ids:
-                    eff_project = scope.allowed_project_ids[0]
-                else:
-                    eff_project = request.project_ids[0] if request.project_ids else None
-                req = QueryRequest(
-                    profile_id=eff_profile,
-                    project_id=eff_project,
-                    session_id=session_filter,
-                    verification_status=verification_filter,
-                )
-                res = search_text(self._store, text, req=req, limit=limit, cursor=cursor)
-                if res.error is not None:
-                    return AuthorizedResult(allowed=True, denied=False,
-                                            reason_code=eff.reason_code,
-                                            error=res.error, decision=eff)
-                for h in res.results:
-                    if h.event_id in seen_ids:
-                        continue
-                    if not _scope_allows(scope, self._requester,
-                                         h.profile_id, h.project_id,
-                                         row_knowledge_space_id=getattr(h, "knowledge_space_id", None)):
-                        return self._boundary_violation(eff)
-                    seen_ids.add(h.event_id)
-                    items.append(h)
+            req = QueryRequest(
+                project_id=project_filter or (request.project_ids[0] if request.project_ids else None),
+                session_id=session_filter,
+                verification_status=verification_filter,
+            )
+            res = search_text(self._store, text, req=req, limit=eff_limit, cursor=cursor,
+                              candidate_where=clause, candidate_params=params,
+                              fingerprint_extra=fingerprint_extra)
+            if res.error is not None:
+                return AuthorizedResult(allowed=True, denied=False,
+                                        reason_code=eff.reason_code,
+                                        error=res.error, decision=eff)
+            # SQL is the authorization boundary.  This only detects/filters an
+            # unexpected backend inconsistency; it never turns a hidden row into a
+            # boundary error visible to the caller.
+            scopes = self._ordered_scopes(eff)
+            items = [h for h in res.results if any(
+                _scope_allows(scope, self._requester, h.profile_id, h.project_id,
+                              row_knowledge_space_id=h.knowledge_space_id)
+                for scope in scopes)]
         except QueryError as exc:
             return self._downstream(eff, exc.code)
         return AuthorizedResult(allowed=True, denied=False, reason_code=eff.reason_code,
-                                items=items, next_cursor=None, decision=eff)
+                                items=items, next_cursor=res.next_cursor, decision=eff)
 
     # -- M4 (project-memory) ------------------------------------------------
     def _m4_project_scope_ok(self, eff: EffectiveReadScope, project_id: str) -> bool:
