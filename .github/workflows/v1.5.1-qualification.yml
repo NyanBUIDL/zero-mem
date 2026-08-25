@@ -1,0 +1,105 @@
+# Zero-Mem v1.5.1 cross-platform qualification (WP-05 / DEF-024)
+#
+# Triggers:
+#   - push to branch master
+#   - pull_request targeting master
+#   - tag v* (release qualification)
+#   - workflow_dispatch
+#
+# This workflow provides the REAL regression gate that was missing for V1.5.0:
+# it installs the declared test/ci extras (pytest + PyYAML + build), builds the
+# wheel from the exact source SHA, and runs the unit + integration suite on a
+# cross-platform matrix. The full 11-gate v1.2.4 matrix is reused by the
+# release qualification run; this file is the always-on guard for master/PR/tag.
+#
+# Path isolation (R124-06): pytest's tmp_path derives from TMPDIR/TMP/TEMP, so
+# on every OS we point temp + HOME off the runner home (mirrors the v1.2.4
+# workflow) so capture_root-outside-home rejection does not spuriously fail.
+
+name: Zero-Mem v1.5.1 qualification
+
+on:
+  push:
+    branches: [master]
+    tags: ["v*"]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  qualify:
+    name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.11', '3.12', '3.13']
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install test & build tooling (declared extras)
+        shell: bash
+        run: python -m pip install --upgrade pip build ".[test,ci]"
+
+      - name: Configure out-of-home temp and HOME (R124-06 path isolation)
+        shell: bash
+        run: |
+          set -eo pipefail
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            mkdir -p /d/zero-mem-home /d/zero-mem-tmp
+            echo "USERPROFILE=D:\\zero-mem-home" >> "$GITHUB_ENV"
+            echo "HOME=D:\\zero-mem-home" >> "$GITHUB_ENV"
+            echo "TMP=D:\\zero-mem-tmp" >> "$GITHUB_ENV"
+            echo "TEMP=D:\\zero-mem-tmp" >> "$GITHUB_ENV"
+          else
+            mkdir -p /tmp/zm-tmp
+            echo "TMPDIR=/tmp/zm-tmp" >> "$GITHUB_ENV"
+          fi
+          python - <<'PY'
+          import pathlib, tempfile
+          home = pathlib.Path.home()
+          tmp = pathlib.Path(tempfile.gettempdir())
+          print("HOME=", home, "TEMP=", tmp)
+          assert home != tmp and home not in tmp.parents, \
+              f"temp dir {tmp} must NOT be inside HOME {home}"
+          print("path-isolation-OK")
+          PY
+
+      - name: Static checks
+        shell: bash
+        run: |
+          set -eo pipefail
+          python -m compileall -q zero_mem src scripts release_helpers
+          python scripts/check_machine_state.py
+
+      - name: Build wheel + sdist
+        shell: bash
+        run: python -m build --outdir dist
+
+      - name: Prepare CI log
+        shell: bash
+        run: "true > ci-log.txt"
+
+      - name: Unit + integration suite
+        shell: bash
+        run: |
+          set -eo pipefail
+          python -m pytest -q tests/unit tests/integration \
+            2>&1 | tee ci-log.txt
+
+      - name: Upload raw CI logs (evidence)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v151-${{ matrix.os }}-py${{ matrix.python-version }}-logs
+          path: ci-log.txt
+          if-no-files-found: error

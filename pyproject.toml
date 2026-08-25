@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "Local-first Zero-Mem evidence and memory sidecar"
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
-license = { text = "MIT" }
+license = "MIT"
 authors = [{name = "Zero-Mem contributors"}]
 dependencies = []
 
@@ -17,6 +17,8 @@ pdf = ["pypdf"]
 # AGPL/commercial dual-license — tooling-only (corpus PDF extraction scripts),
 # NOT a runtime dependency. Do not move into core/pdf extras.
 pdf-advanced = ["pymupdf"]
+test = ["pytest", "PyYAML"]
+ci = ["build"]
 
 [project.scripts]
 zero-mem = "zero_mem.cli:main"
