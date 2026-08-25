@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.unit._symlink_guard import require_symlinks
+
 from src.integration.bridge_config import BridgeConfig
 from src.integration.payload_mapping import map_hook_payload
 from src.integration.hermes_registration import RegistrationAdapter
@@ -54,6 +56,7 @@ def test_runtime_storage_root_creates_controlled_domains(tmp_path: Path) -> None
 
 
 def test_runtime_storage_root_rejects_symlink(tmp_path: Path) -> None:
+    require_symlinks()  # WP-05
     target = tmp_path / "target"
     target.mkdir()
     link = tmp_path / "link"
@@ -63,6 +66,7 @@ def test_runtime_storage_root_rejects_symlink(tmp_path: Path) -> None:
 
 
 def test_runtime_storage_root_rejects_symlinked_missing_root_ancestor(tmp_path: Path) -> None:
+    require_symlinks()  # WP-05
     target = tmp_path / "redirected"
     target.mkdir()
     ancestor = tmp_path / "ancestor-link"
@@ -73,6 +77,7 @@ def test_runtime_storage_root_rejects_symlinked_missing_root_ancestor(tmp_path: 
 
 
 def test_runtime_config_does_not_resolve_symlink_before_root_validation(tmp_path: Path) -> None:
+    require_symlinks()  # WP-05
     target = tmp_path / "target"
     target.mkdir()
     link = tmp_path / "link"

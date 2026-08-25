@@ -16,6 +16,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.unit._symlink_guard import require_symlinks
+
 from src.projection.contracts import (
     META_DIR_NAME,
     NOTE_TYPE_DIRECTORIES,
@@ -113,6 +115,7 @@ class TestManagedRootResolution:
             resolve_managed_root(Path("Vault"), "Zero-Mem")
 
     def test_managed_root_symlink_to_outside_rejected(self, vault, tmp_path):
+        require_symlinks()  # WP-05: skip when platform cannot create symlinks
         outside = tmp_path / "outside"
         outside.mkdir()
         link = vault / "Zero-Mem"
@@ -314,6 +317,10 @@ class TestSafeNotePath:
 
 
 class TestSymlinkEscape:
+    @pytest.fixture(autouse=True)
+    def _symlink_guard(self):
+        require_symlinks()  # WP-05: skip when platform cannot create symlinks
+
     def test_symlink_inside_managed_root_to_outside(self, managed, tmp_path):
         outside = tmp_path / "outside"
         outside.mkdir()

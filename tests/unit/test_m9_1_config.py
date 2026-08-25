@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.unit._symlink_guard import require_symlinks
+
 from src.projection.config import (
     CONFIG_FILE_RELATIVE_PATH,
     CONFIG_FILE_VAULT_KEY,
@@ -176,6 +178,7 @@ class TestInvalidVaultRoots:
         assert "not_a_directory" in str(exc.value)
 
     def test_symlinked_vault_root_rejected(self, tmp_path):
+        require_symlinks()  # WP-05
         real = tmp_path / "real"
         real.mkdir()
         link = tmp_path / "link"

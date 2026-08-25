@@ -6,6 +6,8 @@ import threading
 from pathlib import Path
 
 import pytest
+
+from tests.unit._symlink_guard import require_symlinks
 from src.storage.recovery import DEFAULT_RECOVERY_TIMEOUT, RecoveryCoordinator, RecoveryResult, RecoveryStatus, _CleanupFailure, _identity
 from src.storage.runtime_root import RuntimeStorageRoot
 
@@ -102,6 +104,7 @@ def test_recovery_deadline_leaves_canonical_and_derived_unchanged(monkeypatch: p
 
 
 def test_symlinked_derived_path_is_rejected(tmp_path: Path) -> None:
+    require_symlinks()  # WP-05
     storage = _storage(tmp_path)
     canonical = storage.canonical / "events.jsonl"
     _write_canonical(canonical)
@@ -113,6 +116,7 @@ def test_symlinked_derived_path_is_rejected(tmp_path: Path) -> None:
 
 
 def test_dangling_recovery_build_symlink_is_rejected(tmp_path: Path) -> None:
+    require_symlinks()  # WP-05
     storage = _storage(tmp_path)
     canonical = storage.canonical / "events.jsonl"
     _write_canonical(canonical)
@@ -135,6 +139,7 @@ def test_invalid_timeout_fails_closed(tmp_path: Path) -> None:
 
 
 def test_destination_sidecar_symlink_fails_closed(tmp_path: Path) -> None:
+    require_symlinks()  # WP-05
     storage = _storage(tmp_path)
     canonical = storage.canonical / "events.jsonl"
     _write_canonical(canonical)

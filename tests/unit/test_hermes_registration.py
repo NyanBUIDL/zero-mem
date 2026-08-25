@@ -17,16 +17,16 @@ class FakeContext:
         self.callbacks.setdefault(hook, []).append(callback)
 
 
-def test_disabled_by_default_registers_nothing():
+def test_disabled_by_default_registers_nothing(tmp_path):
     context = FakeContext()
-    adapter = RegistrationAdapter(BridgeConfig(capture_root=Path('/tmp/zero-mem-registration')))
+    adapter = RegistrationAdapter(BridgeConfig(capture_root=tmp_path / 'zero-mem-registration'))
     assert adapter.register(context) == ()
     assert context.callbacks == {}
 
 
-def test_enabled_registers_only_verified_hooks():
+def test_enabled_registers_only_verified_hooks(tmp_path):
     context = FakeContext()
-    adapter = RegistrationAdapter(BridgeConfig(enabled=True, capture_root=Path('/tmp/zero-mem-registration')))
+    adapter = RegistrationAdapter(BridgeConfig(enabled=True, capture_root=tmp_path / 'zero-mem-registration'))
     registered = adapter.register(context)
     assert registered == VERIFIED_SUPPORTED_HOOKS
     assert tuple(context.callbacks) == VERIFIED_SUPPORTED_HOOKS
@@ -34,18 +34,18 @@ def test_enabled_registers_only_verified_hooks():
     assert not set(context.callbacks) & set(DEFERRED_HOOKS)
 
 
-def test_registration_is_idempotent():
+def test_registration_is_idempotent(tmp_path):
     context = FakeContext()
-    adapter = RegistrationAdapter(BridgeConfig(enabled=True, capture_root=Path('/tmp/zero-mem-registration')))
+    adapter = RegistrationAdapter(BridgeConfig(enabled=True, capture_root=tmp_path / 'zero-mem-registration'))
     first = adapter.register(context)
     second = adapter.register(context)
     assert first == second
     assert all(len(callbacks) == 1 for callbacks in context.callbacks.values())
 
 
-def test_callback_is_neutral_and_does_not_mutate_payload(monkeypatch):
+def test_callback_is_neutral_and_does_not_mutate_payload(monkeypatch, tmp_path):
     context = FakeContext()
-    adapter = RegistrationAdapter(BridgeConfig(enabled=True, capture_root=Path('/tmp/zero-mem-registration')))
+    adapter = RegistrationAdapter(BridgeConfig(enabled=True, capture_root=tmp_path / 'zero-mem-registration'))
     adapter.register(context)
     payload = {'session_id': 's1', 'args': {'value': 'safe'}}
     before = copy.deepcopy(payload)
@@ -54,25 +54,25 @@ def test_callback_is_neutral_and_does_not_mutate_payload(monkeypatch):
     assert payload == before
 
 
-def test_callback_failure_isolated(monkeypatch):
+def test_callback_failure_isolated(monkeypatch, tmp_path):
     context = FakeContext()
-    adapter = RegistrationAdapter(BridgeConfig(enabled=True, capture_root=Path('/tmp/zero-mem-registration')))
+    adapter = RegistrationAdapter(BridgeConfig(enabled=True, capture_root=tmp_path / 'zero-mem-registration'))
     adapter.register(context)
     monkeypatch.setattr(adapter, '_observe', lambda hook, payload: (_ for _ in ()).throw(RuntimeError('raw secret')))
     assert context.callbacks['post_tool_call'][0]({'result': 'safe'}) is None
     assert adapter.metrics.to_dict()['counts']
 
 
-def test_shutdown_disables_new_capture():
+def test_shutdown_disables_new_capture(tmp_path):
     context = FakeContext()
-    adapter = RegistrationAdapter(BridgeConfig(enabled=True, capture_root=Path('/tmp/zero-mem-registration')))
+    adapter = RegistrationAdapter(BridgeConfig(enabled=True, capture_root=tmp_path / 'zero-mem-registration'))
     adapter.register(context)
     adapter.shutdown()
     assert adapter.enabled is False
 
 
-def test_unsupported_registration_surface_is_sanitized():
-    adapter = RegistrationAdapter(BridgeConfig(enabled=True, capture_root=Path('/tmp/zero-mem-registration')))
+def test_unsupported_registration_surface_is_sanitized(tmp_path):
+    adapter = RegistrationAdapter(BridgeConfig(enabled=True, capture_root=tmp_path / 'zero-mem-registration'))
     with pytest.raises(RegistrationFailure, match='registration_unavailable'):
         adapter.register(object())
     assert 'raw secret' not in str(adapter.last_diagnostic).lower()

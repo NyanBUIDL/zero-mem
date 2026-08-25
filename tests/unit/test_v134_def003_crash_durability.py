@@ -128,7 +128,12 @@ def test_sigkill_mid_ingest_preserves_canonical_and_resumes(tmp_path: Path) -> N
                 pytest.fail("child never signalled readiness")
             time.sleep(0.05)
         time.sleep(0.4)  # let it get partway through the stream
-        proc.send_signal(signal.SIGKILL)
+        # WP-05: Windows has no SIGKILL; hard-kill via proc.kill() there.
+        sigkill = getattr(signal, "SIGKILL", None)
+        if sigkill is None:
+            proc.kill()
+        else:
+            proc.send_signal(sigkill)
         proc.wait(timeout=30)
     finally:
         if proc.poll() is None:

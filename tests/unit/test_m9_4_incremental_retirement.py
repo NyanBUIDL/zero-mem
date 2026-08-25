@@ -19,6 +19,8 @@ sys.path.insert(0, str(ROOT))
 
 import pytest  # noqa: E402
 
+from tests.unit._symlink_guard import require_symlinks
+
 from src.projection.identity import content_fingerprint, derive_note_id  # noqa: E402
 from src.projection.contracts import NoteStatus, NoteType, ProjectedNote  # noqa: E402
 from src.projection.manifest import (  # noqa: E402
@@ -310,6 +312,7 @@ def test_human_modified_managed_note_not_silently_overwritten(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_retire_through_hostile_symlink_chain_refused(tmp_path):
+    require_symlinks()  # WP-05
     vault = _cfg_vault(tmp_path)
     outside = tmp_path / "outside"
     outside.mkdir()

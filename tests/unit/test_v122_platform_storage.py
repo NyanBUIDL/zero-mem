@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.unit._symlink_guard import require_symlinks
+
 from src.storage.platform import (
     PlatformErrorCode,
     PlatformStorageError,
@@ -67,6 +69,7 @@ def test_abandoned_lock_is_released_by_process_exit(tmp_path: Path) -> None:
 
 
 def test_symlink_cleanup_and_read_are_fail_closed(tmp_path: Path) -> None:
+    require_symlinks()  # WP-05
     target = tmp_path / "target"
     target.write_bytes(b"secret")
     link = tmp_path / "link"
@@ -104,6 +107,7 @@ def test_open_regular_expected_identity_is_enforced(tmp_path: Path) -> None:
 
 
 def test_private_directory_rejects_symlink(tmp_path: Path) -> None:
+    require_symlinks()  # WP-05
     target = tmp_path / "target"
     target.mkdir()
     link = tmp_path / "link"

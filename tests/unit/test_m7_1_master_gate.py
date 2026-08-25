@@ -315,14 +315,16 @@ class TestFailureIsolation:
 # ---------------------------------------------------------------------------
 class TestRuntimeAudit:
     def test_no_independent_automatic_runtime_path(self):
-        out = subprocess.run(
-            ["grep", "-rn", "while True\\|schedule\\|Timer(\\|threading.Timer\\|sleep(",
-             str(REPO_ROOT / "src" / "integration"), "--include=*.py"],
-            capture_output=True, text=True, check=False,
-        )
-        # grep exit 1 == no matches == good. Exit 0 == matches found == bad.
-        assert out.returncode == 1, f"unexpected runtime loop: {out.stdout}"
-        assert out.stdout.strip() == ""
+        # WP-05: no Unix grep from Python tests — scan with pathlib/Python.
+        patterns = ("while True", "schedule(", "Timer(", "threading.Timer", "sleep(")
+        hits = []
+        for py in (REPO_ROOT / "src" / "integration").rglob("*.py"):
+            text = py.read_text(encoding="utf-8", errors="replace")
+            for pat in patterns:
+                if pat in text:
+                    hits.append(f"{{py}}:{{pat}}")
+        # No matches == good (no independent runtime loop). Matches == bad.
+        assert hits == [], f"unexpected runtime loop patterns: {{hits}}"
 
 
 # ---------------------------------------------------------------------------

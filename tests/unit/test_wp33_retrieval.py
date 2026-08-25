@@ -6,6 +6,8 @@ from typing import Any, cast
 
 from benchmarks.wp33_lexical_benchmark import run_lexical_benchmark
 
+from tests.unit._symlink_guard import require_symlinks
+
 
 def test_lexical_benchmark_is_reproducible_and_labeled(tmp_path: Path) -> None:
     first = run_lexical_benchmark(tmp_path / "first", corpus_size=25, repeats=3)
@@ -41,6 +43,7 @@ def test_lexical_benchmark_writes_no_secret_or_absolute_fixture_path(tmp_path: P
 
 
 def test_benchmark_rejects_reused_or_symlinked_run_root(tmp_path: Path) -> None:
+    require_symlinks()  # WP-05
     existing = tmp_path / "existing"
     existing.mkdir()
     try:

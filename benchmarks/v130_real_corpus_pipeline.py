@@ -70,6 +70,7 @@ def export_corpus(src: Path, out: Path, limit: int) -> dict:
     blocked = 0
     scanned = 0
     tmp = out.with_suffix(".tmp")
+    blocked_secret = False
     with open(src, "r", encoding="utf-8") as fin, open(tmp, "w", encoding="utf-8") as fout:
         for line in fin:
             scanned += 1
@@ -78,16 +79,20 @@ def export_corpus(src: Path, out: Path, limit: int) -> dict:
                 continue
             if scan_line_secret(stripped):
                 blocked += 1
-                # FAIL CLOSED: abort the whole export, remove partial output.
-                tmp.unlink(missing_ok=True)
-                return {"scanned": scanned, "written": written, "blocked": blocked,
-                        "status": "BLOCKED_SECRET_DETECTED"}
+                # FAIL CLOSED: abort the whole export; remove partial output AFTER
+                # the handle is closed (Windows cannot unlink an open file — WP-05).
+                blocked_secret = True
+                break
             # Re-serialize deterministically (sorted keys) so the fixture is stable.
             env = json.loads(stripped)
             fout.write(json.dumps(env, sort_keys=True, separators=(",", ":")) + "\n")
             written += 1
             if written >= limit:
                 break
+    if blocked_secret:
+        tmp.unlink(missing_ok=True)
+        return {"scanned": scanned, "written": written, "blocked": blocked,
+                "status": "BLOCKED_SECRET_DETECTED"}
     tmp.replace(out)
     digest = hashlib.sha256(out.read_bytes()).hexdigest()
     return {"scanned": scanned, "written": written, "blocked": blocked,

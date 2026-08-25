@@ -24,6 +24,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 import pytest  # noqa: E402
+from tests.unit._symlink_guard import require_symlinks  # noqa: E402
 
 import tests.unit.m9_2_fixtures as fx  # noqa: E402
 from src.projection.engine import run_projection  # noqa: E402
@@ -684,6 +685,7 @@ def test_absolute_path_rejected(tmp_path):
 
 
 def test_symlink_chain_escape_rejected(tmp_path):
+    require_symlinks()  # WP-05
     from src.projection.paths import safe_managed_path
     from src.projection.contracts import ProjectionPathError
     vault = tmp_path / "vault"
