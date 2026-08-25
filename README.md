@@ -1,6 +1,6 @@
 # Zero-Mem
 
-Zero-Mem v1.2.0 is a local-first evidence and memory sidecar. The PKG-1 distribution
+Zero-Mem is a local-first evidence and memory sidecar. The PKG-1 distribution
 provides the installable package and release CLI foundation.
 
 > **Corpus tooling is generic.** `quant_lab/` is a **sample corpus** used for
