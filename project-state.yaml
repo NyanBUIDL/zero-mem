@@ -1558,7 +1558,10 @@ v140_00_status: "CLOSED_PENDING_GATE0 — recon PASS: registry 1070 sources (471
 v140_00_handoff: artifacts/handoffs/V140-00-HANDOFF.md
 
 # --- V141 remediation overlay (DEF-013..016; maintainer ủy quyền gate A/B 2026-08-25) ---
-v141_status: RELEASE_READY_LOCAL   # tree cuối verify xong; tag/push chờ duyệt riêng
+v141_status: RELEASED_LOCAL   # tag v1.4.1 @ be925dd (local; push chờ duyệt riêng)
+v141_release_tag: "v1.4.1"
+v141_release_sha: "be925dd9b097501a8af76fe4810cea80e01c5ebc"
+v141_tag_note: "re-tag 2026-08-25 sáng: tag cũ (session trước) trỏ c3e721e thiếu remediation — xoá local, tạo lại tại tree cuối; remote chưa từng có tag này (ls-remote verified)"
 v141_scope: "DEF-012 wiring hotfix (69c337b/3a40b7a) + remediation DEF-013..016: thu hồi grant CLI khỏi v1.4.1 (GATE-R1 Option A — store tách biệt đường ủy quyền production, nguồn sự thật kép), connection lifecycle fix, doctor honesty, acceptance test qua _open_facade thật; version 1.4.1 (c3e721e)"
 v141_gates: "GATE-R0 APPROVED + GATE-R1 APPROVED (Option A) — duyệt bởi maintainer ủy quyền 'chọn cái tốt nhất cho hệ thống' 2026-08-25; GATE-FINAL-V141 draft tại workspace root"
 v141_adr: docs/v1.4.1/ADR-V141-01-GRANT-CLI.md   # CHỌN A
