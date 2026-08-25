@@ -203,6 +203,26 @@ def _fts_safe_query(text: str) -> str:
     return " ".join(safe)
 
 
+def _fts_or_query(text: str) -> str:
+    """DEF-031: OR-joined FTS MATCH expression for the precision-guarded
+    fallback (parity with the M3 event FTS path, src/retrieval/search.py
+    V130-01). Each term is quoted + prefix-starred exactly like the AND pass,
+    so caller text can never inject FTS operators; the expression is always
+    passed as a bound parameter."""
+    tokens = [t for t in text.split() if t]
+    safe = []
+    for tok in tokens:
+        cleaned = _FTS_SPECIAL.sub("", tok)
+        if not cleaned:
+            continue
+        safe.append(f'"{cleaned}"*')
+    return " OR ".join(safe)
+
+
+def _fts_term_count(text: str) -> int:
+    return len([t for t in text.split() if _FTS_SPECIAL.sub("", t)])
+
+
 # ---------------------------------------------------------------------------
 # Deterministic lexical scoring (computed over the AUTHORIZED subset only)
 # ---------------------------------------------------------------------------
@@ -389,6 +409,22 @@ def retrieve_corpus(
                     "WHERE zm_corpus_fts MATCH ? LIMIT ?",
                     (fts_expr, cap),
                 ).fetchall()
+                # DEF-031 (DEF-C2): precision-guarded OR fallback — only when
+                # the implicit-AND pass returned zero rows AND the query has
+                # >= 2 terms (single-term queries have nothing to fall back to).
+                # Mirror of the M3 event FTS path (search.py V130-01). The OR
+                # expression is FTS5-quoted and stays a bound parameter.
+                if not rows and _fts_term_count(plan.text) >= 2:
+                    or_expr = _fts_or_query(plan.text)
+                    if or_expr:
+                        rows = cur.execute(
+                            "SELECT u.unit_id, u.source_ref, u.source_location_id, u.content_hash, "
+                            "u.normalized_text, u.kind, u.profile_id, u.project_id, "
+                            "u.knowledge_space_id, u.lifecycle_status, u.sensitivity, u.page, u.unit_order "
+                            "FROM zm_corpus_fts JOIN zm_corpus_units u ON u.unit_id = zm_corpus_fts.unit_id "
+                            "WHERE zm_corpus_fts MATCH ? LIMIT ?",
+                            (or_expr, cap),
+                        ).fetchall()
             except Exception as exc:
                 # Malformed FTS expression or missing FTS table => fail closed to
                 # a typed error (never silently return everything).
