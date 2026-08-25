@@ -1572,3 +1572,20 @@ v141_remediation_tests: tests/unit/test_v141_r2_remediation.py   # RED-first 4F�
 v141_final_suite: "3521 passed, 6 skipped, 0 failed ×2 runs liên tiếp (.venv-v124 Py 3.11, isolated HOME); giải trình chênh lệch vs 3515: +9 test remediation −3 test superseded"
 v141_defects_closed: "DEF-012 FIXED (wiring), DEF-013 FIXED (revert), DEF-014 FIXED (conn lifecycle), DEF-015 FIXED (doctor honesty), DEF-016 FIXED (real-facade acceptance + evidence reconciliation)"
 v141_handoff: artifacts/handoffs/V141-HANDOFF.md (+ V141-R2-R4-REMEDIATION-HANDOFF.md)
+
+# --- V150 release (DEF-009/010/011 cluster; GATE-V150-1 "A + spike B-schema" 2026-08-25) ---
+v150_status: RELEASE_PREP   # tag+push khi maintainer xác nhận bước cuối
+v150_version: "1.5.0"
+v150_adr: docs/v1.5/ADR-V150-01-ENTERPRISE-AUTHORIZATION.md   # ACCEPTED + IMPLEMENTED
+v150_wps:
+  - "R4 8d981c3 test portability (DEF-017/018)"
+  - "WP1 632706c Option A hardening: registry O(1), fp_request naming, digest gate (DEF-009 FIXED)"
+  - "WP2 2906ae6 per-row ks authorization — zm_meta.ks có sẵn từ migration v11 (DEF-010 FIXED)"
+  - "WP3 a5d779f canonical-first: bỏ resolver fallback event path, expansion no-op (DEF-011 CLOSED)"
+  - "Acc 6972fd5 E2E acceptance qua ingest thật + _open_facade thật"
+  - "Clean 4a1aa11 post-WP3 review cleanup: dead wiring gỡ, docs sync"
+v150_defects_closed: "DEF-009 FIXED, DEF-010 FIXED, DEF-011 CLOSED"
+v150_spike: docs/v1.5/SPIKE-B-SCHEMA-EVENT-KS-MAPPING.md
+v150_limitation_superseded: docs/v1.5/LIMITATION-SPACE-GRANT-COARSENING.md
+v150_final_suite: "3535 passed, 12 skipped, 0 failed (77.68s, Py 3.13.15, isolated HOME)"
+v150_backlog_enterprise: "admin CLI đa-agent (ADR-V141-01 Option B)"
