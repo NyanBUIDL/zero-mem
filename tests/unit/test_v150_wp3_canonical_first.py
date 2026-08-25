@@ -38,7 +38,7 @@ class TestDef011CanonicalFirst:
             allowed_project_ids=[],
             allowed_knowledge_space_ids=["quant-theory"],
             global_read_allowed=False, resource_types=["memory_event"],
-            isolated=False)
+            isolated=False, is_grant=True)  # DEF-028: grant-scope semantics
         # The resolver argument is GONE from the signature entirely.
         with pytest.raises(TypeError):
             _scope_allows(scope, "prof-owner", "prof-x", "proj-a",

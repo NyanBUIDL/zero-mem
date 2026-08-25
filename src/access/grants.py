@@ -263,20 +263,23 @@ def compose_effective_scope(request: AccessRequest,
         if g.target_type == "profile" and g.target_id != "*":
             grant_scopes.append(AllowedScope(
                 operation=READ, allowed_profile_ids=[g.target_id],
-                global_read_allowed=False, isolated=request.isolated_mode))
+                global_read_allowed=False, isolated=request.isolated_mode,
+                is_grant=True))  # DEF-028: explicit per-grant atomic scope
         elif g.target_type == "project":
             # Project grant: authorize the project across profiles (no profile filter).
             grant_scopes.append(AllowedScope(
                 operation=READ, allowed_profile_ids=[],
                 allowed_project_ids=[g.target_id],
-                global_read_allowed=False, isolated=request.isolated_mode))
+                global_read_allowed=False, isolated=request.isolated_mode,
+                is_grant=True))  # DEF-028: explicit per-grant atomic scope
             grant_resource_types[g.target_id] = (
                 frozenset(g.resource_types) if g.resource_types is not None else None)
         elif g.target_type == "knowledge_space":
             grant_scopes.append(AllowedScope(
                 operation=READ, allowed_profile_ids=[],
                 allowed_knowledge_space_ids=[g.target_id],
-                global_read_allowed=False, isolated=request.isolated_mode))
+                global_read_allowed=False, isolated=request.isolated_mode,
+                is_grant=True))  # DEF-028: explicit per-grant atomic scope
 
     return EffectiveReadScope(
         allow=True,

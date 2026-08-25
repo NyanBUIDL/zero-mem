@@ -197,7 +197,8 @@ class TestHandlerPathSpaceGrant:
             from src.access.contracts import AllowedScope, READ
 
             scope = AllowedScope(operation=READ,
-                                 allowed_knowledge_space_ids=["quant-theory"])
+                                 allowed_knowledge_space_ids=["quant-theory"],
+                                 is_grant=True)  # DEF-028: space-grant scope
             # V150-WP3: expansion is a no-op on the event path (no merging).
             expanded = svc._expand_scope_with_spaces(scope)
             assert expanded.allowed_profile_ids == [], (

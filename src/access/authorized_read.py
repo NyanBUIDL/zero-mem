@@ -120,9 +120,12 @@ def _profile_predicate(scope: AllowedScope,
     if profiles:
         ph = ",".join("?" * len(profiles))
         return (f"zm_meta.profile_id IN ({ph})", profiles)
-    # Project/space grant scope: profile is intentionally unrestricted; the
-    # project/space clause (below) enforces the authorized boundary.
-    if scope.allowed_project_ids or scope.allowed_knowledge_space_ids:
+    # DEF-028 (DEF-A1): ONLY per-grant atomic scopes are profile-unrestricted
+    # (their project/space clause enforces the boundary). A base/policy scope
+    # carrying project/space ids (e.g. a caller-requested knowledge-space
+    # filter) must NOT drop the profile restriction — fall through to the
+    # requester-scoped clauses below.
+    if scope.is_grant:
         return (None, [])
     # Implicit-local base scope (no explicit profile, no grant): restrict to the
     # requester's own profile only (M5.2 semantics restored).
@@ -176,7 +179,10 @@ def _scope_allows(scope: AllowedScope, requester: Optional[str],
     # Project/space grant scopes are profile-unrestricted; the project/space clause
     # enforces the boundary. For base / profile-grant / implicit-local scopes, fold
     # the requester into the allowed set so the requester's OWN data is authorized.
-    is_grant_scope = bool(scope.allowed_project_ids) or bool(scope.allowed_knowledge_space_ids)
+    # DEF-028 (DEF-A1): grant-ness comes from the explicit is_grant marker, NOT
+    # from the presence of project/space ids (a base scope carrying a
+    # caller-requested KS filter must stay requester-scoped).
+    is_grant_scope = scope.is_grant
     allowed_profiles = set(scope.allowed_profile_ids)
     if not is_grant_scope and requester is not None:
         allowed_profiles.add(requester)
@@ -192,6 +198,11 @@ def _scope_allows(scope: AllowedScope, requester: Optional[str],
             return False
         if scope.allowed_project_ids:
             return project_id in scope.allowed_project_ids
+        if scope.allowed_knowledge_space_ids:
+            # DEF-028 parity: a base scope with a KS filter still enforces the
+            # row's own ks (mirrors the SQL _ks_predicate); NULL ks is unscoped.
+            return (row_knowledge_space_id is not None
+                    and row_knowledge_space_id in scope.allowed_knowledge_space_ids)
         return True
 
     # Grant scope with no profile restriction (project/space grant): membership suffices.
@@ -446,11 +457,21 @@ class AuthorizedReadService:
         # Scope-bound cursor fingerprint: reuse under a different EffectiveReadScope
         # (e.g. authorized scope changed) is a mismatch.
         from src.retrieval.models import QueryRequest as _QR
+        # DEF-029 (DEF-B1): the fingerprint must bind EVERY filter the query
+        # actually applies. project_filter and the time-window filters were
+        # executed by _select_m3 but omitted here, so a cursor minted under one
+        # filter set was accepted under another (keyset applied to a different
+        # window -> rows silently skipped).
+        proj = project_filter if project_filter is not None else (
+            request.project_ids[0] if request.project_ids else None)
         fp_request = _QR(
             profile_id=profile_filter,
             session_id=session_filter,
             verification_status=verification_filter,
             lifecycle_status=lifecycle_filter,
+            project_id=proj,
+            created_at_after=created_at_after,
+            created_at_before=created_at_before,
         )
         eff_text = "|".join([
             f"req={self._requester or ''}",
@@ -466,8 +487,6 @@ class AuthorizedReadService:
         if cursor is not None:
             data = validate_cursor_binding(cursor, fp, eff_limit)
             keyset = (data["sort"][0], data["sort"][1])
-        proj = project_filter if project_filter is not None else (
-            request.project_ids[0] if request.project_ids else None)
         try:
             seen_ids: set = set()
             merged: List[Any] = []
@@ -915,6 +934,13 @@ class AuthorizedReadService:
                 profiles = profiles + [self._requester] if self._requester else profiles
                 # NULL-profile default rows are authorizable under global read.
                 allowed.append((None, None, None))
+            # DEF-028 (DEF-A1): a base/policy scope is ALWAYS requester-scoped —
+            # only per-grant atomic scopes may be profile-unrestricted. Without
+            # this, a base scope with a KS filter enumerated (None, None, K),
+            # authorizing every profile's units in K.
+            if not scope.is_grant and self._requester is not None:
+                if self._requester not in profiles:
+                    profiles = profiles + [self._requester]
             if not profiles and not projects and not spaces:
                 # Implicit-local base scope (own profile only).
                 if self._requester is not None:

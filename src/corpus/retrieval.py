@@ -305,13 +305,28 @@ _UNIT_COLUMNS = (
 )
 
 
-def _read_all_units(cur) -> list:
-    """Read all derived units for the explicit non-FTS capability path.
+# DEF-030 (DEF-C1): candidate-discovery cap. Ranking happens over the
+# authorized subset of the DISCOVERED candidates; a safety factor keeps the
+# top-k of a reasonable query inside the cap while bounding memory on broad
+# queries ("risk", "the"). Ranking is over the capped set (documented).
+_DISCOVERY_FACTOR = 50
 
-    This is only candidate discovery. Callers must pass the rows through
-    ``_authorize_and_filter`` before lexical scoring or limiting.
+
+def _discovery_cap(plan_limit: int) -> int:
+    return max(plan_limit * _DISCOVERY_FACTOR, plan_limit)
+
+
+def _read_all_units(cur, cap: int) -> list:
+    """Read derived units (bounded candidate discovery) for the explicit
+    non-FTS capability path.
+
+    Bounded by ``cap`` (DEF-030) so a metadata-only query never materializes the
+    whole table. Callers must pass the rows through ``_authorize_and_filter``
+    before lexical scoring or limiting.
     """
-    return cur.execute(f"SELECT {_UNIT_COLUMNS} FROM zm_corpus_units").fetchall()
+    return cur.execute(
+        f"SELECT {_UNIT_COLUMNS} FROM zm_corpus_units LIMIT ?", (cap,)
+    ).fetchall()
 
 
 def retrieve_corpus(
@@ -342,9 +357,12 @@ def retrieve_corpus(
     # (metadata-only retrieval). Without FTS5, the derived unit relation is the
     # explicit O(N) candidate source; authorization/filtering still precedes
     # every lexical influence.
+    # DEF-030 (DEF-C1): all discovery paths are bounded by a safety-factor cap;
+    # ranking runs only over the authorized subset of the capped candidate set.
+    cap = _discovery_cap(plan.limit)
     if plan.is_metadata_only:
         try:
-            rows = _read_all_units(cur)
+            rows = _read_all_units(cur, cap)
         except Exception as exc:  # pragma: no cover - defensive
             raise CorpusQueryError(f"corpus_query_failed: {type(exc).__name__}") from None
     else:
@@ -352,24 +370,24 @@ def retrieve_corpus(
         if not fts_expr:
             # Nothing lexical to match: fall back to metadata-only discovery.
             try:
-                rows = _read_all_units(cur)
+                rows = _read_all_units(cur, cap)
             except Exception as exc:  # pragma: no cover - defensive
                 raise CorpusQueryError(f"corpus_query_failed: {type(exc).__name__}") from None
         elif not _migrate_10.FTS5_AVAILABLE:
             try:
-                rows = _read_all_units(cur)
+                rows = _read_all_units(cur, cap)
             except Exception as exc:  # pragma: no cover - defensive
                 raise CorpusQueryError(f"corpus_query_failed: {type(exc).__name__}") from None
         else:
-            # FTS discovery: match unit_ids, then join units.
+            # FTS discovery: match unit_ids, then join units (bounded by cap).
             try:
                 rows = cur.execute(
                     "SELECT u.unit_id, u.source_ref, u.source_location_id, u.content_hash, "
                     "u.normalized_text, u.kind, u.profile_id, u.project_id, "
                     "u.knowledge_space_id, u.lifecycle_status, u.sensitivity, u.page, u.unit_order "
                     "FROM zm_corpus_fts JOIN zm_corpus_units u ON u.unit_id = zm_corpus_fts.unit_id "
-                    "WHERE zm_corpus_fts MATCH ?",
-                    (fts_expr,),
+                    "WHERE zm_corpus_fts MATCH ? LIMIT ?",
+                    (fts_expr, cap),
                 ).fetchall()
             except Exception as exc:
                 # Malformed FTS expression or missing FTS table => fail closed to

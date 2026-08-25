@@ -252,7 +252,8 @@ class TestDef016RealFacadeAcceptance:
                 assert svc._corpus_conn is None, (
                     "V150-WP3: event path must not wire a corpus connection")
                 scope = AllowedScope(operation=READ,
-                                     allowed_knowledge_space_ids=["quant-theory"])
+                                     allowed_knowledge_space_ids=["quant-theory"],
+                                     is_grant=True)  # DEF-028: space-grant scope
                 # V150-WP3: expansion no-op — nothing merged from corpus members.
                 expanded = svc._expand_scope_with_spaces(scope)
                 assert expanded.allowed_profile_ids == []

@@ -186,6 +186,14 @@ class AllowedScope:
     global_read_allowed: bool = False
     resource_types: Optional[List[str]] = None
     isolated: bool = False
+    # DEF-028 (DEF-A1): True ONLY for per-grant atomic scopes built by
+    # compose_effective_scope. Base/policy scopes are always requester-scoped;
+    # grant scopes are profile-unrestricted by design (their project/space
+    # clause enforces the boundary). The pre-fix code inferred "grant-ness"
+    # from the presence of project/space ids, which conflated a base scope
+    # carrying a caller-requested knowledge-space filter with a grant scope —
+    # dropping the profile restriction and allowing cross-profile reads.
+    is_grant: bool = False
 
     def as_dict(self) -> dict:
         return {
@@ -197,6 +205,7 @@ class AllowedScope:
             "resource_types": (None if self.resource_types is None
                                else list(self.resource_types)),
             "isolated": self.isolated,
+            "is_grant": self.is_grant,
         }
 
 

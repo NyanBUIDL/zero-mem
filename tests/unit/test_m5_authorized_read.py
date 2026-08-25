@@ -304,14 +304,22 @@ def test_unbound_global_read_includes_global(tmp_path: Path):
 # Knowledge space (M5.2 keeps spaces explicit; facade does not broaden)
 # ---------------------------------------------------------------------------
 def test_knowledge_space_does_not_expand_profile():
-    # scope translation must not infer profiles from spaces; a space-only scope must
-    # NOT expand to any cross-profile id (fail closed on profile inference).
+    # scope translation must not infer profiles from spaces; a space-only BASE scope
+    # stays requester-scoped (DEF-028) and never expands to a cross-profile id such
+    # as PR2 (fail closed on profile inference). Only a per-GRANT scope (is_grant)
+    # is profile-unrestricted by design.
     scope = AllowedScope(operation="READ", allowed_knowledge_space_ids=["K"])
     clause, params = _profile_predicate(scope, requester="PR1")
-    # Space membership alone carries no profile predicate; crucially it must never
-    # infer/expand to a cross-profile id such as PR2.
+    # DEF-028: base scope + ks is requester-scoped, not profile-unrestricted.
+    assert clause == "zm_meta.profile_id = ?"
+    assert params == ["PR1"]
     assert "PR2" not in params
-    assert clause is None
+    # A GRANT scope remains profile-unrestricted (project/space clause binds it).
+    grant_scope = AllowedScope(operation="READ",
+                               allowed_knowledge_space_ids=["K"], is_grant=True)
+    g_clause, g_params = _profile_predicate(grant_scope, requester="PR1")
+    assert g_clause is None
+    assert "PR2" not in g_params
 
 
 def test_profile_does_not_expand_spaces():

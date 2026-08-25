@@ -100,6 +100,7 @@ def test_scope_allows_space_member_event():
     scope = AllowedScope(
         operation=READ,
         allowed_knowledge_space_ids=["quant-theory"],
+        is_grant=True,  # DEF-028: space-grant scope semantics
     )
     assert authorized_read._scope_allows(
         scope, "requester", "prof-X", "proj-Y",
@@ -112,6 +113,7 @@ def test_scope_allows_denies_non_member_event():
     scope = AllowedScope(
         operation=READ,
         allowed_knowledge_space_ids=["quant-theory"],
+        is_grant=True,  # DEF-028: space-grant scope semantics
     )
     assert authorized_read._scope_allows(
         scope, "requester", "prof-Z", "proj-W",
@@ -124,6 +126,7 @@ def test_scope_allows_space_grant_without_members_is_fail_closed():
     scope = AllowedScope(
         operation=READ,
         allowed_knowledge_space_ids=["quant-theory"],
+        is_grant=True,  # DEF-028: space-grant scope semantics
     )
     assert authorized_read._scope_allows(
         scope, "requester", "prof-X", "proj-Y",
@@ -136,6 +139,7 @@ def test_scope_allows_space_grant_legacy_no_param_still_fail_closed():
     scope = AllowedScope(
         operation=READ,
         allowed_knowledge_space_ids=["quant-theory"],
+        is_grant=True,  # DEF-028: space-grant scope semantics
     )
     assert authorized_read._scope_allows(
         scope, "requester", "prof-X", "proj-Y",
@@ -158,6 +162,7 @@ def test_expand_scope_with_spaces_merges_members(corpus_conn):
     space_scope = AllowedScope(
         operation=READ,
         allowed_knowledge_space_ids=["quant-theory"],
+        is_grant=True,  # DEF-028: space-grant scope semantics
     )
     expanded = svc._expand_scope_with_spaces(space_scope)
     # No-op: dimensions unchanged, nothing merged from corpus members.
@@ -186,6 +191,7 @@ def test_expand_scope_without_corpus_conn_keeps_fail_closed(corpus_conn):
     space_scope = AllowedScope(
         operation=READ,
         allowed_knowledge_space_ids=["quant-theory"],
+        is_grant=True,  # DEF-028: space-grant scope semantics
     )
     expanded = svc._expand_scope_with_spaces(space_scope)
     # Unchanged (no expansion); scope still non-authorizing for any row.
