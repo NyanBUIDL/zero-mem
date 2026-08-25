@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -21,23 +22,37 @@ from src.integration.m6 import mcp_server
 from src.integration.m6.tools import TOOL_REGISTRY
 
 
-CORPUS_DB = Path(
-    "/home/lenovo/Hermes Workspace/zero-mem-dev-data/corpus-quant-lab/corpus-derived.sqlite"
-)
+def _corpus_db_from_env() -> Path:
+    """V141 (F2 remediation): corpus DB path comes from the environment, never
+    a machine-specific hardcode. Tests that require a real quant-lab store are
+    skipped with an explicit reason when ZM_TEST_CORPUS_DB is unset — the rest
+    of the suite stays portable."""
+    val = os.environ.get("ZM_TEST_CORPUS_DB")
+    if not val:
+        pytest.skip("ZM_TEST_CORPUS_DB not set (portable run) — real-corpus MCP tests skipped")
+    p = Path(val)
+    if not p.exists():
+        pytest.skip(f"ZM_TEST_CORPUS_DB points to missing file: {val}")
+    return p
+
+
+@pytest.fixture(scope="module")
+def corpus_db() -> Path:
+    return _corpus_db_from_env()
 
 
 def _rpc(serve_fn, method, params=None, rid=1):
     return serve_fn(method, params or {}, rid)
 
 
-def test_corpus_search_registered_in_surface():
+def test_corpus_search_registered_in_surface(corpus_db):
     assert "corpus_search" in TOOL_REGISTRY
     spec = TOOL_REGISTRY["corpus_search"]
     assert spec.resource_type.value == "corpus_unit"
     assert spec.operation.value == "READ"
 
 
-def test_mcp_initialize_and_tools_list():
+def test_mcp_initialize_and_tools_list(corpus_db):
     out = io.StringIO()
     captured = []
 
@@ -49,16 +64,16 @@ def test_mcp_initialize_and_tools_list():
         captured.append(resp_list)
 
     # configure runtime so handlers are registered
-    mcp_server.configure(CORPUS_DB)
-    fake_serve(CORPUS_DB)
+    mcp_server.configure(corpus_db)
+    fake_serve(corpus_db)
     assert captured[0]["result"]["serverInfo"]["name"] == "zero-mem-m6"
     names = {t["name"] for t in captured[1]["result"]["tools"]}
     assert "corpus_search" in names
     assert "memory_search" in names
 
 
-def test_corpus_search_returns_sanitized_units():
-    mcp_server.configure(CORPUS_DB)
+def test_corpus_search_returns_sanitized_units(corpus_db):
+    mcp_server.configure(corpus_db)
     resp = mcp_server._handle_rpc(
         "tools/call",
         {"name": "corpus_search",
@@ -81,9 +96,9 @@ def test_corpus_search_returns_sanitized_units():
         assert "grant" not in it
 
 
-def test_corpus_search_authorization_isolated():
+def test_corpus_search_authorization_isolated(corpus_db):
     """A profile with no grant/scope over quant-theory must NOT see its units."""
-    mcp_server.configure(CORPUS_DB)
+    mcp_server.configure(corpus_db)
     resp = mcp_server._handle_rpc(
         "tools/call",
         {"name": "corpus_search",
@@ -97,7 +112,7 @@ def test_corpus_search_authorization_isolated():
     assert env.get("results", []) == []
 
 
-def test_unknown_method_returns_method_not_found():
-    mcp_server.configure(CORPUS_DB)
+def test_unknown_method_returns_method_not_found(corpus_db):
+    mcp_server.configure(corpus_db)
     resp = mcp_server._handle_rpc("tools/bogus", {}, 9)
     assert resp["error"]["code"] == -32601
