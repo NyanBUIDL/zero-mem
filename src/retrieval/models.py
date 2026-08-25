@@ -101,6 +101,8 @@ class EventView:
     retention: str
     content_hash: str
     content_source: str = "metadata_only"
+    # V150-WP2 (DEF-010): denormalized ks scope carried for per-row authorization.
+    knowledge_space_id: Optional[str] = None
 
 
 @dataclass

@@ -138,10 +138,26 @@ def _project_predicate(scope: AllowedScope) -> Tuple[Optional[str], List[str]]:
     return (None, [])
 
 
+def _ks_predicate(scope: AllowedScope) -> Tuple[Optional[str], List[str]]:
+    """V150-WP2 (DEF-010): per-row knowledge-space SQL predicate.
+
+    Restrictive on the row's own denormalized ``zm_meta.knowledge_space_id``
+    (migration v11). Applied whenever a scope grants spaces, so the SQL layer
+    itself enforces the exact per-row boundary; ``_scope_allows`` re-checks it
+    defensively per view.
+    """
+    if scope.allowed_knowledge_space_ids:
+        ph = ",".join("?" * len(scope.allowed_knowledge_space_ids))
+        return (f"zm_meta.knowledge_space_id IN ({ph})",
+                list(scope.allowed_knowledge_space_ids))
+    return (None, [])
+
+
 def _scope_allows(scope: AllowedScope, requester: Optional[str],
                   profile_id: Optional[str], project_id: Optional[str],
-                  space_members: Optional[set] = None) -> bool:
-    """Defensive post-validation: is (profile_id, project_id) inside this scope?
+                  space_members: Optional[set] = None,
+                  row_knowledge_space_id: Optional[str] = None) -> bool:
+    """Defensive post-validation: is (profile_id, project_id, ks) inside scope?
 
     - global read permits NULL-profile (unowned/default) records.
     - profile-grant / base scope: profile membership is REQUIRED (and project, when
@@ -151,11 +167,12 @@ def _scope_allows(scope: AllowedScope, requester: Optional[str],
       alone authorizes the row across profiles (a project read grant authorizes
       reading that project regardless of which profile owns the row).
     - cross-profile rows without an explicit grant => DENIED.
-    - knowledge-space grant (DEF-004, Option B): the space is resolved into a set
-      of concrete (profile_id, project_id) members via the resolution layer
-      (``space_members``). The row is authorized iff its (profile, project) is in
-      that set. When ``space_members`` is not supplied (no resolver data), a space
-      grant remains NON-authorizing (fail-closed) — it never silently authorizes.
+    - knowledge-space grant — V150-WP2 (DEF-010 Option B, per-row): the row's own
+      denormalized ``knowledge_space_id`` (zm_meta, migration v11) must be in the
+      granted set. NULL never matches a space grant (fail-closed). The legacy
+      resolution fallback (``space_members`` from the corpus projection) is kept
+      ONLY for rows with NULL ks that predate denormalization and are attested by
+      the digest-gated resolver; when neither applies => DENIED.
     """
     # Project/space grant scopes are profile-unrestricted; the project/space clause
     # enforces the boundary. For base / profile-grant / implicit-local scopes, fold
@@ -182,13 +199,15 @@ def _scope_allows(scope: AllowedScope, requester: Optional[str],
     if scope.allowed_project_ids and project_id in scope.allowed_project_ids:
         return True
     if scope.allowed_knowledge_space_ids:
-        # DEF-004 Option B: knowledge-space resolution layer. ``zm_meta`` has no
-        # knowledge_space_id column; instead the granted space maps to concrete
-        # (profile_id, project_id) members resolved from the derived corpus state.
-        # The row is authorized iff its (profile, project) is a resolved member.
+        # V150-WP2 (DEF-010): per-row check first — the row's own ks column is
+        # authoritative for rows that carry it (post-migration-v11 ingest).
+        if row_knowledge_space_id is not None:
+            return row_knowledge_space_id in scope.allowed_knowledge_space_ids
+        # Legacy fallback: pre-denormalization rows (NULL ks) may still be
+        # authorized via the digest-gated corpus resolution layer.
         if space_members is not None and (profile_id, project_id) in space_members:
             return True
-        # No resolver data (or row not in resolved set) => non-authorizing.
+        # No row ks, no resolver data => non-authorizing (fail-closed).
         return False
     return False
 
@@ -394,6 +413,7 @@ class AuthorizedReadService:
         where, params = _build_where(extra)
         p_clause, p_params = _profile_predicate(scope, self._requester)
         j_clause, j_params = _project_predicate(scope)
+        ks_clause, ks_params = _ks_predicate(scope)
         clauses = []
         if p_clause:
             clauses.append("(" + p_clause + ")")
@@ -401,6 +421,9 @@ class AuthorizedReadService:
         if j_clause:
             clauses.append("(" + j_clause + ")")
             params = params + j_params
+        if ks_clause:
+            clauses.append("(" + ks_clause + ")")
+            params = params + ks_params
         if clauses:
             where = where + " AND " + " AND ".join(clauses)
         else:
@@ -472,7 +495,8 @@ class AuthorizedReadService:
                 for v in rows:
                     if v.event_id in seen_ids:
                         continue
-                    if not _scope_allows(scope, self._requester, v.profile_id, v.project_id, space_members=self._space_members_for(scope)):
+                    if not _scope_allows(scope, self._requester, v.profile_id, v.project_id, space_members=self._space_members_for(scope),
+                                    row_knowledge_space_id=getattr(v, "knowledge_space_id", None)):
                         return self._boundary_violation(eff)
                     seen_ids.add(v.event_id)
                     merged.append(v)
@@ -513,7 +537,8 @@ class AuthorizedReadService:
             return AuthorizedResult(allowed=True, denied=False,
                                     reason_code=eff.reason_code, decision=eff)
         for scope in self._ordered_scopes(eff):
-            if _scope_allows(scope, self._requester, view.profile_id, view.project_id, space_members=self._space_members_for(scope)):
+            if _scope_allows(scope, self._requester, view.profile_id, view.project_id, space_members=self._space_members_for(scope),
+                                    row_knowledge_space_id=getattr(view, "knowledge_space_id", None)):
                 return AuthorizedResult(allowed=True, denied=False,
                                         reason_code=eff.reason_code,
                                         items=[view], decision=eff)
@@ -532,7 +557,8 @@ class AuthorizedReadService:
         for v in views:
             ok = False
             for scope in self._ordered_scopes(eff):
-                if _scope_allows(scope, self._requester, v.profile_id, v.project_id, space_members=self._space_members_for(scope)):
+                if _scope_allows(scope, self._requester, v.profile_id, v.project_id, space_members=self._space_members_for(scope),
+                                    row_knowledge_space_id=getattr(v, "knowledge_space_id", None)):
                     ok = True
                     break
             if not ok:
@@ -583,7 +609,8 @@ class AuthorizedReadService:
                 for h in res.results:
                     if h.event_id in seen_ids:
                         continue
-                    if not _scope_allows(scope, self._requester, h.profile_id, h.project_id, space_members=self._space_members_for(scope)):
+                    if not _scope_allows(scope, self._requester, h.profile_id, h.project_id, space_members=self._space_members_for(scope),
+                                    row_knowledge_space_id=getattr(h, "knowledge_space_id", None)):
                         return self._boundary_violation(eff)
                     seen_ids.add(h.event_id)
                     items.append(h)
@@ -664,7 +691,8 @@ class AuthorizedReadService:
             return AuthorizedResult(allowed=True, denied=False,
                                     reason_code=eff.reason_code, decision=eff)
         for scope in self._ordered_scopes(eff):
-            if _scope_allows(scope, self._requester, view.profile_id, view.project_id, space_members=self._space_members_for(scope)):
+            if _scope_allows(scope, self._requester, view.profile_id, view.project_id, space_members=self._space_members_for(scope),
+                                    row_knowledge_space_id=getattr(view, "knowledge_space_id", None)):
                 return AuthorizedResult(allowed=True, denied=False,
                                         reason_code=eff.reason_code,
                                         items=[view], decision=eff)
@@ -702,7 +730,8 @@ class AuthorizedReadService:
                 if _scope_allows(scope, self._requester,
                                 getattr(v, "profile_id", None),
                                 getattr(v, "project_id", None),
-                                space_members=self._space_members_for(scope)):
+                                space_members=self._space_members_for(scope),
+                                    row_knowledge_space_id=getattr(v, "knowledge_space_id", None)):
                     ok = True
                     break
             if not ok:

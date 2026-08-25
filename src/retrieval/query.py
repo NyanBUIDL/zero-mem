@@ -125,6 +125,9 @@ def _row_to_view(row) -> EventView:
         retention=row["retention"],
         content_hash=row["content_hash"],
         content_source="metadata_only",
+        # V150-WP2 (DEF-010): carry the denormalized ks for per-row authorization.
+        knowledge_space_id=row["knowledge_space_id"]
+        if "knowledge_space_id" in row.keys() else None,
     )
 
 
