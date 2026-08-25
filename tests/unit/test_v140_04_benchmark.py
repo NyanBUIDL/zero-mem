@@ -7,14 +7,20 @@ held-out query set has >=30 items. Does NOT re-implement retrieval.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
 
 REPO = Path(__file__).resolve().parents[2]
 QUERY_FILE = REPO / "benchmarks" / "qa_quant_lab_heldout.jsonl"
+# V141-R4 (DEF-017): no machine-specific absolute literal. Resolve via
+# ZM_TEST_CORPUS_DB env var first (same pattern as test_v140_03), then a
+# repo-relative dev-data fallback; skip-guard below still applies.
 CORPUS_DB = Path(
-    "/home/lenovo/Hermes Workspace/zero-mem-dev-data/corpus-quant-lab/corpus-derived.sqlite"
+    os.environ.get("ZM_TEST_CORPUS_DB")
+    or (REPO.parent / "zero-mem-dev-data" / "corpus-quant-lab"
+        / "corpus-derived.sqlite")
 )
 
 

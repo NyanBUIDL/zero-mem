@@ -139,6 +139,12 @@ def _tree_hashes(root: Path) -> dict:
 # ---------------------------------------------------------------------------
 
 def test_unconfigured_returns_unavailable_and_creates_nothing(tmp_path):
+    # V141-R4 (DEF-018): if the HOME directory itself does not exist on disk
+    # (container / wiped home), the "nothing created under HOME" property is
+    # trivially true — skip instead of crashing on Path.home().iterdir().
+    if not Path.home().exists():
+        pytest.skip("HOME directory does not exist; nothing-can-be-created "
+                    "under HOME holds vacuously")
     # No explicit vault, no env var, no config file -> UNAVAILABLE, and no
     # directory is created anywhere (cwd, HOME, /tmp, repo).
     old_env = os.environ.pop("ZERO_MEM_OBSIDIAN_VAULT", None)
