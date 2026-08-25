@@ -1574,7 +1574,7 @@ v141_defects_closed: "DEF-012 FIXED (wiring), DEF-013 FIXED (revert), DEF-014 FI
 v141_handoff: artifacts/handoffs/V141-HANDOFF.md (+ V141-R2-R4-REMEDIATION-HANDOFF.md)
 
 # --- V150 release (DEF-009/010/011 cluster; GATE-V150-1 "A + spike B-schema" 2026-08-25) ---
-v150_status: RELEASE_PREP   # tag+push khi maintainer xác nhận bước cuối
+v150_status: RELEASED_PUBLISHED
 v150_version: "1.5.0"
 v150_adr: docs/v1.5/ADR-V150-01-ENTERPRISE-AUTHORIZATION.md   # ACCEPTED + IMPLEMENTED
 v150_wps:
@@ -1589,7 +1589,6 @@ v150_spike: docs/v1.5/SPIKE-B-SCHEMA-EVENT-KS-MAPPING.md
 v150_limitation_superseded: docs/v1.5/LIMITATION-SPACE-GRANT-COARSENING.md
 v150_final_suite: "3535 passed, 12 skipped, 0 failed (77.68s, Py 3.13.15, isolated HOME)"
 v150_backlog_enterprise: "admin CLI đa-agent (ADR-V141-01 Option B)"
-v150_status: RELEASED_PUBLISHED
 v150_release_tag: "v1.5.0"
 v150_release_sha: "10ad8dadad42108dec02d78b9a927b248eb40ef7"
 v150_tag_object: "34bd45bae1efe256a51bf4a47e1b590e249f5f7d (annotated tag object; ^commit = 10ad8da)"
