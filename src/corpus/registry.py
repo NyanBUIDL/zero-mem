@@ -140,6 +140,7 @@ class CorpusSourceRegistry:
         lifecycle_status: str = SourceLifecycle.OBSERVED.value,
         custom_meta: Optional[Mapping[str, Any]] = None,
         provenance: Optional[Mapping[str, Any]] = None,
+        _blob_ref: Optional[str] = None,
     ) -> CorpusSourceRecord:
         """Register a logical source or append its changed immutable version.
 
@@ -181,7 +182,7 @@ class CorpusSourceRegistry:
                 knowledge_space_id=knowledge_space_id,
                 sensitivity=sensitivity,
                 lifecycle_status=lifecycle_status,
-                blob_ref=None,
+                blob_ref=_blob_ref,
                 provenance={"registered_at": _now(), "registry": "corpus_sources", **dict(provenance or {})},
                 custom_meta=custom_meta or {},
                 source_version_id=source_version_id,
@@ -214,27 +215,28 @@ class CorpusSourceRegistry:
         provenance: Optional[Mapping[str, Any]] = None,
         blob_store: Optional[CorpusBlobStore] = None,
     ) -> CorpusSourceRecord:
-        record = self.register_source(
-            content=content,
-            external_ref=external_ref,
-            kind=kind,
-            profile_id=profile_id,
-            project_id=project_id,
-            knowledge_space_id=knowledge_space_id,
-            sensitivity=sensitivity,
-            lifecycle_status=lifecycle_status,
-            custom_meta=custom_meta,
-            provenance=provenance,
-        )
-        if record.blob_ref is not None:
-            return record
         store = blob_store or CorpusBlobStore(root=self._root)
         if not store.available:
-            return record
-        digest = store.put(content=content, source_ref=record.source_id)
-        updated = CorpusSourceRecord(**{**record.as_dict(), "blob_ref": digest})
-        self._update_record(updated)
-        return updated
+            return self.register_source(
+                content=content, external_ref=external_ref, kind=kind,
+                profile_id=profile_id, project_id=project_id,
+                knowledge_space_id=knowledge_space_id, sensitivity=sensitivity,
+                lifecycle_status=lifecycle_status, custom_meta=custom_meta,
+                provenance=provenance)
+        descriptor = source_descriptor(
+            external_ref=external_ref, kind=kind, profile_id=profile_id,
+            project_id=project_id, knowledge_space_id=knowledge_space_id,
+            custom_meta=custom_meta)
+        source_id = derive_source_id(compute_content_identity(content), descriptor)
+        # Blob-first permits only an unreachable content-addressed orphan if the
+        # registry append fails; it can never create a dangling blob reference.
+        digest = store.put(content=content, source_ref=source_id)
+        return self.register_source(
+            content=content, external_ref=external_ref, kind=kind,
+            profile_id=profile_id, project_id=project_id,
+            knowledge_space_id=knowledge_space_id, sensitivity=sensitivity,
+            lifecycle_status=lifecycle_status, custom_meta=custom_meta,
+            provenance=provenance, _blob_ref=digest)
 
     def _update_record(self, record: CorpusSourceRecord) -> None:
         """Rebind one version without overwriting prior source history.
