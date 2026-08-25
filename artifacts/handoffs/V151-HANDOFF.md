@@ -29,7 +29,9 @@
 ## Risk
 
 - **Cursor incompatibility chủ đích**: cursor ≤v1.5.0 thành mismatch (fingerprint giờ gắn effective scope) — client phải restart page 1. Đã ghi trong release notes.
+- **Divergence với master (cho Gate PUSH)**: `v1.5.1-hotfix` phân kỳ từ 10ad8da; master có d40d273 (publication record) + 3bc5ba4 (DEF-019 doctor honesty) mà nhánh v1.5.1 chưa mang — cây đang chứa code doctor + test bản TRƯỚC DEF-019, mâu thuẫn registry đã ghi DEF-019 FIXED. Trước push cần merge/rebase master vào hotfix (additive) và chạy lại suite.
 - In-flight dispatcher work không cancel giữa chừng (thiết kế hiện tại); queued-cancelled work-item rác nằm trong SimpleQueue tới khi worker rảnh (bounded per-burst, O(1) dequeue).
+- Review LOW backlog: `register_source_with_blob` không upgrade blob_ref cho record registered-without-blob (orphan blob, fail-safe).
 - tracemalloc walk 100k dừng giữa chừng do timeout script — memory-flat đã chứng minh, completeness chứng minh ở scale nhỏ hơn.
 - CI workflow mới chưa chạy trên GitHub (cần Gate PUSH).
 - `project-state.yaml` chưa đụng — chỉ cập nhật overlay sau push + CI xanh theo Gate.
