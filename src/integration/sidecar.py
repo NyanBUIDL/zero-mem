@@ -110,6 +110,22 @@ class ZeroMemSidecar:
         self._close_lock = threading.RLock()
         self._admission_condition = threading.Condition(self._close_lock)
         self._futures: set[Any] = set()
+        # DEF-033 (DEF-E1): observable counters distinguishing caller-timeout
+        # from still-running work (the admission slot stays held while a
+        # started future runs; queued-not-started futures are cancelled).
+        self._metrics: dict[str, int] = {
+            "caller_timed_out": 0,
+            "work_still_running": 0,
+            "queued_cancelled_before_start": 0,
+            "deadline_exceeded": 0,
+            "overloaded": 0,
+        }
+
+    @property
+    def metrics(self) -> dict[str, int]:
+        """Snapshot of the sidecar counters (caller-timeout vs still-running)."""
+        with self._admission_condition:
+            return dict(self._metrics)
 
     @staticmethod
     def _default_dispatch(payload: dict[str, Any]) -> dict[str, Any]:
@@ -177,6 +193,11 @@ class ZeroMemSidecar:
         deadline = time.monotonic() + timeout
         admission_status = self._acquire_admission(deadline, immediate=timeout == 0)
         if admission_status is not None:
+            with self._admission_condition:
+                if admission_status is SidecarStatus.OVERLOADED:
+                    self._metrics["overloaded"] += 1
+                else:
+                    self._metrics["deadline_exceeded"] += 1
             return self._result(admission_status, bytes_in=size)
         with self._admission_condition:
             if self._closed:
@@ -196,6 +217,18 @@ class ZeroMemSidecar:
         try:
             response = future.result(timeout=max(0.0, deadline - time.monotonic()))
         except FutureTimeout:
+            # DEF-033 (DEF-E1): cancel-before-start — a future that has NOT
+            # begun executing is cancelled so the queued work never runs after
+            # the caller timed out (parity with the async path, DEF-026). A
+            # future already running keeps its admission slot until completion
+            # (Python cannot kill a thread safely) and is counted separately.
+            cancelled = future.cancel()
+            with self._admission_condition:
+                if cancelled:
+                    self._metrics["queued_cancelled_before_start"] += 1
+                else:
+                    self._metrics["work_still_running"] += 1
+                self._metrics["caller_timed_out"] += 1
             return self._result(SidecarStatus.DEADLINE_EXCEEDED, bytes_in=size)
         except CancelledError:
             return self._result(SidecarStatus.CLOSED, bytes_in=size)
