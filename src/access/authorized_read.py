@@ -201,7 +201,8 @@ class AuthorizedReadService:
     """Gates M3/M4 reads behind the M5.1/M5.3 policy. Store is used read-only."""
 
     def __init__(self, store, requesting_profile_id: Optional[str],
-                 grant_conn=None, corpus_conn=None) -> None:
+                 grant_conn=None, corpus_conn=None,
+                 expected_projection_digest: Optional[str] = None) -> None:
         self._store = store
         self._requester = requesting_profile_id
         # Optional writable/derived connection to zm_access_grants. When supplied,
@@ -214,6 +215,13 @@ class AuthorizedReadService:
         # grant is mapped to concrete (profile_id, project_id) members from corpus
         # state. When None, space grants stay fail-closed (non-authorizing).
         self._corpus_conn = corpus_conn
+        # V150-WP1 (DEF-011): fail-closed integrity gate for the derived input.
+        # When armed (expected digest supplied), space-member expansion only
+        # proceeds if the live projection digest matches; otherwise space grants
+        # stay non-authorizing (deny), never over-authorize on stale/tampered
+        # derived state. Unarmed (None) preserves pre-V150 behavior for callers
+        # that do not opt in yet (e.g. tests constructing the service directly).
+        self._projection_digest = expected_projection_digest
 
     def _space_members_for(self, scope) -> Optional[set]:
         """Resolve (profile, project) members for a scope's granted spaces (B).
@@ -321,6 +329,14 @@ class AuthorizedReadService:
         space_ids = list(scope.allowed_knowledge_space_ids or [])
         if not space_ids or self._corpus_conn is None:
             return scope
+        # V150-WP1 (DEF-011): fail-closed integrity gate. When armed, the live
+        # derived projection must match the expected digest before its member
+        # data may influence authorization; mismatch/stale => no expansion.
+        expected = getattr(self, "_projection_digest", None)
+        if expected is not None:
+            from .projection_integrity import ProjectionDigestGate
+            if not ProjectionDigestGate(expected).verify(self._corpus_conn):
+                return scope
         from .knowledge_space_resolver import resolve_space_members
         members = resolve_space_members(self._corpus_conn, space_ids)
         if not members:
@@ -422,7 +438,7 @@ class AuthorizedReadService:
         # (e.g. authorized scope changed) is a mismatch.
         from src.retrieval.models import QueryRequest as _QR
         fp_request = _QR(
-            profile_id=project_filter,
+            profile_id=profile_filter,
             session_id=session_filter,
             verification_status=verification_filter,
             lifecycle_status=lifecycle_filter,

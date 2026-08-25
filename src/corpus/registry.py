@@ -237,27 +237,31 @@ class CorpusSourceRegistry:
         return updated
 
     def _update_record(self, record: CorpusSourceRecord) -> None:
-        """Rebind one version without overwriting prior source history."""
+        """Rebind one version without overwriting prior source history.
+
+        V150-WP1 (DEF-009a): the rewritten file content is derived from the
+        in-memory index (``self._records``) instead of re-reading and re-parsing
+        the whole JSONL on every update — O(n) read + O(n) parse per update
+        becomes a single streaming rewrite over already-parsed records.
+        Behavioral contract is unchanged: same-source/same-version line replaced
+        exactly once, legacy single-version lines matched, unrelated lines
+        preserved byte-for-byte, append when no matching line exists.
+        """
         if not self.available or self._path is None:
             return
         with self._lock:
-            lines = self._path.read_bytes().splitlines()
             new_lines: list[bytes] = []
             replaced = False
-            for line in lines:
-                try:
-                    raw = json.loads(line.decode("utf-8"))
-                except Exception:
-                    new_lines.append(line)
-                    continue
-                same_source = raw.get("source_id") == record.source_id
-                same_version = raw.get("source_version_id") == record.source_version_id
-                legacy_single = record.source_version_id is None and "source_version_id" not in raw
-                if same_source and (same_version or legacy_single) and not replaced:
+            for r in self._records:
+                same_source = r.source_id == record.source_id
+                same_version = r.source_version_id == record.source_version_id
+                # Legacy single-version rows carry no source_version_id; the
+                # in-memory records normalize them to None, so match that too.
+                if same_source and same_version and not replaced:
                     new_lines.append(self._serialize(record))
                     replaced = True
                 else:
-                    new_lines.append(line)
+                    new_lines.append(self._serialize(r))
             if not replaced:
                 new_lines.append(self._serialize(record))
             data = b"".join(line.rstrip(b"\n") + b"\n" for line in new_lines)
