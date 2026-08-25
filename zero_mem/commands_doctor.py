@@ -122,10 +122,11 @@ def collect() -> dict[str, Any]:
     except ConfigurationError as exc:
         checks.append(_check("configuration", "FAIL", str(exc)))
 
-    # V141 (DEF-012): corpus authorization configuration status.
-    # V141-R2 (DEF-015): status reflects the LIVE usability of the configured
-    # store, not mere configuration existence — a stale/missing/unreadable
-    # store must not be reported PASS.
+    # V150-R1 (DEF-019): the event path authorizes per-row via
+    # zm_meta.knowledge_space_id — a corpus store is NOT required for
+    # knowledge-space grants anymore. This check now reports the corpus
+    # store's own usability for the CORPUS read path (corpus_unit_search)
+    # and describes the actual per-row mechanism.
     try:
         from zero_mem import userconfig
 
@@ -134,10 +135,11 @@ def collect() -> dict[str, Any]:
         effective = env_val or corpus_val
         if not effective:
             checks.append(_check(
-                "corpus_authorization", "WARN",
-                "not configured — knowledge-space grants on the event path are "
-                "non-authorizing (fail-closed). Set with: zero-mem config set "
-                "corpus-store-path <path>"))
+                "corpus_authorization", "PASS",
+                "event-path knowledge-space grants authorize per-row via "
+                "zm_meta.knowledge_space_id (canonical-first); no corpus "
+                "store configured — only corpus_unit_search needs one "
+                "(zero-mem config set corpus-store-path <path>)"))
         else:
             source = "env" if env_val else "config"
             corpus_error: Exception | None = None
@@ -160,14 +162,17 @@ def collect() -> dict[str, Any]:
             if corpus_error is not None:
                 checks.append(_check(
                     "corpus_authorization", "FAIL",
-                    f"configured via {source} but unusable ({corpus_error}): "
-                    f"{effective} — fix with: zero-mem config set "
-                    "corpus-store-path <path>"))
+                    f"corpus store configured for corpus_unit_search via "
+                    f"{source} but unusable ({corpus_error}): {effective} — "
+                    "fix with: zero-mem config set corpus-store-path <path> "
+                    "(event-path grants are unaffected: they authorize "
+                    "per-row via zm_meta)"))
             else:
                 checks.append(_check(
                     "corpus_authorization", "PASS",
-                    f"corpus store usable ({source}: {effective}) — "
-                    "knowledge-space grants authorize on the event path"))
+                    f"corpus store usable for corpus_unit_search ({source}: "
+                    f"{effective}); event-path grants authorize per-row via "
+                    "zm_meta.knowledge_space_id"))
     except Exception as exc:  # pragma: no cover - defensive
         checks.append(_check("corpus_authorization", "FAIL", str(exc)))
 

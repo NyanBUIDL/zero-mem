@@ -182,11 +182,16 @@ class TestDef015DoctorHonesty:
         return {c["id"]: c["status"] for c in data.get("checks", [])}
 
     def test_unconfigured_is_warn_not_pass(self, isolated_env, capsys):
+        """SUPERSEDED (V150-R1, DEF-019): unconfigured corpus store is now
+        PASS-with-info — event-path grants authorize per-row via zm_meta and
+        need no corpus store. Re-pinned: the check must never claim grants
+        are non-authorizing without a corpus store."""
         statuses = self._doctor_checks(capsys)
         assert "corpus_authorization" in statuses, (
             "doctor must surface corpus_authorization")
-        assert statuses["corpus_authorization"] == "WARN", (
-            "unconfigured => fail-closed notice (WARN), never PASS")
+        assert statuses["corpus_authorization"] == "PASS", (
+            "V150-R1: unconfigured corpus store is fine for event-path "
+            "grants (per-row canonical); must not be WARN")
 
     def test_stale_path_fails_not_passes(self, isolated_env, capsys):
         from zero_mem.userconfig import set_corpus_store_path as _set
