@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import stat
 import subprocess
 import sys
 import zipfile
@@ -34,13 +35,24 @@ def _cli_invocation(cli: Path) -> list[str]:
 
 
 def _is_directory_link(path: Path) -> bool:
+    if path.is_symlink():
+        return True
+    if os.name == "nt":
+        try:
+            attributes = path.stat(follow_symlinks=False).st_file_attributes
+        except (FileNotFoundError, OSError, AttributeError):
+            return False
+        return bool(
+            attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT
+            and attributes & stat.FILE_ATTRIBUTE_DIRECTORY
+        )
     is_junction = getattr(path, "is_junction", None)
-    return path.is_symlink() or bool(callable(is_junction) and is_junction())
+    return bool(callable(is_junction) and is_junction())
 
 
 def _remove_directory_link(path: Path) -> None:
     is_junction = getattr(path, "is_junction", None)
-    if callable(is_junction) and is_junction() and not path.is_symlink():
+    if _is_directory_link(path) and not path.is_symlink():
         path.rmdir()
     else:
         path.unlink()

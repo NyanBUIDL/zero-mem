@@ -1614,3 +1614,6 @@ v160_evidence_index: "docs/v1.6.0/EVIDENCE.md"
 v160_release_notes: "docs/releases/RELEASE-NOTES-v1.6.0.md"
 v160_tag: none
 v160_push_gate: "pending at documentation commit; verify remote branch and CI after push"
+v160_remote_ci_run_1: "https://github.com/NyanBUIDL/zero-mem/actions/runs/32999483909"
+v160_remote_ci_run_1_verdict: "7/9 cells passed; Windows 3.11 exposed pre-3.12 junction detection plus DEF-036 timer-test portability; Windows 3.13 exposed DEF-036 timer-test portability"
+v160_remote_ci_followup: "reparse-attribute junction detection + explicit blocking barrier; local full suite after fix 3618 passed, 38 skipped, 0 failed; follow-up remote run pending"

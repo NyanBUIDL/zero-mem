@@ -39,7 +39,11 @@ Tên `audit/evidence-v160-c2` chứa cả C3/C4 là di sản đã nghiệm thu. 
 - Full unit/integration: **3618 passed, 38 skipped, 0 failed**.
 - Benchmark: covering primary-key index; median 10.3 / 10.2 / 14.0 µs ở
   1k / 10k / 100k event trên máy qualification.
-- Remote 9-cell CI: PENDING sau push; chưa phải release evidence.
+- Remote run 1: [GitHub Actions 32999483909](https://github.com/NyanBUIDL/zero-mem/actions/runs/32999483909)
+  đạt 7/9 cell; Windows 3.11 phát hiện junction detection thiếu fallback trước
+  Python 3.12 và DEF-036 timing test; Windows 3.13 phát hiện cùng timing test.
+  Hai lỗi đã được sửa bằng reparse-attribute detection và blocking barrier;
+  follow-up 9-cell run là gate hiện hành.
 
 ## Quy tắc cập nhật
 

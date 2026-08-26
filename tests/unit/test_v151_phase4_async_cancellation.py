@@ -48,6 +48,22 @@ class SlowWriter:
         self.closed += 1
 
 
+class BlockingFirstWriter(SlowWriter):
+    """Hold the first append until the test explicitly frees the worker."""
+
+    def __init__(self) -> None:
+        super().__init__(delay=0)
+        self.started = threading.Event()
+        self.release = threading.Event()
+
+    def append(self, event: object) -> AppendReceipt:
+        if not self.started.is_set():
+            self.started.set()
+            if not self.release.wait(timeout=5):
+                raise TimeoutError("test worker was not released")
+        return super().append(event)
+
+
 def _executor_queue_size(client: AsyncClient) -> int:
     queue = client._executor._work_queue
     qsize = getattr(queue, "qsize", None)
@@ -102,11 +118,17 @@ def test_def026_abandoned_work_is_cancelled_before_start_when_worker_frees() -> 
     not executed against canonical storage."""
 
     async def scenario() -> None:
-        writer = SlowWriter(0.03)
+        writer = BlockingFirstWriter()
         client = AsyncClient.open(CoreConfig(), writer=writer, consistency_policy="append")
         try:
-            occupy = asyncio.ensure_future(client.session_start("occupy"))
-            await asyncio.sleep(0)
+            occupy = asyncio.ensure_future(
+                client.observe_message({"occupy": True})
+            )
+            deadline = time.monotonic() + 5
+            while not writer.started.is_set():
+                if time.monotonic() >= deadline:
+                    pytest.fail("worker did not enter the blocking append")
+                await asyncio.sleep(0.001)
 
             timed_out = 0
             for i in range(20):
@@ -115,9 +137,10 @@ def test_def026_abandoned_work_is_cancelled_before_start_when_worker_frees() -> 
                 except AsyncTimeoutError:
                     timed_out += 1
 
-            # Let everything the executor already picked up finish, then settle.
-            await asyncio.sleep(1.5)
+            writer.release.set()
             await occupy
+            # Let cancellation callbacks and the executor queue settle.
+            await asyncio.sleep(0.1)
 
             events_after = len(writer.events)
             # The occupy call plus whatever started before cancellation; anything
@@ -127,6 +150,7 @@ def test_def026_abandoned_work_is_cancelled_before_start_when_worker_frees() -> 
                 f"written after {timed_out} timeouts (occupy + at most 1)"
             )
         finally:
+            writer.release.set()
             await client.aclose()
 
     asyncio.run(scenario())

@@ -5,6 +5,7 @@ import ast
 import hashlib
 import json
 import os
+import stat
 import sys
 import tempfile
 from pathlib import Path
@@ -65,8 +66,19 @@ def reject_home_or_root(path: Path, home: Path, label: str) -> None:
 
 def is_directory_link(path: Path) -> bool:
     """Return True for either a directory symlink or a Windows junction."""
+    if path.is_symlink():
+        return True
+    if os.name == "nt":
+        try:
+            attributes = path.stat(follow_symlinks=False).st_file_attributes
+        except (FileNotFoundError, OSError, AttributeError):
+            return False
+        return bool(
+            attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT
+            and attributes & stat.FILE_ATTRIBUTE_DIRECTORY
+        )
     is_junction = getattr(path, "is_junction", None)
-    return path.is_symlink() or bool(callable(is_junction) and is_junction())
+    return bool(callable(is_junction) and is_junction())
 
 
 def directory_link_target(path: Path) -> Path:
@@ -83,8 +95,7 @@ def directory_link_target(path: Path) -> Path:
 
 def remove_directory_link(path: Path) -> None:
     """Remove a link itself without traversing or deleting its target."""
-    is_junction = getattr(path, "is_junction", None)
-    if callable(is_junction) and is_junction() and not path.is_symlink():
+    if is_directory_link(path) and not path.is_symlink():
         path.rmdir()
     else:
         path.unlink()

@@ -7,6 +7,11 @@
 
 Local full suite: `3618 passed, 38 skipped, 0 failed`. Remote CI và release là gate riêng.
 
+Remote run đầu tại exact SHA `cc8a5c4` đạt 7/9 cell. Windows 3.11 phát hiện
+Python cũ chưa có `Path.is_junction()` và test DEF-036 phụ thuộc timer 2 ms;
+Windows 3.13 phát hiện cùng timing test. Follow-up dùng Windows reparse attributes
+và explicit worker barrier; local full suite sau fix vẫn `3618/38/0`.
+
 ## Benchmark junction
 
 Command: `python benchmarks/v160_junction_lookup.py --sizes 1000 10000 100000 --repeats 1000`
