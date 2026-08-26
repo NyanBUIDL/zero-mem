@@ -28,6 +28,9 @@ Security:
   the two authorization resource types stay distinct (permanent M6.6 invariant).
 - Authorization (M5) is NOT performed here; this is a storage projection. The
   read path (M10.5) must route corpus reads through ``AuthorizedReadService``.
+- V1.6 event Multi-KS does not widen corpus scope: every source and derived unit
+  still carries zero or one ``knowledge_space_id``.  No event-space junction is
+  consulted or copied here; widening corpus scope needs a separate increment.
 """
 
 from __future__ import annotations

@@ -4,6 +4,10 @@ A ``CorpusSourceRecord`` is the registry entry for one corpus source version.
 It is DATA, not authority, and never enters memory JSONL (MEMORY != CORPUS).
 The contract is CLOSED: an unknown lifecycle status or resource_type is
 rejected (fails closed), never coerced.
+
+V1.6 C9 intentionally keeps corpus scope singular.  Multi-KS is an event
+contract only; a corpus source/unit carries zero or one ``knowledge_space_id``.
+A future multi-KS corpus design requires its own ADR and additive migration.
 """
 from __future__ import annotations
 
@@ -80,6 +84,13 @@ class CorpusSourceRecord:
             SourceSensitivity.validate(self.sensitivity)
             if not self.source_id or not self.content_hash:
                 raise ValueError("source_id and content_hash are required")
+            if self.knowledge_space_id is not None and (
+                not isinstance(self.knowledge_space_id, str)
+                or not self.knowledge_space_id.strip()
+            ):
+                raise ValueError(
+                    "corpus knowledge_space_id must be one non-empty string or None"
+                )
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
 
