@@ -6,11 +6,12 @@
 
 ## Các commit đề xuất (nhỏ, tuần tự)
 
-### C1 — Capture contract: canonical knowledge_space_ids (forward-only)
-- `src/capture/validation.py`: thêm `knowledge_space_ids` vào OPTIONAL_FIELDS + validate (list[str] non-empty, dedup, max len).
-- `src/capture/adapter.py`: param `knowledge_space_ids` + đưa vào envelope.
-- `src/integration/capture_adapter.py`: `_envelope` truyền ks từ mapped payload.
-- Test: envelope có list; validate reject non-list/dup/quá dài; **E2E _envelope → canonical → ingest** (behavioral).
+### C1 — Capture contract: canonical knowledge_space_ids (forward-only) — **DONE (commit chờ sau full suite)**
+- `src/capture/validation.py`: `knowledge_space_ids` vào OPTIONAL_FIELDS + validate strict (list[str] non-empty, unique, MAX_KNOWLEDGE_SPACE_IDS=16, MAX_KNOWLEDGE_SPACE_ID_LENGTH=64).
+- `src/capture/event_types.py`: hằng số contract bounds.
+- `src/capture/adapter.py`: param `knowledge_space_ids` (payload key thắng), strict type (raise non-list/non-str), dedup lenient giữ thứ tự; None omit, [] explicit.
+- `src/integration/capture_adapter.py`: `_envelope` truyền `knowledge_space_ids` (legacy singular → list).
+- Evidence: RED 14 failed (0.16s) → GREEN 14 passed (0.11s); adjacent capture regression 92 passed; full suite chạy sau commit. Test: `tests/unit/test_v160_c1_capture_ks.py`.
 
 ### C2 — Ingest denormalize: zm_event_spaces junction + PRIMARY-KS (migration additive)
 - Migration vN: `CREATE TABLE zm_event_spaces(event_id, knowledge_space_id, PRIMARY KEY(...))` + index; backfill từ `zm_meta.knowledge_space_id`.

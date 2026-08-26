@@ -6,7 +6,7 @@ import copy
 import hashlib
 import json
 from datetime import datetime, timezone
-from typing import Any, Mapping
+from typing import Sequence, Any, Mapping
 from uuid import uuid4
 
 from .event_types import (
@@ -40,8 +40,15 @@ def normalize_event(
     source: str,
     profile_id: str | None = None,
     project_id: str | None = None,
+    knowledge_space_ids: Sequence[str] | None = None,
 ) -> dict[str, Any]:
-    """Copy and normalize a payload into a validated, deterministic envelope."""
+    """Copy and normalize a payload into a validated, deterministic envelope.
+
+    V1.6.0 C1 (ADR-V160-01 sec3): knowledge_space_ids is an optional list of
+    unique, non-empty space ids. The payload may also carry the key (then the
+    payload value wins); duplicates are dropped preserving first-occurrence
+    order. None omits the field (unscoped); [] is preserved as explicit
+    empty (also unscoped per ADR sec2)."""
     if not isinstance(payload, Mapping):
         raise TypeError("event payload must be a mapping")
     copied = copy.deepcopy(dict(payload))
@@ -73,6 +80,23 @@ def normalize_event(
         "sanitized_content_hash": _hash_content(sanitized_content),
         "redaction_audit": copied.pop("redaction_audit", None),
     }
+    # V1.6.0 C1: normalize knowledge_space_ids (payload key wins over param),
+    # dedup preserving first-occurrence order; None omits, [] stays explicit.
+    ks_raw = copied.pop("knowledge_space_ids", None)
+    if ks_raw is None:
+        ks_raw = knowledge_space_ids
+    if ks_raw is not None:
+        if not isinstance(ks_raw, (list, tuple)) or isinstance(ks_raw, (str, bytes)):
+            raise ValueError("knowledge_space_ids must be a list of strings")
+        seen_ks: set = set()
+        ks_norm: list[str] = []
+        for item in ks_raw:
+            if not isinstance(item, str):
+                raise ValueError("knowledge_space_ids must contain only strings")
+            if item not in seen_ks:
+                seen_ks.add(item)
+                ks_norm.append(item)
+        envelope["knowledge_space_ids"] = ks_norm
     if copied:
         envelope["sanitized_content"] = {"payload": sanitized_content, "extra": copied}
         envelope["sanitized_content_hash"] = _hash_content(envelope["sanitized_content"])

@@ -95,6 +95,13 @@ def _envelope(mapped: MappingResult, sanitized: Any) -> dict[str, Any]:
         "sanitized_content_hash": _canonical_hash(sanitized),
         "redaction_audit": payload.get("redaction_audit"),
     }
+    # V1.6.0 C1 (ADR-V160-01 sec3): carry knowledge_space_ids into the
+    # top-level envelope (legacy singular knowledge_space_id -> list).
+    ks = payload.get("knowledge_space_ids")
+    if ks is None and payload.get("knowledge_space_id"):
+        ks = [payload["knowledge_space_id"]]
+    if ks is not None:
+        envelope["knowledge_space_ids"] = list(ks)
     validate_envelope(envelope)
     return envelope
 

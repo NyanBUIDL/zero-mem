@@ -12,6 +12,11 @@ from typing import Final
 
 SCHEMA_VERSION: Final[int] = 1
 
+# V1.6.0 C1 (ADR-V160-01 §3): knowledge_space_ids capture-contract bounds.
+# Forward-only optional field; list of non-empty unique space ids.
+MAX_KNOWLEDGE_SPACE_IDS: Final[int] = 16
+MAX_KNOWLEDGE_SPACE_ID_LENGTH: Final[int] = 64
+
 
 class EventType(str, Enum):
     """Trace taxonomy values that M1 can represent."""

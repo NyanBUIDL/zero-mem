@@ -9,6 +9,8 @@ from .event_types import (
     Confidence,
     EventType,
     LifecycleStatus,
+    MAX_KNOWLEDGE_SPACE_ID_LENGTH,
+    MAX_KNOWLEDGE_SPACE_IDS,
     Retention,
     Sensitivity,
     VerificationStatus,
@@ -44,6 +46,8 @@ OPTIONAL_FIELDS = (
     "sanitized_content_ref",
     "redaction_audit",
     "deletion",
+    # V1.6.0 C1 (ADR-V160-01 §3): optional multi-KS capture contract.
+    "knowledge_space_ids",
 )
 
 
@@ -117,3 +121,21 @@ def validate_envelope(envelope: Mapping[str, Any]) -> None:
         if not isinstance(deletion, Mapping) or not isinstance(deletion.get("target_event_id"), str) \
                 or not deletion.get("target_event_id").strip():
             raise ValueError("deletion block requires target_event_id")
+    # V1.6.0 C1 (ADR-V160-01 §3): optional knowledge_space_ids capture contract.
+    # Strict: list of unique non-empty strings within bounds; rejects ambiguity
+    # (duplicates) fail-closed. Absence (None) and explicit [] are both unscoped.
+    ks = envelope.get("knowledge_space_ids")
+    if ks is not None:
+        if not isinstance(ks, (list, tuple)) or isinstance(ks, (str, bytes)):
+            raise ValueError("knowledge_space_ids must be a list of strings")
+        if len(ks) > MAX_KNOWLEDGE_SPACE_IDS:
+            raise ValueError("knowledge_space_ids exceeds max count")
+        seen: set = set()
+        for item in ks:
+            if not isinstance(item, str) or not item.strip():
+                raise ValueError("knowledge_space_ids must contain non-empty strings")
+            if len(item) > MAX_KNOWLEDGE_SPACE_ID_LENGTH:
+                raise ValueError("knowledge_space_id exceeds max length")
+            if item in seen:
+                raise ValueError("knowledge_space_ids must not contain duplicates")
+            seen.add(item)
