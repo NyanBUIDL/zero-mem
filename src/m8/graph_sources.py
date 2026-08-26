@@ -122,15 +122,17 @@ def _event_scope(conn: sqlite3.Connection) -> dict[str, dict[str, Any]]:
     value is copied, never upgraded: a deleted or superseded source produces a
     derived row that still says deleted or superseded.
 
-    ``zm_meta`` carries no ``knowledge_space_id`` column, so that dimension
-    stays ``None`` for M2-derived edges rather than being borrowed from another
-    field.
+    ``zm_meta.knowledge_space_id`` is the event's deterministic PRIMARY-KS.
+    M8's frozen scope contract remains singular, so M2-derived graph rows copy
+    that value and never fan out across ``zm_event_spaces``.  If PRIMARY-KS is
+    absent it stays ``None``; a junction member is not promoted implicitly.
     """
     scope: dict[str, dict[str, Any]] = {}
     for row in _rows(
         conn,
         "SELECT m.event_id AS event_id, m.profile_id AS profile_id, "
-        "m.project_id AS project_id, m.trace_id AS trace_id, "
+        "m.project_id AS project_id, "
+        "m.knowledge_space_id AS knowledge_space_id, m.trace_id AS trace_id, "
         "m.lifecycle_status AS lifecycle_status, "
         "m.verification_status AS verification_status, "
         "m.created_at AS created_at, l.current_state AS current_state "
@@ -141,7 +143,7 @@ def _event_scope(conn: sqlite3.Connection) -> dict[str, dict[str, Any]]:
         scope[_get(row, "event_id")] = {
             "profile_id": _get(row, "profile_id"),
             "project_id": _get(row, "project_id"),
-            "knowledge_space_id": None,
+            "knowledge_space_id": _get(row, "knowledge_space_id"),
             "trace_id": _get(row, "trace_id"),
             "lifecycle_status": current or _get(row, "lifecycle_status") or "candidate",
             "verification_status": _get(row, "verification_status"),
