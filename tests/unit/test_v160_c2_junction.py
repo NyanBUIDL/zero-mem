@@ -193,3 +193,38 @@ class TestC2JunctionIngest:
             "AND name='idx_zm_event_spaces_ks'").fetchone()
         assert idx2 is None, "downgrade must drop the ks index with the table"
         store.close()
+
+    def test_migration_13_backfill_streams_batched_no_full_table_fetchall(self, tmp_path):
+        """Large-store guard (review P2): backfill must stream zm_meta in fixed
+        batches — never load the full table into memory. Two checks:
+        (1) static guard: the migration module must not call fetchall() on the
+        backfill read path (repo convention: source inspection, cf. m8 tests);
+        (2) behavioral: > batch-size valid legacy rows all backfill across
+        batches — an early-exit/single-batch bug would drop later batches.
+        """
+        import inspect
+
+        from src.storage.migrations import migrate_13
+
+        src = inspect.getsource(migrate_13)
+        assert ".fetchall(" not in src, (
+            "backfill must stream by batch, never call fetchall() on the full "
+            "zm_meta table (review P2 — large stores would OOM)"
+        )
+        batch = migrate_13._BACKFILL_BATCH_SIZE
+        db_path = tmp_path / "big.sqlite"
+        store = SQLiteStore(SQLiteStoreConfig(path=db_path))
+        store.ensure_schema()
+        store.downgrade_to(12, note="test")
+        for i in range(batch * 3 + 7):
+            _insert_legacy_meta(store, f"leg-{i:04d}", f"ks-{i % 7}")
+        store._conn.commit()
+        _checkpoint_and_close(store)
+        store2 = SQLiteStore(SQLiteStoreConfig(path=db_path))
+        try:
+            assert store2.ensure_schema() == 13
+            n = _read(str(db_path), "SELECT COUNT(*) AS n FROM zm_event_spaces")
+            assert n[0]["n"] == batch * 3 + 7, (
+                "every valid legacy row must backfill across multiple batches")
+        finally:
+            _checkpoint_and_close(store2)
