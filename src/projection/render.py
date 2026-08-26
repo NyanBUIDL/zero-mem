@@ -279,6 +279,38 @@ def _attribute(record: Any, name: str) -> Any:
     return getattr(record, name, None)
 
 
+def _knowledge_spaces(*records: Any) -> Tuple[str, ...]:
+    """Ordered union of explicit source-event Knowledge Spaces.
+
+    Projection consumes only values already attached to its authorized input
+    records.  It never infers a space from project/profile scope, note paths,
+    or neighboring records.  Invalid/blank values are ignored and duplicates
+    retain their first canonical occurrence.
+    """
+    ordered: list[str] = []
+    seen: set[str] = set()
+    for record in records:
+        values = _attribute(record, "knowledge_space_ids")
+        if values is None:
+            source_event = _attribute(record, "source_event")
+            values = _attribute(source_event, "knowledge_space_ids")
+        if values is None:
+            singular = _attribute(record, "knowledge_space_id")
+            values = (singular,) if singular is not None else ()
+        if isinstance(values, str):
+            values = (values,)
+        try:
+            candidates = tuple(values)
+        except TypeError:
+            candidates = ()
+        for value in candidates:
+            if not isinstance(value, str) or not value.strip() or value in seen:
+                continue
+            seen.add(value)
+            ordered.append(value)
+    return tuple(ordered)
+
+
 def _conflict_status(lifecycle_status: Optional[str]) -> str:
     return CONFLICT_CONFLICTED if lifecycle_status == "conflicted" else CONFLICT_NONE
 
@@ -475,6 +507,7 @@ def _build_note(
     replaced_by: Optional[str],
     source_trace_ids: Sequence[str],
     source_event_ids: Sequence[str],
+    knowledge_spaces: Sequence[str],
     artifact_refs: Sequence[str],
     body: str,
 ) -> ProjectedNote:
@@ -510,10 +543,9 @@ def _build_note(
         "resource_id": resource_id,
         "project_id": project_id,
         "profile_id": profile_id,
-        # M4 project-memory records carry no knowledge-space dimension at v9.
-        # An empty list is emitted verbatim rather than inferring membership
-        # from the request scope, the vault folder, or a co-located note.
-        "knowledge_spaces": [],
+        # V1.6 C8: explicit source-event membership only.  The render layer
+        # receives this after authorization and never derives it from scope.
+        "knowledge_spaces": list(knowledge_spaces),
         "lifecycle_status": lifecycle_status,
         "verification_status": verification_status,
         "conflict_status": _conflict_status(lifecycle_status),
@@ -722,6 +754,7 @@ def render_project_home(
         replaced_by=None,
         source_trace_ids=trace_ids,
         source_event_ids=event_ids,
+        knowledge_spaces=_knowledge_spaces(charter),
         artifact_refs=(),
         body=body,
     )
@@ -812,6 +845,7 @@ def render_project_state(*, project_id: str,
         replaced_by=None,
         source_trace_ids=trace_ids,
         source_event_ids=event_ids,
+        knowledge_spaces=_knowledge_spaces(*state_rows),
         artifact_refs=(),
         body=body,
     )
@@ -913,6 +947,7 @@ def render_decision(decision: Any,
         replaced_by=_attribute(decision, "replaced_by"),
         source_trace_ids=(trace_id,) if trace_id else (),
         source_event_ids=(event_id,) if event_id else (),
+        knowledge_spaces=_knowledge_spaces(decision),
         artifact_refs=_safe_artifact_refs(_attribute(decision, "linked_artifact_ids")),
         body=body,
     )
@@ -1009,6 +1044,7 @@ def render_requirement(requirement: Any,
         replaced_by=_attribute(requirement, "replaced_by"),
         source_trace_ids=(trace_id,) if trace_id else (),
         source_event_ids=(event_id,) if event_id else (),
+        knowledge_spaces=_knowledge_spaces(requirement),
         artifact_refs=_safe_artifact_refs(
             _attribute(requirement, "linked_artifact_ids")
         ),
@@ -1103,6 +1139,7 @@ def render_verification(verification: Any) -> ProjectedNote:
         replaced_by=None,
         source_trace_ids=(),
         source_event_ids=(event_id,) if event_id else (),
+        knowledge_spaces=_knowledge_spaces(verification),
         artifact_refs=_safe_artifact_refs(
             _attribute(verification, "artifact_references")
         ),
@@ -1207,6 +1244,7 @@ def render_conflict(group: ConflictGroup) -> ProjectedNote:
         replaced_by=None,
         source_trace_ids=(),
         source_event_ids=(),
+        knowledge_spaces=_knowledge_spaces(*group.positions),
         artifact_refs=(),
         body=body,
     )
@@ -1278,6 +1316,9 @@ def render_conflict_index(*, resource_type: str,
         replaced_by=None,
         source_trace_ids=(),
         source_event_ids=(),
+        knowledge_spaces=_knowledge_spaces(
+            *(position for group in groups for position in group.positions)
+        ),
         artifact_refs=(),
         body=body,
     )

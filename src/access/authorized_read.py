@@ -244,10 +244,28 @@ def _junction_ks_map(conn, event_ids: Iterable[Optional[str]]) -> Dict[str, List
     out: Dict[str, List[str]] = {}
     rows = conn.execute(
         f"SELECT event_id, knowledge_space_id FROM zm_event_spaces "
-        f"WHERE event_id IN ({ph})", ids).fetchall()
+        f"WHERE event_id IN ({ph}) "
+        "ORDER BY event_id ASC, knowledge_space_id ASC", ids).fetchall()
     for r in rows:
         out.setdefault(r["event_id"], []).append(r["knowledge_space_id"])
     return out
+
+
+def _attach_source_event_spaces(conn, views: Iterable[Any]) -> None:
+    """Attach full junction membership to already-read M4 view objects.
+
+    M4 records retain ``source_event_id`` but do not duplicate the event's
+    Multi-KS set.  C8 resolves that derived metadata in one bounded query so
+    authorization and projection consume the explicit source-event set.
+    Missing junction rows attach an empty tuple and remain fail-closed.
+    """
+    materialized = tuple(views)
+    ks_map = _junction_ks_map(
+        conn, (getattr(view, "source_event_id", None) for view in materialized)
+    )
+    for view in materialized:
+        event_id = getattr(view, "source_event_id", None)
+        setattr(view, "knowledge_space_ids", tuple(ks_map.get(event_id, ())))
 
 
 def _row_ks_ids(view: Any) -> Tuple[str, ...]:
@@ -741,6 +759,7 @@ class AuthorizedReadService:
         if view is None:
             return AuthorizedResult(allowed=True, denied=False,
                                     reason_code=eff.reason_code, decision=eff)
+        _attach_source_event_spaces(self._store.conn, (view,))
         for scope in self._ordered_scopes(eff):
             if _scope_allows(scope, self._requester, view.profile_id,
                              view.project_id,
@@ -773,6 +792,7 @@ class AuthorizedReadService:
             source_items = res
             query = {}
             next_cursor = None
+        _attach_source_event_spaces(self._store.conn, source_items)
         allowed = []
         for v in source_items:
             if getattr(v, "source_event", None) is not None:

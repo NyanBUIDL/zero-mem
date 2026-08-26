@@ -50,9 +50,9 @@ class TestDef034DownstreamSurfaces:
         assert "m.knowledge_space_id AS knowledge_space_id" in src
         assert '"knowledge_space_id": _get(row, "knowledge_space_id")' in src
 
-    def test_projection_renders_knowledge_spaces_empty(self):
+    def test_projection_renders_explicit_knowledge_spaces(self):
         import inspect
         from src.projection import render as pr
         rsrc = inspect.getsource(pr)
-        assert '"knowledge_spaces": []' in rsrc, (
-            "Obsidian projection hardcodes empty knowledge_spaces (evidence)")
+        assert '"knowledge_spaces": list(knowledge_spaces)' in rsrc
+        assert "_knowledge_spaces" in rsrc
