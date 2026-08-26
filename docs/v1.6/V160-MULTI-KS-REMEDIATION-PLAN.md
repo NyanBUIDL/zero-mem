@@ -46,6 +46,12 @@
   - **Master-spec hash:** `python scripts/check_master_spec_hash.py` → OK (exit 0). **Machine-state:** `python scripts/check_machine_state.py` → OK (exit 0). **Static guard:** `rg "NOT EXISTS.*zm_event_spaces|zm_meta\.knowledge_space_id IN" src/access/authorized_read.py` → 0 matches.
   - Raw outputs: `reconcile-focused.txt`, `reconcile-adjacent.txt`, `reconcile-fullsuite.txt` (workspace root `.tmptest`, không commit — workspace policy chưa xác định).
 
+- **Corrections (reconcile round-2, 2026-08-26, additive):**
+  - **Ancestry:** sau commit 6fcd1f0, `git rev-list --left-right --count master...HEAD` = **0 33** (không phải 0 32 — số cũ ghi trước commit). Báo cáo/evidence trước đó ghi 0 32 là state trước 6fcd1f0; state sau commit là 0 33.
+  - **Evidence edit c4-red-6failed.txt (commit 6fcd1f0):** byte-level thay đổi gồm (a) xóa trailing whitespace dòng 20 và (b) **xóa UTF-8 BOM đầu file**; **semantic log content không đổi**. Hash hiện tại = `916b49c00990229ac02534ff9f92687d389ac5e57febe78e598fc93291cee200` (verify 9/9 OK, không sửa lại raw log).
+  - **DEF-037:** prior "CLOSED no-defect — root cause verified" KHÔNG tái hiện trên môi trường sạch (reviewer chạy lại cùng `.venv` python: `venv`/`ensurepip`/`pip` đều exit 0). Probe sandbox: venv creation fail với `PermissionError [Errno 13]`/`WinError 5` trên temp dir 0o700 (pip wheel trong tmp dir) — fresh venv thiếu sitecustomize ACL patch; pkg2 suite = 2 passed / 11 errors (tái hiện trong sandbox). Trạng thái: **REOPENED / INVESTIGATING (environment-sensitive, không phải defect Zero-Mem)** — xem registry DEF-037 addendum.
+  - Technical C4/P2 vẫn VERIFIED; full qualification vẫn BLOCKED; không gọi C4/V1.6 release-ready.
+
 ### C5 — FTS parity: candidate SQL qua junction
 - `src/retrieval/search.py` + `authorized_read.search_text`: candidate_where dùng junction.
 - Cùng correlated EXISTS pattern như C4 (parity structured/FTS).
