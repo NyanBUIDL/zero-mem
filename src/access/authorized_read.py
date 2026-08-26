@@ -653,10 +653,17 @@ class AuthorizedReadService:
             # unexpected backend inconsistency; it never turns a hidden row into a
             # boundary error visible to the caller.
             scopes = self._ordered_scopes(eff)
+            # V1.6.0 C5: FTS candidates use the same C4 correlated-EXISTS
+            # predicate as structured reads.  Defensive post-validation must
+            # therefore use the complete junction set too; PRIMARY-KS alone
+            # would incorrectly discard an event [A,B] authorized through B.
+            # A missing junction row stays an empty set and fails closed.
+            ks_by_event = _junction_ks_map(
+                self._store.conn, (hit.event_id for hit in res.results)
+            )
             items = [h for h in res.results if any(
                 _scope_allows(scope, self._requester, h.profile_id, h.project_id,
-                              row_knowledge_space_ids=([h.knowledge_space_id]
-                                                       if h.knowledge_space_id else ()))
+                              row_knowledge_space_ids=ks_by_event.get(h.event_id, ()))
                 for scope in scopes)]
         except QueryError as exc:
             return self._downstream(eff, exc.code)
