@@ -380,7 +380,7 @@ def test_decision_id_does_not_affect_semantics():
 # ---------------------------------------------------------------------------
 def test_schema_is_v8():
     # M5.4 advances the schema to v8 (derived grant/audit tables).
-    assert CURRENT_SCHEMA_VERSION == 12
+    assert CURRENT_SCHEMA_VERSION == 13
 
 
 def test_migration_8_present():

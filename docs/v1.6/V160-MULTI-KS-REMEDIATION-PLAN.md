@@ -13,10 +13,10 @@
 - `src/integration/capture_adapter.py`: `_envelope` truyền `knowledge_space_ids` (legacy singular → list).
 - Evidence: RED 14 failed (0.16s) → GREEN 14 passed; follow-up edge cases (review) RED 6 failed → GREEN (23 passed); adjacent + evidence regression 146 passed; full suite 3550 passed / 5 failed (env/Windows-specific pre-classified) / 38 skipped / 11 errors (installer quirk) — không regression. Test: `tests/unit/test_v160_c1_capture_ks.py` (23 tests).
 
-### C2 — Ingest denormalize: zm_event_spaces junction + PRIMARY-KS (migration additive)
-- Migration vN: `CREATE TABLE zm_event_spaces(event_id, knowledge_space_id, PRIMARY KEY(...))` + index; backfill từ `zm_meta.knowledge_space_id`.
-- `src/storage/ingest.py`: parse canonical `knowledge_space_ids` (ưu tiên) / legacy singular; INSERT junction; `zm_meta.knowledge_space_id` = PRIMARY-KS (first của list, NULL nếu rỗng).
-- Test RED-first: canonical multi-KS → junction 2 rows + zm_meta primary; legacy singular → 1 row; NULL/empty → 0 rows.
+### C2 — Ingest denormalize: zm_event_spaces junction + PRIMARY-KS (migration additive) — **DONE (chờ commit)**
+- Migration v13 (additive): `zm_event_spaces(event_id, knowledge_space_id, PK)` + index ks; backfill từ `zm_meta.knowledge_space_id` (legacy singular); down = DROP (derived, rebuildable).
+- `src/storage/ingest.py`: helper `_knowledge_spaces(env)` (precedence ADR §2: list thắng; absent/empty → legacy non-empty string; else []); INSERT junction 1 row/KS; `zm_meta.knowledge_space_id` = PRIMARY-KS (first của list, NULL nếu rỗng); zm_scopes 1 knowledge_space row/KS.
+- Test RED-first: RED 7 failed (0.32s) → GREEN 7 passed; schema-version assertions 12→13 cập nhật (hợp lệ — migration mới; gồm M8 describe constants + pkg5/pkg6 pins); adjacent 1456 passed (33 file schema-affected + C1/C2); full suite 3565 passed / 6 failed (env/Windows-specific pre-classified: 4 multiprocessing pipes, v134 sigkill flaky, DEF-026 timing) / 38 skipped / 11 errors (installer standalone-python quirk) — không regression. Test: `tests/unit/test_v160_c2_junction.py`.
 
 ### C3 — Rebuild/replay: junction rebuild từ canonical
 - Recovery/rebuild re-ingest canonical → junction tái tạo (không backfill từ derived).

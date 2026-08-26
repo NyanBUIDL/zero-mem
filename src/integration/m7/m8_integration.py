@@ -437,7 +437,7 @@ def describe_m8_integration() -> dict[str, Any]:
     """Introspectable description of the M8.6 integration boundary."""
     return {
         "m8_integration_version": M8_INTEGRATION_VERSION,
-        "schema_version": 12,
+        "schema_version": 13,
         "integrates": ["m8.3_graph", "m8.4_temporal", "m8.5_calibration"],
         "authorization_first": True,
         "makes_authorization_decisions": False,

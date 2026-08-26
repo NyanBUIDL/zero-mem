@@ -507,7 +507,7 @@ class TestReadOnlyAndAudit:
 
     def test_schema_v8(self, rt):
         from src.storage.migrations import CURRENT_SCHEMA_VERSION
-        assert CURRENT_SCHEMA_VERSION == 12
+        assert CURRENT_SCHEMA_VERSION == 13
 
     def test_raw_sql_jsonl_absent(self, rt):
         assert get_tool("execute_sql") is None and get_tool("raw_sql") is None

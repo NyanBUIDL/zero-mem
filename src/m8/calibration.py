@@ -806,7 +806,7 @@ def describe_calibration() -> dict[str, Any]:
         "exclusion_codes": list(EXCLUSION_CODES),
         "persisted": False,
         "request_time_only": True,
-        "schema_version": 12,
+        "schema_version": 13,
         "confidence_threshold_implemented": False,
         "cross_candidate_normalization": False,
         "grants_authorization": False,

@@ -211,7 +211,7 @@ class Snapshot:
 def test_readonly_open(tmp_path: Path) -> None:
     store = _ingest_corpus(tmp_path)
     rs = r.open_readonly(store.path)
-    assert rs.get_schema_version() == 12
+    assert rs.get_schema_version() == 13
     rs.close()
     store.close()
 
@@ -228,7 +228,7 @@ def test_schema_validation_readonly(tmp_path: Path) -> None:
     """Schema check is SELECT-only: it does not call ensure_schema/migrations."""
     store = _ingest_corpus(tmp_path)
     rs = r.open_readonly(store.path)
-    assert rs.validate_schema() == 12
+    assert rs.validate_schema() == 13
     rs.close()
     store.close()
 

@@ -82,7 +82,7 @@ def test_migration_v5_to_v6(tmp_path: pathlib.Path) -> None:
     store = _open_store(tmp_path)
     try:
         assert store.get_schema_version() == CURRENT_SCHEMA_VERSION
-        assert CURRENT_SCHEMA_VERSION == 12
+        assert CURRENT_SCHEMA_VERSION == 13
         for t in ("zm_tombstones", "zm_deletion_audit"):
             assert store.table_exists(t)
         assert store.index_exists("idx_zm_tombstones_target")
@@ -96,7 +96,7 @@ def test_migration_v5_to_v6(tmp_path: pathlib.Path) -> None:
 def test_downgrade_v6_to_v5_drops_tombstone_tables(tmp_path: pathlib.Path) -> None:
     store = _open_store(tmp_path)
     try:
-        assert store.get_schema_version() == 12
+        assert store.get_schema_version() == 13
         store.downgrade_to(5)
         assert store.get_schema_version() == 5
         for t in ("zm_tombstones", "zm_deletion_audit"):
@@ -108,12 +108,12 @@ def test_downgrade_v6_to_v5_drops_tombstone_tables(tmp_path: pathlib.Path) -> No
 def test_reopen_schema_v6_idempotent(tmp_path: pathlib.Path) -> None:
     store = _open_store(tmp_path)
     try:
-        assert store.get_schema_version() == 12
+        assert store.get_schema_version() == 13
     finally:
         store.close()
     store2 = _open_store(tmp_path)
     try:
-        assert store2.get_schema_version() == 12
+        assert store2.get_schema_version() == 13
         assert store2.table_exists("zm_tombstones")
     finally:
         store2.close()
@@ -123,7 +123,7 @@ def test_migration_rollback_on_failure_no_partial_advance(tmp_path: pathlib.Path
     import sqlite3
     store = _open_store(tmp_path)
     try:
-        assert store.get_schema_version() == 12
+        assert store.get_schema_version() == 13
         real = store._conn
 
         class _BadConn:
@@ -134,7 +134,7 @@ def test_migration_rollback_on_failure_no_partial_advance(tmp_path: pathlib.Path
         with pytest.raises(sqlite3.OperationalError):
             _migrate_6.up(store._conn, "fail")
         store._conn = real
-        assert store.get_schema_version() == 12
+        assert store.get_schema_version() == 13
     finally:
         store.close()
 

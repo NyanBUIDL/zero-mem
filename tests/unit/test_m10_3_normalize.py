@@ -386,12 +386,12 @@ def test_normalized_units_not_persisted_into_memory_jsonl(tmp_path, monkeypatch)
     assert "secret finance doc content" not in raw
     # No M10.4 derived SQLite tables exist.
     from src.storage.migrations import MIGRATIONS
-    assert max(MIGRATIONS.keys()) == 12
+    assert max(MIGRATIONS.keys()) == 13
 
 
 def test_no_schema_migration_pulled_forward():
     from src.storage.migrations import CURRENT_SCHEMA_VERSION
-    assert CURRENT_SCHEMA_VERSION == 12
+    assert CURRENT_SCHEMA_VERSION == 13
 
 
 def test_normalization_does_not_bypass_redaction_boundary():

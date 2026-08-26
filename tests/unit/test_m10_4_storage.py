@@ -96,13 +96,13 @@ def _seed_meta_row(db: SQLiteStore, event_id: str) -> None:
 
 class TestSchemaVersion:
     def test_current_schema_version_is_10(self):
-        assert CURRENT_SCHEMA_VERSION == 12
+        assert CURRENT_SCHEMA_VERSION == 13
 
     def test_migration_10_registered(self):
         assert 10 in MIGRATIONS
 
     def test_migration_chain_contiguous(self):
-        assert sorted(MIGRATIONS) == list(range(1, 13))
+        assert sorted(MIGRATIONS) == list(range(1, 14))
 
     def test_migration_10_has_up_and_down(self):
         assert callable(MIGRATIONS[10].up)
@@ -111,7 +111,7 @@ class TestSchemaVersion:
 
 class TestFreshInitialization:
     def test_fresh_db_reports_version_10(self, store):
-        assert store.get_schema_version() == 12
+        assert store.get_schema_version() == 13
 
     def test_all_v10_tables_created(self, store):
         for table in CORPUS_DERIVED_TABLES:
@@ -137,12 +137,12 @@ class TestFreshInitialization:
 
     def test_ensure_schema_is_idempotent(self, tmp_path):
         s = SQLiteStore(_config(tmp_path, "idem.sqlite"))
-        assert s.ensure_schema() == 12
+        assert s.ensure_schema() == 13
         before = (
             {r[0] for r in s._conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
             | {r[0] for r in s._conn.execute("SELECT name FROM sqlite_master WHERE type='index'")}
         )
-        assert s.ensure_schema() == 12
+        assert s.ensure_schema() == 13
         after = (
             {r[0] for r in s._conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
             | {r[0] for r in s._conn.execute("SELECT name FROM sqlite_master WHERE type='index'")}
@@ -165,7 +165,7 @@ class TestUpgradeFromV9:
         for version in sorted(v for v in MIGRATIONS if v <= 9):
             s._apply_up(version, note="m10.4_test")
         s.ensure_schema()
-        assert s.get_schema_version() == 12
+        assert s.get_schema_version() == 13
         for table in CORPUS_DERIVED_TABLES:
             assert s.table_exists(table), table
 
@@ -212,7 +212,7 @@ class TestMigrationFailureSafety:
         s.close()
 
     def test_downgrade_returns_to_v9(self, store):
-        assert store.get_schema_version() == 12
+        assert store.get_schema_version() == 13
         store.downgrade_to(9, note="rollback_test")
         assert store.get_schema_version() == 9
         for table in CORPUS_DERIVED_TABLES:

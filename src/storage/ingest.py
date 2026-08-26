@@ -160,6 +160,22 @@ def _iter_jsonl_lines(path: Path):
         yield (complete_count + 1, parts[-1], False)
 
 
+def _knowledge_spaces(env: dict) -> list:
+    """Canonical KS set for an envelope (V1.6.0 C2).
+
+    Precedence (ADR-V160-01 sec2): knowledge_space_ids (list) wins;
+    if ABSENT or EMPTY -> legacy singular knowledge_space_id (only when a
+    non-empty string); otherwise unscoped []. Returns canonical order.
+    """
+    ks_list = env.get("knowledge_space_ids")
+    if ks_list is None or (isinstance(ks_list, list) and len(ks_list) == 0):
+        legacy = env.get("knowledge_space_id")
+        if isinstance(legacy, str) and legacy.strip():
+            return [legacy]
+        return []
+    return list(ks_list)
+
+
 def _project_row(env: dict, source_id: str) -> tuple:
     """Direct projection of approved envelope fields into zm_meta column order."""
     redaction = 1 if env.get("redaction_audit") else 0
@@ -187,9 +203,9 @@ def _project_row(env: dict, source_id: str) -> tuple:
         redaction,
         _now(),
         source_id,
-        # V130-02: denormalized knowledge-space scope from the canonical envelope.
-        # NULL = unscoped (visible under global-default-read, D-2026-08-22-03).
-        env.get("knowledge_space_id"),
+        # V1.6.0 C2: PRIMARY-KS = first of the canonical KS set (or NULL if
+        # empty/unscoped). Junction zm_event_spaces is the multi-KS source.
+        (_knowledge_spaces(env)[0] if _knowledge_spaces(env) else None),
     )
 
 
@@ -272,11 +288,10 @@ def _project_relations_scopes(conn, env: dict) -> None:
                 "ON CONFLICT(from_event_id, to_event_id, relation) DO NOTHING",
                 (event_id, target, "derived_from", "deterministic_check", trace_id, now),
             )
-    # --- scopes: observed project/profile/knowledge_space only ---
+    # --- scopes: observed project/profile only (KS handled per-row below) ---
     for scope_type, scope_id in (
         ("project", env.get("project_id")),
         ("profile", env.get("profile_id")),
-        ("knowledge_space", env.get("knowledge_space_id")),
     ):
         if scope_id:
             conn.execute(
@@ -285,6 +300,21 @@ def _project_relations_scopes(conn, env: dict) -> None:
                 "ON CONFLICT(scope_type, scope_id) DO NOTHING",
                 (scope_type, scope_id, None, None, now),
             )
+    # V1.6.0 C2: one knowledge_space scope row per canonical KS.
+    for ks in _knowledge_spaces(env):
+        conn.execute(
+            "INSERT INTO zm_scopes (scope_type, scope_id, display_name, parent_scope, created_at) "
+            "VALUES (?,?,?,?,?) "
+            "ON CONFLICT(scope_type, scope_id) DO NOTHING",
+            ("knowledge_space", ks, None, None, now),
+        )
+    # --- V1.6.0 C2: zm_event_spaces junction (one row per KS) ---
+    for ks in _knowledge_spaces(env):
+        conn.execute(
+            "INSERT INTO zm_event_spaces (event_id, knowledge_space_id) "
+            "VALUES (?,?) ON CONFLICT DO NOTHING",
+            (event_id, ks),
+        )
     # --- active-key uniqueness + supersession ---
     if env.get("lifecycle_status") == "active" and trace_id:
         cur = conn.cursor()

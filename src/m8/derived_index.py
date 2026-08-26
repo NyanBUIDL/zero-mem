@@ -349,7 +349,7 @@ def describe_derived_foundation() -> dict[str, Any]:
     """Introspectable description of the M8.1 derived foundation."""
     return {
         "projection_version": PROJECTION_VERSION,
-        "schema_version": 12,  # DEF-007 (v1.3.3): track current schema version
+        "schema_version": 13,  # DEF-007 (v1.3.3): track current schema version
         "derived_tables": list(M8_DERIVED_TABLES),
         "derived_indexes": list(M8_DERIVED_INDEXES),
         "rebuildable_tables": list(_REBUILDABLE_TABLES),

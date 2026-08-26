@@ -732,7 +732,7 @@ def test_true_read_only_preserved(tmp_path: Path):
 def test_persistent_grant_table_present_in_v8():
     # M5.4 introduces zm_access_grants / zm_policy_audit (schema v8).
     from src.storage.migrations import CURRENT_SCHEMA_VERSION
-    assert CURRENT_SCHEMA_VERSION == 12
+    assert CURRENT_SCHEMA_VERSION == 13
     from src.storage.migrations.migrate_8 import up as m8_up
     import sqlite3
     conn = sqlite3.connect(":memory:")

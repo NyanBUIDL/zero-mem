@@ -536,7 +536,7 @@ class TestNoPersistenceSchemaNine:
         d = describe_calibration()
         assert d["persisted"] is False
         assert d["request_time_only"] is True
-        assert d["schema_version"] == 12
+        assert d["schema_version"] == 13
         assert d["confidence_threshold_implemented"] is False
         assert d["cross_candidate_normalization"] is False
         assert d["grants_authorization"] is False
