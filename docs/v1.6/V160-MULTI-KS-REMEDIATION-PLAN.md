@@ -27,7 +27,7 @@
 - **RED:** `DERIVED_TABLES` chưa chứa `zm_event_spaces` → rebuild không drop junction; stale rows sống sót qua `ON CONFLICT DO NOTHING` (rebuild ev1 [A]→[B] cho junction {A,B} thay vì {B}). RED 2 failed → GREEN 3 passed.
 - **Fix (tối thiểu):** thêm `zm_event_spaces` vào `src/storage/ingest.py::DERIVED_TABLES` (derived, rebuildable — drop rồi tái tạo từ canonical; không backfill từ derived).
 - Test behavioral: rebuild stale → junction == canonical (stale biến mất, PRIMARY-KS theo canonical); rebuild cùng canonical → junction == fresh ingest (multi/legacy/unscoped); static guard `zm_event_spaces` ∈ DERIVED_TABLES. Test: `tests/unit/test_v160_c3_rebuild_junction.py` (3 tests).
-- Evidence: RED 2 failed (0.18s) → GREEN 3 passed (2.29s); adjacent rebuild/query regression 333 passed; full suite **3571 passed / 5 failed** (tập con 6 IDs baseline C1; v134 flaky pass) / 38 skipped / 11 errors — raw log `audit/evidence-v160-c2/c3-fullsuite-5failed.txt`. DEF-034 stays OPEN.
+- Evidence: RED 2 failed (0.18s) → GREEN 3 passed (2.29s); adjacent rebuild/query regression 333 passed; full suite **3571 passed / 5 failed** (tập con 6 IDs baseline C1; v134 flaky pass) / 38 skipped / 11 errors. Raw logs (4 artifact C3): `audit/evidence-v160-c2/c3-red-2failed.txt`, `c3-green-3passed.txt`, `c3-adjacent-333passed.txt`, `c3-fullsuite-5failed.txt`. DEF-034 stays OPEN.
 
 ### C4 — Authorization: union read + per-row grant qua junction
 - `src/access/authorized_read.py`: `_ks_predicate` dùng **correlated `EXISTS` trên junction** (không JOIN — chống duplicate); `_scope_allows` nhận row's set ks.
