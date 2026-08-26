@@ -1,6 +1,6 @@
 # V1.6.0 REMEDIATION PLAN — Multi-KS + capture wiring (DEF-034)
 
-**Trạng thái:** ĐANG THỰC THI — ADR-V160-01 ACCEPTED; C1 (71bb865+cfea75d) và C2 (617ed92) DONE; C3–C10 pending (mỗi commit có gate riêng).
+**Trạng thái:** ĐANG THỰC THI — ADR-V160-01 ACCEPTED; **C1–C3 DONE** (C1: 71bb865+cfea75d; C2: 617ed92+0e3abc9+7a59758+a4a0669; C3: 082227d); **C4–C10 pending** (mỗi commit có gate riêng).
 **Nguyên tắc:** không migration trong V1.5.1; canonical append-only; derived rebuildable; RED-first; commit nhỏ.
 **Phạm vi:** commit evidence DEF-034 KHÔNG đổi production code; plan này là kế hoạch cho V1.6.0.
 
