@@ -1,6 +1,6 @@
 # V1.6.0 REMEDIATION PLAN — Multi-KS + capture wiring (DEF-034)
 
-**Trạng thái:** ĐANG THỰC THI — ADR-V160-01 ACCEPTED; **C1–C4 DONE** (C1: 71bb865+cfea75d; C2: 617ed92+0e3abc9+7a59758+a4a0669; C3: 082227d; C4: 8aab66d); **C5–C10 pending** (mỗi commit có gate riêng).
+**Trạng thái:** IMPLEMENTATION COMPLETE — ADR-V160-01 ACCEPTED; **C1–C10 DONE**. C1–C4: `71bb865`..`8aab66d`; C5: `fbf63f1`; C6: `58b8f11`; C7: `93522ac`; C8: `454cc03`; C9: `ece1eb7`; C10: acceptance/version/release gate trong commit C10 hiện hành. Local full suite: **3618 passed, 38 skipped, 0 failed** trên CPython 3.12.13/Windows. Remote CI 9-cell chỉ được đánh dấu sau khi push và GitHub Actions hoàn tất.
 **Nguyên tắc:** không migration trong V1.5.1; canonical append-only; derived rebuildable; RED-first; commit nhỏ.
 **Phạm vi:** commit evidence DEF-034 KHÔNG đổi production code; plan này là kế hoạch cho V1.6.0.
 
@@ -81,6 +81,8 @@
 - Trace-union: semantic definition only (không expose surface V1.6.0 — round-3 scope); gate test chỉ khi surface trace-scoped được thêm sau.
 - Full suite + benchmark junction point-lookup (SPIKE-B: 2.5µs).
 - Update docs (MASTER-SPEC projection, ARCHITECTURE, README) + ADR ACCEPTED.
+
+**Kết quả:** DONE (local gate). Acceptance production-adapter → canonical → ingest → junction → structured/FTS/grant và legacy singular đã xanh; PKG-2 Windows `13 passed`; benchmark covering-index chạy ở 1k/10k/100k; full suite `3618 passed, 38 skipped`. Tag/release chưa tạo.
 
 ## Risk matrix
 | Rủi ro | Mức | Giảm thiểu |

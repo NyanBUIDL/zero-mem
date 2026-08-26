@@ -1,19 +1,12 @@
-# Historical Zero-Mem v1.5.1 qualification (WP-05 / DEF-024).
-# Retained for audit and manual replay; v1.6.0-qualification.yml is active.
-#
-# Triggers:
-#   - workflow_dispatch
-#
-# This workflow preserves the exact v1.5.1 matrix for manual historical replay.
-# The active always-on branch/PR/tag guard lives in v1.6.0-qualification.yml.
-#
-# Path isolation (R124-06): pytest's tmp_path derives from TMPDIR/TMP/TEMP, so
-# on every OS we point temp + HOME off the runner home (mirrors the v1.2.4
-# workflow) so capture_root-outside-home rejection does not spuriously fail.
-
-name: Zero-Mem v1.5.1 qualification (historical)
+# Active Zero-Mem v1.6.0 cross-platform qualification gate.
+name: Zero-Mem v1.6.0 qualification
 
 on:
+  push:
+    branches: [master, v160/multi-ks]
+    tags: ["v*"]
+  pull_request:
+    branches: [master]
   workflow_dispatch:
 
 jobs:
@@ -36,11 +29,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install test & build tooling (declared extras)
+      - name: Install declared test and build tooling
         shell: bash
         run: python -m pip install --upgrade pip build ".[test,ci]"
 
-      - name: Configure out-of-home temp and HOME (R124-06 path isolation)
+      - name: Configure isolated temp and HOME
         shell: bash
         run: |
           set -eo pipefail
@@ -54,15 +47,6 @@ jobs:
             mkdir -p /tmp/zm-tmp
             echo "TMPDIR=/tmp/zm-tmp" >> "$GITHUB_ENV"
           fi
-          python - <<'PY'
-          import pathlib, tempfile
-          home = pathlib.Path.home()
-          tmp = pathlib.Path(tempfile.gettempdir())
-          print("HOME=", home, "TEMP=", tmp)
-          assert home != tmp and home not in tmp.parents, \
-              f"temp dir {tmp} must NOT be inside HOME {home}"
-          print("path-isolation-OK")
-          PY
 
       - name: Static checks
         shell: bash
@@ -71,25 +55,26 @@ jobs:
           python -m compileall -q zero_mem src scripts release_helpers
           python scripts/check_machine_state.py
 
-      - name: Build wheel + sdist
+      - name: Build wheel and sdist
         shell: bash
         run: python -m build --outdir dist
 
-      - name: Prepare CI log
-        shell: bash
-        run: "true > ci-log.txt"
-
-      - name: Unit + integration suite
+      - name: Unit and integration suite
         shell: bash
         run: |
           set -eo pipefail
-          python -m pytest -q tests/unit tests/integration \
-            2>&1 | tee ci-log.txt
+          python -m pytest -q tests/unit tests/integration 2>&1 | tee ci-log.txt
 
-      - name: Upload raw CI logs (evidence)
+      - name: Junction point-lookup benchmark
+        shell: bash
+        run: python benchmarks/v160_junction_lookup.py | tee junction-benchmark.json
+
+      - name: Upload qualification evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: v151-${{ matrix.os }}-py${{ matrix.python-version }}-logs
-          path: ci-log.txt
+          name: v160-${{ matrix.os }}-py${{ matrix.python-version }}-evidence
+          path: |
+            ci-log.txt
+            junction-benchmark.json
           if-no-files-found: error

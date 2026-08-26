@@ -66,6 +66,8 @@
 
 > **DEF-038 — OPEN (test portability / crash durability):** on Windows, immediately reopening a WAL database read-only after `proc.kill()` can transiently raise `sqlite3.OperationalError: disk I/O error`; the same file becomes readable shortly afterwards and remains integrity-checkable. The existing DEF-003 test performs a single immediate read-only open, so it can fail before exercising resume/rebuild semantics. Status: **OPEN / FIX TEST HARNESS IN C10**. Smallest fix: bounded Windows-only retry for this exact transient error; all other SQLite errors continue to fail closed.
 
+> **C10 CLOSURE — DEF-037 FIXED / DEF-038 CLOSED (2026-08-27):** installer fallback now resolves a relative activation target against `link.parent` before `mklink /J`; shared helpers recognize, resolve and remove both directory symlinks and Windows junctions without traversing the target. Unsafe out-of-root junctions are rejected by executable acceptance. DEF-038's digest probe retries only the exact Windows `disk I/O error` transient for at most 20 × 50 ms; every other SQLite error still raises immediately. Evidence: PKG-2 `13 passed`; DEF-003 repeated `2 passed`, then hard-kill case `1 passed` ×2; C1–C10 focused `66 passed`; full suite **3618 passed, 38 skipped, 0 failed** (CPython 3.12.13, Windows). Status: **DEF-037 FIXED; DEF-038 CLOSED (test portability)**.
+
 ## Quy trình fix chuẩn (per defect)
 
 ```

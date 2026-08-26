@@ -60,10 +60,11 @@ def test_pyyaml_and_pytest_only_in_extras():
 
 def test_workflow_file_declares_master_pr_tag_triggers():
     """The CI workflow must actually trigger on master push / PR / tag (DEF-024)."""
-    wf = REPO_ROOT / ".github" / "workflows" / "v1.5.1-qualification.yml"
+    wf = REPO_ROOT / ".github" / "workflows" / "v1.6.0-qualification.yml"
     assert wf.exists(), "CI workflow missing"
     text = wf.read_text("utf-8")
     assert "branches: [master]" in text
+    assert "v160/multi-ks" in text
     assert "pull_request:" in text
     assert 'tags: ["v*"]' in text
     # The CI installs the declared extras that provide PyYAML + pytest + build.

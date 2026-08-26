@@ -11,6 +11,7 @@ from pathlib import Path
 
 MANIFEST_NAME = "manifest.json"
 CHECKSUMS_NAME = "checksums.sha256"
+SUPPORTED_RELEASE_VERSION = "1.6.0"
 
 
 class ReleaseError(RuntimeError):
@@ -151,7 +152,10 @@ def verify_bundle(bundle: Path) -> tuple[dict, dict[str, Path]]:
     manifest_path = bundle / MANIFEST_NAME
     checksums_path = bundle / CHECKSUMS_NAME
     manifest = load_json(manifest_path, "release manifest")
-    if manifest.get("schema_version") != 1 or manifest.get("version") != "1.5.1":
+    if (
+        manifest.get("schema_version") != 1
+        or manifest.get("version") != SUPPORTED_RELEASE_VERSION
+    ):
         raise fail("unsupported release manifest")
     if manifest.get("platform") != "linux-x86_64":
         raise fail("unsupported release bundle platform")
