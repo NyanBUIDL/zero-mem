@@ -1,6 +1,6 @@
 # Hermes External Zero-Mem Architecture
 
-**Status:** M0 Policy & Architecture
+**Status:** Cross-version foundation with v1.6.0 overlay
 **Authority:** `Tai_lieu_thong_nhat_Hermes_External_ZeroMem.docx`
 **Scope:** Local-first External Zero-Mem sidecar for Hermes Agent
 
@@ -157,3 +157,20 @@ not a prompt-injection classifier.
 
 This document is a derived architecture artifact. The master specification remains the highest
 source of truth.
+
+## 12. v1.6.0 Multi-KS overlay
+
+The v1.6.0 implementation refines event scope without changing the canonical
+boundary above. New canonical envelopes may carry an optional ordered
+`knowledge_space_ids` list. Legacy singular `knowledge_space_id` remains readable.
+
+Derived schema v13 adds `zm_event_spaces(event_id, knowledge_space_id)` as the
+complete event-to-space junction. Structured and FTS authorization query this
+junction with correlated `EXISTS` predicates; a missing membership fails closed.
+`zm_meta.knowledge_space_id` retains only PRIMARY-KS for backward compatibility
+and singular graph/temporal consumers. Projections expose the full list, while
+corpus units remain singular in v1.6.0.
+
+The current version architecture, module map and evidence authority are indexed
+under [`docs/v1.6.0/`](../v1.6.0/README.md). The DOCX and `MASTER-SPEC.md`
+projection are not hand-rewritten by this overlay.

@@ -1595,3 +1595,22 @@ v150_tag_object: "34bd45bae1efe256a51bf4a47e1b590e249f5f7d (annotated tag object
 v150_release_url: "https://github.com/NyanBUIDL/zero-mem/releases/tag/v1.5.0"
 v150_release_invariant: "remote master = tag^{} = ARTIFACT_SOURCE_SHA = 10ad8da (verified via ls-remote + rev-parse v1.5.0^{commit})"
 v150_push: "master ff 33eff62..10ad8da + tag v1.5.0, explicit refs, no force (GITHUB-POLICY §7)"
+
+# --- V160 Multi-KS candidate overlay (C1-C10 local closure 2026-08-27) ---
+v160_status: CANDIDATE_LOCAL_QUALIFIED_REMOTE_CI_PENDING
+v160_version: "1.6.0"
+v160_branch: "v160/multi-ks"
+v160_schema_version: 13
+v160_scope: "Multi-KS event capture, derived junction, structured/FTS authorization parity, graph primary-KS, list/projection parity, singular corpus boundary"
+v160_c5_commit: "fbf63f1"
+v160_c6_commit: "58b8f11"
+v160_c7_commit: "93522ac"
+v160_c8_commit: "454cc03"
+v160_c9_commit: "ece1eb7"
+v160_c10_commit: "2423878"
+v160_local_full_suite: "3618 passed, 38 skipped, 0 failed (CPython 3.12.13, Windows)"
+v160_pkg2_windows: "13 passed"
+v160_evidence_index: "docs/v1.6.0/EVIDENCE.md"
+v160_release_notes: "docs/releases/RELEASE-NOTES-v1.6.0.md"
+v160_tag: none
+v160_pushed: false

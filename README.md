@@ -14,16 +14,15 @@ an AI API or network connection.
 
 | Line | Status | Notes |
 |---|---|---|
-| Package `1.5.1` | Current package version | Version declared by `zero_mem/version.py` |
+| Package `1.6.0` | Current candidate package version | Version declared by `zero_mem/version.py` |
 | `master` | Latest stable branch | Stable integration line |
-| `v160/multi-ks` | Development | v1.6.0 Multi-KS work; C1–C4 technically complete, C5–C10 pending |
+| `v160/multi-ks` | Qualification candidate | C1–C10 complete locally; GitHub CI pending after push |
 
-v1.6.0 is **not released**. Its full qualification is currently blocked while
-DEF-037 remains under investigation. Do not interpret the development branch,
-completed technical slices, or documentation as a release claim.
+v1.6.0 is **not released**. Local qualification is green; tag/publication remain
+separate gates and require the remote 9-cell workflow to pass on the exact SHA.
 
-See the [v1.6.0 guide](docs/v1.6/README.md) for the current execution status,
-scope, gates, evidence map, and C5–C10 handoff.
+See the [v1.6.0 guide](docs/v1.6.0/README.md) for the current scope, gates,
+work-package map, and canonical evidence index.
 
 ## Core principles
 
@@ -79,6 +78,17 @@ The split between the two Python trees is intentional:
 
 - `zero_mem/` is the supported public and operational surface;
 - `src/` contains internal domain implementation.
+
+See the [current module map](docs/v1.6.0/MODULE-MAP.md) before adding a module.
+
+The root management files have different roles:
+
+- `project-state.yaml` is the current machine-readable project state and is the
+  only file in this group that should receive new status overlays.
+- `implementation-plan.json` is a frozen historical record; do not update it.
+- `benchmark-plan.json` defines the original M0 benchmark contract, not current
+  release status or current benchmark results.
+- `Review V1.1/` is historical review material retained for audit.
 
 For documentation navigation, start with the
 [documentation index](docs/README.md). For repository authority and invariants,
@@ -165,9 +175,10 @@ configuration, and backups.
 - [Architecture](docs/architecture/ARCHITECTURE.md)
 - [Defect registry](docs/defects/DEFECT-REGISTRY.md)
 - [Release notes](docs/releases/)
-- [v1.6.0 Multi-KS guide](docs/v1.6/README.md)
-- [v1.6.0 architecture decision](docs/v1.6/ADR-V160-01-MULTI-KS-PROPOSAL.md)
-- [v1.6.0 remediation plan](docs/v1.6/V160-MULTI-KS-REMEDIATION-PLAN.md)
+- [v1.6.0 Multi-KS guide](docs/v1.6.0/README.md)
+- [v1.6.0 architecture decision](docs/v1.6.0/decisions/ADR-V160-01-MULTI-KS.md)
+- [v1.6.0 roadmap](docs/v1.6.0/ROADMAP.md)
+- [v1.6.0 evidence index](docs/v1.6.0/EVIDENCE.md)
 
 ## Contributing safely
 

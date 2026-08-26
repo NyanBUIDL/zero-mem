@@ -14,16 +14,15 @@ cần kết nối mạng để vận hành thông thường.
 
 | Dòng phát triển | Trạng thái | Ghi chú |
 |---|---|---|
-| Package `1.5.1` | Phiên bản package hiện tại | Được khai báo tại `zero_mem/version.py` |
+| Package `1.6.0` | Phiên bản package candidate hiện tại | Được khai báo tại `zero_mem/version.py` |
 | `master` | Branch ổn định mới nhất | Dòng tích hợp ổn định |
-| `v160/multi-ks` | Đang phát triển | v1.6.0 Multi-KS; C1–C4 hoàn thành về kỹ thuật, C5–C10 đang chờ |
+| `v160/multi-ks` | Candidate qualification | C1–C10 đã hoàn thành cục bộ; chờ GitHub CI sau push |
 
-v1.6.0 **chưa được phát hành**. Full qualification hiện đang bị chặn trong khi
-DEF-037 tiếp tục được điều tra. Không được xem branch phát triển, các lát cắt kỹ
-thuật đã hoàn thành hoặc tài liệu hiện có là tuyên bố release.
+v1.6.0 **chưa được phát hành**. Qualification cục bộ đã xanh; tag/publication là
+gate riêng và cần workflow 9-cell trên remote xanh tại đúng SHA.
 
-Xem [hướng dẫn v1.6.0](docs/v1.6/README.md) để biết trạng thái thực thi, phạm vi,
-gate, bản đồ evidence và hướng bàn giao C5–C10.
+Xem [hướng dẫn v1.6.0](docs/v1.6.0/README.md) để biết phạm vi, gate, bản đồ
+work-package và chỉ mục evidence chính thức.
 
 ## Nguyên tắc cốt lõi
 
@@ -78,6 +77,17 @@ Việc tách hai cây Python là có chủ đích:
 
 - `zero_mem/` là bề mặt public và vận hành được hỗ trợ;
 - `src/` chứa implementation nội bộ theo domain.
+
+Đọc [module map hiện hành](docs/v1.6.0/MODULE-MAP.md) trước khi thêm module mới.
+
+Các file quản trị ở root có vai trò khác nhau:
+
+- `project-state.yaml` là trạng thái máy hiện hành và là nơi duy nhất trong nhóm
+  này được bổ sung status overlay mới.
+- `implementation-plan.json` là lịch sử đã đóng băng; không cập nhật tiếp.
+- `benchmark-plan.json` là hợp đồng benchmark M0 ban đầu, không phải trạng thái
+  release hay kết quả benchmark hiện tại.
+- `Review V1.1/` là tài liệu review lịch sử được giữ lại để audit.
 
 Để tìm tài liệu, bắt đầu tại [chỉ mục tài liệu](docs/README.md). Để hiểu authority
 và invariant của repository, đọc [AGENTS.md](AGENTS.md).
@@ -162,9 +172,10 @@ hình và backup.
 - [Kiến trúc](docs/architecture/ARCHITECTURE.md)
 - [Defect registry](docs/defects/DEFECT-REGISTRY.md)
 - [Release notes](docs/releases/)
-- [Hướng dẫn Multi-KS v1.6.0](docs/v1.6/README.md)
-- [Quyết định kiến trúc v1.6.0](docs/v1.6/ADR-V160-01-MULTI-KS-PROPOSAL.md)
-- [Remediation plan v1.6.0](docs/v1.6/V160-MULTI-KS-REMEDIATION-PLAN.md)
+- [Hướng dẫn Multi-KS v1.6.0](docs/v1.6.0/README.md)
+- [Quyết định kiến trúc v1.6.0](docs/v1.6.0/decisions/ADR-V160-01-MULTI-KS.md)
+- [Roadmap v1.6.0](docs/v1.6.0/ROADMAP.md)
+- [Chỉ mục evidence v1.6.0](docs/v1.6.0/EVIDENCE.md)
 
 ## Đóng góp an toàn
 
