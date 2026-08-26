@@ -1,6 +1,6 @@
 # V1.6.0 REMEDIATION PLAN — Multi-KS + capture wiring (DEF-034)
 
-**Trạng thái:** ĐANG THỰC THI — ADR-V160-01 ACCEPTED; **C1–C3 DONE** (C1: 71bb865+cfea75d; C2: 617ed92+0e3abc9+7a59758+a4a0669; C3: 082227d); **C4–C10 pending** (mỗi commit có gate riêng).
+**Trạng thái:** ĐANG THỰC THI — ADR-V160-01 ACCEPTED; **C1–C4 DONE** (C1: 71bb865+cfea75d; C2: 617ed92+0e3abc9+7a59758+a4a0669; C3: 082227d; C4: 8aab66d); **C5–C10 pending** (mỗi commit có gate riêng).
 **Nguyên tắc:** không migration trong V1.5.1; canonical append-only; derived rebuildable; RED-first; commit nhỏ.
 **Phạm vi:** commit evidence DEF-034 KHÔNG đổi production code; plan này là kế hoạch cho V1.6.0.
 
@@ -29,7 +29,7 @@
 - Test behavioral: rebuild stale → junction == canonical (stale biến mất, PRIMARY-KS theo canonical); rebuild cùng canonical → junction == fresh ingest (multi/legacy/unscoped); static guard `zm_event_spaces` ∈ DERIVED_TABLES. Test: `tests/unit/test_v160_c3_rebuild_junction.py` (3 tests).
 - Evidence: RED 2 failed (0.18s) → GREEN 3 passed (2.29s); adjacent rebuild/query regression 333 passed; full suite **3571 passed / 5 failed** (tập con 6 IDs baseline C1; v134 flaky pass) / 38 skipped / 11 errors. Raw logs (4 artifact C3): `audit/evidence-v160-c2/c3-red-2failed.txt`, `c3-green-3passed.txt`, `c3-adjacent-333passed.txt`, `c3-fullsuite-5failed.txt`. DEF-034 stays OPEN.
 
-### C4 — Authorization: union read + per-row grant qua junction — **DONE (chờ commit + full suite)**
+### C4 — Authorization: union read + per-row grant qua junction — **DONE (commit 8aab66d)**
 - `src/access/authorized_read.py`: `_ks_predicate` = **correlated `EXISTS` trên junction** (không JOIN — event [A,B] UNION [A,B] xuất hiện đúng 1 lần); `_scope_allows` nhận **row's KS set** (`_junction_ks_map` một query/trang cho defensive re-check; `_row_ks_ids` fallback singular cho M4); helper mới `_junction_ks_map`/`_row_ks_ids`.
 - **Chống duplicate:** correlated EXISTS (không JOIN) — test union no-dup; pagination 10 events multi-KS page-by-page không skip/lặp.
 - Semantics: request KS = UNION; grant ∩ row KS set ≠ ∅ authorize; NULL/empty KS (không junction row) không bao giờ space-grant authorize (fail-closed).
