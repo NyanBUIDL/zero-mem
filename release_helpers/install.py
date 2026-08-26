@@ -18,11 +18,14 @@ from release_common import (
     cli_shim_name,
     contained,
     default_paths,
+    directory_link_target,
     ensure_managed_root,
     fail,
     managed_child,
+    is_directory_link,
     reject_home_or_root,
     require_compatible_python,
+    remove_directory_link,
     script_bytes,
     sha256_file,
     venv_console,
@@ -78,11 +81,11 @@ def _verify_runtime(venv: Path, version: str, cwd: Path) -> None:
 
 def _check_active_pointer(runtime_root: Path) -> None:
     current = runtime_root / "current"
-    if not current.exists() and not current.is_symlink():
+    if not current.exists() and not is_directory_link(current):
         return
-    if not current.is_symlink():
-        raise fail("active runtime pointer is not a symlink")
-    target = (current.parent / os.readlink(current)).resolve()
+    if not is_directory_link(current):
+        raise fail("active runtime pointer is not a directory link")
+    target = directory_link_target(current)
     if not contained(runtime_root / "runtimes", target):
         raise fail("active runtime pointer escapes managed root")
 
@@ -92,17 +95,18 @@ def _make_dir_link(link: Path, target: Path) -> None:
 
     R124-09: ``os.symlink`` to a directory requires Developer Mode or elevated
     privileges on Windows. Fall back to a directory junction (``mklink /J``),
-    which needs no privilege; junctions are reparse points, so ``is_symlink()``
-    and ``os.readlink`` keep working for the existing safety checks.
+    which needs no privilege. Junctions are not reported by ``is_symlink()``,
+    so callers use the shared directory-link helpers for safety checks.
     """
     if os.name == "nt":
         try:
             os.symlink(str(target), str(link), target_is_directory=True)
             return
         except OSError:
+            junction_target = target if target.is_absolute() else (link.parent / target).resolve()
             _run(
-                ["cmd", "/c", "mklink", "/J", str(link), str(target)],
-                cwd=Path.home(),
+                ["cmd", "/c", "mklink", "/J", str(link), str(junction_target)],
+                cwd=link.parent,
                 env=dict(os.environ),
                 message="unable to create activation junction",
             )
@@ -121,26 +125,26 @@ def install(args: argparse.Namespace) -> int:
     runtime_root = ensure_managed_root(runtime_root, home=home, label="runtime root")
     runtimes = managed_child(runtime_root, "runtimes", label="runtime directory")
     runtimes.mkdir(parents=True, exist_ok=True, mode=0o700)
-    if runtimes.is_symlink():
+    if is_directory_link(runtimes):
         raise fail("unsafe runtime directory")
     version_root = managed_child(runtimes, version, label="version runtime")
     _check_active_pointer(runtime_root)
     current = runtime_root / "current"
     shim_name = cli_shim_name()
     controlled_failure = os.environ.get("ZERO_MEM_TEST_FAIL_BEFORE_ACTIVATION") == "1"
-    active_same = current.is_symlink() and current.resolve() == version_root.resolve() and version_root.is_dir()
+    active_same = is_directory_link(current) and current.resolve() == version_root.resolve() and version_root.is_dir()
     for candidate in runtimes.iterdir():
         if candidate.name.startswith(".staging-"):
-            if candidate.is_symlink():
-                raise fail("unsafe staging symlink")
+            if is_directory_link(candidate):
+                raise fail("unsafe staging directory link")
             shutil.rmtree(candidate)
     if active_same and not controlled_failure:
         return 0
-    if (version_root.exists() or version_root.is_symlink()) and not active_same:
+    if (version_root.exists() or is_directory_link(version_root)) and not active_same:
         raise fail("same-version runtime exists but is not active; refusing overwrite")
 
     staging = Path(tempfile.mkdtemp(prefix=".staging-", dir=str(runtimes)))
-    previous_current = os.readlink(current) if current.is_symlink() else None
+    previous_current = Path(os.readlink(current)) if is_directory_link(current) else None
     previous_shim = None
     previous_metadata = None
     shim = None
@@ -187,7 +191,7 @@ def install(args: argparse.Namespace) -> int:
         runtime_moved = True
 
         pointer_tmp = runtime_root / ".current.tmp"
-        if pointer_tmp.exists() or pointer_tmp.is_symlink():
+        if pointer_tmp.exists() or is_directory_link(pointer_tmp):
             raise fail("stale activation pointer")
         _make_dir_link(pointer_tmp, Path("runtimes") / version)
         os.replace(pointer_tmp, current)
@@ -197,8 +201,8 @@ def install(args: argparse.Namespace) -> int:
         return 0
     except Exception:
         if pointer_changed:
-            if current.exists() or current.is_symlink():
-                current.unlink()
+            if current.exists() or is_directory_link(current):
+                remove_directory_link(current)
             if previous_current is not None:
                 _make_dir_link(current, previous_current)
         if shim is not None:
@@ -213,11 +217,14 @@ def install(args: argparse.Namespace) -> int:
                 atomic_write(metadata_path, previous_metadata, mode=0o600)
         if staging.exists() or staging.is_symlink():
             shutil.rmtree(staging, ignore_errors=True)
-        if runtime_moved and (version_root.exists() or version_root.is_symlink()):
+        if runtime_moved and (version_root.exists() or is_directory_link(version_root)):
             shutil.rmtree(version_root, ignore_errors=True)
         for temporary in (bin_dir / f".{shim_name}.tmp", runtime_root / ".install.json.tmp", runtime_root / ".current.tmp"):
-            if temporary.exists() or temporary.is_symlink():
-                temporary.unlink()
+            if temporary.exists() or is_directory_link(temporary):
+                if is_directory_link(temporary):
+                    remove_directory_link(temporary)
+                else:
+                    temporary.unlink()
         raise
 
 

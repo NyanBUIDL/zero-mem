@@ -76,28 +76,36 @@ def _logical_digest(db_path: Path) -> str:
     import re
 
     ts_re = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
-    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-    try:
-        tables = [
-            r[0]
-            for r in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' "
-                "AND name LIKE 'zm_%' ORDER BY name"
-            ).fetchall()
-        ]
-        h = hashlib.sha256()
-        for table in tables:
-            h.update(table.encode())
-            rows = conn.execute(f"SELECT * FROM {table} ORDER BY 1").fetchall()
-            for row in rows:
-                normed = tuple(
-                    "TIMESTAMP" if isinstance(v, str) and ts_re.match(v) else v
-                    for v in row
-                )
-                h.update(repr(normed).encode())
-        return h.hexdigest()
-    finally:
-        conn.close()
+    attempts = 20 if os.name == "nt" else 1
+    for attempt in range(attempts):
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        try:
+            tables = [
+                r[0]
+                for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' "
+                    "AND name LIKE 'zm_%' ORDER BY name"
+                ).fetchall()
+            ]
+            h = hashlib.sha256()
+            for table in tables:
+                h.update(table.encode())
+                rows = conn.execute(f"SELECT * FROM {table} ORDER BY 1").fetchall()
+                for row in rows:
+                    normed = tuple(
+                        "TIMESTAMP" if isinstance(v, str) and ts_re.match(v) else v
+                        for v in row
+                    )
+                    h.update(repr(normed).encode())
+            return h.hexdigest()
+        except sqlite3.OperationalError as exc:
+            transient = os.name == "nt" and "disk i/o error" in str(exc).lower()
+            if not transient or attempt == attempts - 1:
+                raise
+            time.sleep(0.05)
+        finally:
+            conn.close()
+    raise AssertionError("unreachable")
 
 
 # no external timeout plugin; subprocess waits are bounded internally

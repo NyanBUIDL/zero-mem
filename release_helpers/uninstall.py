@@ -4,12 +4,23 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import shutil
 import sys
 from pathlib import Path
 
-from release_common import absolute_path, cli_shim_bytes, cli_shim_name, contained, default_paths, fail, managed_child, reject_home_or_root, ReleaseError
+from release_common import (
+    absolute_path,
+    cli_shim_bytes,
+    cli_shim_name,
+    contained,
+    default_paths,
+    directory_link_target,
+    fail,
+    is_directory_link,
+    reject_home_or_root,
+    remove_directory_link,
+    ReleaseError,
+)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -32,9 +43,9 @@ def _paths(args: argparse.Namespace) -> tuple[Path, Path]:
 
 def uninstall(args: argparse.Namespace) -> int:
     runtime_root, bin_dir = _paths(args)
-    if not runtime_root.exists() and not runtime_root.is_symlink():
+    if not runtime_root.exists() and not is_directory_link(runtime_root):
         return 0
-    if runtime_root.is_symlink() or not runtime_root.is_dir():
+    if is_directory_link(runtime_root) or not runtime_root.is_dir():
         raise fail("unsafe runtime root")
     metadata_path = runtime_root / "install.json"
     metadata = None
@@ -49,20 +60,20 @@ def uninstall(args: argparse.Namespace) -> int:
             raise fail("unsupported installation metadata")
 
     current = runtime_root / "current"
-    if current.is_symlink():
-        target = (runtime_root / os.readlink(current)).resolve()
+    if is_directory_link(current):
+        target = directory_link_target(current)
         if not contained(runtime_root / "runtimes", target):
             raise fail("active runtime pointer escapes managed root")
-        current.unlink()
+        remove_directory_link(current)
     elif current.exists():
         raise fail("unsafe active runtime")
 
     runtimes = runtime_root / "runtimes"
-    if runtimes.is_symlink():
+    if is_directory_link(runtimes):
         raise fail("unsafe runtime directory")
     if runtimes.is_dir():
         for child in list(runtimes.iterdir()):
-            if child.is_symlink() or not contained(runtimes, child):
+            if is_directory_link(child) or not contained(runtimes, child):
                 raise fail("unsafe managed runtime entry")
             if child.name.startswith(".staging-") or (metadata and child.name == metadata.get("version")):
                 shutil.rmtree(child)

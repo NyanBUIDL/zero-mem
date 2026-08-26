@@ -62,12 +62,39 @@ def reject_home_or_root(path: Path, home: Path, label: str) -> None:
         raise fail(f"unsafe {label}")
 
 
+def is_directory_link(path: Path) -> bool:
+    """Return True for either a directory symlink or a Windows junction."""
+    is_junction = getattr(path, "is_junction", None)
+    return path.is_symlink() or bool(callable(is_junction) and is_junction())
+
+
+def directory_link_target(path: Path) -> Path:
+    """Resolve a directory-link target relative to the link's parent."""
+    raw_value = os.readlink(path)
+    if os.name == "nt" and raw_value.startswith("\\\\?\\UNC\\"):
+        raw_value = "\\\\" + raw_value[8:]
+    elif os.name == "nt" and raw_value.startswith("\\\\?\\"):
+        raw_value = raw_value[4:]
+    raw_target = Path(raw_value)
+    target = raw_target if raw_target.is_absolute() else path.parent / raw_target
+    return target.resolve()
+
+
+def remove_directory_link(path: Path) -> None:
+    """Remove a link itself without traversing or deleting its target."""
+    is_junction = getattr(path, "is_junction", None)
+    if callable(is_junction) and is_junction() and not path.is_symlink():
+        path.rmdir()
+    else:
+        path.unlink()
+
+
 def check_no_symlink_components(path: Path, *, label: str) -> None:
     current = Path(path.anchor) if path.is_absolute() else Path()
     for part in path.parts[1:] if path.is_absolute() else path.parts:
         current /= part
-        if current.is_symlink():
-            raise fail(f"unsafe symlink in {label}")
+        if is_directory_link(current):
+            raise fail(f"unsafe directory link in {label}")
 
 
 def ensure_managed_root(path: Path, *, home: Path, label: str) -> Path:
@@ -75,7 +102,7 @@ def ensure_managed_root(path: Path, *, home: Path, label: str) -> Path:
     reject_home_or_root(path, home, label)
     check_no_symlink_components(path, label=label)
     path.mkdir(parents=True, exist_ok=True, mode=0o700)
-    if path.is_symlink() or not path.is_dir():
+    if is_directory_link(path) or not path.is_dir():
         raise fail(f"unsafe {label}")
     return path
 

@@ -30,6 +30,19 @@ def _cli_invocation(cli: Path) -> list[str]:
         return ["cmd", "/c", str(cli)]
     return [str(cli)]
 
+
+def _is_directory_link(path: Path) -> bool:
+    is_junction = getattr(path, "is_junction", None)
+    return path.is_symlink() or bool(callable(is_junction) and is_junction())
+
+
+def _remove_directory_link(path: Path) -> None:
+    is_junction = getattr(path, "is_junction", None)
+    if callable(is_junction) and is_junction() and not path.is_symlink():
+        path.rmdir()
+    else:
+        path.unlink()
+
 INSTALLER = ROOT / "release_helpers" / "install.py"
 UNINSTALLER = ROOT / "release_helpers" / "uninstall.py"
 
@@ -168,7 +181,7 @@ def test_fresh_offline_install_custom_xdg_and_cli(bundle: Path, tmp_path: Path) 
     home = tmp_path / "home with spaces"
     runtime = home / "data root with spaces" / "zero-mem"
     bindir = home / "bin root with spaces"
-    assert (runtime / "current").is_symlink()
+    assert _is_directory_link(runtime / "current")
     assert (runtime / "runtimes" / "1.5.1" / "venv").is_dir()
     cli = _cli(bindir)
     assert cli.is_file() and os.access(cli, os.X_OK)
@@ -239,8 +252,13 @@ def test_uninstall_refuses_unsafe_active_symlink(bundle: Path, tmp_path: Path) -
     home = tmp_path / "home with spaces"
     runtime = home / "data root with spaces" / "zero-mem"
     current = runtime / "current"
-    current.unlink()
-    current.symlink_to(tmp_path / "outside")
+    _remove_directory_link(current)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    if os.name == "nt":
+        _run(["cmd", "/c", "mklink", "/J", str(current), str(outside)], env=_env(home))
+    else:
+        current.symlink_to(outside, target_is_directory=True)
     result = _run([sys.executable, str(UNINSTALLER), "--non-interactive"], env=_env(home), check=False)
     assert result.returncode != 0
     assert "escapes" in result.stderr.lower()
