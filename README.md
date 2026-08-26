@@ -1,97 +1,180 @@
 # Zero-Mem
 
-Zero-Mem is a local-first evidence and memory sidecar. The PKG-1 distribution
-provides the installable package and release CLI foundation.
+[English](README.md) · [Tiếng Việt](README.vi.md)
 
-> **Corpus tooling is generic.** `quant_lab/` is a **sample corpus** used for
-> development and showcase — it is NOT fixed product data. The ingest/extract/
-> project pipeline is parameterized (`--source-dir`, `--ks-name`, `--adapter`,
-> `--skip-list`) so users can import their own document collections (legal,
-> medical, finance, ...) through the same mechanism. `quant_lab` is exercised
-> as the first `arxiv-quant` adapter instance, not as the tool's default shape.
+Zero-Mem is a local-first evidence and memory sidecar for agent workflows. It
+captures durable canonical events, builds disposable query projections, applies
+explicit access boundaries, and keeps user data independent from the installed
+application runtime.
+
+The core runtime has no mandatory third-party dependencies and does not require
+an AI API or network connection.
+
+## Project status
+
+| Line | Status | Notes |
+|---|---|---|
+| Package `1.5.1` | Current package version | Version declared by `zero_mem/version.py` |
+| `master` | Latest stable branch | Stable integration line |
+| `v160/multi-ks` | Development | v1.6.0 Multi-KS work; C1–C4 technically complete, C5–C10 pending |
+
+v1.6.0 is **not released**. Its full qualification is currently blocked while
+DEF-037 remains under investigation. Do not interpret the development branch,
+completed technical slices, or documentation as a release claim.
+
+See the [v1.6.0 guide](docs/v1.6/README.md) for the current execution status,
+scope, gates, evidence map, and C5–C10 handoff.
+
+## Core principles
+
+- **Local-first:** normal operation is user-local and offline.
+- **Canonical history:** Memory JSONL is append-only canonical event/trace truth.
+- **Rebuildable projections:** SQLite, FTS, graph, temporal indexes, and
+  Obsidian-style projections are derived state.
+- **Explicit identity:** project, profile, and Knowledge Space identities are
+  never inferred from a working directory, repository name, branch, HOME, or
+  session text.
+- **Authorization before retrieval:** scoped reads fail closed and preserve
+  profile/project/Knowledge Space boundaries.
+- **Non-destructive lifecycle:** upgrade and uninstall do not silently delete or
+  rewrite canonical user data.
+- **Evidence-backed delivery:** changes use RED-first tests, bounded commits, and
+  executable qualification evidence.
+
+## Capabilities
+
+Zero-Mem provides:
+
+- durable event capture with explicit receipts;
+- canonical JSONL storage and rebuildable SQLite projections;
+- structured and full-text retrieval;
+- profile, project, and Knowledge Space access controls;
+- project-memory, graph, temporal, corpus, and projection layers;
+- a public Python facade and local CLI;
+- optional Hermes integration through an explicit boundary;
+- verified local backup, restore, diagnosis, and upgrade workflows;
+- generic corpus import tooling for user-provided document collections.
+
+Corpus tooling is not tied to the development `quant_lab` sample. Import and
+projection commands are parameterized so other domains can use the same
+pipeline.
+
+## Repository map
 
 ```text
+zero_mem/        Public Python API, CLI, configuration, and lifecycle commands
+src/             Internal implementation by domain
+tests/           Unit, integration, packaging, fixtures, and baselines
+docs/            Architecture, plans, decisions, runbooks, releases, and evidence
+artifacts/       Historical control, handoff, tracking, and evidence artifacts
+audit/           Raw audit and qualification artifacts not yet consolidated
+benchmarks/      Performance and retrieval-quality harnesses
+config/          Policy and schema examples
+examples/        Small integration examples
+release_helpers/ Offline bundle, installation, and uninstallation helpers
+scripts/         Verification, corpus, maintenance, and projection tools
+```
+
+The split between the two Python trees is intentional:
+
+- `zero_mem/` is the supported public and operational surface;
+- `src/` contains internal domain implementation.
+
+For documentation navigation, start with the
+[documentation index](docs/README.md). For repository authority and invariants,
+read [AGENTS.md](AGENTS.md).
+
+## Development quick start
+
+Requirements: Python 3.11–3.13.
+
+```bash
+python -m venv .venv
+python -m pip install -e ".[test]"
+python -m pytest -q
+```
+
+Inspect the CLI without changing user data:
+
+```bash
 zero-mem --help
 zero-mem --version
 zero-mem version
 ```
 
-The optional `pdf` extra enables PDF extraction through `pypdf`; the core
-runtime has no mandatory third-party dependencies.
+The optional PDF extra uses `pypdf`:
 
-PKG-2 provides an offline, user-local acceptance bundle builder in
-`release_helpers/build_bundle.py`, plus `install.sh` and `uninstall.sh`. The
-The installer accepts only bundled wheels, creates a versioned managed runtime
-under `${XDG_DATA_HOME:-$HOME/.local/share}/zero-mem`, and exposes the CLI
-under `${XDG_BIN_HOME:-$HOME/.local/bin}/zero-mem`. It never requires root or
-network access after the bundle is obtained. Default uninstall removes only
-owned runtime components and preserves user data.
+```bash
+python -m pip install -e ".[pdf]"
+```
 
-PKG-3 adds the non-destructive first-run commands:
+## Local setup and health
 
-```text
+```bash
 zero-mem setup
 zero-mem doctor
 zero-mem doctor --json
 ```
 
-`setup` creates private XDG data/config/state/cache directories, an empty
-canonical Memory JSONL stream, and the derived SQLite schema. It finishes with
-`READY` and does not require Hermes, Corpus, Obsidian, an AI API, network access,
-or a repository checkout. `doctor` is read-only and reports stable PASS/WARN/
-OPTIONAL/FAIL checks; absent optional integrations are warnings or optional
-capabilities, not setup failures.
+`setup` creates private user-local data, config, state, and cache directories,
+an empty canonical Memory JSONL stream, and the derived SQLite schema. It does
+not require Hermes, Corpus, Obsidian, an AI API, network access, or a repository
+checkout.
 
-PKG-4 adds an explicit, optional Hermes integration workflow:
+`doctor` is read-only. Optional integrations that are absent are reported as
+optional or warning states rather than setup failures.
 
-```text
+## Optional Hermes integration
+
+```bash
 zero-mem integrate hermes --check
 zero-mem integrate hermes --project-id PROJECT --profile-id PROFILE
 zero-mem integrate hermes --remove
 ```
 
-Integration is never enabled by `setup`, `doctor`, or normal startup. The
-project and profile identifiers are mandatory and are never inferred from the
-working directory, repository name, HOME, session text, or branch. The command
-stores only a Zero-Mem-owned descriptor under the configured XDG config root;
-it does not edit Hermes files, install Hermes, contact the network, or expose
-write/admin/raw-storage tools. `ZERO_MEM_ENABLED` remains the sole master
-switch, and Hermes remains operational when Zero-Mem is unavailable.
+Integration is never enabled implicitly by `setup`, `doctor`, or startup.
+Project and profile identifiers are mandatory. Zero-Mem stores only its own
+descriptor and does not edit or install Hermes. `ZERO_MEM_ENABLED` remains the
+master switch, and Hermes must remain operational when Zero-Mem is unavailable.
 
-## Upgrade and data lifecycle
+## Backup and upgrade
 
-Application code and user data have separate lifecycles. Reinstalling or
-uninstalling the managed runtime does not remove canonical Memory JSONL, the
-canonical corpus registry and blobs, artifacts, profiles/grants, configuration,
-or backups. The PKG-2 default uninstaller removes only the managed runtime and
-its owned CLI shim.
+```bash
+zero-mem backup create --output /absolute/backup-directory
+zero-mem backup verify /absolute/backup-directory --json
+zero-mem backup restore /absolute/backup-directory --yes
 
-PKG-6 provides a local, no-network upgrade lifecycle:
-
-```text
 zero-mem upgrade --check --json
 zero-mem upgrade --json
 ```
 
-`upgrade --check` is read-only. It reports installed package/data format and
-SQLite schema compatibility, canonical readability, backup readiness, and
-doctor readiness. A future derived schema is refused; Zero-Mem never silently
-downgrades data. For the current v10 schema, a compatible installation reports
-`NO_MIGRATION_REQUIRED`.
+`upgrade --check` is read-only. `upgrade` validates canonical data, rebuilds
+disposable derived state in staging, and activates it only after verification.
+A staging failure leaves the previous active derived state in place. Future
+schema versions are refused rather than silently downgraded.
 
-`upgrade` validates canonical data, builds disposable SQLite/FTS/graph/temporal
-state in a sibling staging directory, and activates it only after the staged
-rebuild and doctor checks succeed. Canonical JSONL, corpus registry/blobs,
-artifact payloads, profiles/grants, and configuration are never migrated or
-rewritten by this operation. A staging failure leaves the prior active derived
-state in place. Create and verify a local PKG-5 backup before a significant
-upgrade when recovery assurance is desired:
+Application removal is not data deletion. The default uninstaller preserves
+canonical Memory JSONL, corpus registry and blobs, artifacts, profiles/grants,
+configuration, and backups.
 
-```text
-zero-mem backup create --output /absolute/backup-directory
-zero-mem backup verify /absolute/backup-directory --json
-```
+## Documentation entry points
 
-There is intentionally no `zero-mem data remove` command in PKG-6. Persistent
-data deletion is a separate, explicitly authorized lifecycle operation; OS
-package removal is not data deletion.
+- [Documentation index](docs/README.md)
+- [Authoritative repository rules](AGENTS.md)
+- [Master specification projection](docs/MASTER-SPEC.md)
+- [Architecture](docs/architecture/ARCHITECTURE.md)
+- [Defect registry](docs/defects/DEFECT-REGISTRY.md)
+- [Release notes](docs/releases/)
+- [v1.6.0 Multi-KS guide](docs/v1.6/README.md)
+- [v1.6.0 architecture decision](docs/v1.6/ADR-V160-01-MULTI-KS-PROPOSAL.md)
+- [v1.6.0 remediation plan](docs/v1.6/V160-MULTI-KS-REMEDIATION-PLAN.md)
+
+## Contributing safely
+
+Before changing code, read [AGENTS.md](AGENTS.md), the relevant version plan and
+ADR, and the defect registry. Before any Git or GitHub mutation, read the
+[GitHub governance policy](docs/governance/GITHUB-POLICY.md).
+
+Do not rewrite canonical history, weaken access boundaries, treat derived state
+as canonical, commit generated/private data, or claim completion without
+executable evidence.
