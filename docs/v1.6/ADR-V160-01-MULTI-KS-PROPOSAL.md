@@ -26,7 +26,7 @@ Hệ thống hiện tại: (1) standard capture adapters không sinh knowledge_s
 | `knowledge_space_ids: []` (mới, rỗng) | UNKNOWN/unscoped — không authorize bởi space grant nào. **Chính xác:** KS không THÊM hạn chế, nhưng visibility vẫn do profile/project/global policy quyết định (row NULL-profile vẫn visible dưới global read theo D-2026-08-22-03; row có profile thì theo profile match). |
 | `knowledge_space_ids: [A]` | thuộc A |
 | `knowledge_space_ids: [A, B]` | thuộc CẢ A VÀ B; READ scope filter = UNION (xem §7) |
-| legacy `knowledge_space_id: A` | tương đương `knowledge_space_ids: [A]`; list thắng khi cả hai; list rỗng + legacy set → dùng legacy |
+| legacy `knowledge_space_id: A` | tương đương `knowledge_space_ids: [A]`; list thắng khi cả hai; list rỗng + legacy set → dùng legacy. **Chỉ legacy là non-empty string mới được promote; malformed/blank legacy (số, whitespace) bị BỎ QUA → unscoped (không raise — lựa chọn tương thích, không phải strict reject)** |
 | NULL (canonical không có field) | unscoped (như cũ) |
 
 ### 3. Canonical envelope
