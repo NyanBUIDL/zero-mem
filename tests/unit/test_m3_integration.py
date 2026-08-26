@@ -546,11 +546,10 @@ def test_scope_project_profile_session(tmp_path):
 
 def test_scope_knowledge_space_mapping(tmp_path):
     jl, rs = _ingest_integration_corpus(tmp_path)
-    # Verified M2 schema has NO event-level knowledge_space linkage; M3 returns an empty page
-    # (no global fallback to project P events). ks_evt is still retrievable via project scope.
+    # V1.6 reads exact junction membership, with no global fallback to project P events.
     ks = r.list_knowledge_space(rs, "KS")
-    assert ks.items == []
-    # project-scope keeps returning ks_evt (explicit scope, not KS inference)
+    assert [item.event_id for item in ks.items] == ["ks_evt"]
+    # Project scope independently keeps returning the same explicitly scoped event.
     assert "ks_evt" in [e.event_id for e in r.list_project(rs, "P")]
 
 

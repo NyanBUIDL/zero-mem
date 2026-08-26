@@ -1,10 +1,10 @@
 """DEF-034 downstream surface probes — list_knowledge_space / M8 graph / projection.
 
-These assert CURRENT behavior (evidence for the review finding that KS loss is
-NOT the only gap — several downstream surfaces never carry KS by design):
-  - list_knowledge_space returns empty even when zm_meta has ks rows;
-  - M8 graph event-derived sources assign knowledge_space_id=None;
-  - Obsidian projection renders knowledge_spaces: [] (hardcoded).
+These began as evidence probes for the review finding that KS loss reached
+multiple downstream surfaces.  V1.6 turns each probe into a regression gate:
+  - C7 list_knowledge_space reads explicit junction membership;
+  - C6 M8 event-derived graph sources copy PRIMARY-KS;
+  - C8 still owns Obsidian projection knowledge_spaces.
 
 NOT fixes: they pin the current state so V1.6.0 parity gates can assert change.
 """
@@ -26,7 +26,7 @@ from tests.unit.test_m3_query import (
 
 
 class TestDef034DownstreamSurfaces:
-    def test_list_knowledge_space_empty_despite_ks_rows(self, tmp_path):
+    def test_list_knowledge_space_reads_explicit_membership(self, tmp_path):
         jl = tmp_path / "k.jsonl"
         _write_jsonl(jl, [
             _make_env("ev-ks", profile_id="p1", project_id="P",
@@ -38,19 +38,17 @@ class TestDef034DownstreamSurfaces:
         ro = open_readonly(tmp_path / "m.sqlite")
         try:
             res = list_knowledge_space(ro, "quant-theory")
-            # Schema-truthful: no event-level linkage column in the relations
-            # layer -> the API returns [] by design (evidence, not fix).
-            assert len(res.items) == 0
-            assert res.total == 0
+            assert [item.event_id for item in res.items] == ["ev-ks"]
+            assert res.total == 1
         finally:
             ro.close()
 
-    def test_m8_graph_event_sources_assign_ks_none(self):
+    def test_m8_graph_event_sources_read_primary_ks(self):
         import inspect
         from src.m8 import graph_sources as gs
         src = inspect.getsource(gs)
-        assert src.count("knowledge_space_id=None") >= 4, (
-            "M8 event-derived node constructors drop ks (evidence, not fix)")
+        assert "m.knowledge_space_id AS knowledge_space_id" in src
+        assert '"knowledge_space_id": _get(row, "knowledge_space_id")' in src
 
     def test_projection_renders_knowledge_spaces_empty(self):
         import inspect

@@ -7,8 +7,8 @@ zm_artifacts (in addition to the M3.1 derived-table set).
 
 Scope semantics (schema-truthful, no inference):
 - project/profile/session scope -> zm_meta columns (served by M3.1 helpers).
-- knowledge_space scope -> only an observed zm_scopes row; NO event-level linkage exists in the
-  verified M2 schema, so list_knowledge_space returns [] (no global fallback, no invented edges).
+- knowledge_space scope -> exact V1.6 zm_event_spaces membership (no global fallback and no
+  inference from PRIMARY-KS or other scope coordinates).
 - artifact references -> metadata only; stored_path (internal filesystem pointer) is never exposed.
 """
 
@@ -218,12 +218,12 @@ def test_explicit_combined_project_and_profile(tmp_path):
     assert p & u == {"p0"}
 
 
-def test_knowledge_space_returns_empty_no_inference(tmp_path):
-    """No event-level knowledge_space linkage exists; must return [] (no inference/fallback)."""
+def test_knowledge_space_reads_exact_junction_membership(tmp_path):
+    """The V1.6 helper returns only the explicitly linked event."""
     _ingest_relations_corpus(tmp_path)
     rs = open_readonly(tmp_path / "m.sqlite")
     res = list_knowledge_space(rs, "KS")
-    assert res.items == []
+    assert [item.event_id for item in res.items] == ["p0"]
 
 
 # ---- artifact references ----

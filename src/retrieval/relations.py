@@ -12,9 +12,8 @@ Notes on scope semantics (schema-truthful, no inference):
 - project / profile scope -> ``zm_meta.project_id`` / ``profile_id`` (served by M3.1 list_project /
   list_profile; reused here unchanged).
 - session scope -> ``zm_meta.session_id`` (M3.1 list_session).
-- knowledge_space scope -> only an observed ``zm_scopes`` row (scope_type='knowledge_space'); there is
-  NO event-level linkage column in the verified M2 schema, so ``list_knowledge_space`` returns ``[]``
-  (no global fallback, no inferred membership).
+- knowledge_space scope -> exact membership from the V1.6 ``zm_event_spaces``
+  junction; PRIMARY-KS is not used as a fallback and membership is not inferred.
 - artifact references -> ``zm_artifacts`` metadata only; ``stored_path`` is never exposed (safe
   ``artifact:<id>`` reference instead).
 """
@@ -30,6 +29,8 @@ from .models import (
     INVALID_DIRECTION,
     INVALID_RELATION_TYPE,
     QueryError,
+    QueryRequest,
+    QueryResult,
     RelatedResult,
     RelatedView,
     ArtifactResult,
@@ -254,18 +255,53 @@ def list_knowledge_space(
     limit: Optional[int] = None,
     cursor: Optional[str] = None,
 ) -> "QueryResult":
-    """Return events in a knowledge space.
+    """Return exact event membership from the V1.6 Multi-KS junction.
 
-    Schema-truthful: in the verified M2 schema, ``knowledge_space_id`` is projected only into
-    ``zm_scopes`` (scope_type='knowledge_space') with NO event-level linkage column. There is
-    therefore no event set to return, and M3.4 must not infer membership from project/profile/
-    file/relation/name. The correct, safe result is an empty page (``error=None``), consistent
-    with the no-global-fallback rule. Callers that need event membership must supply an explicit
-    project/profile/session scope via the existing structured queries.
+    This is a read-only, deterministic join.  It does not fall back to
+    ``zm_meta.knowledge_space_id`` or infer membership from any other scope.
+    Deleted events remain excluded and cursors are bound to the requested KS.
     """
     if not isinstance(knowledge_space_id, str) or not knowledge_space_id:
         raise QueryError(code="invalid_query", message="non_string_knowledge_space_id")
-    query_mod._validate_limit(limit)  # validate limit shape even when result is empty
-    from .models import QueryResult  # local import to avoid any cycle confusion
-    return QueryResult(items=[], query={"knowledge_space_id": knowledge_space_id}, total=0,
-                        next_cursor=None)
+    effective_limit = query_mod._validate_limit(limit)
+    request = QueryRequest(knowledge_space_id=knowledge_space_id)
+    qf = cursor_mod.make_fingerprint(request)
+
+    keyset: Optional[tuple] = None
+    if cursor is not None:
+        data = cursor_mod.validate_cursor_binding(cursor, qf, effective_limit)
+        keyset = (data["sort"][0], data["sort"][1])
+
+    cols = ", ".join(f"m.{column}" for column in ZM_META_COLUMNS)
+    sql = (
+        f"SELECT {cols} FROM zm_meta m "
+        "JOIN zm_event_spaces es ON es.event_id=m.event_id "
+        f"WHERE es.knowledge_space_id=? AND {_DELETED_EXCLUSION} "
+    )
+    params: List[object] = [knowledge_space_id]
+    if keyset is not None:
+        sql += "AND (m.created_at, m.event_id) > (?, ?) "
+        params.extend(keyset)
+    sql += "ORDER BY m.created_at ASC, m.event_id ASC LIMIT ?"
+    params.append(effective_limit)
+
+    try:
+        rows = store.conn.execute(sql, params).fetchall()
+    except Exception as exc:  # pragma: no cover - defensive
+        raise QueryError(
+            code="database_unavailable", message="knowledge_space_query_failed"
+        ) from exc
+
+    items = [_row_to_event_view(row) for row in rows]
+    next_cursor: Optional[str] = None
+    if len(items) >= effective_limit:
+        last = items[effective_limit - 1]
+        next_cursor = cursor_mod.encode_cursor(
+            qf, last.created_at, last.event_id, effective_limit
+        )
+    return QueryResult(
+        items=items,
+        query={"knowledge_space_id": knowledge_space_id},
+        total=len(items),
+        next_cursor=next_cursor,
+    )
