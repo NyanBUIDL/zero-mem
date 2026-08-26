@@ -3,7 +3,7 @@
 **Trạng thái:** PROPOSED (chưa ACCEPTED — cần maintainer duyệt trước V1.6.0 code)
 **Liên quan:** DEF-034 (OPEN → V1.6.0), master spec §4.3, SPIKE-B, DEF-028 (per-row auth base).
 **Nguồn bằng chứng:** `docs/defects/DEF-034-ROOT-CAUSE.md` + probes `docs/v1.6/probes/` (A-J chạy exit 0).
-**Ghi chú phạm vi:** commit evidence DEF-034 (37c33d6) KHÔNG đổi production code; branch chứa các fix DEF-028/029/030/031/033 từ trước.
+**Ghi chú phạm vi:** commit evidence DEF-034 (37c33d6, f21758f) KHÔNG đổi production code; branch chứa các fix DEF-028/029/030/031/033 từ trước.
 
 ## Context
 Hệ thống hiện tại: (1) standard capture adapters không sinh knowledge_space_id (probe A/B/H); (2) schema SINGULAR `zm_meta.knowledge_space_id` (migrate_11); (3) master spec yêu cầu trace thuộc NHIỀU KS; (4) projection hardcoded empty; (5) authorization per-row chỉ xử lý 1 ks/event; (6) `list_knowledge_space` trả rỗng; (7) M8 graph gán ks=None.
@@ -18,6 +18,7 @@ Hệ thống hiện tại: (1) standard capture adapters không sinh knowledge_s
 - **Trace-level KS = UNION các KS của events trong trace** (derived, tính tại query/rebuild — không lưu thêm).
 - Events trong cùng trace **KHÔNG bắt buộc cùng tập KS** (không thêm invariant; mỗi event độc lập).
 - Master spec 'một trace thuộc nhiều KS' được thỏa bởi union derived.
+- **Scope V1.6.0 (round-3):** trace-union là **semantic definition** (tính khi có surface đọc trace-scoped trong tương lai); **KHÔNG expose làm surface trong V1.6.0** — không có implementation commit, chỉ ghi định nghĩa + gate test nếu surface sau này thêm.
 
 ### 2. Semantics NULL / empty list / legacy knowledge_space_id
 | Giá trị | Semantics |
@@ -35,8 +36,8 @@ Hệ thống hiện tại: (1) standard capture adapters không sinh knowledge_s
 ### 4. Derived: `zm_event_spaces` junction + `zm_meta.knowledge_space_id` = PRIMARY-KS
 **Quyết định (đóng):**
 - **Junction `zm_event_spaces(event_id, knowledge_space_id)` = nguồn dẫn xuất CHÍNH cho multi-KS** (auth + FTS + structured query dùng junction).
-- **`zm_meta.knowledge_space_id` GIỮ NGUYÊN** = denormalized **PRIMARY-KS** (phần tử ĐẦU TIÊN của list theo thứ tự canonical, hoặc NULL nếu rỗng) — convenience projection cho backward compat + graph/temporal; **KHÔNG phải source of truth**; rebuilt từ junction tại ingest.
-- Mọi query/read hiện tại (dùng singular column) không vỡ.
+- **PRIMARY-KS reconstruction (round-3):** junction KHÔNG lưu thứ tự (chỉ (event_id, ks)) nên KHÔNG thể rebuild primary từ junction. **Cả junction LẪN `zm_meta.knowledge_space_id` (PRIMARY-KS) đều là projection TRỰC TIẾP từ canonical tại ingest** (primary = phần tử đầu tiên theo thứ tự canonical); rebuild re-ingest canonical → cả hai tái tạo faithful. KHÔNG cần thêm `ordinal` vào junction (không có query cần thứ tự); nếu sau này cần thứ tự → migration additive riêng.
+- `zm_meta.knowledge_space_id` GIỮ NGUYÊN = denormalized PRIMARY-KS — convenience projection cho backward compat + graph/temporal; **KHÔNG phải source of truth**; mọi query/read hiện tại không vỡ.
 
 ### 5. Migration additive + rollback
 - Migration vN (additive): `CREATE TABLE zm_event_spaces(...)` + index; backfill từ `zm_meta.knowledge_space_id` (legacy singular → 1 row; NULL → 0 row).
@@ -50,12 +51,18 @@ Hệ thống hiện tại: (1) standard capture adapters không sinh knowledge_s
 
 ### 7. Authorization union/intersection
 - READ scope filter `knowledge_space_ids=[A,B]` = **UNION**. Space grant per-row: `granted ∩ row.knowledge_space_ids ≠ ∅`.
+- **Chống duplicate (round-3):** junction được dùng qua **correlated EXISTS subquery**, KHÔNG dùng JOIN trực tiếp (event [A,B] + UNION [A,B] match 2 junction rows → JOIN nhân đôi):
+  ```sql
+  EXISTS (SELECT 1 FROM zm_event_spaces s WHERE s.event_id = zm_meta.event_id AND s.knowledge_space_id IN (...))
+  ```
+- Acceptance bắt buộc: event [A,B] xuất hiện ĐÚNG 1 lần; pagination không skip/lặp giữa các trang; cursor fingerprint bind toàn bộ KS filter đã canonicalize (sort + dedup).
 - `_ks_predicate` chuyển sang junction join; NULL/empty không bao giờ space-grant authorize (giữ).
 - Matrix NULL/legacy/global-read là gate bắt buộc (không chỉ no-leak-observed).
 
 ### 8. Parity: FTS/structured/graph/temporal/corpus
 - **FTS + structured:** cùng junction predicate (học DEF-020/028).
 - **Graph/temporal (m8): dùng `zm_meta.knowledge_space_id` (PRIMARY-KS)** — đơn giản, không junction (quyết định C6: primary-KS).
+- **Limitation (round-3, fail-closed tradeoff):** event [A,B] chỉ hiện dưới graph/temporal scope của PRIMARY-KS (A); space grant B đọc được event qua structured/FTS nhưng **có thể không đọc được graph-derived representation** — tradeoff chủ đích (fail-closed, không leak); gate test bắt buộc: grant B → event readable qua structured, graph representation gated bởi primary (behavioral).
 - Corpus: units giữ singular (1 KS/unit) — KHÔNG chuyển multi-KS (chưa đủ evidence).
 - Projection: render `knowledge_spaces` từ event ks (bỏ hardcode v9).
 - `list_knowledge_space`: trả rows từ junction (bỏ hardcode []).

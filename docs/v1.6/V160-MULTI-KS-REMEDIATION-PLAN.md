@@ -23,17 +23,20 @@
 
 ### C4 — Authorization: union read + per-row grant qua junction
 - `src/access/authorized_read.py`: `_ks_predicate` → junction join; `_scope_allows` nhận row's set ks.
+- **Chống duplicate (round-3):** dùng correlated EXISTS subquery (không JOIN trực tiếp) — event [A,B] xuất hiện đúng 1 lần; pagination không skip/lặp; cursor fingerprint bind KS filter canonicalized (sort + dedup).
 - Semantics: request KS list = UNION; grant ∩ row's ks ≠ ∅; NULL/empty không grant authorize.
 - **Gate NULL/legacy/global-read matrix (behavioral):** mọi tổ hợp (profile NULL/non-NULL) × (ks NULL/empty/list/legacy) qua global/default/local/grant reads.
 - Test RED-first + DEF-028 regression giữ.
 
 ### C5 — FTS parity: candidate SQL qua junction
 - `src/retrieval/search.py` + `authorized_read.search_text`: candidate_where dùng junction.
+- Cùng correlated EXISTS pattern như C4 (parity structured/FTS).
 - Test: FTS multi-KS hit + grant lọc đúng (behavioral).
 
 ### C6 — Graph/temporal: PRIMARY-KS (quyết định đóng)
 - m8 derived index/temporal/graph: dùng `zm_meta.knowledge_space_id` (PRIMARY-KS) — KHÔNG junction (đơn giản; junction chỉ cho auth/FTS).
 - `graph_sources.py`: bỏ `knowledge_space_id=None` cho event-derived nodes (dùng primary từ zm_meta).
+- **Limitation (round-3):** event [A,B] hiện dưới graph scope primary (A) — grant B đọc được event qua structured/FTS nhưng graph representation gated bởi primary (fail-closed tradeoff); gate test: grant B behavior qua structured + graph.
 - Test: graph/temporal node mang primary ks (behavioral).
 
 ### C7 — list_knowledge_space parity
@@ -50,6 +53,7 @@
 ### C10 — Backward compat + acceptance + release gates
 - Canonical cũ đọc được; upgrade migration additive; rollback test.
 - Acceptance: multi-KS end-to-end (capture → canonical → ingest → junction → structured/FTS/grant) + legacy compat.
+- Trace-union: semantic definition only (không expose surface V1.6.0 — round-3 scope); gate test chỉ khi surface trace-scoped được thêm sau.
 - Full suite + benchmark junction point-lookup (SPIKE-B: 2.5µs).
 - Update docs (MASTER-SPEC projection, ARCHITECTURE, README) + ADR ACCEPTED.
 
