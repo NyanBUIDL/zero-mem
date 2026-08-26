@@ -25,10 +25,13 @@ def up(conn: sqlite3.Connection, note: str) -> None:
     cur.execute(
         f"CREATE INDEX IF NOT EXISTS idx_{_TABLE}_ks ON {_TABLE}(knowledge_space_id)")
     # Backfill from legacy singular zm_meta.knowledge_space_id (pre-v13 rows).
+    # ADR-V160-01 sec2: only a NON-EMPTY legacy string is promoted; NULL or
+    # blank/whitespace legacy stays unscoped (never backfilled).
     cur.execute(
         f"INSERT OR IGNORE INTO {_TABLE} (event_id, knowledge_space_id) "
         "SELECT event_id, knowledge_space_id FROM zm_meta "
-        "WHERE knowledge_space_id IS NOT NULL")
+        "WHERE knowledge_space_id IS NOT NULL "
+        "AND TRIM(knowledge_space_id) <> ''")
 
 
 def down(conn: sqlite3.Connection, note: str) -> None:
