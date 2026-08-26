@@ -1613,4 +1613,4 @@ v160_pkg2_windows: "13 passed"
 v160_evidence_index: "docs/v1.6.0/EVIDENCE.md"
 v160_release_notes: "docs/releases/RELEASE-NOTES-v1.6.0.md"
 v160_tag: none
-v160_pushed: false
+v160_push_gate: "pending at documentation commit; verify remote branch and CI after push"
