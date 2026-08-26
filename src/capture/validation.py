@@ -126,7 +126,7 @@ def validate_envelope(envelope: Mapping[str, Any]) -> None:
     # (duplicates) fail-closed. Absence (None) and explicit [] are both unscoped.
     ks = envelope.get("knowledge_space_ids")
     if ks is not None:
-        if not isinstance(ks, (list, tuple)) or isinstance(ks, (str, bytes)):
+        if not isinstance(ks, list) or isinstance(ks, (str, bytes)):
             raise ValueError("knowledge_space_ids must be a list of strings")
         if len(ks) > MAX_KNOWLEDGE_SPACE_IDS:
             raise ValueError("knowledge_space_ids exceeds max count")

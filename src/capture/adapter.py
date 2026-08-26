@@ -32,6 +32,10 @@ def _hash_content(content: Any) -> str:
     return "sha256:" + hashlib.sha256(_canonical_json(content).encode("utf-8")).hexdigest()
 
 
+# V1.6.0 C1: sentinel for 'payload key absent' (vs explicit None).
+_KS_MISSING = object()
+
+
 def normalize_event(
     payload: Mapping[str, Any],
     *,
@@ -82,8 +86,10 @@ def normalize_event(
     }
     # V1.6.0 C1: normalize knowledge_space_ids (payload key wins over param),
     # dedup preserving first-occurrence order; None omits, [] stays explicit.
-    ks_raw = copied.pop("knowledge_space_ids", None)
-    if ks_raw is None:
+    # V1.6.0 C1 follow-up (review): sentinel distinguishes payload-absent
+    # from payload-explicit-None; payload ALWAYS wins (None wins and omits).
+    ks_raw = copied.pop("knowledge_space_ids", _KS_MISSING)
+    if ks_raw is _KS_MISSING:
         ks_raw = knowledge_space_ids
     if ks_raw is not None:
         if not isinstance(ks_raw, (list, tuple)) or isinstance(ks_raw, (str, bytes)):

@@ -6,12 +6,12 @@
 
 ## Các commit đề xuất (nhỏ, tuần tự)
 
-### C1 — Capture contract: canonical knowledge_space_ids (forward-only) — **DONE (commit chờ sau full suite)**
+### C1 — Capture contract: canonical knowledge_space_ids (forward-only) — **DONE (commit 71bb865 + follow-up) — đủ điều kiện mở C2**
 - `src/capture/validation.py`: `knowledge_space_ids` vào OPTIONAL_FIELDS + validate strict (list[str] non-empty, unique, MAX_KNOWLEDGE_SPACE_IDS=16, MAX_KNOWLEDGE_SPACE_ID_LENGTH=64).
 - `src/capture/event_types.py`: hằng số contract bounds.
 - `src/capture/adapter.py`: param `knowledge_space_ids` (payload key thắng), strict type (raise non-list/non-str), dedup lenient giữ thứ tự; None omit, [] explicit.
 - `src/integration/capture_adapter.py`: `_envelope` truyền `knowledge_space_ids` (legacy singular → list).
-- Evidence: RED 14 failed (0.16s) → GREEN 14 passed (0.11s); adjacent capture regression 92 passed; full suite chạy sau commit. Test: `tests/unit/test_v160_c1_capture_ks.py`.
+- Evidence: RED 14 failed (0.16s) → GREEN 14 passed; follow-up edge cases (review) RED 6 failed → GREEN (23 passed); adjacent + evidence regression 146 passed; full suite 3550 passed / 5 failed (env/Windows-specific pre-classified) / 38 skipped / 11 errors (installer quirk) — không regression. Test: `tests/unit/test_v160_c1_capture_ks.py` (23 tests).
 
 ### C2 — Ingest denormalize: zm_event_spaces junction + PRIMARY-KS (migration additive)
 - Migration vN: `CREATE TABLE zm_event_spaces(event_id, knowledge_space_id, PRIMARY KEY(...))` + index; backfill từ `zm_meta.knowledge_space_id`.

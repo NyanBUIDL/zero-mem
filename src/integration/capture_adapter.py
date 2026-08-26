@@ -97,10 +97,21 @@ def _envelope(mapped: MappingResult, sanitized: Any) -> dict[str, Any]:
     }
     # V1.6.0 C1 (ADR-V160-01 sec3): carry knowledge_space_ids into the
     # top-level envelope (legacy singular knowledge_space_id -> list).
+    # V1.6.0 C1 follow-up (review): strict typing + ADR sec2 legacy fallback.
     ks = payload.get("knowledge_space_ids")
-    if ks is None and payload.get("knowledge_space_id"):
-        ks = [payload["knowledge_space_id"]]
+    legacy = payload.get("knowledge_space_id")
+    # Fall back to legacy singular when the multi list is ABSENT or EMPTY
+    # (ADR sec2: list rong + legacy set -> dung legacy). Malformed multi
+    # (e.g. a bare string) is NOT treated as absent - it raises below.
+    if ks is None or (isinstance(ks, list) and len(ks) == 0):
+        if isinstance(legacy, str) and legacy.strip():
+            ks = [legacy]
     if ks is not None:
+        if not isinstance(ks, list) or isinstance(ks, (str, bytes)):
+            raise ValueError("knowledge_space_ids must be a list of strings")
+        for item in ks:
+            if not isinstance(item, str) or not item.strip():
+                raise ValueError("knowledge_space_ids must contain non-empty strings")
         envelope["knowledge_space_ids"] = list(ks)
     validate_envelope(envelope)
     return envelope
