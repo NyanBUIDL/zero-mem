@@ -1,6 +1,6 @@
 # V1.6.0 REMEDIATION PLAN — Multi-KS + capture wiring (DEF-034)
 
-**Trạng thái:** PLAN (chưa thực thi — ADR-V160-01 đã ACCEPTED; còn implementation gate + Gate riêng cho từng commit)
+**Trạng thái:** ĐANG THỰC THI — ADR-V160-01 ACCEPTED; C1 (71bb865+cfea75d) và C2 (617ed92) DONE; C3–C10 pending (mỗi commit có gate riêng).
 **Nguyên tắc:** không migration trong V1.5.1; canonical append-only; derived rebuildable; RED-first; commit nhỏ.
 **Phạm vi:** commit evidence DEF-034 KHÔNG đổi production code; plan này là kế hoạch cho V1.6.0.
 
@@ -13,7 +13,7 @@
 - `src/integration/capture_adapter.py`: `_envelope` truyền `knowledge_space_ids` (legacy singular → list).
 - Evidence: RED 14 failed (0.16s) → GREEN 14 passed; follow-up edge cases (review) RED 6 failed → GREEN (23 passed); adjacent + evidence regression 146 passed; full suite 3550 passed / 5 failed (env/Windows-specific pre-classified) / 38 skipped / 11 errors (installer quirk) — không regression. Test: `tests/unit/test_v160_c1_capture_ks.py` (23 tests).
 
-### C2 — Ingest denormalize: zm_event_spaces junction + PRIMARY-KS (migration additive) — **DONE (chờ commit)**
+### C2 — Ingest denormalize: zm_event_spaces junction + PRIMARY-KS (migration additive) — **DONE (commit 617ed92)**
 - Migration v13 (additive): `zm_event_spaces(event_id, knowledge_space_id, PK)` + index ks; backfill từ `zm_meta.knowledge_space_id` (legacy singular); down = DROP (derived, rebuildable).
 - `src/storage/ingest.py`: helper `_knowledge_spaces(env)` (precedence ADR §2: list thắng; absent/empty → legacy non-empty string; else []); INSERT junction 1 row/KS; `zm_meta.knowledge_space_id` = PRIMARY-KS (first của list, NULL nếu rỗng); zm_scopes 1 knowledge_space row/KS.
 - Test RED-first: RED 7 failed (0.32s) → GREEN 7 passed; schema-version assertions 12→13 cập nhật (hợp lệ — migration mới; gồm M8 describe constants + pkg5/pkg6 pins); adjacent 1456 passed (33 file schema-affected + C1/C2); full suite 3565 passed / 6 failed (env/Windows-specific pre-classified: 4 multiprocessing pipes, v134 sigkill flaky, DEF-026 timing) / 38 skipped / 11 errors (installer standalone-python quirk) — không regression. Test: `tests/unit/test_v160_c2_junction.py`.
