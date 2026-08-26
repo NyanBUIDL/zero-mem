@@ -1,6 +1,6 @@
 # ADR-V160-01 (ĐỀ XUẤT) — Multi-Knowledge-Space per event + capture wiring
 
-**Trạng thái:** ACCEPTED (2026-08-25 — maintainer review round-3: design approved after primary-reconstruction/EXISTS/trace-union/graph-parity closed; minor doc corrections applied in 99408f3 follow-up)
+**Trạng thái:** ACCEPTED (2026-08-25 — maintainer review round-3: design approved after primary-reconstruction/EXISTS/trace-union/graph-parity closed; minor doc corrections applied in c4c298c)
 **Liên quan:** DEF-034 (OPEN → V1.6.0), master spec §4.3, SPIKE-B, DEF-028 (per-row auth base).
 **Nguồn bằng chứng:** `docs/defects/DEF-034-ROOT-CAUSE.md` + probes `docs/v1.6/probes/` (A-J chạy exit 0).
 **Ghi chú phạm vi:** commit evidence DEF-034 (37c33d6, f21758f, 99408f3) KHÔNG đổi production code; branch chứa các fix DEF-028/029/030/031/033 từ trước.

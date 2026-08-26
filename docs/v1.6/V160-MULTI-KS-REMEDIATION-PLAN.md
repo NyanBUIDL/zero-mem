@@ -1,6 +1,6 @@
 # V1.6.0 REMEDIATION PLAN — Multi-KS + capture wiring (DEF-034)
 
-**Trạng thái:** PLAN (chưa thực thi — cần maintainer approve ADR-V160-01 + Gate riêng)
+**Trạng thái:** PLAN (chưa thực thi — ADR-V160-01 đã ACCEPTED; còn implementation gate + Gate riêng cho từng commit)
 **Nguyên tắc:** không migration trong V1.5.1; canonical append-only; derived rebuildable; RED-first; commit nhỏ.
 **Phạm vi:** commit evidence DEF-034 KHÔNG đổi production code; plan này là kế hoạch cho V1.6.0.
 
