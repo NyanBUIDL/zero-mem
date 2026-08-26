@@ -39,7 +39,7 @@ from __future__ import annotations
 import sqlite3
 
 from dataclasses import dataclass, field, replace
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 from .contracts import (
     AccessDecision, AccessRequest, AllowedScope, READ, ReasonCode,
@@ -142,22 +142,32 @@ def _project_predicate(scope: AllowedScope) -> Tuple[Optional[str], List[str]]:
 
 
 def _ks_predicate(scope: AllowedScope) -> Tuple[Optional[str], List[str]]:
-    """V150-WP2 (DEF-010): per-row knowledge-space SQL predicate.
+    """V1.6.0 C4 (ADR-V160-01 sec7): per-row knowledge-space SQL predicate.
 
-    Restrictive on the row's own denormalized ``zm_meta.knowledge_space_id``
-    (migration v11). Applied whenever a scope grants spaces, so the SQL layer
-    itself enforces the exact per-row boundary; ``_scope_allows`` re-checks it
-    defensively per view.
+    Correlated EXISTS on the multi-KS junction zm_event_spaces - never a
+    direct JOIN, so an event [A,B] matching a UNION [A,B] appears EXACTLY once.
+    A row is authorized when grant intersects row KS set != empty; NULL/empty-KS
+    rows have no junction rows and are never matched (fail-closed). The SQL
+    layer is the authorization boundary; _scope_allows re-checks defensively.
     """
     if scope.allowed_knowledge_space_ids:
         ph = ",".join("?" * len(scope.allowed_knowledge_space_ids))
-        return (f"zm_meta.knowledge_space_id IN ({ph})",
-                list(scope.allowed_knowledge_space_ids))
+        # Junction is the multi-KS source of truth; DEF-010 backward compat:
+        # rows with NO junction rows (pre-v13 / direct-seeded stores) fall back
+        # to the legacy singular zm_meta.knowledge_space_id match.
+        return (f"(EXISTS (SELECT 1 FROM zm_event_spaces s "
+                f"WHERE s.event_id = zm_meta.event_id "
+                f"AND s.knowledge_space_id IN ({ph})) "
+                f"OR (NOT EXISTS (SELECT 1 FROM zm_event_spaces s2 "
+                f"WHERE s2.event_id = zm_meta.event_id) "
+                f"AND zm_meta.knowledge_space_id IN ({ph})))",
+                list(scope.allowed_knowledge_space_ids) * 2)
     return (None, [])
 
 
 def _scope_allows(scope: AllowedScope, requester: Optional[str],
                   profile_id: Optional[str], project_id: Optional[str],
+                  row_knowledge_space_ids: Optional[Iterable[str]] = None,
                   row_knowledge_space_id: Optional[str] = None) -> bool:
     """Defensive post-validation: is (profile_id, project_id, ks) inside scope?
 
@@ -169,13 +179,18 @@ def _scope_allows(scope: AllowedScope, requester: Optional[str],
       alone authorizes the row across profiles (a project read grant authorizes
       reading that project regardless of which profile owns the row).
     - cross-profile rows without an explicit grant => DENIED.
-    - knowledge-space grant — V150-WP2/WP3 (DEF-010 + DEF-011 closed): the row's
-      own denormalized ``knowledge_space_id`` (zm_meta, migration v11) must be in
-      the granted set. This is the ONLY space check on the event path: canonical-
-      first — a row whose envelope carries no ks is unscoped (D-2026-08-22-03)
-      and is never authorized by a space grant, regardless of what the derived
-      corpus projection claims. NULL => DENY (fail-closed).
+    - knowledge-space grant - V1.6.0 C4 (ADR-V160-01 sec7): the row KS SET
+      (from the multi-KS junction zm_event_spaces) must intersect the granted
+      set (grant x row != empty); NULL/empty KS (no junction rows) is never
+      authorized by a space grant, regardless of what the derived corpus
+      projection claims. NULL/empty => DENY (fail-closed).
     """
+    # Backward-compat alias (pre-C4 DEF-010/011/012 callers): a singular row ks
+    # is treated as a one-element set; None -> empty (unscoped, fail-closed).
+    if row_knowledge_space_ids is None:
+        row_knowledge_space_ids = ((row_knowledge_space_id,)
+                                   if row_knowledge_space_id else ())
+
     # Project/space grant scopes are profile-unrestricted; the project/space clause
     # enforces the boundary. For base / profile-grant / implicit-local scopes, fold
     # the requester into the allowed set so the requester's OWN data is authorized.
@@ -200,20 +215,49 @@ def _scope_allows(scope: AllowedScope, requester: Optional[str],
             return project_id in scope.allowed_project_ids
         if scope.allowed_knowledge_space_ids:
             # DEF-028 parity: a base scope with a KS filter still enforces the
-            # row's own ks (mirrors the SQL _ks_predicate); NULL ks is unscoped.
-            return (row_knowledge_space_id is not None
-                    and row_knowledge_space_id in scope.allowed_knowledge_space_ids)
+            # row's KS set (mirrors the SQL junction EXISTS); NULL/empty KS is
+            # unscoped and never space-authorized (fail-closed).
+            if not row_knowledge_space_ids:
+                return False
+            return bool(set(row_knowledge_space_ids)
+                        & set(scope.allowed_knowledge_space_ids))
         return True
 
     # Grant scope with no profile restriction (project/space grant): membership suffices.
     if scope.allowed_project_ids and project_id in scope.allowed_project_ids:
         return True
     if scope.allowed_knowledge_space_ids:
-        # V150-WP3 (DEF-011 closed): per-row only. The row's own ks column is the
-        # single source for event-path space authorization; no resolver fallback.
-        return (row_knowledge_space_id is not None
-                and row_knowledge_space_id in scope.allowed_knowledge_space_ids)
+        # V1.6.0 C4 (DEF-011 closed): per-row only, over the multi-KS junction.
+        # grant x row KS set != empty authorizes; no resolver fallback.
+        if not row_knowledge_space_ids:
+            return False
+        return bool(set(row_knowledge_space_ids)
+                    & set(scope.allowed_knowledge_space_ids))
     return False
+
+
+def _junction_ks_map(conn, event_ids: Iterable[Optional[str]]) -> Dict[str, List[str]]:
+    """One-query map event_id -> junction KS list (C4 defensive re-check)."""
+    ids = [e for e in event_ids if e is not None]
+    if not ids:
+        return {}
+    ph = ",".join("?" * len(ids))
+    out: Dict[str, List[str]] = {}
+    rows = conn.execute(
+        f"SELECT event_id, knowledge_space_id FROM zm_event_spaces "
+        f"WHERE event_id IN ({ph})", ids).fetchall()
+    for r in rows:
+        out.setdefault(r["event_id"], []).append(r["knowledge_space_id"])
+    return out
+
+
+def _row_ks_ids(view: Any) -> Tuple[str, ...]:
+    """Row KS set for the defensive check: full set, else singular, else empty."""
+    ks_set = getattr(view, "knowledge_space_ids", None)
+    if ks_set:
+        return tuple(ks_set)
+    single = getattr(view, "knowledge_space_id", None)
+    return (single,) if single else ()
 
 
 def _scope_predicate(scope: AllowedScope, requester: Optional[str]) -> Tuple[str, List[str]]:
@@ -498,12 +542,15 @@ class AuthorizedReadService:
                                        created_at_after=created_at_after,
                                        created_at_before=created_at_before,
                                        keyset=keyset)
+                ks_map = _junction_ks_map(self._store.conn,
+                                          [v.event_id for v in rows])
                 for v in rows:
                     if v.event_id in seen_ids:
                         continue
                     if not _scope_allows(scope, self._requester,
                                              v.profile_id, v.project_id,
-                                             row_knowledge_space_id=getattr(v, "knowledge_space_id", None)):
+                                             row_knowledge_space_ids=(ks_map.get(v.event_id, ())
+                                                               or _row_ks_ids(v))):
                         return self._boundary_violation(eff)
                     seen_ids.add(v.event_id)
                     merged.append(v)
@@ -537,10 +584,12 @@ class AuthorizedReadService:
         if view is None:
             return AuthorizedResult(allowed=True, denied=False,
                                     reason_code=eff.reason_code, decision=eff)
+        ks_map = _junction_ks_map(self._store.conn, [view.event_id])
         for scope in self._ordered_scopes(eff):
             if _scope_allows(scope, self._requester, view.profile_id,
                              view.project_id,
-                             row_knowledge_space_id=getattr(view, "knowledge_space_id", None)):
+                             row_knowledge_space_ids=(ks_map.get(view.event_id, ())
+                                                               or _row_ks_ids(view))):
                 return AuthorizedResult(allowed=True, denied=False,
                                         reason_code=eff.reason_code,
                                         items=[view], decision=eff)
@@ -556,12 +605,15 @@ class AuthorizedReadService:
         except QueryError as exc:
             return self._downstream(eff, exc.code)
         items = []
+        ks_map = _junction_ks_map(self._store.conn,
+                                  [v.event_id for v in views])
         for v in views:
             ok = False
             for scope in self._ordered_scopes(eff):
                 if _scope_allows(scope, self._requester, v.profile_id,
                                  v.project_id,
-                                 row_knowledge_space_id=getattr(v, "knowledge_space_id", None)):
+                                 row_knowledge_space_ids=(ks_map.get(v.event_id, ())
+                                                                   or _row_ks_ids(v))):
                     ok = True
                     break
             if not ok:
@@ -607,7 +659,8 @@ class AuthorizedReadService:
             scopes = self._ordered_scopes(eff)
             items = [h for h in res.results if any(
                 _scope_allows(scope, self._requester, h.profile_id, h.project_id,
-                              row_knowledge_space_id=h.knowledge_space_id)
+                              row_knowledge_space_ids=([h.knowledge_space_id]
+                                                       if h.knowledge_space_id else ()))
                 for scope in scopes)]
         except QueryError as exc:
             return self._downstream(eff, exc.code)
@@ -688,7 +741,7 @@ class AuthorizedReadService:
         for scope in self._ordered_scopes(eff):
             if _scope_allows(scope, self._requester, view.profile_id,
                              view.project_id,
-                             row_knowledge_space_id=getattr(view, "knowledge_space_id", None)):
+                             row_knowledge_space_ids=_row_ks_ids(view)):
                 return AuthorizedResult(allowed=True, denied=False,
                                         reason_code=eff.reason_code,
                                         items=[view], decision=eff)
@@ -726,7 +779,7 @@ class AuthorizedReadService:
                 if _scope_allows(scope, self._requester,
                                 getattr(v, "profile_id", None),
                                 getattr(v, "project_id", None),
-                                row_knowledge_space_id=getattr(v, "knowledge_space_id", None)):
+                                row_knowledge_space_ids=_row_ks_ids(v)):
                     ok = True
                     break
             if not ok:
