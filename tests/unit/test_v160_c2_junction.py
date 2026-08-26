@@ -129,10 +129,15 @@ class TestC2JunctionIngest:
         """Real upgrade path through the migration RUNNER (not direct migrate_13.up).
 
         v13 store -> downgrade_to(12) -> insert pre-v13 zm_meta rows
-        (valid / blank-whitespace / NULL legacy) -> reopen -> ensure_schema().
-        Asserts: version advances to 13; valid legacy backfills into the
-        junction; blank and NULL legacy stay UNSCoped (ADR-V160-01 sec2 —
-        malformed/blank legacy is ignored); ledger records exactly one v13 row.
+        (valid / whitespace variants / numeric / NULL legacy) -> reopen ->
+        ensure_schema(). Asserts: version advances to 13; valid legacy backfills;
+        EVERY whitespace-only legacy (space, tab, newline, CR, NBSP) and NULL
+        stay UNSCoped (ADR-V160-01 sec2 — malformed/blank legacy is ignored);
+        numeric-origin legacy is promoted as text '123' because SQLite TEXT
+        affinity (migrate_11 TEXT column) already collapsed it — indistinguishable
+        from a legitimate string id; documented ADR boundary, canonical replay
+        (rebuild_from_jsonl, C3) is authoritative for malformed-type rows;
+        ledger records exactly one v13 row.
         """
         db_path = tmp_path / "upgrade.sqlite"
         store = SQLiteStore(SQLiteStoreConfig(path=db_path))
@@ -142,7 +147,12 @@ class TestC2JunctionIngest:
         assert store.get_schema_version() == 12
         assert not store.table_exists("zm_event_spaces"), "downgrade must drop junction"
         _insert_legacy_meta(store, "leg-valid", "legacy-ks")
-        _insert_legacy_meta(store, "leg-blank", "   ")
+        _insert_legacy_meta(store, "leg-space", "   ")
+        _insert_legacy_meta(store, "leg-tab", "\t")
+        _insert_legacy_meta(store, "leg-nl", "\n")
+        _insert_legacy_meta(store, "leg-cr", "\r")
+        _insert_legacy_meta(store, "leg-nbsp", "\u00a0")
+        _insert_legacy_meta(store, "leg-num", 123)  # stored as text '123' (TEXT affinity)
         _insert_legacy_meta(store, "leg-null", None)
         store._conn.commit()
         _checkpoint_and_close(store)
@@ -152,8 +162,13 @@ class TestC2JunctionIngest:
             junction = _read(str(db_path),
                              "SELECT event_id, knowledge_space_id FROM zm_event_spaces ORDER BY event_id")
             assert junction == [
+                {"event_id": "leg-num", "knowledge_space_id": "123"},
                 {"event_id": "leg-valid", "knowledge_space_id": "legacy-ks"},
-            ], "blank/NULL legacy must NOT be backfilled (ADR sec2)"
+            ], (
+                "whitespace-only and NULL legacy must NOT be backfilled (ADR sec2); "
+                "numeric-origin is promoted as text (ADR boundary — see migrate_13 "
+                "docstring; canonical replay authoritative)"
+            )
             ledger = _read(str(db_path),
                            "SELECT COUNT(*) AS n FROM zm_migrations WHERE version=13")
             assert ledger[0]["n"] == 1, "ledger must record exactly one v13 row after upgrade"

@@ -29,6 +29,8 @@ Hệ thống hiện tại: (1) standard capture adapters không sinh knowledge_s
 | legacy `knowledge_space_id: A` | tương đương `knowledge_space_ids: [A]`; list thắng khi cả hai; list rỗng + legacy set → dùng legacy. **Chỉ legacy là non-empty string mới được promote; malformed/blank legacy (số, whitespace) bị BỎ QUA → unscoped (không raise — lựa chọn tương thích, không phải strict reject)** |
 | NULL (canonical không có field) | unscoped (như cũ) |
 
+> **Amendment (2026-08-25 — C2 review P1, migration-time boundary):** capture (C1) và ingest (C2) enforce đúng semantic trên — non-string hoặc whitespace-only legacy bị bỏ qua → unscoped. Tại **migration-time** (backfill v13), SQLite TEXT affinity (cột `zm_meta.knowledge_space_id TEXT`, migrate_11) làm mất type gốc của legacy numeric: int `123` được lưu thành text `'123'`, **không thể phân biệt** với string id hợp lệ `"123"` trong DB. Migration backfill do đó: (a) loại bỏ mọi giá trị whitespace-only bằng `str.strip()` (parity chính xác với ingest — gồm tab/newline/CR/Unicode whitespace); (b) promote giá trị text non-blank nguyên trạng, gồm cả numeric-origin `'123'`. **Gate dứt điểm cho malformed-type rows trong store pre-v13 là canonical replay** (`rebuild_from_jsonl`, plan C3) — junction là derived, rebuildable từ canonical; từ nay capture/ingest không còn ghi non-string vào cột.
+
 ### 3. Canonical envelope
 - Capture contract: thêm `knowledge_space_ids` (OPTIONAL_FIELDS + adapter params `knowledge_space_ids`).
 - Standard adapters (`normalize_event` + `capture_adapter._envelope`) PHẢI truyền ks (fix gốc DEF-034).
@@ -40,7 +42,7 @@ Hệ thống hiện tại: (1) standard capture adapters không sinh knowledge_s
 - `zm_meta.knowledge_space_id` GIỮ NGUYÊN = denormalized PRIMARY-KS — convenience projection cho backward compat + graph/temporal; **KHÔNG phải source of truth**; mọi query/read hiện tại không vỡ.
 
 ### 5. Migration additive + rollback
-- Migration vN (additive): `CREATE TABLE zm_event_spaces(...)` + index; backfill từ `zm_meta.knowledge_space_id` (legacy singular → 1 row; NULL → 0 row).
+- Migration vN (additive): `CREATE TABLE zm_event_spaces(...)` + index; backfill từ `zm_meta.knowledge_space_id` (legacy singular → 1 row; NULL → 0 row). Backfill loại NULL + whitespace-only (parity `str.strip()` với ingest); numeric-origin promote nguyên trạng (không phân biệt được — xem amendment §2; canonical replay là gate dứt điểm).
 - Rollback: DROP table (derived, rebuildable); canonical không đụng; capture contract forward-only (canonical cũ vẫn đọc được).
 
 ### 6. Capture wiring
