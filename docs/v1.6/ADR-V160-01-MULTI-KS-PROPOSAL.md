@@ -1,9 +1,9 @@
 # ADR-V160-01 (ĐỀ XUẤT) — Multi-Knowledge-Space per event + capture wiring
 
-**Trạng thái:** PROPOSED (chưa ACCEPTED — cần maintainer duyệt trước V1.6.0 code)
+**Trạng thái:** ACCEPTED (2026-08-25 — maintainer review round-3: design approved after primary-reconstruction/EXISTS/trace-union/graph-parity closed; minor doc corrections applied in 99408f3 follow-up)
 **Liên quan:** DEF-034 (OPEN → V1.6.0), master spec §4.3, SPIKE-B, DEF-028 (per-row auth base).
 **Nguồn bằng chứng:** `docs/defects/DEF-034-ROOT-CAUSE.md` + probes `docs/v1.6/probes/` (A-J chạy exit 0).
-**Ghi chú phạm vi:** commit evidence DEF-034 (37c33d6, f21758f) KHÔNG đổi production code; branch chứa các fix DEF-028/029/030/031/033 từ trước.
+**Ghi chú phạm vi:** commit evidence DEF-034 (37c33d6, f21758f, 99408f3) KHÔNG đổi production code; branch chứa các fix DEF-028/029/030/031/033 từ trước.
 
 ## Context
 Hệ thống hiện tại: (1) standard capture adapters không sinh knowledge_space_id (probe A/B/H); (2) schema SINGULAR `zm_meta.knowledge_space_id` (migrate_11); (3) master spec yêu cầu trace thuộc NHIỀU KS; (4) projection hardcoded empty; (5) authorization per-row chỉ xử lý 1 ks/event; (6) `list_knowledge_space` trả rỗng; (7) M8 graph gán ks=None.
@@ -56,7 +56,7 @@ Hệ thống hiện tại: (1) standard capture adapters không sinh knowledge_s
   EXISTS (SELECT 1 FROM zm_event_spaces s WHERE s.event_id = zm_meta.event_id AND s.knowledge_space_id IN (...))
   ```
 - Acceptance bắt buộc: event [A,B] xuất hiện ĐÚNG 1 lần; pagination không skip/lặp giữa các trang; cursor fingerprint bind toàn bộ KS filter đã canonicalize (sort + dedup).
-- `_ks_predicate` chuyển sang junction join; NULL/empty không bao giờ space-grant authorize (giữ).
+- `_ks_predicate` dùng **correlated `EXISTS` trên junction** (không JOIN trực tiếp — chống duplicate, round-3); NULL/empty không bao giờ space-grant authorize (giữ).
 - Matrix NULL/legacy/global-read là gate bắt buộc (không chỉ no-leak-observed).
 
 ### 8. Parity: FTS/structured/graph/temporal/corpus
@@ -84,5 +84,5 @@ Hệ thống hiện tại: (1) standard capture adapters không sinh knowledge_s
 
 ## Consequences
 - +1 migration additive, +1 junction (derived), capture contract forward-only.
-- Auth/FTS phức tạp hơn (junction join) nhưng fail-closed.
+- Auth/FTS phức tạp hơn (correlated EXISTS trên junction) nhưng fail-closed.
 - Projection + list_knowledge_space cải thiện.

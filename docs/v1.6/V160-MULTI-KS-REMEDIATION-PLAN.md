@@ -22,7 +22,7 @@
 - Test: rebuild sau khi xóa derived → junction == ban đầu (behavioral, không inspect).
 
 ### C4 — Authorization: union read + per-row grant qua junction
-- `src/access/authorized_read.py`: `_ks_predicate` → junction join; `_scope_allows` nhận row's set ks.
+- `src/access/authorized_read.py`: `_ks_predicate` dùng **correlated `EXISTS` trên junction** (không JOIN — chống duplicate); `_scope_allows` nhận row's set ks.
 - **Chống duplicate (round-3):** dùng correlated EXISTS subquery (không JOIN trực tiếp) — event [A,B] xuất hiện đúng 1 lần; pagination không skip/lặp; cursor fingerprint bind KS filter canonicalized (sort + dedup).
 - Semantics: request KS list = UNION; grant ∩ row's ks ≠ ∅; NULL/empty không grant authorize.
 - **Gate NULL/legacy/global-read matrix (behavioral):** mọi tổ hợp (profile NULL/non-NULL) × (ks NULL/empty/list/legacy) qua global/default/local/grant reads.
@@ -61,7 +61,7 @@
 | Rủi ro | Mức | Giảm thiểu |
 |---|---|---|
 | Migration additive vỡ derived cũ | Thấp | Additive + rebuild test; rollback drop table |
-| Authorization junction join chậm | Thấp | Index; SPIKE-B đo 2.5µs point-lookup |
+| Authorization correlated-EXISTS trên junction chậm | Thấp | Index; SPIKE-B đo 2.5µs point-lookup |
 | Capture contract mở rộng vỡ writer cũ | Thấp | OPTIONAL (forward-only); canonical cũ vẫn validate |
 | UNION semantics sai kỳ vọng | Trung bình | ADR chốt trước; acceptance test rõ |
 | FTS/structured parity lệch (lặp DEF-020) | Trung bình | Cùng junction predicate cho cả 2 path; test parity |
