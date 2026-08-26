@@ -1,4 +1,4 @@
-﻿FFF.F....FF                                                              [100%]
+FFF.F....FF                                                              [100%]
 ================================== FAILURES ===================================
 E   AssertionError: multi-KS event [A,B] must be authorized by space B via the junction (current RED: singular PRIMARY-KS A misses it)
     assert 'ev1' in {'ev5', 'ev7'}
@@ -17,7 +17,7 @@ E   TypeError: _scope_allows() got an unexpected keyword argument 'row_knowledge
 E:\Dev\Project Coding - Zero-mem BUIDL\zero-mem\tests\unit\test_v160_c4_auth_junction.py:254: TypeError: _scope_allows() got an unexpected keyword argument 'row_knowledge_space_ids'. Did you mean 'row_knowledge_space_id'?
 E   AssertionError: grant B: multi-KS [A,B], cross-profile B, NULL-profile B
     assert {'ev1', 'ev5', 'ev7'} <= {'ev2', 'ev5', 'ev7'}
-      
+
       Extra items in the left set:
       'ev1'
 E:\Dev\Project Coding - Zero-mem BUIDL\zero-mem\tests\unit\test_v160_c4_auth_junction.py:289: AssertionError: grant B: multi-KS [A,B], cross-profile B, NULL-profile B
