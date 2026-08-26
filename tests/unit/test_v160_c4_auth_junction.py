@@ -81,6 +81,7 @@ def _standard_items():
     ]
 
 
+GRANT_A = [("GA", "PR1", "A")]
 GRANT_B = [("GB", "PR1", "B")]
 GRANT_AB = [("GA", "PR1", "A"), ("GB", "PR1", "B")]
 GRANT_LEGACY = [("GL", "PR1", "legacy-ks")]
@@ -311,10 +312,12 @@ class TestC4FailClosedJunction:
     junction row must NOT authorize (fail-closed). Proper legacy is v12 -> v13
     migration (junction backfill), never direct-seeded v13 rows."""
 
-    def test_singular_no_junction_fail_closed(self, tmp_path):
-        """RED on HEAD fdda95f: a row with zm_meta.knowledge_space_id='A' but NO
-        junction row must NOT be authorized by a grant for A (junction missing/
-        corrupt -> fail-closed; the pre-fix OR singular fallback leaks it)."""
+    def test_singular_no_junction_fail_closed_base_scope(self, tmp_path):
+        """Base-scope fail-closed: a same-profile row with zm_meta.knowledge_space_id
+        = 'A' but NO junction row must NOT be returned by a request for space A.
+        (No explicit grant A here — the caller-requested KS filter rides the base
+        scope; the explicit-grant path is covered by
+        test_explicit_grant_missing_junction_fail_closed.)"""
         db = _build(tmp_path, [
             _make_env("evA", profile_id="PR1", project_id="P",
                       knowledge_space_id="A"),
@@ -331,13 +334,49 @@ class TestC4FailClosedJunction:
                 operation="READ", requesting_profile_id="PR1",
                 knowledge_space_ids=["A"]), grants=grants)
             assert "evA" not in {v.event_id for v in res.items}, (
-                "junction missing -> fail-closed: singular zm_meta ks must NOT "
-                "authorize (current RED: OR singular fallback leaks it)")
+                "base scope: junction missing -> fail-closed, singular zm_meta ks "
+                "must NOT authorize")
             gev = svc.get_event(AccessRequest(
                 operation="READ", requesting_profile_id="PR1",
                 knowledge_space_ids=["A"]), "evA", grants=grants)
             assert not (gev.allowed and gev.items), (
                 "get_event must fail closed when the junction row is missing")
+        finally:
+            ro.close()
+
+    def test_explicit_grant_missing_junction_fail_closed(self, tmp_path):
+        """Explicit-grant fail-closed (review P2-1): a CROSS-PROFILE event with
+        zm_meta.knowledge_space_id='A' but NO junction row must NOT be authorized
+        by an explicit knowledge-space grant A for the requester.
+
+        This is the sharp case: the explicit grant scope is profile-unrestricted,
+        so without the junction the ONLY thing that could authorize the row is the
+        singular column — which must never be used as a junction fallback.
+        RED on the 8aab66d fallback baseline; GREEN on the fixed implementation.
+        """
+        db = _build(tmp_path, [
+            _make_env("evX", profile_id="PR2", project_id="P",
+                      knowledge_space_id="A"),
+        ], grants=GRANT_A)
+        # delete the junction row, keep the singular column
+        s = SQLiteStore(SQLiteStoreConfig(path=Path(db)))
+        s.ensure_schema()
+        s._conn.execute("DELETE FROM zm_event_spaces")
+        s._conn.commit()
+        _checkpoint_and_close(s)
+        ro, svc, grants = _svc(db)
+        try:
+            res = svc.query_events(AccessRequest(
+                operation="READ", requesting_profile_id="PR1",
+                knowledge_space_ids=["A"]), grants=grants)
+            assert "evX" not in {v.event_id for v in res.items}, (
+                "explicit grant A must NOT authorize a cross-profile row whose "
+                "junction row is missing (singular zm_meta ks is never a fallback)")
+            gev = svc.get_event(AccessRequest(
+                operation="READ", requesting_profile_id="PR1",
+                knowledge_space_ids=["A"]), "evX", grants=grants)
+            assert not (gev.allowed and gev.items), (
+                "get_event: explicit grant A must fail closed on missing junction")
         finally:
             ro.close()
 

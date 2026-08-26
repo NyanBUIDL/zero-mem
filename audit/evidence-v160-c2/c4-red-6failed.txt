@@ -1,0 +1,31 @@
+﻿FFF.F....FF                                                              [100%]
+================================== FAILURES ===================================
+E   AssertionError: multi-KS event [A,B] must be authorized by space B via the junction (current RED: singular PRIMARY-KS A misses it)
+    assert 'ev1' in {'ev5', 'ev7'}
+E:\Dev\Project Coding - Zero-mem BUIDL\zero-mem\tests\unit\test_v160_c4_auth_junction.py:99: AssertionError: multi-KS event [A,B] must be authorized by space B via the junction (current RED: singular PRIMARY-KS A misses it)
+E   AssertionError: get_event must authorize multi-KS [A,B] under space B (current RED: boundary violation on singular PRIMARY-KS A)
+    assert False is True
+     +  where False = AuthorizedResult(allowed=False, denied=True, reason_code='DENY_ISOLATED_SCOPE_ESCAPE', items=[], query={}, error=None,...pes=[], reason_code='ALLOW_EXPLICIT_CROSS_PROFILE_READ', grant_refs=['GB'], grant_resource_types={}), next_cursor=None).allowed
+E:\Dev\Project Coding - Zero-mem BUIDL\zero-mem\tests\unit\test_v160_c4_auth_junction.py:118: AssertionError: get_event must authorize multi-KS [A,B] under space B (current RED: boundary violation on singular PRIMARY-KS A)
+E   AssertionError: assert False is True
+     +  where False = AuthorizedResult(allowed=False, denied=True, reason_code='DENY_ISOLATED_SCOPE_ESCAPE', items=[], query={}, error=None,...pes=[], reason_code='ALLOW_EXPLICIT_CROSS_PROFILE_READ', grant_refs=['GB'], grant_resource_types={}), next_cursor=None).allowed
+E:\Dev\Project Coding - Zero-mem BUIDL\zero-mem\tests\unit\test_v160_c4_auth_junction.py:143: AssertionError: assert False is True
+E   AssertionError: assert (False)
+     +  where False = AuthorizedResult(allowed=False, denied=True, reason_code='DENY_ISOLATED_SCOPE_ESCAPE', items=[], query={}, error=None,...pes=[], reason_code='ALLOW_EXPLICIT_CROSS_PROFILE_READ', grant_refs=['GB'], grant_resource_types={}), next_cursor=None).allowed
+E:\Dev\Project Coding - Zero-mem BUIDL\zero-mem\tests\unit\test_v160_c4_auth_junction.py:169: AssertionError: assert (False)
+E   TypeError: _scope_allows() got an unexpected keyword argument 'row_knowledge_space_ids'. Did you mean 'row_knowledge_space_id'?
+E:\Dev\Project Coding - Zero-mem BUIDL\zero-mem\tests\unit\test_v160_c4_auth_junction.py:254: TypeError: _scope_allows() got an unexpected keyword argument 'row_knowledge_space_ids'. Did you mean 'row_knowledge_space_id'?
+E   AssertionError: grant B: multi-KS [A,B], cross-profile B, NULL-profile B
+    assert {'ev1', 'ev5', 'ev7'} <= {'ev2', 'ev5', 'ev7'}
+      
+      Extra items in the left set:
+      'ev1'
+E:\Dev\Project Coding - Zero-mem BUIDL\zero-mem\tests\unit\test_v160_c4_auth_junction.py:289: AssertionError: grant B: multi-KS [A,B], cross-profile B, NULL-profile B
+=========================== short test summary info ===========================
+FAILED tests/unit/test_v160_c4_auth_junction.py::TestC4JunctionAuthorization::test_query_multi_ks_authorized_by_non_primary_grant
+FAILED tests/unit/test_v160_c4_auth_junction.py::TestC4JunctionAuthorization::test_get_event_multi_ks_authorized_by_non_primary_grant
+FAILED tests/unit/test_v160_c4_auth_junction.py::TestC4JunctionAuthorization::test_get_trace_multi_ks
+FAILED tests/unit/test_v160_c4_auth_junction.py::TestC4JunctionAuthorization::test_grant_intersection_nonempty_semantics
+FAILED tests/unit/test_v160_c4_auth_junction.py::TestC4JunctionAuthorization::test_scope_allows_multi_ks_set
+FAILED tests/unit/test_v160_c4_auth_junction.py::TestC4JunctionAuthorization::test_matrix_null_legacy_global_local_grant
+6 failed, 5 passed in 0.43s

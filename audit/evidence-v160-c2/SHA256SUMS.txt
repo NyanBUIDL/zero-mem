@@ -1,0 +1,12 @@
+# SHA256SUMS - C4 evidence raw logs (V1.6.0, branch v160/multi-ks)
+# Generated 2026-08-26 16:14:06 - portable after clone.
+
+e8b9c82c2cdd2a047b67dbd22963becc26351c574217f6c8fd0104c251210531  c4-adjacent-475passed.txt
+cdb12afb127b77e1cc4fc697636436531d1653ee91ab0ff571b242f8d3e17f87  c4fu-adjacent-511passed.txt
+b0ae7b7d3f0afd596fb1ee3e5f1bce37d0f54258270ec2a155fb1c519baf4956  c4fu-fullsuite-6failed.txt
+d8375583020b432012cad994f1de0fe4f2132df6b7fbf32e203eae252a651ffb  c4fu-green-47passed.txt
+0ed8625dbf09af4e77b3ea62f78264cfb7f88f07d972299001f0ee2bdd82589b  c4-fullsuite-6failed.txt
+b7b6e5eb4fdb589958a08ddd38bf2aeb0abe644bc076d7442df9e86059ee1697  c4fu-red-1failed.txt
+079eb1f3eb102fb1649b364c5c586c17791c45e4313b79ed75612b21d3a49486  c4-green-11passed.txt
+f266ed9c92e3bf5b93f8069a3b9e86d2b9ce1399de64f02cafa4b49a2409599a  c4p21-red-baseline-8aab66d.txt
+8d0e6d828fbceb5be47cd9d5aa4ad1dc5108e9767d334d1a0c815f5bec5b605f  c4-red-6failed.txt

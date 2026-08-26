@@ -1,0 +1,8 @@
+﻿F                                                                        [100%]
+================================== FAILURES ===================================
+E   AssertionError: explicit grant A must NOT authorize a cross-profile row whose junction row is missing (singular zm_meta ks is never a fallback)
+    assert 'evX' not in {'evX'}
+E:\Dev\Project Coding - Zero-mem BUIDL\.tmptest\c4fu-red-baseline\tests\unit\test_v160_c4_auth_junction.py:372: AssertionError: explicit grant A must NOT authorize a cross-profile row whose junction row is missing (singular zm_meta ks is never a fallback)
+=========================== short test summary info ===========================
+FAILED tests/unit/test_v160_c4_auth_junction.py::TestC4FailClosedJunction::test_explicit_grant_missing_junction_fail_closed
+1 failed in 0.50s

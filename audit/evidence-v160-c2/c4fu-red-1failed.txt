@@ -1,0 +1,8 @@
+﻿F.                                                                       [100%]
+================================== FAILURES ===================================
+E   AssertionError: junction missing -> fail-closed: singular zm_meta ks must NOT authorize (current RED: OR singular fallback leaks it)
+    assert 'evA' not in {'evA'}
+E:\Dev\Project Coding - Zero-mem BUIDL\zero-mem\tests\unit\test_v160_c4_auth_junction.py:333: AssertionError: junction missing -> fail-closed: singular zm_meta ks must NOT authorize (current RED: OR singular fallback leaks it)
+=========================== short test summary info ===========================
+FAILED tests/unit/test_v160_c4_auth_junction.py::TestC4FailClosedJunction::test_singular_no_junction_fail_closed
+1 failed, 1 passed in 1.82s
