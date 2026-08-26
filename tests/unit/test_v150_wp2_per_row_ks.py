@@ -29,7 +29,8 @@ def _store_with_events(tmp_path):
 
     cfg = SQLiteStoreConfig(path=tmp_path / "derived.sqlite")
     store = SQLiteStore(cfg)
-    store.ensure_schema()
+    store.ensure_schema()                # v13
+    store.downgrade_to(12)               # v12: no zm_event_spaces
     conn = store._conn
     conn.row_factory = sqlite3.Row
     # AuthorizedReadService reads via the ReadonlyStore facade (.conn).
@@ -56,6 +57,9 @@ def _store_with_events(tmp_path):
     add_event("ev-other-space", "prof-x", "other-ks")      # member pair, wrong ks
     add_event("ev-unscoped", "prof-x", None)               # NULL never matches
     conn.commit()
+    # C4 review (P1): proper legacy = migration runner backfills the junction;
+    # space authorization flows through the junction only (no singular fallback).
+    store.ensure_schema()               # v13: migrate_13 backfills junction
     return ro
 
 

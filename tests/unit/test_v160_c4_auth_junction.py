@@ -31,6 +31,7 @@ from src.retrieval.models import QueryError
 from src.storage.ingest import ingest_file
 from src.storage.sqlite_store import SQLiteStore, SQLiteStoreConfig
 from tests.unit.test_m3_query import _checkpoint_and_close, _make_env, _write_jsonl
+from tests.unit.test_v160_c2_junction import _insert_legacy_meta
 
 
 # ---------------------------------------------------------------------------
@@ -300,5 +301,75 @@ class TestC4JunctionAuthorization:
                 operation="READ", requesting_profile_id="PR1",
                 knowledge_space_ids=["legacy-ks"]), grants=g_leg)
             assert {v.event_id for v in leg.items} == {"ev2"}
+        finally:
+            ro.close()
+
+
+class TestC4FailClosedJunction:
+    """C4 review follow-up (P1): the junction is the ONLY authorization source
+    for event-path space grants — a singular zm_meta.knowledge_space_id with NO
+    junction row must NOT authorize (fail-closed). Proper legacy is v12 -> v13
+    migration (junction backfill), never direct-seeded v13 rows."""
+
+    def test_singular_no_junction_fail_closed(self, tmp_path):
+        """RED on HEAD fdda95f: a row with zm_meta.knowledge_space_id='A' but NO
+        junction row must NOT be authorized by a grant for A (junction missing/
+        corrupt -> fail-closed; the pre-fix OR singular fallback leaks it)."""
+        db = _build(tmp_path, [
+            _make_env("evA", profile_id="PR1", project_id="P",
+                      knowledge_space_id="A"),
+        ], grants=GRANT_B)
+        # simulate a missing/corrupt junction: delete all junction rows
+        s = SQLiteStore(SQLiteStoreConfig(path=Path(db)))
+        s.ensure_schema()
+        s._conn.execute("DELETE FROM zm_event_spaces")
+        s._conn.commit()
+        _checkpoint_and_close(s)
+        ro, svc, grants = _svc(db)
+        try:
+            res = svc.query_events(AccessRequest(
+                operation="READ", requesting_profile_id="PR1",
+                knowledge_space_ids=["A"]), grants=grants)
+            assert "evA" not in {v.event_id for v in res.items}, (
+                "junction missing -> fail-closed: singular zm_meta ks must NOT "
+                "authorize (current RED: OR singular fallback leaks it)")
+            gev = svc.get_event(AccessRequest(
+                operation="READ", requesting_profile_id="PR1",
+                knowledge_space_ids=["A"]), "evA", grants=grants)
+            assert not (gev.allowed and gev.items), (
+                "get_event must fail closed when the junction row is missing")
+        finally:
+            ro.close()
+
+    def test_legacy_v12_upgrade_authorizes_via_junction(self, tmp_path):
+        """Proper legacy compatibility: build schema v12, insert a singular row,
+        run the migration runner up to v13 — the junction is BACKFILLED and the
+        grant authorizes via the junction (never via the singular fallback)."""
+        db_path = tmp_path / "legacy.sqlite"
+        store = SQLiteStore(SQLiteStoreConfig(path=db_path))
+        store.ensure_schema()
+        store.downgrade_to(12, note="test")
+        _insert_legacy_meta(store, "leg-1", "legacy-ks")
+        store._conn.commit()
+        assert store.ensure_schema() == 13, "migration runner must reach v13"
+        _checkpoint_and_close(store)
+        # grant for legacy-ks on the migrated store
+        s2 = SQLiteStore(SQLiteStoreConfig(path=db_path))
+        s2.ensure_schema()
+        grant_events.project_grant_event(
+            s2._conn, grant_events.AccessGrantEvent(
+                grant_id="GL", subject_profile="PR1", operation="READ",
+                target_type="knowledge_space", target_id="legacy-ks", op="create"))
+        s2._conn.commit()
+        _checkpoint_and_close(s2)
+        ro, svc, grants = _svc(str(db_path))
+        try:
+            res = svc.query_events(AccessRequest(
+                operation="READ", requesting_profile_id="PR1",
+                knowledge_space_ids=["legacy-ks"]), grants=grants)
+            ids = {v.event_id for v in res.items}
+            assert "leg-1" in ids, (
+                "v12->v13 migration must backfill the junction so the grant "
+                "authorizes via the junction")
         finally:
             ro.close()

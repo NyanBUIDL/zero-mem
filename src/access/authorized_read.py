@@ -152,16 +152,15 @@ def _ks_predicate(scope: AllowedScope) -> Tuple[Optional[str], List[str]]:
     """
     if scope.allowed_knowledge_space_ids:
         ph = ",".join("?" * len(scope.allowed_knowledge_space_ids))
-        # Junction is the multi-KS source of truth; DEF-010 backward compat:
-        # rows with NO junction rows (pre-v13 / direct-seeded stores) fall back
-        # to the legacy singular zm_meta.knowledge_space_id match.
-        return (f"(EXISTS (SELECT 1 FROM zm_event_spaces s "
+        # C4 review (P1): the junction is the ONLY authorization source for
+        # event-path space grants. A row whose junction rows are missing/
+        # deleted/corrupt is NEVER matched (fail-closed) - the legacy singular
+        # zm_meta.knowledge_space_id is NOT a fallback (proper legacy goes
+        # through the v13 migration backfill, which creates junction rows).
+        return (f"EXISTS (SELECT 1 FROM zm_event_spaces s "
                 f"WHERE s.event_id = zm_meta.event_id "
-                f"AND s.knowledge_space_id IN ({ph})) "
-                f"OR (NOT EXISTS (SELECT 1 FROM zm_event_spaces s2 "
-                f"WHERE s2.event_id = zm_meta.event_id) "
-                f"AND zm_meta.knowledge_space_id IN ({ph})))",
-                list(scope.allowed_knowledge_space_ids) * 2)
+                f"AND s.knowledge_space_id IN ({ph}))",
+                list(scope.allowed_knowledge_space_ids))
     return (None, [])
 
 
@@ -549,8 +548,7 @@ class AuthorizedReadService:
                         continue
                     if not _scope_allows(scope, self._requester,
                                              v.profile_id, v.project_id,
-                                             row_knowledge_space_ids=(ks_map.get(v.event_id, ())
-                                                               or _row_ks_ids(v))):
+                                             row_knowledge_space_ids=ks_map.get(v.event_id, ())):
                         return self._boundary_violation(eff)
                     seen_ids.add(v.event_id)
                     merged.append(v)
@@ -588,8 +586,7 @@ class AuthorizedReadService:
         for scope in self._ordered_scopes(eff):
             if _scope_allows(scope, self._requester, view.profile_id,
                              view.project_id,
-                             row_knowledge_space_ids=(ks_map.get(view.event_id, ())
-                                                               or _row_ks_ids(view))):
+                             row_knowledge_space_ids=ks_map.get(view.event_id, ())):
                 return AuthorizedResult(allowed=True, denied=False,
                                         reason_code=eff.reason_code,
                                         items=[view], decision=eff)
@@ -612,8 +609,7 @@ class AuthorizedReadService:
             for scope in self._ordered_scopes(eff):
                 if _scope_allows(scope, self._requester, v.profile_id,
                                  v.project_id,
-                                 row_knowledge_space_ids=(ks_map.get(v.event_id, ())
-                                                                   or _row_ks_ids(v))):
+                                 row_knowledge_space_ids=ks_map.get(v.event_id, ())):
                     ok = True
                     break
             if not ok:
