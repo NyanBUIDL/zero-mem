@@ -1,0 +1,45 @@
+# DEF-037 probe — sanitized evidence (reconcile 2026-08-26)
+HEAD at probe: 2282a16262555ea57722eb838c7b7fffd704dc4c
+Timestamp: 2026-08-26 (probe run) / 2026-08-26 (this file)
+Paths sanitized: <REPO> = repository root; <BASE> = parent of repository; <TMP> = sandbox TEMP dir.
+
+## OBSERVED (verbatim, this sandbox run)
+Command: .venv\Scripts\python.exe .tmptest\def037_probe.py
+Python: .venv\Scripts\python.exe = 3.13.15 (MSC 1944 AMD64), platform Windows-11-10.0.26200-SP0
+
+[1] environment identity
+sys.executable: <REPO>\.venv\Scripts\python.exe
+TEMP/TMP/TMPDIR: <REPO>\.tmptest
+HOME/USERPROFILE: <REPO>\.tmptest\zm-home
+[2] base ensurepip: `.venv\Scripts\python.exe -m ensurepip --version` → exit 0, stdout `pip 26.2.1`
+[3] create venv: `.venv\Scripts\python.exe -m venv <TMP>\def037-probe-8088\venv` → exit 1
+    outer stderr: Error: Command '[<TMP>\def037-probe-8088\venv\Scripts\python.exe','-m','ensurepip','--upgrade','--default-pip']' returned non-zero exit status 1.
+[4a] venv python `-m ensurepip --version` → exit 0, stdout `pip 26.2.1`
+[4b] venv python `-m pip --version` → exit 1, stderr `No module named pip`
+[4c] venv python `--version` → exit 0, Python 3.13.15
+[5] pytest -q tests/unit/test_pkg2_packaging.py → 2 passed, 11 errors (setup ERROR at fixture venv build).
+INNER_STDERR_NOT_IN_FILE: the inner ensurepip traceback was printed to console only; the cited probe file contains only the outer sequence above.
+
+## OBSERVED (console-only, one occurrence, same sandbox run; not reproducible by reviewer retry)
+Command: <TMP>\def037-probe-8088\venv\Scripts\python.exe -m ensurepip --upgrade --default-pip
+exit: 1; stderr traceback ends with:
+PermissionError: [Errno 13] Permission denied: '<TMP>\tmp9tzjs4z_\pip-26.2.1-py3-none-any.whl'
+WinError 5 Access is denied on '<TMP>\tmp9tzjs4z_' (tempfile.TemporaryDirectory)
+(traceback line: ensurepip bootstrap copy of bundled pip wheel into temp dir).
+
+## OBSERVED (reviewer-reported, clean environment, same .venv python 3.13.15)
+- python -m venv <dir> → exit 0 (creation succeeds).
+- venv python -m ensurepip --version → exit 0, pip 26.2.1.
+- venv python -m pip --version → exit 0, pip 26.2.1.
+- direct retry on the previously failed venv: -m ensurepip --upgrade --default-pip → `Successfully installed pip-26.2.1` exit 0.
+- reviewer full suite: 3602 passed / 9 failed / 38 skipped — 8 pkg2 FAILED, no 11 setup errors.
+
+## HYPOTHESIS (unproven — do not state as verified)
+H1: sandbox write-denial on tempfile 0o700 ACL dir (fresh venv lacks parent sitecustomize ACL patch).
+H2: transient/environment race in venv bootstrap.
+(The console-only PermissionError/WinError 5 traceback is consistent with H1 but is a single unreproduced observation.)
+
+## CONCLUSION (honest)
+Root cause: UNCONFIRMED. Zero-Mem defect status: NOT YET DETERMINED. Standalone-Python defect status: NOT YET DETERMINED.
+Classification: ENVIRONMENT_SENSITIVE / NON-DETERMINISTIC. Status: REOPENED / INVESTIGATING.
+Next: supported-Python split test outside sandbox + inner ensurepip full stderr captured to a raw file.

@@ -1,0 +1,4 @@
+# SHA256SUMS - DEF-037 probe evidence (V1.6.0, branch v160/multi-ks)
+# Generated 2026-08-26 17:03:10 - portable after clone.
+
+479b19821345c58cde5db89d1fa7444d2b1759bd40c22139eee7d8871053d1f1  DEF037-PROBE-SANITIZED.txt
