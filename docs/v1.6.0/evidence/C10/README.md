@@ -12,6 +12,14 @@ Python cũ chưa có `Path.is_junction()` và test DEF-036 phụ thuộc timer 2
 Windows 3.13 phát hiện cùng timing test. Follow-up dùng Windows reparse attributes
 và explicit worker barrier; local full suite sau fix vẫn `3618/38/0`.
 
+Remote run thứ hai tại exact SHA `78738ae` đạt 7/9 cell: toàn bộ Ubuntu và
+Windows xanh, macOS 3.11 xanh. macOS 3.12 phát hiện test đa tiến trình dùng
+`fork` từ pytest process đa luồng; macOS 3.13 phát hiện pin test DEF-026 đo
+snapshot executor queue phụ thuộc scheduler. DEF-039/DEF-040 chuyển test sang
+barrier + eventual-drain contract và portable `spawn`; local focused `5 passed`,
+hai test mục tiêu `2 passed` ×10, full suite `3628 passed, 38 skipped, 0 failed`.
+Remote macOS requalification còn là gate trước khi đóng hai defect.
+
 ## Benchmark junction
 
 Command: `python benchmarks/v160_junction_lookup.py --sizes 1000 10000 100000 --repeats 1000`

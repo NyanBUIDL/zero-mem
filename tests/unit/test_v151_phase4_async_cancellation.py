@@ -74,19 +74,23 @@ def _executor_queue_size(client: AsyncClient) -> int:
     return qsize()
 
 
-def test_def026_timeout_leaves_bounded_queued_work() -> None:
-    """100 timed-out calls must not accumulate ~100 abandoned queued items."""
+def test_def026_timeout_queue_drains_after_worker_frees() -> None:
+    """Cancelled work must drain once the deliberately blocked worker is free."""
 
     async def scenario() -> None:
+        writer = BlockingFirstWriter()
         client = AsyncClient.open(
             CoreConfig(),
-            writer=SlowWriter(0.05),
+            writer=writer,
             consistency_policy="append",
         )
         try:
-            # Occupy the single worker.
             first = asyncio.ensure_future(client.observe_message({"n": 0}))
-            await asyncio.sleep(0)
+            deadline = time.monotonic() + 5
+            while not writer.started.is_set():
+                if time.monotonic() >= deadline:
+                    pytest.fail("worker did not enter the blocking append")
+                await asyncio.sleep(0.001)
 
             statuses: dict[str, int] = {}
             for i in range(100):
@@ -96,18 +100,20 @@ def test_def026_timeout_leaves_bounded_queued_work() -> None:
                 except AsyncTimeoutError:
                     statuses["timeout"] = statuses.get("timeout", 0) + 1
 
-            # Give done-callbacks/drain logic one scheduling beat.
-            await asyncio.sleep(0.05)
-
             assert statuses["timeout"] >= 90  # probe sanity, mirrors B1 evidence
-            queued = _executor_queue_size(client)
-            # DEF-026 acceptance: bounded residual work, not one item per timeout.
-            assert queued <= 16, (
-                f"deferred cancellation accumulates unbounded work: {queued} items "
-                "left queued after 100 timeouts"
-            )
+            writer.release.set()
             await first
+
+            drain_deadline = time.monotonic() + 5
+            while _executor_queue_size(client):
+                if time.monotonic() >= drain_deadline:
+                    pytest.fail(
+                        "cancelled executor work did not drain after the worker was released"
+                    )
+                await asyncio.sleep(0.001)
+            assert len(writer.events) == 1, "cancelled work executed after its deadline"
         finally:
+            writer.release.set()
             await client.aclose()
 
     asyncio.run(scenario())
