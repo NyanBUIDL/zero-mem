@@ -24,4 +24,5 @@
 - Acceptance C10: capture → canonical → ingest → junction → structured/FTS/grant, gồm cả legacy singular.
 - Benchmark chính thức: `benchmarks/v160_junction_lookup.py`.
 - Workflow active: `.github/workflows/v1.6.0-qualification.yml` trên Linux/Windows/macOS × Python 3.11/3.12/3.13.
-- Core SHA `6433fb2` đã đạt 9/9; exact SHA chứa DX01 phải đạt lại 9/9 trước tag.
+- Core SHA `6433fb2` và exact wizard SHA `68bdf29` đều đạt 9/9; candidate đủ
+  qualification kỹ thuật, nhưng chưa tạo tag/release.

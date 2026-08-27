@@ -47,8 +47,9 @@ Tên `audit/evidence-v160-c2` chứa cả C3/C4 là di sản đã nghiệm thu. 
   Python 3.12 và DEF-036 timing test; Windows 3.13 phát hiện cùng timing test.
   Hai lỗi đã được sửa bằng reparse-attribute detection và blocking barrier.
 - Remote core run cuối tại SHA `6433fb2`: [GitHub Actions 33044025860](https://github.com/NyanBUIDL/zero-mem/actions/runs/33044025860)
-  đạt **9/9 cell**, gồm macOS Python 3.11/3.12/3.13. DX01 thêm CLI/tests/docs
-  sau SHA này nên exact wizard SHA phải chạy lại cùng gate trước release.
+  đạt **9/9 cell**, gồm macOS Python 3.11/3.12/3.13.
+- Remote DX01 run tại exact wizard SHA `68bdf29`: [GitHub Actions 33045453992](https://github.com/NyanBUIDL/zero-mem/actions/runs/33045453992)
+  đạt **9/9 cell** trên Ubuntu/Windows/macOS × Python 3.11–3.13.
 
 ## Quy tắc cập nhật
 

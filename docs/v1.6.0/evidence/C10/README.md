@@ -29,8 +29,9 @@ focused `5 passed`, full suite `3628 passed, 38 skipped, 0 failed`.
 
 Run cuối [33044025860](https://github.com/NyanBUIDL/zero-mem/actions/runs/33044025860)
 tại exact SHA `6433fb2` đạt **9/9 cell**. Ubuntu, Windows và macOS đều PASS trên
-Python 3.11, 3.12, 3.13; DEF-039/040 được đóng. DX01 wizard được thêm sau SHA
-này và phải qua lại 9-cell trên exact wizard SHA trước release.
+Python 3.11, 3.12, 3.13; DEF-039/040 được đóng. DX01 wizard sau đó đạt 9/9 tại
+exact SHA `68bdf29` trong run
+[33045453992](https://github.com/NyanBUIDL/zero-mem/actions/runs/33045453992).
 
 ## Benchmark junction
 

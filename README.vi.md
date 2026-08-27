@@ -16,10 +16,10 @@ cần kết nối mạng để vận hành thông thường.
 |---|---|---|
 | Package `1.6.0` | Phiên bản package candidate hiện tại | Được khai báo tại `zero_mem/version.py` |
 | `master` | Branch ổn định mới nhất | Dòng tích hợp ổn định |
-| `v160/multi-ks` | Candidate qualification | C1–C10 đã hoàn thành cục bộ; chờ GitHub CI sau push |
+| `v160/multi-ks` | Candidate đã qualification | C1–C10 + wizard hoàn tất; remote 9-cell CI đã xanh |
 
-v1.6.0 **chưa được phát hành**. Qualification cục bộ đã xanh; tag/publication là
-gate riêng và cần workflow 9-cell trên remote xanh tại đúng SHA.
+v1.6.0 **chưa được phát hành**. Qualification cục bộ và remote đã xanh;
+tag/publication vẫn là gate riêng cần maintainer phê duyệt.
 
 Xem [hướng dẫn v1.6.0](docs/v1.6.0/README.md) để biết phạm vi, gate, bản đồ
 work-package và chỉ mục evidence chính thức.

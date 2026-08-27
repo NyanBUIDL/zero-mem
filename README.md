@@ -16,10 +16,10 @@ an AI API or network connection.
 |---|---|---|
 | Package `1.6.0` | Current candidate package version | Version declared by `zero_mem/version.py` |
 | `master` | Latest stable branch | Stable integration line |
-| `v160/multi-ks` | Qualification candidate | C1–C10 complete locally; GitHub CI pending after push |
+| `v160/multi-ks` | Qualified release candidate | C1–C10 + wizard complete; remote 9-cell CI passed |
 
-v1.6.0 is **not released**. Local qualification is green; tag/publication remain
-separate gates and require the remote 9-cell workflow to pass on the exact SHA.
+v1.6.0 is **not released**. Local and remote qualification are green; tag and
+publication remain separate maintainer-approved gates.
 
 See the [v1.6.0 guide](docs/v1.6.0/README.md) for the current scope, gates,
 work-package map, and canonical evidence index.

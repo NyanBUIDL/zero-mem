@@ -1,13 +1,12 @@
 # Zero-Mem v1.6.0 — Multi-Knowledge-Space
 
-**Trạng thái:** `CORE_REMOTE_QUALIFIED / WIZARD_LOCAL_QUALIFIED_REMOTE_PENDING`
+**Trạng thái:** `RELEASE_CANDIDATE_REMOTE_QUALIFIED`
 
 **Branch:** `v160/multi-ks` · **Package:** `1.6.0` · **Schema derived:** `13`
 
 v1.6.0 cho phép một canonical event thuộc nhiều Knowledge Space. C1–C10 đã
-hoàn thành; core exact SHA `6433fb2` đã đạt 9/9 CI trên Ubuntu/Windows/macOS ×
-Python 3.11–3.13. DX01 bổ sung guided wizard/onboarding và đang chờ 9-cell trên
-exact wizard SHA. Chưa có tag hay GitHub Release.
+hoàn thành; exact wizard SHA `68bdf29` đã đạt 9/9 CI trên Ubuntu/Windows/macOS ×
+Python 3.11–3.13. Chưa có tag hay GitHub Release.
 
 ## Điều hướng
 

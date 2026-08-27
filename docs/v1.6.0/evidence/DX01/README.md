@@ -8,4 +8,6 @@
 - Installed-wheel acceptance gọi trực tiếp wizard từ CLI shim trong bundle.
 - Assertions gồm standalone, interactive Hermes, automation, rerun-preserve,
   validation-before-mutation, help surface và output không lộ ID/path.
-- Remote 9-cell trên exact wizard SHA là gate còn lại.
+- Remote run [33045453992](https://github.com/NyanBUIDL/zero-mem/actions/runs/33045453992)
+  tại exact wizard SHA `68bdf29` — **9/9 PASS** trên Ubuntu/Windows/macOS ×
+  Python 3.11–3.13.
