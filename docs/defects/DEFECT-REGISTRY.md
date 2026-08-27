@@ -62,6 +62,16 @@
 | DEF-039 | 2026-08-27 (V1.6.0 remote qualification, macOS Python 3.13) | Pin test DEF-026 đo kích thước `ThreadPoolExecutor._work_queue` trong khi worker vẫn bận và dùng `sleep(0)` làm tín hiệu bắt đầu. Đây là snapshot phụ thuộc scheduler của hàng đợi chứa `_WorkItem` đã cancel (macOS còn 26, ngưỡng 16), trong khi hợp đồng đã xác minh của DEF-026 là cancel-before-start, không side effect sau deadline và eventual drain khi worker rảnh. | THẤP (P3 — CI portability; không có product behavior defect được chứng minh) | Test integrity / async timing | FIXED LOCALLY (remote macOS pending) | v1.6.0 | RED: run `33000410125`, macOS 3.13 `26 <= 16`. Fix: explicit worker barrier; release rồi poll eventual queue drain; assert chỉ event đang chạy được ghi. GREEN: focused `5 passed`; hai test mục tiêu `2 passed` ×10; full suite `3628 passed, 38 skipped, 0 failed`; compile/machine-state/master-spec PASS. Không platform skip, không nới side-effect assertion. |
 | DEF-040 | 2026-08-27 (V1.6.0 remote qualification, macOS Python 3.12) | Multi-process canonical-writer test ưu tiên start method `fork` trên mọi POSIX. macOS runner đã multi-threaded tại thời điểm fork (CPython cảnh báo deadlock); child thừa kế process state không an toàn và `JsonlCaptureStore` fail `process_lock_unavailable`. Production multi-process contract không yêu cầu fork từ process đa luồng. | THẤP (P3 — CI portability; test harness) | Test integrity / multiprocessing | FIXED LOCALLY (remote macOS pending) | v1.6.0 | RED: run `33000410125`, macOS 3.12 child `ForkProcess` exit 1 với `process_lock_unavailable`. Fix: portable clean-interpreter `spawn` trên mọi supported OS; giữ nguyên 2-process/100-record/no-loss assertions. GREEN: focused `5 passed`; hai test mục tiêu `2 passed` ×10; full suite `3628 passed, 38 skipped, 0 failed`; compile/machine-state/master-spec PASS. |
 
+> **DEF-040 ADDENDUM (remote run `33043577737`):** `spawn` đã loại cảnh báo
+> fork nhưng macOS Python 3.12 vẫn fail khi hai child cùng khởi tạo lock file trên
+> một root hoàn toàn trống. Hợp đồng runtime được hỗ trợ là owner khởi tạo
+> canonical root trước, sau đó worker processes mới contention. Test được thu hẹp
+> đúng boundary này bằng bootstrap open/close trong parent; hai child vẫn đồng
+> thời ghi 100 record và mọi assertion no-loss/no-duplicate giữ nguyên. Trạng
+> thái DEF-040 trở lại **INVESTIGATING / remote macOS pending** cho tới run kế tiếp.
+> Local GREEN: test mục tiêu `1 passed` ×10; focused async+multi-process
+> `5 passed`; full suite `3628 passed, 38 skipped, 0 failed`; static gates PASS.
+
 > **DEF-036 TEST-HARNESS ADDENDUM (v1.6.0 remote CI, 2026-08-27):** first v1.6.0 9-cell run reproduced the documented Windows timer behavior on Python 3.11 and 3.13 (`8` events after `20` nominal 2 ms timeouts), while all Linux/macOS cells passed. The acceptance test now uses an explicit blocking barrier: it proves the single worker has entered the first append before queuing timed operations, then releases it only after every timeout. The security assertion remains strict (`occupy + at most 1`); no platform skip or relaxed count. Classification remains **no product defect / FIXED test portability**.
 
 ## Addendum V1.6.0 C10 — 2026-08-27

@@ -20,6 +20,14 @@ barrier + eventual-drain contract và portable `spawn`; local focused `5 passed`
 hai test mục tiêu `2 passed` ×10, full suite `3628 passed, 38 skipped, 0 failed`.
 Remote macOS requalification còn là gate trước khi đóng hai defect.
 
+Run `33043577737` xác nhận DEF-039 xanh trên macOS 3.13 nhưng DEF-040 vẫn fail
+trên macOS 3.12 sau khi đổi sang `spawn`: failure nằm ở hai child đồng thời tạo
+lock file trên root trống. Follow-up bootstrap canonical root bằng owner parent
+trước contention, đúng runtime-ownership boundary; phần concurrent append và
+100-record integrity assertions không đổi. Local test mục tiêu `1 passed` ×10,
+focused `5 passed`, full suite `3628 passed, 38 skipped, 0 failed`. Remote
+requalification vẫn pending.
+
 ## Benchmark junction
 
 Command: `python benchmarks/v160_junction_lookup.py --sizes 1000 10000 100000 --repeats 1000`

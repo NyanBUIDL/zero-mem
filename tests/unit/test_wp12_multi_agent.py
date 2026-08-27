@@ -32,6 +32,11 @@ def test_two_processes_share_canonical_writer_without_loss(tmp_path: Path) -> No
     # multi-threaded pytest process is unsafe on modern macOS and can inherit
     # stale lock/thread state into the child.
     ctx = multiprocessing.get_context("spawn")
+    # Runtime ownership initializes the canonical root before worker processes
+    # contend on it. Keep first-time lock-file creation out of the contention
+    # probe so this test measures the supported shared-writer contract itself.
+    bootstrap = JsonlCaptureStore(CaptureStoreConfig(tmp_path))
+    bootstrap.close()
     processes = [ctx.Process(target=_writer, args=(str(tmp_path), start)) for start in (0, 50)]
     for process in processes:
         process.start()
