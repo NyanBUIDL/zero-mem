@@ -1,6 +1,6 @@
 # RELEASE NOTES — Zero-Mem v1.6.0
 
-**Trạng thái:** CANDIDATE — chưa tạo tag/release; cần CI 9-cell xanh trên SHA phát hành.
+**Trạng thái:** Technical qualification complete — publication is bound to immutable tag `v1.6.0`.
 
 ## Điểm chính
 

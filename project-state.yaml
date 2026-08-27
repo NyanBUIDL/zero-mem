@@ -1597,7 +1597,7 @@ v150_release_invariant: "remote master = tag^{} = ARTIFACT_SOURCE_SHA = 10ad8da 
 v150_push: "master ff 33eff62..10ad8da + tag v1.5.0, explicit refs, no force (GITHUB-POLICY §7)"
 
 # --- V160 Multi-KS candidate overlay (C1-C10 + DX01, 2026-08-27) ---
-v160_status: RELEASE_CANDIDATE_REMOTE_QUALIFIED
+v160_status: RELEASE_SOURCE_REMOTE_QUALIFIED
 v160_version: "1.6.0"
 v160_branch: "v160/multi-ks"
 v160_schema_version: 13

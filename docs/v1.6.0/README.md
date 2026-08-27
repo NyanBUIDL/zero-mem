@@ -1,12 +1,13 @@
 # Zero-Mem v1.6.0 — Multi-Knowledge-Space
 
-**Trạng thái:** `RELEASE_CANDIDATE_REMOTE_QUALIFIED`
+**Trạng thái:** `RELEASE_SOURCE_REMOTE_QUALIFIED`
 
 **Branch:** `v160/multi-ks` · **Package:** `1.6.0` · **Schema derived:** `13`
 
 v1.6.0 cho phép một canonical event thuộc nhiều Knowledge Space. C1–C10 đã
 hoàn thành; exact wizard SHA `68bdf29` đã đạt 9/9 CI trên Ubuntu/Windows/macOS ×
-Python 3.11–3.13. Chưa có tag hay GitHub Release.
+Python 3.11–3.13. Tag và GitHub Release là publication layer bất biến của source
+đã qualification.
 
 ## Điều hướng
 

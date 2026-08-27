@@ -14,12 +14,12 @@ an AI API or network connection.
 
 | Line | Status | Notes |
 |---|---|---|
-| Package `1.6.0` | Current candidate package version | Version declared by `zero_mem/version.py` |
+| Package `1.6.0` | Current release package version | Version declared by `zero_mem/version.py` |
 | `master` | Latest stable branch | Stable integration line |
-| `v160/multi-ks` | Qualified release candidate | C1–C10 + wizard complete; remote 9-cell CI passed |
+| `v160/multi-ks` | Qualified release source | C1–C10 + wizard complete; remote 9-cell CI passed |
 
-v1.6.0 is **not released**. Local and remote qualification are green; tag and
-publication remain separate maintainer-approved gates.
+v1.6.0 has completed local and remote technical qualification. Publication is
+identified by its immutable `v1.6.0` tag and GitHub Release.
 
 See the [v1.6.0 guide](docs/v1.6.0/README.md) for the current scope, gates,
 work-package map, and canonical evidence index.
