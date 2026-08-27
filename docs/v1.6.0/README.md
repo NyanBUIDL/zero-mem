@@ -1,13 +1,13 @@
 # Zero-Mem v1.6.0 — Multi-Knowledge-Space
 
-**Trạng thái:** `CANDIDATE_LOCAL_QUALIFIED / REMOTE_CI_PENDING`
+**Trạng thái:** `CORE_REMOTE_QUALIFIED / WIZARD_LOCAL_QUALIFIED_REMOTE_PENDING`
 
 **Branch:** `v160/multi-ks` · **Package:** `1.6.0` · **Schema derived:** `13`
 
 v1.6.0 cho phép một canonical event thuộc nhiều Knowledge Space. C1–C10 đã
-hoàn thành và local full suite đạt `3618 passed, 38 skipped, 0 failed` trên
-CPython 3.12.13/Windows. Chưa có tag hay GitHub Release; remote 9-cell CI vẫn là
-gate riêng sau khi push.
+hoàn thành; core exact SHA `6433fb2` đã đạt 9/9 CI trên Ubuntu/Windows/macOS ×
+Python 3.11–3.13. DX01 bổ sung guided wizard/onboarding và đang chờ 9-cell trên
+exact wizard SHA. Chưa có tag hay GitHub Release.
 
 ## Điều hướng
 
@@ -16,9 +16,10 @@ gate riêng sau khi push.
 - [`TECH_STACK.md`](TECH_STACK.md): stack và quyết định dependency.
 - [`DEVELOPMENT.md`](DEVELOPMENT.md): quy trình phát triển, test và evidence.
 - [`MODULE-MAP.md`](MODULE-MAP.md): vai trò `zero_mem/`, `src/` và các domain.
+- [`ONBOARDING.md`](ONBOARDING.md): wizard, Project ID/Profile ID và automation.
 - [`EVIDENCE.md`](EVIDENCE.md): chỉ mục evidence chính thức.
 - [`decisions/ADR-V160-01-MULTI-KS.md`](decisions/ADR-V160-01-MULTI-KS.md): quyết định đã áp dụng.
-- [`work-packages/`](work-packages/): C01–C10.
+- [`work-packages/`](work-packages/): C01–C10 và DX01.
 - [`evidence/`](evidence/): evidence mới và pointer tới evidence lịch sử.
 
 ## Semantics cốt lõi

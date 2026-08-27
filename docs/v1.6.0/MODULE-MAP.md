@@ -28,3 +28,7 @@ package `src` khác hoặc chuyển public API vào đó. Consumer bên ngoài n
 | `benchmark-plan.json` | Hợp đồng benchmark M0 ban đầu |
 | `Review V1.1/` | Review lịch sử, giữ để audit |
 | `docs/v1.6.0/EVIDENCE.md` | Evidence index chính thức của candidate hiện tại |
+
+Trong `zero_mem/`, `commands_wizard.py` chỉ điều phối `commands_setup`, optional
+`hermes_integration` và `commands_doctor`; storage/retrieval implementation vẫn
+nằm sau public facade và không được nhân đôi trong wizard.

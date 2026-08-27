@@ -17,6 +17,7 @@
 | C08 | Projection parity | [evidence/C08](evidence/C08/README.md) |
 | C09 | Corpus boundary | [evidence/C09](evidence/C09/README.md) |
 | C10 | Acceptance/release gates | [evidence/C10](evidence/C10/README.md) |
+| DX01 | Guided wizard/onboarding | [evidence/DX01](evidence/DX01/README.md) |
 | DEF-037/038 | Windows junction + crash-test portability | [evidence/DEF-037](evidence/DEF-037/README.md) |
 
 ## Vị trí lịch sử được giữ nguyên
@@ -36,14 +37,18 @@ Tên `audit/evidence-v160-c2` chứa cả C3/C4 là di sản đã nghiệm thu. 
 - Machine state + compile: PASS.
 - C1–C10 focused: `66 passed`.
 - PKG-2 Windows: `13 passed`.
-- Full unit/integration: **3618 passed, 38 skipped, 0 failed**.
+- Full unit/integration sau DX01: **3628 passed, 38 skipped, 0 failed**.
+- Wizard focused: `10 passed`; packaging/setup/Hermes adjacent: `82 passed`;
+  installed-wheel wizard acceptance nằm trong PKG-2.
 - Benchmark: covering primary-key index; median 10.3 / 10.2 / 14.0 µs ở
   1k / 10k / 100k event trên máy qualification.
 - Remote run 1: [GitHub Actions 32999483909](https://github.com/NyanBUIDL/zero-mem/actions/runs/32999483909)
   đạt 7/9 cell; Windows 3.11 phát hiện junction detection thiếu fallback trước
   Python 3.12 và DEF-036 timing test; Windows 3.13 phát hiện cùng timing test.
-  Hai lỗi đã được sửa bằng reparse-attribute detection và blocking barrier;
-  follow-up 9-cell run là gate hiện hành.
+  Hai lỗi đã được sửa bằng reparse-attribute detection và blocking barrier.
+- Remote core run cuối tại SHA `6433fb2`: [GitHub Actions 33044025860](https://github.com/NyanBUIDL/zero-mem/actions/runs/33044025860)
+  đạt **9/9 cell**, gồm macOS Python 3.11/3.12/3.13. DX01 thêm CLI/tests/docs
+  sau SHA này nên exact wizard SHA phải chạy lại cùng gate trước release.
 
 ## Quy tắc cập nhật
 

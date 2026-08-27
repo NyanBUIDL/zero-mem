@@ -25,8 +25,12 @@ trên macOS 3.12 sau khi đổi sang `spawn`: failure nằm ở hai child đồn
 lock file trên root trống. Follow-up bootstrap canonical root bằng owner parent
 trước contention, đúng runtime-ownership boundary; phần concurrent append và
 100-record integrity assertions không đổi. Local test mục tiêu `1 passed` ×10,
-focused `5 passed`, full suite `3628 passed, 38 skipped, 0 failed`. Remote
-requalification vẫn pending.
+focused `5 passed`, full suite `3628 passed, 38 skipped, 0 failed`.
+
+Run cuối [33044025860](https://github.com/NyanBUIDL/zero-mem/actions/runs/33044025860)
+tại exact SHA `6433fb2` đạt **9/9 cell**. Ubuntu, Windows và macOS đều PASS trên
+Python 3.11, 3.12, 3.13; DEF-039/040 được đóng. DX01 wizard được thêm sau SHA
+này và phải qua lại 9-cell trên exact wizard SHA trước release.
 
 ## Benchmark junction
 

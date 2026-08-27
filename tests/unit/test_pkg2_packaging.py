@@ -312,7 +312,7 @@ def test_pypdf_remains_optional(bundle: Path, tmp_path: Path) -> None:
     assert result.stdout.strip() == "None"
 
 
-def test_installed_runtime_exposes_pkg3_setup_and_doctor(bundle: Path, tmp_path: Path) -> None:
+def test_installed_runtime_exposes_setup_doctor_and_wizard(bundle: Path, tmp_path: Path) -> None:
     assert _install(bundle, tmp_path).returncode == 0
     home = tmp_path / "home with spaces"
     env = _env(home)
@@ -323,6 +323,14 @@ def test_installed_runtime_exposes_pkg3_setup_and_doctor(bundle: Path, tmp_path:
     report = json.loads(doctor.stdout)
     assert report["overall"] == "READY"
     assert any(check["id"] == "hermes" and check["status"] == "WARN" for check in report["checks"])
+    wizard = _run(
+        _cli_invocation(cli) + ["wizard", "--non-interactive", "--skip-hermes", "--json"],
+        env=env,
+        cwd=tmp_path,
+    )
+    wizard_report = json.loads(wizard.stdout)
+    assert wizard_report["status"] == "READY"
+    assert wizard_report["hermes"] == "SKIPPED"
 
 
 def test_installed_runtime_upgrade_check_and_same_version_reinstall_preserve_state(bundle: Path, tmp_path: Path) -> None:

@@ -118,7 +118,33 @@ The optional PDF extra uses `pypdf`:
 python -m pip install -e ".[pdf]"
 ```
 
-## Local setup and health
+## Guided onboarding (recommended)
+
+After installing the Zero-Mem wheel, the shortest safe first run is:
+
+```bash
+zero-mem wizard
+```
+
+The wizard initializes local storage, optionally configures Hermes, and finishes
+with a read-only health check. If Hermes is present, it explains and requests two
+explicit identifiers; it never guesses identity or reads Hermes secrets.
+
+- **Project ID** is the stable Hermes identifier for the current codebase or
+  workspace. It is not a filesystem path.
+- **Profile ID** is the Hermes behavior/access identity currently in use. It is
+  not the operating-system username.
+
+If either value is unknown, skip Hermes and add it later. Automation can use:
+
+```bash
+zero-mem wizard --non-interactive --skip-hermes --json
+zero-mem wizard --non-interactive --project-id PROJECT --profile-id PROFILE --json
+```
+
+See the [complete onboarding guide](docs/v1.6.0/ONBOARDING.md).
+
+## Manual local setup and health
 
 ```bash
 zero-mem setup

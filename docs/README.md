@@ -37,7 +37,7 @@ Patch release nhỏ có thể dùng release notes + defect registry + overlay tr
 
 | Đường dẫn | Trạng thái | Ghi chú |
 |---|---|---|
-| [`v1.6.0/`](v1.6.0/README.md) | **Active candidate** | C1–C10 local-qualified; remote CI/release pending |
+| [`v1.6.0/`](v1.6.0/README.md) | **Active candidate** | Core 9/9 qualified; DX01 wizard exact-SHA CI/release pending |
 | [`v1.6/`](v1.6/README.md) | Historical staging | Proposal, remediation record và probe ban đầu; đã được index từ `v1.6.0/` |
 | [`v1.5/`](v1.5/) | Historical v1.5.0 | Enterprise authorization work |
 | [`v1.5.1/`](v1.5.1/) | Historical patch docs | Qualification/remediation v1.5.1 |

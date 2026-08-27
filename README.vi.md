@@ -116,7 +116,33 @@ PDF extra tùy chọn sử dụng `pypdf`:
 python -m pip install -e ".[pdf]"
 ```
 
-## Khởi tạo cục bộ và kiểm tra sức khỏe
+## Onboarding có hướng dẫn (khuyến nghị)
+
+Sau khi cài wheel Zero-Mem, cách khởi động an toàn và ngắn nhất là:
+
+```bash
+zero-mem wizard
+```
+
+Wizard sẽ khởi tạo storage cục bộ, cho phép cấu hình Hermes nếu muốn, rồi chạy
+health check chỉ đọc. Nếu tìm thấy Hermes, wizard giải thích và yêu cầu hai ID
+tường minh; Zero-Mem không tự đoán identity và không đọc secret của Hermes.
+
+- **Project ID** là định danh ổn định của codebase/workspace trong Hermes, không
+  phải đường dẫn thư mục.
+- **Profile ID** là định danh profile hành vi/quyền truy cập đang dùng trong
+  Hermes, không phải username của hệ điều hành.
+
+Nếu chưa biết hai giá trị này, hãy bỏ qua Hermes và cấu hình sau. Với automation:
+
+```bash
+zero-mem wizard --non-interactive --skip-hermes --json
+zero-mem wizard --non-interactive --project-id PROJECT --profile-id PROFILE --json
+```
+
+Xem [hướng dẫn onboarding đầy đủ](docs/v1.6.0/ONBOARDING.md).
+
+## Khởi tạo cục bộ thủ công và kiểm tra sức khỏe
 
 ```bash
 zero-mem setup

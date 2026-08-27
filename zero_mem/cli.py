@@ -21,6 +21,19 @@ def build_parser() -> argparse.ArgumentParser:
     version_parser.set_defaults(_show_version=True)
     setup_parser = subparsers.add_parser("setup", help="initialize an empty user-local Zero-Mem installation")
     setup_parser.set_defaults(_setup=True)
+    wizard_parser = subparsers.add_parser(
+        "wizard", help="guided setup, optional Hermes integration, and health check"
+    )
+    wizard_parser.add_argument("--project-id", help="explicit Hermes project/codebase identifier")
+    wizard_parser.add_argument("--profile-id", help="explicit Hermes profile/access identifier")
+    wizard_parser.add_argument(
+        "--skip-hermes", action="store_true", help="set up standalone without changing Hermes integration"
+    )
+    wizard_parser.add_argument(
+        "--non-interactive", action="store_true", help="disable prompts; requires an explicit Hermes choice"
+    )
+    wizard_parser.add_argument("--json", action="store_true", help="emit stable machine-readable results")
+    wizard_parser.set_defaults(_wizard=True)
     doctor_parser = subparsers.add_parser("doctor", help="check runtime and optional integration health")
     doctor_parser.add_argument("--json", action="store_true", help="emit stable machine-readable results")
     doctor_parser.set_defaults(_doctor=True)
@@ -80,6 +93,30 @@ def main(argv: list[str] | None = None) -> int:
         from .commands_doctor import run
 
         return run(as_json=args.json)
+    elif getattr(args, "_wizard", False):
+        from .commands_wizard import WizardError, render, run
+        from .hermes_integration import HermesIntegrationError
+        from .paths import ConfigurationError, SetupError
+
+        try:
+            code, report = run(
+                project_id=args.project_id,
+                profile_id=args.profile_id,
+                skip_hermes=args.skip_hermes,
+                non_interactive=args.non_interactive,
+                as_json=args.json,
+            )
+        except (WizardError, HermesIntegrationError, ConfigurationError, SetupError) as exc:
+            print(f"zero-mem: wizard failed: {exc}", file=sys.stderr)
+            return 2
+        except Exception:
+            print("zero-mem: wizard failed", file=sys.stderr)
+            return 2
+        print(
+            json.dumps(report, sort_keys=True, separators=(",", ":"))
+            if args.json else render(report)
+        )
+        return code
     elif getattr(args, "_integrate_hermes", False):
         from .hermes_integration import command
 

@@ -16,6 +16,21 @@ Canonical JSONL là nguồn sự thật. SQLite, FTS, graph, projection và junc
 là derived state có thể xóa và dựng lại; không dùng derived repair để viết ngược
 canonical.
 
+## Onboarding flow
+
+```text
+zero-mem wizard
+  -> validate request before mutation
+  -> inspect optional Hermes boundary without reading secrets
+  -> idempotent Zero-Mem setup
+  -> optional explicit project/profile descriptor
+  -> read-only doctor
+  -> bounded READY/NOT_READY report
+```
+
+Wizard chỉ orchestration các public release-layer command; không mở đường ghi
+canonical mới, không suy luận identity và không sửa Hermes core.
+
 ## Storage semantics
 
 - `knowledge_space_ids`: danh sách canonical mới, deduplicate nhưng giữ thứ tự.

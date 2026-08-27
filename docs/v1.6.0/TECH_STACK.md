@@ -6,6 +6,7 @@
 - Standard library là core dependency; không thêm runtime dependency cho Multi-KS.
 - SQLite cho derived relational/FTS state; JSONL cho canonical events.
 - Public package/CLI trong `zero_mem`; implementation nội bộ trong `src`.
+- Wizard dùng `argparse` và standard library; không thêm framework UI/runtime dependency.
 
 ## Test và build
 
