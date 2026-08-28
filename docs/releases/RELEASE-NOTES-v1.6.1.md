@@ -17,6 +17,10 @@ product API.
   đồng thời hỗ trợ layout `Scripts` và console `.exe` trên Windows.
 - Sửa PKG-2 test environment dùng temp root ngắn trên Windows nhưng vẫn kiểm tra
   path có khoảng trắng; subprocess failure giờ giữ bounded inner stderr.
+- Sửa hai false failure của remote qualification: PKG-1 dùng path containment
+  thay vì substring; PKG-2 resolve platform temp alias trước security check.
+- Nâng action pins của workflow v1.6.1 lên dòng v7 để bỏ runtime Node 20 đã
+  deprecated; permissions của workflow vẫn chỉ `contents: read`.
 - Sửa release notes v1.6.0 phản ánh publication đã hoàn tất và cấm dùng artifact
   build từ post-tag working tree để thay artifact v1.6.0.
 - Thêm tài liệu `SECURITY.md` và `CONTRIBUTING.md` tối thiểu.

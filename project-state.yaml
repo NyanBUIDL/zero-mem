@@ -1637,6 +1637,6 @@ v161_scope: "MIT license distribution, NyanBUIDL package metadata, research attr
 v161_behavior_change: "none — no schema, canonical format, authorization, retrieval, or public API change"
 v161_evidence_index: "docs/v1.6.1/EVIDENCE.md"
 v161_release_notes: "docs/releases/RELEASE-NOTES-v1.6.1.md"
-v161_local_qualification: "Windows CPython 3.12.13: compile PASS; machine-state PASS; packaging-focused 36 passed; artifact checker 2 passed; full suite 3649 passed, 38 skipped, 0 failed; covering-index benchmark median 10.5/10.8/14.3 us at 1k/10k/100k"
-v161_remote_qualification: "pending exact-commit 9-cell GitHub Actions run"
+v161_local_qualification: "Windows CPython 3.12.13: compile PASS; machine-state PASS; packaging-focused 36 passed; artifact checker 2 passed; post-CI-harness full suite 3651 passed, 38 skipped, 0 failed; covering-index benchmark median 10.5/10.8/14.3 us at 1k/10k/100k"
+v161_remote_qualification: "Run 33143783958 at predecessor SHA 23515e4652e88759dbac3b0db2b6fcbdde572e21 failed closed on two test-harness portability defects; artifact contract 9/9 PASS; successor exact-commit 9/9 pending"
 v161_tag: none

@@ -19,7 +19,8 @@ are unchanged.
 - Packaging-focused: **36 passed, 0 failed**.
 - Artifact-contract checker: `2 passed` (matching artifacts accepted; missing
   sdist `NOTICE` rejected).
-- Full suite: **3649 passed, 38 skipped, 0 failed**.
+- Full suite after the remote-harness regressions: **3651 passed, 38 skipped,
+  0 failed**.
 - Junction benchmark retained the covering primary-key query plan; median
   point lookup was 10.5 / 10.8 / 14.3 µs at 1k / 10k / 100k events.
 
@@ -50,6 +51,16 @@ The exact release commit must pass Ubuntu, Windows and macOS on CPython
 3.11/3.12/3.13 before tag or publication. The GitHub Actions run URL and verdict
 are recorded in the GitHub Release; no remote PASS is claimed in this source
 file before that run completes.
+
+The first release-branch run, `33143783958`, correctly blocked publication at
+source SHA `23515e4652e88759dbac3b0db2b6fcbdde572e21`. All nine cells built the
+artifacts and passed the LICENSE/NOTICE/metadata contract. It exposed two test
+harness defects: a shared-prefix false positive in PKG-1 on Linux/Windows and an
+unresolved `/tmp` alias in the macOS PKG-2 fixture. Both received RED-first
+regressions and minimal fixes; the active workflow also moved the official
+checkout, setup-python and upload-artifact pins to v7 after GitHub runners
+warned that the prior pins targeted deprecated Node 20. A successor exact-commit
+9/9 run remains mandatory.
 
 ## Release invariant
 

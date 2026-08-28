@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import tomllib
 from pathlib import Path
 
@@ -9,6 +10,15 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load_pkg1_acceptance():
+    path = ROOT / "tests" / "packaging" / "pkg1_wheel_acceptance.py"
+    spec = importlib.util.spec_from_file_location("pkg1_acceptance_regression", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_def041_license_is_shipped_by_explicit_packaging_contract() -> None:
@@ -43,6 +53,17 @@ def test_def044_wheel_acceptance_supports_windows_venvs() -> None:
     assert '"zero-mem.exe"' in acceptance
 
 
+def test_pkg1_repository_check_does_not_reject_a_sibling_with_shared_prefix(tmp_path: Path) -> None:
+    acceptance = _load_pkg1_acceptance()
+    repo = tmp_path / "zero-mem"
+    sibling_import = tmp_path / "zero-mem-dev-data" / "site-packages" / "zero_mem"
+    repo.mkdir()
+    sibling_import.mkdir(parents=True)
+
+    assert not acceptance._path_is_within(sibling_import, repo)
+    assert acceptance._path_is_within(repo / "zero_mem", repo)
+
+
 def test_def043_release_notes_record_post_publication_state() -> None:
     notes = (ROOT / "docs" / "releases" / "RELEASE-NOTES-v1.6.0.md").read_text(
         encoding="utf-8"
@@ -71,5 +92,10 @@ def test_v161_release_branch_has_nine_cell_qualification_workflow() -> None:
     assert matrix["os"] == ["ubuntu-latest", "windows-latest", "macos-latest"]
     assert matrix["python-version"] == ["3.11", "3.12", "3.13"]
     assert workflow["permissions"] == {"contents": "read"}
-    runs = [step.get("run", "") for step in workflow["jobs"]["qualify"]["steps"]]
+    steps = workflow["jobs"]["qualify"]["steps"]
+    uses = [step.get("uses", "") for step in steps]
+    assert "actions/checkout@v7" in uses
+    assert "actions/setup-python@v7" in uses
+    assert "actions/upload-artifact@v7" in uses
+    runs = [step.get("run", "") for step in steps]
     assert any("check_release_artifacts.py" in run for run in runs)

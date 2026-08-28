@@ -101,8 +101,15 @@ def _run(cmd: list[str], *, env: dict[str, str], cwd: Path = ROOT, check: bool =
 @contextmanager
 def _pkg2_temp_root() -> Iterator[Path]:
     """Keep Windows venv paths below MAX_PATH while retaining space coverage."""
-    with tempfile.TemporaryDirectory(prefix="zero-mem pkg2 ", ignore_cleanup_errors=True) as raw:
+    with tempfile.TemporaryDirectory(
+        prefix="zero-mem pkg2 ", dir=str(_pkg2_temp_base()), ignore_cleanup_errors=True
+    ) as raw:
         yield Path(raw)
+
+
+def _pkg2_temp_base() -> Path:
+    """Resolve platform temp aliases before the installer checks path components."""
+    return Path(tempfile.gettempdir()).resolve()
 
 
 @pytest.fixture
@@ -116,6 +123,12 @@ def test_pkg2_temp_root_is_short_and_keeps_space_coverage() -> None:
         assert " " in root.name
         if os.name == "nt":
             assert len(str(root)) < 100
+
+
+def test_pkg2_temp_base_resolves_platform_aliases(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    aliased = tmp_path / "missing" / ".."
+    monkeypatch.setattr(tempfile, "gettempdir", lambda: str(aliased))
+    assert _pkg2_temp_base() == aliased.resolve()
 
 
 def test_pkg2_run_failure_surfaces_captured_stderr(tmp_path: Path) -> None:

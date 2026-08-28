@@ -19,6 +19,15 @@ def run(command: list[str], *, cwd: Path, env: dict[str, str]) -> str:
     return result.stdout.strip()
 
 
+def _path_is_within(candidate: Path, root: Path) -> bool:
+    """Return whether *candidate* is actually inside *root*, not just prefix-matching it."""
+    try:
+        candidate.resolve().relative_to(root.resolve())
+        return True
+    except ValueError:
+        return False
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("wheel", type=Path)
@@ -72,7 +81,9 @@ def main() -> int:
         assert "usage: zero-mem" in help_text
         assert version_flag == f"zero-mem {expected_version}"
         assert version_command == expected_version
-        assert str(repo) not in imports
+        import_paths = [Path(line) for line in imports.splitlines()]
+        assert import_paths
+        assert all(not _path_is_within(path, repo) for path in import_paths)
         print(f"wheel={wheel.name}")
         print(f"venv={venv}")
         print(f"imports={imports.replace(chr(10), ' | ')}")

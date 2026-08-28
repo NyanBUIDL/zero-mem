@@ -68,6 +68,7 @@
 | DEF-045 | 2026-08-28 (post-publication PKG-2 verification on Windows) | PKG-2 acceptance dùng `tmp_path` nằm dưới workspace/basetemp dài; khi cộng XDG path, staging và venv, `ensurepip` vượt Windows MAX_PATH trên host chưa bật long-path. Test chỉ báo generic exit 2 vì cả installer lẫn helper test bỏ mất inner stderr. | THẤP (test-environment portability + diagnostics) | Test integrity / packaging observability | FIXED (local, additive patch candidate) | next additive patch | RED: exact PKG-2 FAIL; inner `ensurepip` reports Windows Long Path hint. Fix dùng OS temp root ngắn nhưng vẫn có spaces; test helper + installer giữ bounded inner stderr. GREEN: 4 regression tests PASS; exact test với intentionally long `basetemp` PASS; PKG-2 `16 passed`; focused packaging `34 passed`; full suite **3645 passed, 38 skipped, 0 failed**. |
 | DEF-046 | 2026-08-28 (licensing metadata reconciliation) | Root MIT notice đã được maintainer xác nhận là `Copyright (c) 2026 NyanBUIDL`, nhưng package author metadata vẫn ghi `Zero-Mem contributors`, tạo provenance không nhất quán giữa artifact metadata và license notice. | THẤP (distribution provenance) | Packaging / licensing metadata | FIXED (local, additive patch candidate) | next additive patch | RED: metadata regression `1 failed` (`Zero-Mem contributors` != `NyanBUIDL`). `project.authors` đổi thành `NyanBUIDL`; fresh wheel METADATA `Author: NyanBUIDL`; LICENSE owner match. Focused packaging `34 passed`; full suite **3645 passed, 38 skipped, 0 failed**. |
 | DEF-047 | 2026-08-28 (v1.6.1 release preparation) | `project-state.yaml` là machine state canonical nhưng vẫn ghi `v160_tag: none` và trạng thái chỉ remote-qualified dù immutable tag/GitHub Release v1.6.0 đã publish tại source SHA `267fd9ae830eff41aeaf85cbfbd41f38c03849a6`. Release automation/audit đọc state này sẽ nhận publication state sai. | THẤP (machine-state provenance) | Release metadata / state accuracy | FIXED (v1.6.1 candidate) | v1.6.1 | RED `1 failed`; state reconciled to `RELEASED_PUBLISHED`, immutable tag/source SHA/URL recorded, separate v1.6.1 candidate overlay added. GREEN `1 passed`; machine-state validator PASS; full suite **3649 passed, 38 skipped, 0 failed**. |
+| DEF-048 | 2026-08-28 (v1.6.1 first remote qualification) | Hai false failure trong qualification harness: PKG-1 dùng substring để phát hiện import trong repo nên nhầm thư mục anh em `zero-mem-dev-data`; PKG-2 trên macOS truyền `/tmp` alias chưa resolve vào installer có kiểm tra symlink fail-closed. Đồng thời action pins cũ phát cảnh báo Node 20. Artifact contract và các full-suite Linux/Windows đều qua trước PKG-1. | THẤP (CI/test portability; không chứng minh product defect) | Test integrity / release CI | FIXED (local; remote requalification pending) | v1.6.1 | Run `33143783958` exact SHA `23515e4652e88759dbac3b0db2b6fcbdde572e21`. RED: 2 regression tests fail vì helper chưa tồn tại; GREEN: path containment thật + resolved temp base, `3 passed`, fresh-wheel acceptance PASS. Official action pins nâng lên v7. Full suite **3651 passed, 38 skipped, 0 failed**; remote 9-cell rerun bắt buộc trước publication. |
 
 > **V1.6.1 CANDIDATE ASSIGNMENT (2026-08-28):** Fix version `next additive
 > patch` của DEF-041..046 được resolve thành **v1.6.1**. Exact candidate tree:
@@ -81,6 +82,13 @@
 > PASS ngay trên cùng source. Diagnostics mới đã giữ được nguyên nhân thay vì
 > generic exit 2. Không có product-code fix từ observation này; remote Windows
 > cell và fresh zero-failure full suite vẫn là release gates bắt buộc.
+
+> **V1.6.1 REMOTE QUALIFICATION ADDENDUM (run `33143783958`):** run đầu tiên
+> không đạt gate và không dẫn tới tag/release. Cả 9 cell build artifact và kiểm
+> tra LICENSE/NOTICE/metadata đều PASS. Linux/Windows full suites PASS rồi PKG-1
+> fail vì shared string prefix; ba macOS full suites fail vì `/tmp` alias bị
+> security check từ chối. Hai root cause đã có regression RED/GREEN trong
+> DEF-048; publication chỉ tiếp tục nếu exact successor commit đạt 9/9.
 
 > **DEF-040 ADDENDUM (remote run `33043577737`):** `spawn` đã loại cảnh báo
 > fork nhưng macOS Python 3.12 vẫn fail khi hai child cùng khởi tạo lock file trên
