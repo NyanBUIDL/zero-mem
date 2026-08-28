@@ -25,4 +25,16 @@
 - Benchmark chính thức: `benchmarks/v160_junction_lookup.py`.
 - Workflow active: `.github/workflows/v1.6.0-qualification.yml` trên Linux/Windows/macOS × Python 3.11/3.12/3.13.
 - Core SHA `6433fb2` và exact wizard SHA `68bdf29` đều đạt 9/9; candidate đủ
-  qualification kỹ thuật, nhưng chưa tạo tag/release.
+  qualification kỹ thuật. Publication sau đó hoàn tất tại source SHA
+  `267fd9ae830eff41aeaf85cbfbd41f38c03849a6`.
+
+## Post-publication addendum — 2026-08-27
+
+Immutable tag `v1.6.0` và GitHub Release `Zero-Mem v1.6.0` đã được publish tại
+source SHA `267fd9ae830eff41aeaf85cbfbd41f38c03849a6`. Addendum này chỉ đối soát
+trạng thái publication sau qualification; không thay đổi nội dung release, tag,
+artifact đã publish hoặc evidence lịch sử.
+
+Mọi wheel/sdist mang version `1.6.0` nhưng được build từ working tree sau source
+SHA trên chỉ là artifact xác minh cục bộ. Không upload, đính kèm hoặc dùng chúng
+để thay thế artifact của GitHub Release `v1.6.0`.

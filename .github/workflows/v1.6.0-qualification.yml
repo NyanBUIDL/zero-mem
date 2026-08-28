@@ -1,12 +1,7 @@
-# Active Zero-Mem v1.6.0 cross-platform qualification gate.
-name: Zero-Mem v1.6.0 qualification
+# Historical Zero-Mem v1.6.0 cross-platform qualification gate.
+name: Zero-Mem v1.6.0 qualification (manual replay)
 
 on:
-  push:
-    branches: [master, v160/multi-ks]
-    tags: ["v*"]
-  pull_request:
-    branches: [master]
   workflow_dispatch:
 
 jobs:

@@ -14,12 +14,12 @@ cần kết nối mạng để vận hành thông thường.
 
 | Dòng phát triển | Trạng thái | Ghi chú |
 |---|---|---|
-| Package `1.6.0` | Phiên bản package phát hành hiện tại | Được khai báo tại `zero_mem/version.py` |
+| Package `1.6.1` | Phiên bản additive patch hiện tại | Được khai báo tại `zero_mem/version.py` |
 | `master` | Branch ổn định mới nhất | Dòng tích hợp ổn định |
-| `v160/multi-ks` | Source release đã qualification | C1–C10 + wizard hoàn tất; remote 9-cell CI đã xanh |
+| `release/v1.6.1` | Source của patch release | Sửa licensing, packaging, provenance và test environment |
 
-v1.6.0 đã hoàn tất qualification cục bộ và remote. Publication được xác định
-bằng tag bất biến `v1.6.0` và GitHub Release.
+v1.6.1 là additive patch trên v1.6.0 bất biến. Publication identity của bản vá
+là tag bất biến `v1.6.1` và GitHub Release tương ứng; v1.6.0 được giữ nguyên.
 
 Xem [hướng dẫn v1.6.0](docs/v1.6.0/README.md) để biết phạm vi, gate, bản đồ
 work-package và chỉ mục evidence chính thức.
@@ -198,10 +198,20 @@ hình và backup.
 - [Kiến trúc](docs/architecture/ARCHITECTURE.md)
 - [Defect registry](docs/defects/DEFECT-REGISTRY.md)
 - [Release notes](docs/releases/)
+- [Release notes patch v1.6.1](docs/releases/RELEASE-NOTES-v1.6.1.md)
+- [Evidence v1.6.1](docs/v1.6.1/EVIDENCE.md)
 - [Hướng dẫn Multi-KS v1.6.0](docs/v1.6.0/README.md)
 - [Quyết định kiến trúc v1.6.0](docs/v1.6.0/decisions/ADR-V160-01-MULTI-KS.md)
 - [Roadmap v1.6.0](docs/v1.6.0/ROADMAP.md)
 - [Chỉ mục evidence v1.6.0](docs/v1.6.0/EVIDENCE.md)
+
+## Nguồn gốc nghiên cứu
+
+Repository này là một dự án kỹ thuật độc lập, được định hướng bởi các khái niệm
+trong bài báo của Xiao và cộng sự, "Zero-Mem: Zero-Token Memory Operations for
+LLM Agents," arXiv:2607.29377 (2026). Đây không phải implementation chính thức
+của nhóm tác giả và không liên kết hoặc được họ hay tổ chức của họ chứng thực.
+Xem [NOTICE](NOTICE) để biết citation đầy đủ và ranh giới giấy phép.
 
 ## Đóng góp an toàn
 

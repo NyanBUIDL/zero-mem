@@ -1,0 +1,23 @@
+Research attribution
+====================
+
+This repository is an independent engineering project informed by concepts
+described in:
+
+  Yilin Xiao, Zhehan Zhu, Yujing Zhang, Jin Chen, Zijin Hong, Luyao Zhuang,
+  Qinggang Zhang, Shengyuan Chen, Xiaocao Ouyang, Lingfei Ren, and Xiao Huang,
+  "Zero-Mem: Zero-Token Memory Operations for LLM Agents,"
+  arXiv:2607.29377, 2026.
+  https://doi.org/10.48550/arXiv.2607.29377
+
+The paper is distributed under CC BY-NC-SA 4.0. This repository is not the
+authors' official implementation and is not affiliated with or endorsed by the
+paper's authors or their institutions.
+
+The MIT License in this repository applies to the repository's source code. It
+does not relicense the paper, its text, figures, tables, datasets, or any code
+that may later be released by the paper's authors. See the paper and its license
+for the terms governing those materials:
+
+  https://arxiv.org/abs/2607.29377
+  https://creativecommons.org/licenses/by-nc-sa/4.0/

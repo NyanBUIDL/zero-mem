@@ -14,12 +14,13 @@ an AI API or network connection.
 
 | Line | Status | Notes |
 |---|---|---|
-| Package `1.6.0` | Current release package version | Version declared by `zero_mem/version.py` |
+| Package `1.6.1` | Current additive patch version | Version declared by `zero_mem/version.py` |
 | `master` | Latest stable branch | Stable integration line |
-| `v160/multi-ks` | Qualified release source | C1–C10 + wizard complete; remote 9-cell CI passed |
+| `release/v1.6.1` | Patch release source | Licensing, packaging, provenance, and test-environment remediation |
 
-v1.6.0 has completed local and remote technical qualification. Publication is
-identified by its immutable `v1.6.0` tag and GitHub Release.
+v1.6.1 is an additive patch over immutable v1.6.0. Its publication identity is
+the immutable `v1.6.1` tag and corresponding GitHub Release; v1.6.0 remains
+unchanged.
 
 See the [v1.6.0 guide](docs/v1.6.0/README.md) for the current scope, gates,
 work-package map, and canonical evidence index.
@@ -201,10 +202,20 @@ configuration, and backups.
 - [Architecture](docs/architecture/ARCHITECTURE.md)
 - [Defect registry](docs/defects/DEFECT-REGISTRY.md)
 - [Release notes](docs/releases/)
+- [v1.6.1 patch release notes](docs/releases/RELEASE-NOTES-v1.6.1.md)
+- [v1.6.1 evidence](docs/v1.6.1/EVIDENCE.md)
 - [v1.6.0 Multi-KS guide](docs/v1.6.0/README.md)
 - [v1.6.0 architecture decision](docs/v1.6.0/decisions/ADR-V160-01-MULTI-KS.md)
 - [v1.6.0 roadmap](docs/v1.6.0/ROADMAP.md)
 - [v1.6.0 evidence index](docs/v1.6.0/EVIDENCE.md)
+
+## Research provenance
+
+This repository is an independent engineering project informed by Xiao et al.,
+"Zero-Mem: Zero-Token Memory Operations for LLM Agents," arXiv:2607.29377
+(2026). It is not the paper authors' official implementation and is not
+affiliated with or endorsed by them or their institutions. See [NOTICE](NOTICE)
+for the full citation and license boundary.
 
 ## Contributing safely
 

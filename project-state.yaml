@@ -1597,7 +1597,7 @@ v150_release_invariant: "remote master = tag^{} = ARTIFACT_SOURCE_SHA = 10ad8da 
 v150_push: "master ff 33eff62..10ad8da + tag v1.5.0, explicit refs, no force (GITHUB-POLICY §7)"
 
 # --- V160 Multi-KS candidate overlay (C1-C10 + DX01, 2026-08-27) ---
-v160_status: RELEASE_SOURCE_REMOTE_QUALIFIED
+v160_status: RELEASED_PUBLISHED
 v160_version: "1.6.0"
 v160_branch: "v160/multi-ks"
 v160_schema_version: 13
@@ -1612,7 +1612,10 @@ v160_local_full_suite: "3628 passed, 38 skipped, 0 failed (wizard exact local tr
 v160_pkg2_windows: "13 passed"
 v160_evidence_index: "docs/v1.6.0/EVIDENCE.md"
 v160_release_notes: "docs/releases/RELEASE-NOTES-v1.6.0.md"
-v160_tag: none
+v160_tag: "v1.6.0"
+v160_release_sha: "267fd9ae830eff41aeaf85cbfbd41f38c03849a6"
+v160_release_url: "https://github.com/NyanBUIDL/zero-mem/releases/tag/v1.6.0"
+v160_release_invariant: "remote master = tag^{} = ARTIFACT_SOURCE_SHA = 267fd9ae830eff41aeaf85cbfbd41f38c03849a6"
 v160_push_gate: "exact DX01 SHA 68bdf29 passed 9/9 in run 33045453992; branch pushed without force"
 v160_remote_ci_run_1: "https://github.com/NyanBUIDL/zero-mem/actions/runs/32999483909"
 v160_remote_ci_run_1_verdict: "7/9 cells passed; Windows 3.11 exposed pre-3.12 junction detection plus DEF-036 timer-test portability; Windows 3.13 exposed DEF-036 timer-test portability"
@@ -1623,3 +1626,17 @@ v160_dx01_status: "IMPLEMENTED_LOCAL_AND_REMOTE_VERIFIED"
 v160_dx01_tests: "10 wizard acceptance passed; 82 packaging/setup/Hermes adjacent passed; installed-wheel wizard assertion included; full suite 3628 passed, 38 skipped, 0 failed"
 v160_remote_ci_run_4: "https://github.com/NyanBUIDL/zero-mem/actions/runs/33045453992 — 9/9 at exact wizard SHA 68bdf29; Ubuntu/Windows/macOS x Python 3.11-3.13 all PASS"
 v160_release_qualified: true
+
+# --- V161 additive audit-remediation patch candidate (2026-08-28) ---
+v161_status: RELEASE_CANDIDATE
+v161_version: "1.6.1"
+v161_branch: "release/v1.6.1"
+v161_parent_tag: "v1.6.0"
+v161_schema_version: 13
+v161_scope: "MIT license distribution, NyanBUIDL package metadata, research attribution boundary, PKG-1 dynamic-version/Windows acceptance, PKG-2 short-temp portability and diagnostics, minimal SECURITY/CONTRIBUTING docs"
+v161_behavior_change: "none — no schema, canonical format, authorization, retrieval, or public API change"
+v161_evidence_index: "docs/v1.6.1/EVIDENCE.md"
+v161_release_notes: "docs/releases/RELEASE-NOTES-v1.6.1.md"
+v161_local_qualification: "Windows CPython 3.12.13: compile PASS; machine-state PASS; packaging-focused 36 passed; artifact checker 2 passed; full suite 3649 passed, 38 skipped, 0 failed; covering-index benchmark median 10.5/10.8/14.3 us at 1k/10k/100k"
+v161_remote_qualification: "pending exact-commit 9-cell GitHub Actions run"
+v161_tag: none

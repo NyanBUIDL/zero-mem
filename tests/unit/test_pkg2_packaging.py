@@ -2,12 +2,16 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
 import stat
 import subprocess
 import sys
+import tempfile
 import zipfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -84,7 +88,65 @@ def _env(home: Path) -> dict[str, str]:
 
 
 def _run(cmd: list[str], *, env: dict[str, str], cwd: Path = ROOT, check: bool = True) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(cmd, cwd=cwd, env=env, check=check, capture_output=True, text=True)
+    result = subprocess.run(cmd, cwd=cwd, env=env, check=False, capture_output=True, text=True)
+    if check and result.returncode:
+        raise AssertionError(
+            f"command failed with exit {result.returncode}: {cmd!r}\n"
+            f"stdout:\n{result.stdout[-4000:]}\n"
+            f"stderr:\n{result.stderr[-4000:]}"
+        )
+    return result
+
+
+@contextmanager
+def _pkg2_temp_root() -> Iterator[Path]:
+    """Keep Windows venv paths below MAX_PATH while retaining space coverage."""
+    with tempfile.TemporaryDirectory(prefix="zero-mem pkg2 ", ignore_cleanup_errors=True) as raw:
+        yield Path(raw)
+
+
+@pytest.fixture
+def pkg2_root() -> Iterator[Path]:
+    with _pkg2_temp_root() as root:
+        yield root
+
+
+def test_pkg2_temp_root_is_short_and_keeps_space_coverage() -> None:
+    with _pkg2_temp_root() as root:
+        assert " " in root.name
+        if os.name == "nt":
+            assert len(str(root)) < 100
+
+
+def test_pkg2_run_failure_surfaces_captured_stderr(tmp_path: Path) -> None:
+    with pytest.raises(AssertionError) as exc_info:
+        _run(
+            [sys.executable, "-c", "import sys; print('pkg2-inner-marker', file=sys.stderr); raise SystemExit(7)"],
+            env=_env(tmp_path / "diagnostic home"),
+        )
+    assert "pkg2-inner-marker" in str(exc_info.value)
+
+
+def test_installer_run_failure_preserves_inner_stderr(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    helper_dir = ROOT / "release_helpers"
+    sys.path.insert(0, str(helper_dir))
+    try:
+        spec = importlib.util.spec_from_file_location("pkg2_installer_diagnostic", INSTALLER)
+        assert spec is not None and spec.loader is not None
+        installer = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(installer)
+    finally:
+        sys.path.remove(str(helper_dir))
+
+    def fail_run(*args: object, **kwargs: object) -> None:
+        raise subprocess.CalledProcessError(7, ["python"], stderr="pkg2-installer-inner-marker")
+
+    monkeypatch.setattr(installer.subprocess, "run", fail_run)
+    with pytest.raises(installer.ReleaseError) as exc_info:
+        installer._run(["python"], cwd=tmp_path, env={}, message="outer failure")
+    message = str(exc_info.value)
+    assert "outer failure" in message
+    assert "pkg2-installer-inner-marker" in message
 
 
 def _build_wheel(
@@ -118,8 +180,12 @@ def _build_wheel(
 
 
 @pytest.fixture(scope="session")
-def bundle(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    root = tmp_path_factory.mktemp("pkg2-bundle-build")
+def bundle() -> Iterator[Path]:
+    with _pkg2_temp_root() as root:
+        yield from _build_bundle_fixture(root)
+
+
+def _build_bundle_fixture(root: Path) -> Iterator[Path]:
     builder = root / "build environment with spaces"
     build_home = root / "build home with spaces"
     build_env = _env(build_home)
@@ -163,7 +229,7 @@ def bundle(tmp_path_factory: pytest.TempPathFactory) -> Path:
     assert hashlib.sha256(build.read_bytes()).digest() == hashlib.sha256(repeated.read_bytes()).digest()
     output = root / "bundle with spaces"
     _run([sys.executable, str(BUNDLE_BUILDER), str(repeated), str(output)], env=dict(os.environ))
-    return output
+    yield output
 
 
 def _install(bundle: Path, root: Path, *, extra_env: dict[str, str] | None = None, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -189,10 +255,10 @@ def test_bundle_manifest_and_checksums_cover_release_payload(bundle: Path) -> No
     assert not any(p.suffix in {".pdf", ".sqlite", ".jsonl", ".env"} for p in bundle.rglob("*"))
 
 
-def test_fresh_offline_install_custom_xdg_and_cli(bundle: Path, tmp_path: Path) -> None:
-    result = _install(bundle, tmp_path)
+def test_fresh_offline_install_custom_xdg_and_cli(bundle: Path, pkg2_root: Path) -> None:
+    result = _install(bundle, pkg2_root)
     assert result.returncode == 0
-    home = tmp_path / "home with spaces"
+    home = pkg2_root / "home with spaces"
     runtime = home / "data root with spaces" / "zero-mem"
     bindir = home / "bin root with spaces"
     assert _is_directory_link(runtime / "current")
@@ -200,55 +266,55 @@ def test_fresh_offline_install_custom_xdg_and_cli(bundle: Path, tmp_path: Path) 
     cli = _cli(bindir)
     assert cli.is_file() and os.access(cli, os.X_OK)
     env = _env(home)
-    assert _run(_cli_invocation(cli) + ["--help"], env=env, cwd=tmp_path).returncode == 0
-    assert _run(_cli_invocation(cli) + ["--version"], env=env, cwd=tmp_path).stdout.strip() == f"zero-mem {VERSION}"
-    imports = _run([str(_venv_python(runtime / "current" / "venv")), "-c", "import zero_mem, src; print(zero_mem.__version__)"], env=env, cwd=tmp_path)
+    assert _run(_cli_invocation(cli) + ["--help"], env=env, cwd=pkg2_root).returncode == 0
+    assert _run(_cli_invocation(cli) + ["--version"], env=env, cwd=pkg2_root).stdout.strip() == f"zero-mem {VERSION}"
+    imports = _run([str(_venv_python(runtime / "current" / "venv")), "-c", "import zero_mem, src; print(zero_mem.__version__)"], env=env, cwd=pkg2_root)
     assert imports.stdout.strip() == VERSION
 
 
-def test_checksum_tampering_fails_before_activation(bundle: Path, tmp_path: Path) -> None:
+def test_checksum_tampering_fails_before_activation(bundle: Path, pkg2_root: Path) -> None:
     payload = next((bundle / "wheels").glob("*.whl"))
     original = payload.read_bytes()
     try:
         payload.write_bytes(original + b"tamper")
-        result = _install(bundle, tmp_path, check=False)
+        result = _install(bundle, pkg2_root, check=False)
     finally:
         payload.write_bytes(original)
     assert result.returncode != 0
     assert "checksum" in result.stderr.lower()
-    runtime = tmp_path / "home with spaces" / "data root with spaces" / "zero-mem"
+    runtime = pkg2_root / "home with spaces" / "data root with spaces" / "zero-mem"
     assert not (runtime / "current").exists()
     assert not (runtime / "current").is_symlink()
 
 
-def test_interrupted_install_preserves_previous_active_runtime(bundle: Path, tmp_path: Path) -> None:
-    assert _install(bundle, tmp_path).returncode == 0
-    home = tmp_path / "home with spaces"
+def test_interrupted_install_preserves_previous_active_runtime(bundle: Path, pkg2_root: Path) -> None:
+    assert _install(bundle, pkg2_root).returncode == 0
+    home = pkg2_root / "home with spaces"
     env = _env(home)
     runtime = home / "data root with spaces" / "zero-mem"
     before = (runtime / "current").resolve()
-    result = _install(bundle, tmp_path, extra_env={"ZERO_MEM_TEST_FAIL_BEFORE_ACTIVATION": "1"}, check=False)
+    result = _install(bundle, pkg2_root, extra_env={"ZERO_MEM_TEST_FAIL_BEFORE_ACTIVATION": "1"}, check=False)
     assert result.returncode != 0
     assert (runtime / "current").resolve() == before
     assert not list((runtime / "runtimes").glob(".staging-*"))
-    assert _run([str(_venv_python(runtime / "current" / "venv")), "-m", "zero_mem.cli", "--version"], env=env, cwd=tmp_path).stdout.strip() == f"zero-mem {VERSION}"
+    assert _run([str(_venv_python(runtime / "current" / "venv")), "-m", "zero_mem.cli", "--version"], env=env, cwd=pkg2_root).stdout.strip() == f"zero-mem {VERSION}"
 
 
-def test_same_version_reinstall_is_non_destructive(bundle: Path, tmp_path: Path) -> None:
-    _install(bundle, tmp_path)
-    home = tmp_path / "home with spaces"
+def test_same_version_reinstall_is_non_destructive(bundle: Path, pkg2_root: Path) -> None:
+    _install(bundle, pkg2_root)
+    home = pkg2_root / "home with spaces"
     runtime = home / "data root with spaces" / "zero-mem"
     sentinel = runtime / "user-data-sentinel"
     sentinel.write_text("preserve")
     before = (runtime / "current").resolve()
-    assert _install(bundle, tmp_path).returncode == 0
+    assert _install(bundle, pkg2_root).returncode == 0
     assert (runtime / "current").resolve() == before
     assert sentinel.read_text() == "preserve"
 
 
-def test_default_uninstall_preserves_user_data(bundle: Path, tmp_path: Path) -> None:
-    _install(bundle, tmp_path)
-    home = tmp_path / "home with spaces"
+def test_default_uninstall_preserves_user_data(bundle: Path, pkg2_root: Path) -> None:
+    _install(bundle, pkg2_root)
+    home = pkg2_root / "home with spaces"
     runtime = home / "data root with spaces" / "zero-mem"
     sentinel = runtime / "Memory" / "canonical.jsonl"
     sentinel.parent.mkdir(parents=True)
@@ -261,13 +327,13 @@ def test_default_uninstall_preserves_user_data(bundle: Path, tmp_path: Path) -> 
     assert sentinel.read_text() == "synthetic canonical data"
 
 
-def test_uninstall_refuses_unsafe_active_symlink(bundle: Path, tmp_path: Path) -> None:
-    _install(bundle, tmp_path)
-    home = tmp_path / "home with spaces"
+def test_uninstall_refuses_unsafe_active_symlink(bundle: Path, pkg2_root: Path) -> None:
+    _install(bundle, pkg2_root)
+    home = pkg2_root / "home with spaces"
     runtime = home / "data root with spaces" / "zero-mem"
     current = runtime / "current"
     _remove_directory_link(current)
-    outside = tmp_path / "outside"
+    outside = pkg2_root / "outside"
     outside.mkdir()
     if os.name == "nt":
         _run(["cmd", "/c", "mklink", "/J", str(current), str(outside)], env=_env(home))
@@ -294,64 +360,64 @@ def test_no_network_fallback_is_encoded_in_installer_source() -> None:
     assert "input(" in text
 
 
-def test_installer_has_no_repository_dependency(bundle: Path, tmp_path: Path) -> None:
-    result = _install(bundle, tmp_path)
+def test_installer_has_no_repository_dependency(bundle: Path, pkg2_root: Path) -> None:
+    result = _install(bundle, pkg2_root)
     assert result.returncode == 0
-    home = tmp_path / "home with spaces"
+    home = pkg2_root / "home with spaces"
     venv = home / "data root with spaces" / "zero-mem" / "current" / "venv"
     env = _env(home)
-    output = _run([str(_venv_python(venv)), "-c", "import zero_mem, src; print(zero_mem.__file__); print(src.__path__[0])"], env=env, cwd=tmp_path).stdout
+    output = _run([str(_venv_python(venv)), "-c", "import zero_mem, src; print(zero_mem.__file__); print(src.__path__[0])"], env=env, cwd=pkg2_root).stdout
     assert str(ROOT) not in output
 
 
-def test_pypdf_remains_optional(bundle: Path, tmp_path: Path) -> None:
-    _install(bundle, tmp_path)
-    home = tmp_path / "home with spaces"
+def test_pypdf_remains_optional(bundle: Path, pkg2_root: Path) -> None:
+    _install(bundle, pkg2_root)
+    home = pkg2_root / "home with spaces"
     python = _venv_python(home / "data root with spaces" / "zero-mem" / "current" / "venv")
-    result = _run([str(python), "-c", "import importlib.util; print(importlib.util.find_spec('pypdf'))"], env=_env(home), cwd=tmp_path)
+    result = _run([str(python), "-c", "import importlib.util; print(importlib.util.find_spec('pypdf'))"], env=_env(home), cwd=pkg2_root)
     assert result.stdout.strip() == "None"
 
 
-def test_installed_runtime_exposes_setup_doctor_and_wizard(bundle: Path, tmp_path: Path) -> None:
-    assert _install(bundle, tmp_path).returncode == 0
-    home = tmp_path / "home with spaces"
+def test_installed_runtime_exposes_setup_doctor_and_wizard(bundle: Path, pkg2_root: Path) -> None:
+    assert _install(bundle, pkg2_root).returncode == 0
+    home = pkg2_root / "home with spaces"
     env = _env(home)
     cli = _cli(home / "bin root with spaces")
-    setup = _run(_cli_invocation(cli) + ["setup"], env=env, cwd=tmp_path)
+    setup = _run(_cli_invocation(cli) + ["setup"], env=env, cwd=pkg2_root)
     assert setup.stdout.strip() == "READY"
-    doctor = _run(_cli_invocation(cli) + ["doctor", "--json"], env=env, cwd=tmp_path)
+    doctor = _run(_cli_invocation(cli) + ["doctor", "--json"], env=env, cwd=pkg2_root)
     report = json.loads(doctor.stdout)
     assert report["overall"] == "READY"
     assert any(check["id"] == "hermes" and check["status"] == "WARN" for check in report["checks"])
     wizard = _run(
         _cli_invocation(cli) + ["wizard", "--non-interactive", "--skip-hermes", "--json"],
         env=env,
-        cwd=tmp_path,
+        cwd=pkg2_root,
     )
     wizard_report = json.loads(wizard.stdout)
     assert wizard_report["status"] == "READY"
     assert wizard_report["hermes"] == "SKIPPED"
 
 
-def test_installed_runtime_upgrade_check_and_same_version_reinstall_preserve_state(bundle: Path, tmp_path: Path) -> None:
-    assert _install(bundle, tmp_path).returncode == 0
-    home = tmp_path / "home with spaces"
+def test_installed_runtime_upgrade_check_and_same_version_reinstall_preserve_state(bundle: Path, pkg2_root: Path) -> None:
+    assert _install(bundle, pkg2_root).returncode == 0
+    home = pkg2_root / "home with spaces"
     env = _env(home)
     cli = _cli(home / "bin root with spaces")
-    assert _run(_cli_invocation(cli) + ["setup"], env=env, cwd=tmp_path).returncode == 0
+    assert _run(_cli_invocation(cli) + ["setup"], env=env, cwd=pkg2_root).returncode == 0
     data_root = home / "data root with spaces" / "zero-mem"
     canonical = data_root / "data" / "memory" / "traces" / "events-v1.jsonl"
     canonical.write_text('{"event_id":"pkg6-installed","event_type":"user_statement"}\n', encoding="utf-8")
     before = canonical.read_bytes()
 
-    checked = json.loads(_run(_cli_invocation(cli) + ["upgrade", "--check", "--json"], env=env, cwd=tmp_path).stdout)
+    checked = json.loads(_run(_cli_invocation(cli) + ["upgrade", "--check", "--json"], env=env, cwd=pkg2_root).stdout)
     assert checked["status"] == "READY"
     assert checked["compatibility"] == "NO_MIGRATION_REQUIRED"
     assert canonical.read_bytes() == before
-    upgraded = json.loads(_run(_cli_invocation(cli) + ["upgrade", "--json"], env=env, cwd=tmp_path).stdout)
+    upgraded = json.loads(_run(_cli_invocation(cli) + ["upgrade", "--json"], env=env, cwd=pkg2_root).stdout)
     assert upgraded["status"] == "SUCCESS"
     assert canonical.read_bytes() == before
-    assert _install(bundle, tmp_path).returncode == 0
+    assert _install(bundle, pkg2_root).returncode == 0
     assert canonical.read_bytes() == before
-    report = json.loads(_run([str(cli), "doctor", "--json"], env=env, cwd=tmp_path).stdout)
+    report = json.loads(_run([str(cli), "doctor", "--json"], env=env, cwd=pkg2_root).stdout)
     assert report["overall"] == "READY"

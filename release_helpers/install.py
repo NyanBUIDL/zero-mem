@@ -48,8 +48,12 @@ def _parser() -> argparse.ArgumentParser:
 def _run(command: list[str], *, cwd: Path, env: dict[str, str], message: str) -> None:
     try:
         subprocess.run(command, cwd=cwd, env=env, check=True, capture_output=True, text=True)
-    except (OSError, subprocess.CalledProcessError) as exc:
-        raise fail(message) from exc
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or exc.stdout or str(exc)).strip()
+        suffix = f": {detail[-4000:]}" if detail else ""
+        raise fail(f"{message}{suffix}") from exc
+    except OSError as exc:
+        raise fail(f"{message}: {exc}") from exc
 
 
 def _runtime_python(venv: Path) -> Path:

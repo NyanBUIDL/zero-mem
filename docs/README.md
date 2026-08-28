@@ -6,7 +6,9 @@ sự thật đó.
 
 ## Bắt đầu ở đâu
 
-- Phiên bản đang qualification: [`v1.6.0/`](v1.6.0/README.md).
+- Patch đang qualification: [`v1.6.1/EVIDENCE.md`](v1.6.1/EVIDENCE.md) và
+  [`releases/RELEASE-NOTES-v1.6.1.md`](releases/RELEASE-NOTES-v1.6.1.md).
+- Kiến trúc release hiện hành: [`v1.6.0/`](v1.6.0/README.md).
 - Kiến trúc xuyên phiên bản: [`architecture/ARCHITECTURE.md`](architecture/ARCHITECTURE.md).
 - Quy tắc Git/GitHub: [`governance/GITHUB-POLICY.md`](governance/GITHUB-POLICY.md).
 - Defect registry append-only: [`defects/DEFECT-REGISTRY.md`](defects/DEFECT-REGISTRY.md).
@@ -37,7 +39,8 @@ Patch release nhỏ có thể dùng release notes + defect registry + overlay tr
 
 | Đường dẫn | Trạng thái | Ghi chú |
 |---|---|---|
-| [`v1.6.0/`](v1.6.0/README.md) | **Active candidate** | Core 9/9 qualified; DX01 wizard exact-SHA CI/release pending |
+| [`v1.6.1/`](v1.6.1/EVIDENCE.md) | **Active patch candidate** | Audit remediation; exact-commit remote 9-cell qualification pending |
+| [`v1.6.0/`](v1.6.0/README.md) | **Released / immutable** | Tag và GitHub Release tại source SHA `267fd9ae830eff41aeaf85cbfbd41f38c03849a6` |
 | [`v1.6/`](v1.6/README.md) | Historical staging | Proposal, remediation record và probe ban đầu; đã được index từ `v1.6.0/` |
 | [`v1.5/`](v1.5/) | Historical v1.5.0 | Enterprise authorization work |
 | [`v1.5.1/`](v1.5.1/) | Historical patch docs | Qualification/remediation v1.5.1 |
@@ -51,10 +54,10 @@ làm hỏng liên kết và checksum lịch sử. Từ v1.6.0 trở đi dùng `v
 
 ## Evidence authority
 
-Chỉ mục chính thức của v1.6.0 là [`v1.6.0/EVIDENCE.md`](v1.6.0/EVIDENCE.md).
-Nó trỏ tới evidence cũ ở `audit/`, `artifacts/evidence/` và `docs/acceptance/`
-mà không sửa hoặc di chuyển nội dung đã nghiệm thu. Evidence mới từ C5 trở đi
-dùng `docs/v1.6.0/evidence/<work-package>/`.
+Chỉ mục kiến trúc/Multi-KS chính thức của v1.6.0 là
+[`v1.6.0/EVIDENCE.md`](v1.6.0/EVIDENCE.md); patch overlay hiện tại nằm tại
+[`v1.6.1/EVIDENCE.md`](v1.6.1/EVIDENCE.md). Evidence lịch sử ở `audit/`,
+`artifacts/evidence/` và `docs/acceptance/` không bị sửa hoặc di chuyển.
 
 ## Quy tắc bảo toàn lịch sử
 

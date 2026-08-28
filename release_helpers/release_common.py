@@ -12,7 +12,7 @@ from pathlib import Path
 
 MANIFEST_NAME = "manifest.json"
 CHECKSUMS_NAME = "checksums.sha256"
-SUPPORTED_RELEASE_VERSION = "1.6.0"
+SUPPORTED_RELEASE_VERSION = "1.6.1"
 
 
 class ReleaseError(RuntimeError):

@@ -58,16 +58,16 @@ def test_pyyaml_and_pytest_only_in_extras():
     assert any("pytest" in dep for dep in extras["test"]), "pytest not in [test] extra"
 
 
-def test_workflow_file_declares_master_pr_tag_triggers():
-    """The CI workflow must actually trigger on master push / PR / tag (DEF-024)."""
+def test_retired_v160_workflow_is_manual_replay_only():
+    """The superseded v1.6.0 matrix must not duplicate active v1.6.1 runs."""
     wf = REPO_ROOT / ".github" / "workflows" / "v1.6.0-qualification.yml"
     assert wf.exists(), "CI workflow missing"
-    text = wf.read_text("utf-8")
-    assert "branches: [master]" in text
-    assert "v160/multi-ks" in text
-    assert "pull_request:" in text
-    assert 'tags: ["v*"]' in text
+    import yaml
+
+    document = yaml.load(wf.read_text("utf-8"), Loader=yaml.BaseLoader)
+    assert document["on"] == {"workflow_dispatch": ""}
     # The CI installs the declared extras that provide PyYAML + pytest + build.
+    text = wf.read_text("utf-8")
     assert ".[test,ci]" in text or ".[test]" in text
 
 

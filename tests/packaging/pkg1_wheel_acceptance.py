@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run the PKG-1 installed-wheel acceptance outside the repository.
 
-Usage: python tests/packaging/pkg1_wheel_acceptance.py dist/zero_mem-1.2.2-py3-none-any.whl
+Usage: python tests/packaging/pkg1_wheel_acceptance.py dist/zero_mem-X.Y.Z-py3-none-any.whl
 """
 
 from __future__ import annotations
@@ -35,7 +35,9 @@ def main() -> int:
         root = Path(temp)
         venv = root / "fresh venv"
         subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True, capture_output=True, text=True)
-        python = venv / "bin" / "python"
+        scripts_dir = venv / ("Scripts" if os.name == "nt" else "bin")
+        python = scripts_dir / ("python.exe" if os.name == "nt" else "python")
+        zero_mem = scripts_dir / ("zero-mem.exe" if os.name == "nt" else "zero-mem")
         pip = [str(python), "-m", "pip"]
         subprocess.run(
             pip + ["install", "--no-index", "--no-deps", str(wheel)],
@@ -49,23 +51,27 @@ def main() -> int:
         env["PYTHONNOUSERSITE"] = "1"
         env["HOME"] = str(root / "home with spaces")
         env["PYTHONPATH"] = ""
+        expected_version = run(
+            [str(python), "-c", 'import importlib.metadata as m; print(m.version("zero-mem"))'],
+            cwd=root,
+            env=env,
+        )
         code = (
             "import importlib.metadata as m, importlib.util, pathlib, zero_mem, src, src.corpus, "
             "src.storage.sqlite_store; "
-            "assert zero_mem.__version__ == '1.2.2'; "
-            "assert m.version('zero-mem') == '1.2.2'; "
+            'assert zero_mem.__version__ == m.version("zero-mem"); '
             "assert 'site-packages' in str(pathlib.Path(zero_mem.__file__)); "
             "assert 'site-packages' in str(pathlib.Path(src.__path__[0])); "
             "assert importlib.util.find_spec('pypdf') is None; "
             "print(zero_mem.__file__); print(src.__path__[0])"
         )
         imports = run([str(python), "-c", code], cwd=root, env=env)
-        help_text = run([str(venv / "bin" / "zero-mem"), "--help"], cwd=root, env=env)
-        version_flag = run([str(venv / "bin" / "zero-mem"), "--version"], cwd=root, env=env)
-        version_command = run([str(venv / "bin" / "zero-mem"), "version"], cwd=root, env=env)
+        help_text = run([str(zero_mem), "--help"], cwd=root, env=env)
+        version_flag = run([str(zero_mem), "--version"], cwd=root, env=env)
+        version_command = run([str(zero_mem), "version"], cwd=root, env=env)
         assert "usage: zero-mem" in help_text
-        assert version_flag == "zero-mem 1.2.2"
-        assert version_command == "1.2.2"
+        assert version_flag == f"zero-mem {expected_version}"
+        assert version_command == expected_version
         assert str(repo) not in imports
         print(f"wheel={wheel.name}")
         print(f"venv={venv}")
