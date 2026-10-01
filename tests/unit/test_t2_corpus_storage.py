@@ -201,3 +201,123 @@ class TestDef050StaleUnits:
         env.conn.commit()
         rebuilt = {(r["unit_id"], r["normalized_text"], r["unit_order"]) for r in env.unit_rows()}
         assert incremental == rebuilt
+
+
+# ---------------------------------------------------------------------------
+# DEF-053 - multi-process write races
+# ---------------------------------------------------------------------------
+
+import json
+import multiprocessing
+import os
+import threading
+
+from tests.unit import _t2_workers as W
+
+
+def _run_procs(targets_args, timeout=120):
+    """Start one spawn process per (target, args); return the parent-queue results."""
+    ctx = multiprocessing.get_context("spawn")
+    out = ctx.Queue()
+    barrier = ctx.Barrier(len(targets_args))
+    procs = [ctx.Process(target=t, args=(*a, barrier, out)) for t, a in targets_args]
+    for p in procs:
+        p.start()
+    results = [out.get(timeout=timeout) for _ in procs]
+    for p in procs:
+        p.join(timeout)
+    return results
+
+
+class TestDef053BlobStoreConcurrency:
+    def test_blob_temp_names_are_unique_per_writer(self, tmp_path, monkeypatch):
+        """Two writers of the same digest must never share one temp path."""
+        store = CorpusBlobStore(root=tmp_path / "c")
+        seen = []
+        real_replace = os.replace
+
+        def spy(src, dst):
+            seen.append(Path(src))
+            return real_replace(src, dst)
+
+        monkeypatch.setattr(os, "replace", spy)
+        digest = store.put(content=b"same bytes", source_ref="a")
+        target = store._path_for(digest)
+        target.unlink()  # force a second physical write of the same digest
+        store.put(content=b"same bytes", source_ref="b")
+        assert len(seen) == 2 and seen[0] != seen[1]
+        assert all(p.parent == target.parent for p in seen)  # same dir -> atomic replace
+
+    def test_four_processes_write_identical_bytes_without_crash(self, tmp_path):
+        root = tmp_path / "corpus"
+        CorpusBlobStore(root=root)  # create dirs up front
+        for round_no in range(3):
+            content = (f"round {round_no} ".encode() * 600_000)[:6_000_000]
+            results = _run_procs([(W.blob_put, (str(root), content)) for _ in range(4)])
+            errors = [r for r in results if r[0] != "ok"]
+            assert errors == [], errors
+            digests = {r[1] for r in results}
+            assert digests == {hashlib.sha256(content).hexdigest()}
+            store = CorpusBlobStore(root=root)
+            assert store.get(digests.pop()) == content
+        leftovers = [p for p in (root / "blobs").rglob("*") if p.is_file() and len(p.name) != 64]
+        assert leftovers == [], leftovers
+
+
+class TestDef053RegistryConcurrency:
+    def test_four_processes_same_logical_source_create_one_line(self, tmp_path):
+        root = tmp_path / "corpus"
+        CorpusSourceRegistry(root=root)
+        for round_no in range(3):
+            ref = f"mem://persona/race-{round_no}"
+            results = _run_procs([(W.register_same, (str(root), b"identical bytes\n", ref)) for _ in range(4)])
+            assert [r for r in results if r[0] != "ok"] == [], results
+            assert len({r[1] for r in results}) == 1
+            lines = (root / "corpus_sources.jsonl").read_bytes().splitlines()
+            matching = [l for l in lines if json.loads(l)["external_ref"] == ref]
+            assert len(matching) == 1, f"round {round_no}: {len(matching)} lines for one logical source"
+
+    def test_concurrent_distinct_sources_all_land_exactly_once(self, tmp_path):
+        root = tmp_path / "corpus"
+        CorpusSourceRegistry(root=root)
+        results = _run_procs(
+            [(W.register_many, (str(root), w, 10, "mem://persona/shared")) for w in range(4)])
+        assert [r for r in results if r[0] != "ok"] == [], results
+        raw = (root / "corpus_sources.jsonl").read_bytes()
+        assert raw.endswith(b"\n")
+        rows = [json.loads(l) for l in raw.splitlines()]  # every line is intact JSON
+        assert len(rows) == 4 * 10 + 1
+        assert len({r["source_id"] for r in rows}) == 41
+        assert len(CorpusSourceRegistry(root=root).all_records()) == 41
+
+    def test_stale_long_lived_registry_rereads_inside_the_lock(self, tmp_path):
+        root = tmp_path / "corpus"
+        stale = CorpusSourceRegistry(root=root)           # snapshot: empty
+        fresh = CorpusSourceRegistry(root=root)
+        v1 = fresh.register_source_with_blob(content=b"v1\n", external_ref="mem://p/x", kind="txt")
+        again = stale.register_source_with_blob(content=b"v1\n", external_ref="mem://p/x", kind="txt")
+        assert again.source_version_id == v1.source_version_id
+        assert len((root / "corpus_sources.jsonl").read_bytes().splitlines()) == 1
+        v2 = stale.register_source_with_blob(content=b"v2\n", external_ref="mem://p/x", kind="txt")
+        assert v2.supersedes == v1.source_version_id      # chain built from the on-disk truth
+        assert len((root / "corpus_sources.jsonl").read_bytes().splitlines()) == 2
+        assert len(CorpusSourceRegistry(root=root).all_records()) == 2
+
+    def test_write_lock_is_reentrant_within_a_thread(self, tmp_path):
+        from src.corpus.registry import corpus_write_lock
+
+        root = tmp_path / "corpus"
+        reg = CorpusSourceRegistry(root=root)
+        done = []
+
+        def work():
+            with corpus_write_lock(root):
+                reg.register_source_with_blob(content=b"a\n", external_ref="mem://p/a", kind="txt")
+                fresh = CorpusSourceRegistry(root=root)   # constructing inside the lock must not block
+                assert len(fresh.all_records()) == 1
+                done.append(True)
+
+        t = threading.Thread(target=work, daemon=True)
+        t.start()
+        t.join(20)
+        assert done == [True], "register/construct inside corpus_write_lock deadlocked"

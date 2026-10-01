@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import tempfile
 import threading
 from pathlib import Path
 from typing import Final, Optional
@@ -99,13 +100,48 @@ class CorpusBlobStore:
                     raise BlobStoreError("blob_store: read_failed") from None
             else:
                 target.parent.mkdir(parents=True, exist_ok=True)
-                tmp = target.with_suffix(".part")
-                tmp.write_bytes(content)
-                os.chmod(tmp, 0o600)
-                os.replace(tmp, target)  # atomic
-                if os.name != "nt":
-                    os.chmod(target, 0o600)
+                self._write_atomic(target, content, digest)
         return digest
+
+    def _write_atomic(self, target: Path, content: bytes, digest: str) -> None:
+        """Write ``content`` to ``target`` via a per-writer unique temp file.
+
+        DEF-053: the temp file is created with ``mkstemp`` in the target's own
+        directory (same filesystem => atomic ``os.replace``), so concurrent
+        writers of identical bytes -- threads or processes -- never share a
+        temp path. Identical content makes the last replace a harmless no-op.
+        """
+        fd, tmp_name = tempfile.mkstemp(
+            dir=str(target.parent), prefix=f".{digest[:16]}.", suffix=".part")
+        tmp = Path(tmp_name)
+        try:
+            with os.fdopen(fd, "wb") as stream:
+                stream.write(content)
+            if os.name != "nt":
+                os.chmod(tmp, 0o600)
+            try:
+                os.replace(tmp, target)  # atomic
+            except OSError:
+                # Windows can refuse to replace a file another process has open;
+                # identical content-addressed bytes already in place are success.
+                if not self._target_matches(target, digest):
+                    raise
+                tmp.unlink(missing_ok=True)
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
+        if os.name != "nt":
+            os.chmod(target, 0o600)
+
+    def _target_matches(self, target: Path, digest: str) -> bool:
+        try:
+            return (
+                target.is_file()
+                and not target.is_symlink()
+                and self._sha256(target.read_bytes()) == digest
+            )
+        except OSError:
+            return False
 
     def get(self, digest: str) -> bytes:
         self._validate_digest(digest)
