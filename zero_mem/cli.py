@@ -66,6 +66,18 @@ def build_parser() -> argparse.ArgumentParser:
     upgrade_parser.add_argument("--check", action="store_true", help="inspect upgrade compatibility without changing state")
     upgrade_parser.add_argument("--json", action="store_true", help="emit machine-readable output")
     upgrade_parser.set_defaults(_upgrade=True)
+    add_parser = subparsers.add_parser("add", help="remember a piece of text")
+    add_parser.add_argument("text", nargs="+")
+    add_parser.set_defaults(_notes_add=True)
+    ingest_parser = subparsers.add_parser("ingest", help="ingest a file or folder (md/txt/chat logs)")
+    ingest_parser.add_argument("path")
+    ingest_parser.add_argument("--format", choices=["auto", "text", "chat"], default="auto")
+    ingest_parser.set_defaults(_notes_ingest=True)
+    search_parser = subparsers.add_parser("search", help="search remembered notes")
+    search_parser.add_argument("query", nargs="+")
+    search_parser.add_argument("-k", "--limit", type=int, default=5)
+    search_parser.add_argument("--json", action="store_true", help="emit machine-readable output")
+    search_parser.set_defaults(_notes_search=True)
     from .commands_config_grant import add_config_parsers
 
     add_config_parsers(subparsers)
@@ -173,6 +185,26 @@ def main(argv: list[str] | None = None) -> int:
             return 0 if result["status"] in {"READY", "SUCCESS"} else 2
         except UpgradeError as exc:
             print(f"zero-mem: upgrade failed: {exc.code}", file=sys.stderr)
+            return 2
+    elif getattr(args, "_notes_add", False) or getattr(args, "_notes_ingest", False) \
+            or getattr(args, "_notes_search", False):
+        from .notes import NotesError, NotesStore
+
+        store = NotesStore()
+        try:
+            if getattr(args, "_notes_add", False):
+                print(json.dumps(store.add_text(" ".join(args.text), source="cli"), sort_keys=True))
+            elif getattr(args, "_notes_ingest", False):
+                print(json.dumps(store.ingest_path(Path(args.path), args.format), sort_keys=True))
+            else:
+                hits = store.search(" ".join(args.query), args.limit)
+                if args.json:
+                    print(json.dumps([h.__dict__ for h in hits], ensure_ascii=False))
+                else:
+                    for i, h in enumerate(hits, 1):
+                        print(f"{i}. [{h.source}] {h.text}")
+        except NotesError as exc:
+            print(f"zero-mem: {exc}", file=sys.stderr)
             return 2
     if getattr(args, "_config_set", False) or getattr(args, "_config_unset", False) \
             or getattr(args, "_config_show", False):

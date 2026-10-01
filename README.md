@@ -226,3 +226,15 @@ ADR, and the defect registry. Before any Git or GitHub mutation, read the
 Do not rewrite canonical history, weaken access boundaries, treat derived state
 as canonical, commit generated/private data, or claim completion without
 executable evidence.
+
+## Quick notes: remember and search your own data
+
+```bash
+zero-mem add "Alice prefers PostgreSQL"      # remember a snippet
+zero-mem ingest ./notes-or-chat-logs         # .md/.txt (paragraphs) and .jsonl/.log (chat turns)
+zero-mem search "which database for Alice" -k 5 --json
+```
+
+Notes live in an append-only JSONL with a rebuildable SQLite FTS5 index; secrets are rejected, never stored.
+Offline retrieval benchmark for LongMemEval / LoCoMo formats: `python benchmarks/memory_qa_benchmark.py locomo locomo10.json -k 1 5 10`
+(lexical baseline on LoCoMo10, turn-level: hit@10 0.63, recall@10 0.58).
