@@ -41,14 +41,21 @@ _CLIENT_LABEL = {
     "hermes": "Hermes",
     "openclaw": "OpenClaw",
 }
-#: What was actually exercised (docs/runbooks/agent-integration.md has the dated evidence). Only Claude Code's own
-#: CLI was available to run: `claude mcp add` took the printed command and `claude mcp list` (the client's real
-#: health check) reported the server Connected. Nothing was run in Codex, Hermes or OpenClaw.
-_VERIFIED_WITH_REAL_CLIENT = frozenset({"claude-code"})
-_NOTE_VERIFIED = ("verified with Claude Code's own CLI: `claude mcp add` accepted this command and `claude mcp list` "
-                  "reported the server Connected (Claude Code 2.1.286); the model's tool calls were not exercised")
-_NOTE_UNVERIFIED = ("NOT verified with the real {label} client: command, args and env were exercised with the zero-mem "
-                    "stdio test client only, and the {label} configuration format is documented from its spec")
+#: What was actually exercised with each REAL client CLI on 2026-10-01 (docs/runbooks/agent-integration.md and
+#: docs/defects/closures/T6b.md have the transcripts). Only Claude Code could drive a model; the others have no model
+#: access in the sandbox, so for them a tool call by the model was NOT exercised.
+_VERIFICATION_NOTES = {
+    "claude-code": "verified with Claude Code 2.1.286: `claude mcp add` accepted this command, `claude mcp list` reported "
+                   "the server Connected, and a scripted `claude -p` session had the model call the tools",
+    "codex": "verified with Codex 0.159.3: `codex mcp get` parsed this config.toml block, `codex mcp add` wrote the same "
+             "entry and the client completed initialize and tools/list; a model-driven tool call was NOT exercised",
+    "hermes": "verified with hermes-agent 0.19.0: `hermes mcp add` saved this entry, `hermes mcp list` shows it enabled "
+              "and `hermes mcp test` connected and discovered the tools; a model-driven tool call was NOT exercised",
+    "openclaw": "verified with OpenClaw 2026.6.35: `openclaw mcp set` and `openclaw mcp add` accepted this entry, "
+                "`openclaw mcp doctor` was ok and `openclaw mcp probe` listed the tools; a model-driven tool call was "
+                "NOT exercised",
+}
+_MODEL_CALLS_VERIFIED = frozenset({"claude-code"})
 
 
 # ---------------------------------------------------------------------------------------------
@@ -170,6 +177,7 @@ def _pinned_env() -> Dict[str, str]:
 
 
 def _toml_str(value: str) -> str:
+    """A double-quoted string: valid as a TOML basic string AND as a YAML double-quoted scalar (same escapes)."""
     out = ['"']
     for ch in value:
         code = ord(ch)
@@ -207,6 +215,15 @@ def _json(value: Any) -> str:
     return json.dumps(value, indent=2, ensure_ascii=False)
 
 
+def _hermes_yaml(name: str, command: str, args: List[str], env: Dict[str, str]) -> str:
+    """The ``mcp_servers`` block of ``$HERMES_HOME/config.yaml`` (same shape ``hermes mcp add`` writes)."""
+    lines = ["mcp_servers:", f"  {_toml_str(name)}:", f"    command: {_toml_str(command)}",
+             f"    args: {_toml_array(args)}", "    env:"]
+    lines += [f"      {_toml_str(key)}: {_toml_str(value)}" for key, value in env.items()]
+    lines.append("    enabled: true")
+    return "\n".join(lines) + "\n"
+
+
 def _snippets(agent: str, name: str, command: str, args: List[str], env: Dict[str, str]) -> Dict[str, str]:
     env_flags_short = [part for key, value in env.items() for part in ("-e", f"{key}={value}")]
     env_flags_long = [part for key, value in env.items() for part in ("--env", f"{key}={value}")]
@@ -225,7 +242,22 @@ def _snippets(agent: str, name: str, command: str, args: List[str], env: Dict[st
             "config_toml": "\n".join(lines) + "\n",
             "codex_mcp_add": _shell(["codex", "mcp", "add", name, *env_flags_long, "--", command, *args]),
         }
-    return {"mcp_json": _json({"mcpServers": {name: entry}})}
+    generic = {"mcp_json": _json({"mcpServers": {name: entry}})}
+    if agent == "hermes":
+        # `--args` must be the last option of `hermes mcp add`; `--env` takes KEY=VALUE words up to the next option
+        return {
+            "hermes_mcp_add": _shell(["hermes", "mcp", "add", name, "--command", command, "--env",
+                                      *[f"{k}={v}" for k, v in env.items()], "--args", *args]),
+            "config_yaml": _hermes_yaml(name, command, args, env),
+            **generic,
+        }
+    # openclaw: `mcp set` takes the server entry itself (not wrapped in "mcpServers"); `--arg=VALUE` keeps a leading "-"
+    return {
+        "openclaw_mcp_set": _shell(["openclaw", "mcp", "set", name, json.dumps(entry, ensure_ascii=False)]),
+        "openclaw_mcp_add": _shell(["openclaw", "mcp", "add", name, "--command", command,
+                                    *[f"--arg={a}" for a in args], *env_flags_long]),
+        **generic,
+    }
 
 
 def build_registration(agent: str, profile: str, *, name: str = DEFAULT_SERVER_NAME, enable_write: bool = False,
@@ -250,11 +282,11 @@ def build_registration(agent: str, profile: str, *, name: str = DEFAULT_SERVER_N
         "allow_roots": roots,
         "operator_steps": steps,
         "verified": {
-            "server_command": True,   # exercised with the zero-mem stdio test client
-            "client_config_format": agent in _VERIFIED_WITH_REAL_CLIENT,
+            "server_command": True,         # exercised with the zero-mem stdio test client
+            "client_config_format": True,   # accepted by the real client CLI (see verification_note for the version)
+            "model_tool_calls": agent in _MODEL_CALLS_VERIFIED,
         },
-        "verification_note": (_NOTE_VERIFIED if agent in _VERIFIED_WITH_REAL_CLIENT
-                              else _NOTE_UNVERIFIED.format(label=_CLIENT_LABEL[agent])),
+        "verification_note": _VERIFICATION_NOTES[agent],
         "snippets": _snippets(agent, name, command, args, env),
     }
 
@@ -292,10 +324,16 @@ def render_text(reg: Dict[str, Any]) -> str:
     elif agent == "codex":
         lines += ["# Codex: append to ~/.codex/config.toml", snippets["config_toml"].rstrip("\n"), "",
                   "# Codex: or the equivalent command", f"# {snippets['codex_mcp_add']}"]
+    elif agent == "hermes":
+        lines += ["# Hermes: command line (it connects, lists the tools and asks which to enable)",
+                  snippets["hermes_mcp_add"], "",
+                  "# Hermes: or the equivalent block in $HERMES_HOME/config.yaml (default ~/.hermes/config.yaml)",
+                  snippets["config_yaml"].rstrip("\n"), "",
+                  "# Generic stdio entry (command / args / env) for any other MCP client", snippets["mcp_json"]]
     else:
-        lines += [f"# {label}: generic stdio MCP server entry (command / args / env).",
-                  "# The file and the key that hold it differ between client versions; check the client's MCP docs.",
-                  snippets["mcp_json"]]
+        lines += ["# OpenClaw: command line (stores the entry under mcp.servers)", snippets["openclaw_mcp_set"], "",
+                  "# OpenClaw: or add it from flags (probes the server first)", snippets["openclaw_mcp_add"], "",
+                  "# Generic stdio entry (command / args / env) for any other MCP client", snippets["mcp_json"]]
     return "\n".join(lines)
 
 

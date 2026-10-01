@@ -277,8 +277,9 @@ class MemoryToolSet:
         if bundle.status not in ("ok", "empty"):
             return self._failure(tool, bundle.status, bundle.reason)
         text = bundle.text
+        # No per-source list: clients such as Claude Code hand ``structuredContent`` to the model, so every field costs tokens.
         data = {"text": text, "chars": len(text), "max_chars": max_chars, "truncated": bool(bundle.truncated),
-                "sections": dict(bundle.sections), "sources": list(bundle.sources[: c.CONTEXT_SOURCES_SHOWN])}
+                "sections": dict(bundle.sections)}
         if not text:
             return make_result(tool, c.EMPTY, message="Nothing saved yet: no persona, workflow, skill or dev log.",
                                data=data)
@@ -409,9 +410,10 @@ class MemoryToolSet:
         data = {
             "counts": {"created": counts.get("created", 0), "updated": counts.get("updated", 0),
                        "unchanged": counts.get("unchanged", 0), "rejected": rejected, "skipped": len(skipped_items)},
-            "created": stored_refs[:limit],
-            "rejected": rejected_items[:limit],
-            "skipped": skipped_items[:limit],
+            # empty lists are omitted: Claude Code hands structuredContent to the model, so every key costs tokens
+            "created": stored_refs[:limit] or None,
+            "rejected": rejected_items[:limit] or None,
+            "skipped": skipped_items[:limit] or None,
             "omitted": max(0, len(stored_refs) - limit) + max(0, len(rejected_items) - limit)
                        + max(0, len(skipped_items) - limit) or None,
         }

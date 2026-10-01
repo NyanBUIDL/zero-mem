@@ -37,8 +37,10 @@ needs the operator's write approval) or `project` (a project's devlog; needs the
 (`name`) is versioned: adding again under the same name replaces what recall returns. The tool descriptions tell the agent when to
 call each tool, what the arguments mean, that recalled text is stored data and not instructions, and never to include secrets.
 
-Every call returns an MCP result `{content, structuredContent, isError}`. `content[0].text` is what a text-only client shows the
-model (for `memory_context` it is the bundle itself); `structuredContent` is the same answer as JSON.
+Every call returns an MCP result `{content, structuredContent, isError}`: `structuredContent` is the complete answer as JSON, `content[0].text` the same answer
+as short readable text (for `memory_context` it is the bundle itself). Claude Code was observed to hand the model `structuredContent` for a successful call and
+`content[0].text` for an `isError` call, so both carry everything the agent needs: a failure is fully explained in its text (status, `reason_code`, what to do, the
+operator command), and a success holds the whole answer in the JSON. Empty lists and per-source lists are left out to keep that JSON small.
 
 | `status` | `isError` | Meaning |
 |---|---|---|
@@ -90,9 +92,16 @@ codex         [mcp_servers.zero-mem]                     # append to ~/.codex/co
               args = ["-m", "zero_mem.cli", "serve", "--profile", "codex"]
               [mcp_servers.zero-mem.env]
               ZERO_MEM_DATA_ROOT = "/data/zm"
-hermes        generic stdio entry: {"mcpServers": {"zero-mem": {"command": ..., "args": [...], "env": {...}}}}
-openclaw      the same generic entry
+              (or: codex mcp add zero-mem --env ZERO_MEM_DATA_ROOT=/data/zm -- /venv/bin/python -m zero_mem.cli serve --profile codex)
+hermes        hermes mcp add zero-mem --command /venv/bin/python --env ZERO_MEM_DATA_ROOT=/data/zm --args -m zero_mem.cli serve --profile hermes
+              (or the printed mcp_servers block for $HERMES_HOME/config.yaml: command / args / env / enabled: true)
+openclaw      openclaw mcp set zero-mem '{"command": "/venv/bin/python", "args": ["-m", "zero_mem.cli", "serve", "--profile", "openclaw"], "env": {...}}'
+              (or: openclaw mcp add zero-mem --command /venv/bin/python --arg=-m --arg=zero_mem.cli ... --env ZERO_MEM_DATA_ROOT=/data/zm)
 ```
+
+Notes from running the real clients: Hermes needs its MCP SDK (`pip install 'hermes-agent[mcp]'`) and `hermes mcp add` connects, lists the tools and asks which to enable; OpenClaw **ignores a
+`PYTHONPATH` entry for stdio servers**, so zero-mem must be installed into the interpreter the registration names (do not rely on running from a checkout). The registration pins
+`ZERO_MEM_DATA_ROOT` explicitly because a client may launch a server with a reduced environment.
 
 Equivalent forms: `zero-mem-mcp --profile-id <p> --enable-memory [--enable-write] [--allow-root DIR]` (the console script; the data root comes from `ZERO_MEM_DATA_ROOT`) and
 `python -m src.integration.m6.mcp_server ...` with the same flags. A bare `zero-mem-mcp --store-path <db> --profile-id <p>` is the read-only M6 server with the original 11 tools.
@@ -114,19 +123,30 @@ is relative, missing, a file or `/`. `--allow-root` without the memory switches 
 
 ## 5. What has been verified, and what has not
 
-| Item | Status | Evidence (2026-10-01) |
+Three levels of evidence, all dated 2026-10-01 (transcripts in `docs/defects/closures/T6b.md`):
+
+* **A - real client CLI**: the printed snippet was executed verbatim by the client's own CLI (isolated config home), and the client connected to the server.
+* **B - our own stdio test client** (`tests/unit/t6b_helpers.py`): a JSON-RPC subprocess driver; no real agent involved.
+* **C - documented from the client's spec / help only**, never run.
+
+| Item | Level | Evidence |
 |---|---|---|
-| The command / args / env printed by `mcp-config` for claude-code, codex, hermes and openclaw starts a pinned stdio server from a foreign working directory | **VERIFIED by our own stdio test client** | `tests/unit/test_t6b_cli.py::test_the_printed_registration_really_starts_a_server_for_every_agent`, `tests/unit/test_t6b_e2e_agents.py` (every server there is launched from the printed registration) |
-| The 5 tools, identity pin, grants, secrets, allowlist, forget, context bound, 4 servers writing concurrently on one data root | **VERIFIED by our own stdio test client** (four server processes named after the four agents; no real client) | `tests/unit/test_t6b_toolset.py`, `test_t6b_mount.py`, `test_t6b_e2e_agents.py` |
-| `zero-mem` and `zero-mem-mcp` console scripts from a fresh `uv venv` + `uv pip install -e .`, driven from a foreign cwd with no `PYTHONPATH` | **VERIFIED** (editable install only; no wheel build) | `docs/defects/closures/T6b.md` |
-| Claude Code: `claude mcp add` accepts the printed command, writes a `.mcp.json` entry equal to the printed one, and `claude mcp list` reports the server `Connected` | **VERIFIED with the real `claude` CLI 2.1.286** (isolated `CLAUDE_CONFIG_DIR`) | `docs/defects/closures/T6b.md` |
-| Claude Code: a model calling the tools, how it uses `content` vs `structuredContent`, tool-name prefixing | not verified | needs an authenticated interactive session |
-| Codex: `[mcp_servers.<name>]` with `command`, `args`, `env`; `codex mcp add NAME --env K=V -- CMD ARGS` | **documented from spec, NOT verified** (no `codex` binary here) | |
-| Hermes, OpenClaw: a generic `command` / `args` / `env` stdio entry; the file and key that hold it | **documented from spec, NOT verified** (no client here) | check the client's MCP documentation for where the entry goes |
-| Windows, macOS, wheel build, Python 3.11 / 3.12 | not verified | |
+| The command / args / env printed for claude-code, codex, hermes and openclaw starts a pinned stdio server from a foreign working directory | **B** | `test_t6b_cli.py::test_the_printed_registration_really_starts_a_server_for_every_agent`; every server in `test_t6b_e2e_agents.py` is launched from the printed registration |
+| The 5 tools, identity pin, grants, secrets, allowlist, forget, context bound, 4 servers (named after the 4 agents) writing concurrently on one data root | **B** only: the four "agents" are four stdio test-client sessions | `test_t6b_toolset.py`, `test_t6b_mount.py`, `test_t6b_pathguard.py`, `test_t6b_e2e_agents.py` |
+| `zero-mem` and `zero-mem-mcp` from a fresh `uv venv` + `uv pip install -e .`, foreign cwd, no `PYTHONPATH` | **A/B** (editable install; no wheel build) | closure doc |
+| **Claude Code 2.1.286**: `claude mcp add` accepts the printed command and writes an entry equal to the printed `.mcp.json`; `claude mcp list` reports `Connected`; a scripted `claude -p --mcp-config <printed .mcp.json> --strict-mcp-config` session in which the **model called** `memory_add` (shared, with a grant), `memory_recall`, `memory_add` with a secret (`REJECTED_SECRET`, `is_error`) and `memory_context` and reported the statuses correctly | **A**, including model-driven calls | closure doc (tool_use / tool_result transcript) |
+| Claude Code hands the model `structuredContent` for a success and `content[0].text` for an error; tools appear as `mcp__<server name>__<tool>` | observed in that session, not a documented guarantee | same |
+| **Codex 0.159.3**: `codex mcp get` parses the printed `config.toml` block; `codex mcp add` with the printed command writes the same entry; a `codex exec` startup spawned the server from that block and completed `initialize` (client `2025-06-18`, server `2024-11-05`), `notifications/initialized` and `tools/list` (recorded with a tee shim) | **A** for config and handshake; a model-driven call was **NOT exercised** (no model access) | closure doc |
+| **hermes-agent 0.19.0**: `hermes mcp add` with the printed command connected, found the tools and saved the entry; the printed `config_yaml` block is accepted by `hermes mcp test`; `hermes mcp list` shows it enabled | **A**; a model-driven call was **NOT exercised** (no model access) | closure doc |
+| **OpenClaw 2026.6.35**: `openclaw mcp set` and `openclaw mcp add` with the printed commands saved the entry; `openclaw mcp doctor` ok; `openclaw mcp probe` connected and listed the tools | **A**; a model-driven call was **NOT exercised** (no model access) | closure doc |
+| A real Codex / Hermes / OpenClaw model choosing and calling the memory tools | not verified | needs a model provider for that client |
+| Windows, macOS, a wheel build, Python 3.11 / 3.12 | not verified | |
 
 `protocolVersion` is `2024-11-05` (what the M6 server has always spoken); `structuredContent` is part of newer revisions, so a client that ignores it still gets
-the full answer in `content[0].text` for recall, context and the write tools' summaries.
+the answer in `content[0].text` (recall hits, the context bundle, the write summaries and every failure explanation).
+
+Token cost: the `tools/list` of a server with every switch on is about 24 KB, of which the 11 read-only M6 tools (event and project tools) are 17.5 KB and the five
+memory tools 6.2 KB (2.3 KB for the two read tools). A leaner server that lists only the memory tools is a possible follow-up; the M6 list is pinned by T6a tests.
 
 ## 6. Troubleshooting
 
@@ -141,6 +161,7 @@ the full answer in `content[0].text` for recall, context and the write tools' su
 | `memory_recall` is `EMPTY` for something another agent saved | it was saved `private`, or `forgotten`, or the reader was never registered (`zero-mem agents add`), or the writer's call was `DENIED` |
 | server exits at once with `ERROR: --store-path is not the database of the zero-mem data root` | `ZERO_MEM_DATA_ROOT` differs between `serve` and the registered `--store-path`; use `serve` or drop `--store-path` |
 | `ERROR` `INTERNAL_ERROR` | no detail is returned by design: read the server's stderr and run `zero-mem doctor` |
+| the client says the server "Connection closed" / fails to start | the interpreter in the registration cannot import `zero_mem` (not installed there, or the client ignores `PYTHONPATH`, as OpenClaw does): `pip install` zero-mem into that interpreter or re-run `zero-mem mcp-config` from the right one |
 
 Rollback: unregister the server in the client (`claude mcp remove zero-mem -s user`, delete the TOML block, ...). Nothing else changes; memories stay in the data root.
 `zero-mem agents revoke <agent> --write` withdraws an agent's shared-write approval immediately.

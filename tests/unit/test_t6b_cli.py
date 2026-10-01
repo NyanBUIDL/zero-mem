@@ -112,10 +112,12 @@ def test_mcp_config_uses_the_absolute_interpreter_and_pins_the_agent_profile(hom
     assert reg["env"]["ZERO_MEM_DATA_ROOT"] == str(home / "data")
     assert reg["env"]["XDG_CONFIG_HOME"] == str(home / "xdg" / "config")
     assert reg["write_enabled"] is False
-    # only Claude Code's own CLI could be run here (add + health check); the others are documented from their specs
-    assert reg["verified"] == {"server_command": True, "client_config_format": agent == "claude-code"}
-    assert ("Connected" in reg["verification_note"]) is (agent == "claude-code")
-    assert ("NOT verified" in reg["verification_note"]) is (agent != "claude-code")
+    # every client CLI accepted its snippet and connected to the server (versions in the note); only Claude Code
+    # could drive a model, so a model-driven tool call is claimed for it alone
+    assert reg["verified"] == {"server_command": True, "client_config_format": True,
+                               "model_tool_calls": agent == "claude-code"}
+    assert reg["verification_note"].startswith("verified with ")
+    assert ("NOT exercised" in reg["verification_note"]) is (agent != "claude-code")
 
 
 def test_mcp_config_does_not_touch_the_filesystem(home):
@@ -169,6 +171,29 @@ def test_generic_stdio_snippet_for_hermes_and_openclaw(home, agent):
     assert "claude_mcp_add" not in reg["snippets"] and "config_toml" not in reg["snippets"]
 
 
+def test_hermes_snippets(home):
+    yaml = pytest.importorskip("yaml")
+    reg = registration("hermes", "--enable-write")
+    add = shlex.split(reg["snippets"]["hermes_mcp_add"])
+    assert add[:7] == ["hermes", "mcp", "add", "zero-mem", "--command", reg["command"], "--env"]
+    split = add.index("--args")  # `--args` is the LAST option of `hermes mcp add`
+    assert add[split + 1:] == reg["args"] and add[7:split] == [f"{k}={v}" for k, v in reg["env"].items()]
+    parsed = yaml.safe_load(reg["snippets"]["config_yaml"])
+    assert parsed == {"mcp_servers": {"zero-mem": {"command": reg["command"], "args": reg["args"],
+                                                   "env": reg["env"], "enabled": True}}}
+
+
+def test_openclaw_snippets(home):
+    reg = registration("openclaw", "--enable-write")
+    entry = {"command": reg["command"], "args": reg["args"], "env": reg["env"]}
+    set_cmd = shlex.split(reg["snippets"]["openclaw_mcp_set"])
+    assert set_cmd[:4] == ["openclaw", "mcp", "set", "zero-mem"] and json.loads(set_cmd[4]) == entry and len(set_cmd) == 5
+    add = shlex.split(reg["snippets"]["openclaw_mcp_add"])
+    assert add[:6] == ["openclaw", "mcp", "add", "zero-mem", "--command", reg["command"]]
+    assert [t[len("--arg="):] for t in add if t.startswith("--arg=")] == reg["args"]  # "--arg=-m": a leading "-" is safe
+    assert {t.split("=", 1)[0]: t.split("=", 1)[1] for t in add[add.index("--env") + 1::2]} == reg["env"]
+
+
 def test_hostile_characters_in_paths_survive_every_format(home, tmp_path, monkeypatch):
     weird = tmp_path / 'a b"c\'d\\e $x'
     weird.mkdir()
@@ -183,6 +208,14 @@ def test_hostile_characters_in_paths_survive_every_format(home, tmp_path, monkey
     entry = tomllib.loads(cx["snippets"]["config_toml"])["mcp_servers"]["zero-mem"]
     assert entry["args"] == cx["args"] and entry["env"]["ZERO_MEM_DATA_ROOT"] == str(weird / "d")
     assert json.loads(cc["snippets"]["mcp_json"])["mcpServers"]["zero-mem"]["args"] == cc["args"]
+    hm = registration("hermes", "--enable-write", "--allow-root", str(weird))
+    assert shlex.split(hm["snippets"]["hermes_mcp_add"])[shlex.split(hm["snippets"]["hermes_mcp_add"]).index("--args") + 1:] \
+        == hm["args"]
+    yaml = pytest.importorskip("yaml")
+    parsed = yaml.safe_load(hm["snippets"]["config_yaml"])["mcp_servers"]["zero-mem"]
+    assert parsed["args"] == hm["args"] and parsed["env"]["ZERO_MEM_DATA_ROOT"] == str(weird / "d")
+    oc = registration("openclaw", "--enable-write", "--allow-root", str(weird))
+    assert json.loads(shlex.split(oc["snippets"]["openclaw_mcp_set"])[4])["args"] == oc["args"]
 
 
 def test_text_output_is_ready_to_paste_and_says_what_is_verified(home):
@@ -190,15 +223,17 @@ def test_text_output_is_ready_to_paste_and_says_what_is_verified(home):
     assert code == 0 and not err
     assert "[mcp_servers.zero-mem]" in out and os.path.abspath(sys.executable) in out
     assert "grant-write codex --space ks-shared" in out and "agents add codex" in out
-    assert "NOT verified" in out and "--enable-write" in out
+    assert "verified with Codex 0.159.3" in out and "NOT exercised" in out and "--enable-write" in out
     # the whole codex output is valid TOML (every explanatory line is a comment): it can be appended as is
     entry = tomllib.loads(out)["mcp_servers"]["zero-mem"]
     assert entry["command"] == os.path.abspath(sys.executable) and "--enable-write" in entry["args"]
     code, out, _ = run("mcp-config", "--agent", "claude-code")
     assert "claude mcp add zero-mem" in out and '"mcpServers"' in out and "Connected" in out
-    assert "NOT verified" not in out
+    assert "NOT exercised" not in out
     code, out, _ = run("mcp-config", "--agent", "hermes")
-    assert '"mcpServers"' in out and "generic" in out.lower()
+    assert "hermes mcp add zero-mem" in out and "mcp_servers:" in out and "verified with hermes-agent" in out
+    code, out, _ = run("mcp-config", "--agent", "openclaw")
+    assert "openclaw mcp set zero-mem" in out and '"mcpServers"' in out and "verified with OpenClaw" in out
 
 
 @pytest.mark.parametrize("argv", [

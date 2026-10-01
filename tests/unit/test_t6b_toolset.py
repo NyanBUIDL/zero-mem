@@ -541,6 +541,48 @@ def test_ingest_report_is_bounded_for_a_big_folder(env, allowed):
     assert len(result["content"][0]["text"]) <= 2500 and len(json.dumps(out)) <= 6000
 
 
+# ----------------------------------------------------------------------------------------------- what the model sees
+def test_error_results_carry_everything_the_model_needs_in_the_content_text(env, allowed):
+    """Claude Code (verified with the real client) hands the model ``structuredContent`` for a successful call but only
+    ``content[0].text`` for ``isError`` results, so a failure must be fully explained there."""
+    (allowed / "leak.md").write_text(f"notes\n{SECRET_ENV}\n", encoding="utf-8")
+    (allowed / "ok.md").write_text("# ok\n\nplain heron fact\n", encoding="utf-8")
+    ts = toolset(env, roots=[allowed])
+    cases = [
+        (("memory_add", {"text": "x", "memory_type": "persona", "scope": "shared"}),
+         ["DENIED", "DENY_CROSS_PROFILE_WRITE", "grant-write claude-code --space ks-shared", "private"]),
+        (("memory_add", {"text": f"k {SECRET_ENV}", "memory_type": "fact", "scope": "private"}),
+         ["REJECTED_SECRET", "Nothing was stored"]),
+        (("memory_add", {"text": "x", "memory_type": "fact", "scope": "private", "colour": 1}),
+         ["INVALID", "UNKNOWN_ARGUMENT", "colour"]),
+        (("memory_add", {"text": "x", "memory_type": "fact", "scope": "private", "requesting_profile_id": "codex"}),
+         ["DENIED", "DENY_IDENTITY_PINNED", "Remove it"]),
+        (("memory_ingest", {"path": "/etc", "memory_type": "file", "scope": "private"}),
+         ["DENIED", "DENY_PATH_OUTSIDE_ALLOWLIST", "allowed"]),
+        (("memory_ingest", {"path": str(allowed), "memory_type": "file", "scope": "private"}),
+         ["PARTIAL", "1 created", "1 rejected", "leak.md", "secret_detected", "NOT stored"]),
+        (("memory_forget", {"source_id": "f" * 16}), ["NOT_FOUND", "visible to you"]),
+    ]
+    for (tool, args), needles in cases:
+        result = ts.call(tool, args)
+        text = result["content"][0]["text"]
+        assert result["isError"] is True, (tool, args)
+        for needle in needles:
+            assert needle in text, (tool, needle, text)
+        assert "hunter2" not in text
+
+
+def test_success_results_are_complete_in_structured_content(env):
+    """... and for a success the model reads ``structuredContent`` alone: it must hold the whole answer."""
+    ts = toolset(env)
+    env.prov.grant_write("claude-code", space="ks-shared")
+    run(ts, "memory_add", text="The user prefers terse answers.", memory_type="persona", name="style", scope="shared")
+    recall = run(ts, "memory_recall", query="terse")
+    assert recall["hits"][0]["text"] == "The user prefers terse answers." and recall["hits"][0]["ref"] == "mem://persona/style"
+    context = run(ts, "memory_context")
+    assert "terse answers" in context["text"] and "sources" not in context  # the bundle text itself, no extras
+
+
 # ----------------------------------------------------------------------------------------------- never raise, never leak
 def test_an_unexpected_failure_is_a_fixed_error_that_leaks_nothing(env, monkeypatch):
     from zero_mem import memory as memory_module
