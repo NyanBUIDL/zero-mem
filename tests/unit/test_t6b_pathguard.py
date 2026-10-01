@@ -12,11 +12,11 @@ from src.integration.m6w import PathGuard, RootsConfigError, contracts as c, nor
 def tree(tmp_path):
     root = tmp_path / "root"
     (root / "sub" / "deep").mkdir(parents=True)
-    (root / "a.md").write_text("# a\n")
-    (root / "sub" / "deep" / "b.txt").write_text("b")
+    (root / "a.md").write_text("# a\n", encoding="utf-8", newline="\n")
+    (root / "sub" / "deep" / "b.txt").write_text("b", encoding="utf-8", newline="\n")
     outside = tmp_path / "outside"
     outside.mkdir()
-    (outside / "o.txt").write_text("o")
+    (outside / "o.txt").write_text("o", encoding="utf-8", newline="\n")
     return root, outside
 
 
@@ -111,7 +111,7 @@ def test_the_memory_store_is_reserved_whether_inside_contains_or_equals(tree, tm
     root, _ = tree
     store = root / "sub" / "store"
     store.mkdir()
-    (store / "events.jsonl").write_text("{}\n")
+    (store / "events.jsonl").write_text("{}\n", encoding="utf-8", newline="\n")
     g = guard(root, reserved=[store])
     for target in (store, store / "events.jsonl", root, root / "sub"):
         verdict = g.check(str(target))
@@ -120,6 +120,7 @@ def test_the_memory_store_is_reserved_whether_inside_contains_or_equals(tree, tm
     assert g.check(str(root / "sub" / "deep")).ok
 
 
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="os.mkfifo is POSIX-only; Windows has no FIFO primitive")
 def test_only_regular_files_and_folders_can_be_ingested(tree):
     root, _ = tree
     fifo = root / "pipe"

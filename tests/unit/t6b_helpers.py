@@ -71,7 +71,7 @@ class McpProc:
         base.update(env or {})
         self.proc = subprocess.Popen(
             [command, *args], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            text=True, bufsize=1, cwd=str(cwd) if cwd else None, env=base)
+            text=True, encoding="utf-8", bufsize=1, cwd=str(cwd) if cwd else None, env=base)
         self._lines: "queue.Queue[Optional[str]]" = queue.Queue()
         threading.Thread(target=self._pump, daemon=True).start()
         self._next_id = 0

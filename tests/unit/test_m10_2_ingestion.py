@@ -324,7 +324,7 @@ def test_register_source_with_blob_binds_blob_ref_and_persists_bytes(tmp_path):
     store = CorpusBlobStore(root=tmp_path / "corpus")
     assert store.get(rec.blob_ref) == content
     # Registry JSONL contains record but NOT raw bytes.
-    raw = (tmp_path / "corpus" / "corpus_sources.jsonl").read_text()
+    raw = (tmp_path / "corpus" / "corpus_sources.jsonl").read_text(encoding="utf-8")
     assert rec.source_id in raw
     assert b"%PDF-1.4 fake finance doc" not in (tmp_path / "corpus" / "corpus_sources.jsonl").read_bytes()
 

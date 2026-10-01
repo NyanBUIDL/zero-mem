@@ -419,7 +419,7 @@ class TestStaticAudit:
                   "src/integration/m7/eligibility.py",
                   "src/integration/m7/budget.py",
                   "src/integration/m7/contracts.py"):
-            tree = ast.parse((REPO_ROOT / f).read_text())
+            tree = ast.parse((REPO_ROOT / f).read_text(encoding="utf-8"))
             mods = set()
             for n in ast.walk(tree):
                 if isinstance(n, ast.Import):
@@ -434,12 +434,12 @@ class TestStaticAudit:
         for f in ("src/integration/m7/evidence_builder.py",
                   "src/integration/m7/eligibility.py",
                   "src/integration/m7/budget.py"):
-            t = (REPO_ROOT / f).read_text().lower()
+            t = (REPO_ROOT / f).read_text(encoding="utf-8").lower()
             for tok in ("httpx", "requests", "aiohttp", "socket.socket", "urllib", "openai"):
                 assert tok not in t
 
     def test_no_grant_admin_reachability(self):
-        src = (REPO_ROOT / "src/integration/m7/evidence_builder.py").read_text()
+        src = (REPO_ROOT / "src/integration/m7/evidence_builder.py").read_text(encoding="utf-8")
         assert "GrantAdminService" not in src
         assert "create_grant" not in src and "revoke_grant" not in src
 
@@ -463,7 +463,7 @@ class TestPriorRegression:
         assert route(RouterRequest(normalized_text="Explain recursion.", session_id="s1")).route is MemoryRoute.NO_MEMORY
 
     def test_m72_no_retrieval_on_router(self):
-        assert "AuthorizedReadService" not in (REPO_ROOT / "src/integration/m7/memory_router.py").read_text()
+        assert "AuthorizedReadService" not in (REPO_ROOT / "src/integration/m7/memory_router.py").read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -475,12 +475,12 @@ class TestDeferredAbsence:
         assert (REPO_ROOT / "src/integration/m7/injection_adapter.py").exists()
         assert (REPO_ROOT / "src/integration/m7/hardening.py").exists()
     def test_no_evidence_m7_4_hook(self):
-        src = (REPO_ROOT / "src/integration/m7/evidence_builder.py").read_text()
+        src = (REPO_ROOT / "src/integration/m7/evidence_builder.py").read_text(encoding="utf-8")
         assert "pre_llm" not in src
         assert "register_hook" not in src
     def test_no_m8(self):
         for p in REPO_ROOT.rglob("src/integration/m7/*.py"):
-            t = p.read_text().lower()
+            t = p.read_text(encoding="utf-8").lower()
             assert "vector retrieval" not in t and "embeddings" not in t
 
 

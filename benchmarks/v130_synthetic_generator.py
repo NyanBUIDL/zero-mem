@@ -123,9 +123,9 @@ def write_corpus(out_dir: Path, n: int) -> Path:
     path = out_dir / f"synthetic-{n}.jsonl"
     lines = [json.dumps(e, sort_keys=True, separators=(",", ":")) for e in generate(n)]
     body = "\n".join(lines) + "\n"
-    path.write_text(body)
+    path.write_text(body, encoding="utf-8", newline="\n")
     digest = hashlib.sha256(body.encode()).hexdigest()
-    (out_dir / f"synthetic-{n}.sha256").write_text(digest + "\n")
+    (out_dir / f"synthetic-{n}.sha256").write_text(digest + "\n", encoding="utf-8", newline="\n")
     print(f"wrote {path} ({n} events) sha256={digest}")
     return path
 

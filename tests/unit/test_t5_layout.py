@@ -56,11 +56,14 @@ def test_default_resolution_follows_the_environment(tmp_path, monkeypatch):
 def test_ensure_creates_private_dirs_stream_corpus_and_schema(tmp_path):
     lay = Layout.resolve(tmp_path / "zm")
     lay.ensure()
-    assert _mode(lay.data_root) == 0o700
-    assert lay.memory_stream.is_file() and _mode(lay.memory_stream) == 0o600
-    assert _mode(lay.derived_db.parent) == 0o700
+    assert lay.memory_stream.is_file()
     assert (lay.corpus_root / "corpus_sources.jsonl").is_file()
-    assert (lay.corpus_root / "blobs").is_dir() and _mode(lay.corpus_root) == 0o700
+    assert (lay.corpus_root / "blobs").is_dir()
+    if os.name != "nt":  # Windows reports 0o777 for every file: POSIX permission bits do not exist there
+        assert _mode(lay.data_root) == 0o700
+        assert _mode(lay.memory_stream) == 0o600
+        assert _mode(lay.derived_db.parent) == 0o700
+        assert _mode(lay.corpus_root) == 0o700
     import sqlite3
     conn = sqlite3.connect(lay.derived_db)
     try:
@@ -72,7 +75,7 @@ def test_ensure_creates_private_dirs_stream_corpus_and_schema(tmp_path):
 def test_ensure_is_idempotent_and_keeps_existing_bytes(tmp_path):
     lay = Layout.resolve(tmp_path / "zm")
     lay.ensure()
-    lay.memory_stream.write_text('{"event_id":"x"}\n')
+    lay.memory_stream.write_text('{"event_id":"x"}\n', encoding="utf-8", newline="\n")
     registry = lay.corpus_root / "corpus_sources.jsonl"
     before = (lay.memory_stream.read_bytes(), registry.read_bytes())
     lay.ensure()

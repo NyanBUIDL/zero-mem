@@ -64,10 +64,10 @@ def test_retired_v160_workflow_is_manual_replay_only():
     assert wf.exists(), "CI workflow missing"
     import yaml
 
-    document = yaml.load(wf.read_text("utf-8"), Loader=yaml.BaseLoader)
+    document = yaml.load(wf.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
     assert document["on"] == {"workflow_dispatch": ""}
     # The CI installs the declared extras that provide PyYAML + pytest + build.
-    text = wf.read_text("utf-8")
+    text = wf.read_text(encoding="utf-8")
     assert ".[test,ci]" in text or ".[test]" in text
 
 

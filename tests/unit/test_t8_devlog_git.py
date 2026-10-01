@@ -52,7 +52,7 @@ class Repo:
                     "GIT_COMMITTER_NAME": "T8", "GIT_COMMITTER_EMAIL": "t8@example.invalid"})
         if when:
             env["GIT_AUTHOR_DATE"] = env["GIT_COMMITTER_DATE"] = when
-        done = subprocess.run(["git", *args], cwd=self.path, env=env, capture_output=True, text=True, check=True)
+        done = subprocess.run(["git", *args], cwd=self.path, env=env, capture_output=True, text=True, encoding="utf-8", check=True)
         return done.stdout.strip()
 
     def commit(self, subject: str, files=("a.txt",), when: str = "2026-09-28T12:00:00+0000") -> str:

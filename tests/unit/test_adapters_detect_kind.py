@@ -187,15 +187,15 @@ def tree(tmp_path):
     (root / "node_modules" / "pkg").mkdir(parents=True)
     (root / "__pycache__").mkdir()
     (root / ".secret_dir").mkdir()
-    (root / "a.md").write_text("# Alpha\n\nbody\n")
-    (root / "b.txt").write_text("plain text\n")
-    (root / "data.csv").write_text("k,v\n1,2\n")
-    (root / "sub" / "c.json").write_text('{"x": 1}')
+    (root / "a.md").write_text("# Alpha\n\nbody\n", encoding="utf-8", newline="\n")
+    (root / "b.txt").write_text("plain text\n", encoding="utf-8", newline="\n")
+    (root / "data.csv").write_text("k,v\n1,2\n", encoding="utf-8", newline="\n")
+    (root / "sub" / "c.json").write_text('{"x": 1}', encoding="utf-8", newline="\n")
     (root / "sub" / "deep" / "d.docx").write_bytes(make_docx([("p", "deep doc")]))
-    (root / ".hidden.txt").write_text("dotfile")
-    (root / ".git" / "config").write_text("[core]\n")
-    (root / ".secret_dir" / "inside.txt").write_text("inside hidden dir")
-    (root / "node_modules" / "pkg" / "index.js").write_text("module.exports = 1")
+    (root / ".hidden.txt").write_text("dotfile", encoding="utf-8", newline="\n")
+    (root / ".git" / "config").write_text("[core]\n", encoding="utf-8", newline="\n")
+    (root / ".secret_dir" / "inside.txt").write_text("inside hidden dir", encoding="utf-8", newline="\n")
+    (root / "node_modules" / "pkg" / "index.js").write_text("module.exports = 1", encoding="utf-8", newline="\n")
     (root / "__pycache__" / "m.pyc").write_bytes(b"\x00\x01")
     (root / "empty.txt").write_bytes(b"")
     (root / "blob.dat").write_bytes(bytes(range(256)) * 8)
@@ -257,7 +257,7 @@ def test_oversized_files_are_skipped_with_reason(tree):
 
 def test_symlinks_are_skipped_by_default(tree, tmp_path):
     outside = tmp_path / "outside.txt"
-    outside.write_text("outside secret")
+    outside.write_text("outside secret", encoding="utf-8", newline="\n")
     os.symlink(outside, tree / "link_out.txt")
     os.symlink(tree / "a.md", tree / "link_in.md")
     os.symlink(tree / "sub", tree / "linkdir")
@@ -272,7 +272,7 @@ def test_symlinks_are_skipped_by_default(tree, tmp_path):
 
 def test_follow_symlinks_confined_to_allow_roots(tree, tmp_path):
     outside = tmp_path / "outside.txt"
-    outside.write_text("outside secret")
+    outside.write_text("outside secret", encoding="utf-8", newline="\n")
     os.symlink(outside, tree / "link_out.txt")
     os.symlink(tree / "a.md", tree / "link_in.md")
     items, walk = _walk(tree, follow_symlinks=True, allow_roots=[tree])
@@ -284,7 +284,7 @@ def test_follow_symlinks_confined_to_allow_roots(tree, tmp_path):
 
 def test_follow_symlinks_without_allow_roots_still_confined_to_walk_root(tree, tmp_path):
     outside = tmp_path / "outside.txt"
-    outside.write_text("outside secret")
+    outside.write_text("outside secret", encoding="utf-8", newline="\n")
     os.symlink(outside, tree / "link_out.txt")
     items, walk = _walk(tree, follow_symlinks=True)
     assert "link_out.txt" not in [i.relative_name for i in items]
@@ -320,6 +320,7 @@ def test_single_symlink_file_refused_unless_following(tree, tmp_path):
     assert walk.skipped and walk.skipped[0].reason == "symlink"
 
 
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="os.mkfifo is POSIX-only; Windows has no FIFO primitive")
 def test_fifo_and_special_files_are_skipped_not_opened(tree):
     fifo = tree / "pipe.txt"
     os.mkfifo(fifo)

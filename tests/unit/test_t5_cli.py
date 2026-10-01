@@ -151,8 +151,8 @@ def test_search_options_limit_type_and_human_output(home, capsys):
 def _docs(tmp_path):
     root = tmp_path / "docs"
     root.mkdir()
-    (root / "a.md").write_text("# A\n\nNotes about postgres vacuum.\n")
-    (root / "b.txt").write_text("Notes about redis eviction.\n")
+    (root / "a.md").write_text("# A\n\nNotes about postgres vacuum.\n", encoding="utf-8", newline="\n")
+    (root / "b.txt").write_text("Notes about redis eviction.\n", encoding="utf-8", newline="\n")
     (root / "c.docx").write_bytes(fx.make_docx([("p", "Notes about nginx buffering.")]))
     return root
 
@@ -172,8 +172,8 @@ def test_ingest_folder_reports_and_is_idempotent(home, capsys):
 
 def test_ingest_with_a_secret_file_exits_1_and_lists_it(home, capsys):
     root = _docs(home)
-    (root / "env.txt").write_text(f"db {SECRET_ENV}\n")
-    (root / ".hidden").write_text("x")
+    (root / "env.txt").write_text(f"db {SECRET_ENV}\n", encoding="utf-8", newline="\n")
+    (root / ".hidden").write_text("x", encoding="utf-8", newline="\n")
     code, out, err = run(capsys, "ingest", str(root))
     assert code == 1
     assert "1 rejected" in out + err and "env.txt" in out + err and "credential" in (out + err).lower()
@@ -370,7 +370,7 @@ def test_import_notes_human_output_and_missing_file(home, capsys):
     code, out, _ = run(capsys, "import-notes")
     assert code == 0 and "1 created" in out
     path = home / "elsewhere.jsonl"
-    path.write_text(json.dumps({"chunk_id": "z", "text": "From another file.", "source": "x", "ts": 1}) + "\n")
+    path.write_text(json.dumps({"chunk_id": "z", "text": "From another file.", "source": "x", "ts": 1}) + "\n", encoding="utf-8", newline="\n")
     code, out, _ = run(capsys, "import-notes", "--path", str(path), "--scope", "private")
     assert code == 0 and "1 created" in out
 
@@ -378,7 +378,7 @@ def test_import_notes_human_output_and_missing_file(home, capsys):
 def test_import_notes_skips_malformed_lines(home, capsys):
     path = home / "data" / "data" / "notes" / "notes-v1.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text('{"chunk_id": "c1", "text": "Good note.", "source": "cli", "ts": 1}\nnot json\n{"no_text": 1}\n[1]\n')
+    path.write_text('{"chunk_id": "c1", "text": "Good note.", "source": "cli", "ts": 1}\nnot json\n{"no_text": 1}\n[1]\n', encoding="utf-8", newline="\n")
     code, res, _ = jrun(capsys, "--json", "import-notes")
     assert code == 1 and res["counts"]["created"] == 1 and res["counts"]["skipped"] == 3
 
@@ -398,9 +398,9 @@ def test_the_module_runs_as_a_real_process(home, tmp_path):
     env = {**os.environ, "ZERO_MEM_DATA_ROOT": str(tmp_path / "proc"), "XDG_CONFIG_HOME": str(tmp_path / "pcfg"),
            "XDG_STATE_HOME": str(tmp_path / "pst"), "XDG_CACHE_HOME": str(tmp_path / "pca"), "PYTHONPATH": str(ROOT)}
     out = subprocess.run([sys.executable, "-m", "zero_mem.cli", "--json", "add", "process level fact"],
-                         env=env, capture_output=True, text=True, cwd=str(ROOT), timeout=120)
+                         env=env, capture_output=True, text=True, encoding="utf-8", cwd=str(ROOT), timeout=120)
     assert out.returncode == 0, out.stderr
     assert json.loads(out.stdout)["status"] == "created"
     found = subprocess.run([sys.executable, "-m", "zero_mem.cli", "search", "--json", "process"],
-                           env=env, capture_output=True, text=True, cwd=str(ROOT), timeout=120)
+                           env=env, capture_output=True, text=True, encoding="utf-8", cwd=str(ROOT), timeout=120)
     assert json.loads(found.stdout)["hits"][0]["text"] == "process level fact"

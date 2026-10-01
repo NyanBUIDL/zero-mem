@@ -106,7 +106,7 @@ def test_a_backup_restored_into_a_new_data_root_answers_exactly_like_the_origina
     with Memory.open("claude-code", data_root=target) as cc:
         assert cc.recall("gone memory").status == "empty"
         assert cc.forget(gone.source_id).status == "already_forgotten"
-    lines = [json.loads(l) for l in (target / "data" / "corpus" / "corpus_sources.jsonl").read_text().splitlines() if l]
+    lines = [json.loads(l) for l in (target / "data" / "corpus" / "corpus_sources.jsonl").read_text(encoding="utf-8").splitlines() if l]
     assert [l["lifecycle_status"] for l in lines if l["source_id"] == gone.source_id] == ["observed", "deleted"]
     # grants and the operator approval survive: the approved agent may write shared memory, the other still may not
     assert agents_table(target) == grants_before
