@@ -34,7 +34,6 @@ def con():
         c.execute("INSERT INTO zm_corpus_units VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                   (f"u{i}", f"s{i // 10}", "l", "h", "alpha beta", "text", i % 10, None, "p", None, None, None, "active", "internal"))
         c.execute("INSERT INTO zm_corpus_fts (unit_id, content) VALUES (?,?)", (f"u{i}", "alpha beta"))
-    c.execute("ANALYZE")
     yield c
     c.close()
 
