@@ -208,6 +208,21 @@ def test_unrelated_verification_refs_are_not_verified(lay):
         assert lookup(ref) is None
 
 
+def test_the_lookup_plugs_into_authorized_write_service_and_authorize_then_write(prov, lay, db):
+    from src.access.authorized_write import AuthorizedWriteService
+
+    prov.add_agent("codex")
+    service = AuthorizedWriteService(db.conn, db.lookup)
+    request = AccessRequest(operation="WRITE", requesting_profile_id="codex", knowledge_space_ids=[SHARED],
+                            resource_type="corpus_source")
+    written = []
+    decision, result = service.authorize_then_write(request, lambda req: written.append(req) or "wrote")
+    assert not decision.allow and result is None and written == []  # denied: the writer never ran
+    prov.grant_write("codex", space=SHARED)
+    decision, result = service.authorize_then_write(request, lambda req: written.append(req) or "wrote")
+    assert decision.allow and result == "wrote" and len(written) == 1
+
+
 # ---------------------------------------------------------------- grant-read
 def test_grant_read_for_a_project(prov, db):
     prov.add_agent("codex")

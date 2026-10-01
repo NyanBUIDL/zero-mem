@@ -450,6 +450,20 @@ def test_non_ascii_names_are_percent_encoded_and_collision_free(mem, tmp_path):
     assert report.ok and len(set(refs)) == 2 and all(re.fullmatch(r"file://vn/[A-Za-z0-9%._~+@-]+", r) for r in refs)
 
 
+def test_names_that_start_with_a_non_ascii_letter_or_punctuation_are_ingested(mem, tmp_path):
+    root = tmp_path / "odd"
+    root.mkdir()
+    for name in ("ánh.md", "_draft.md", "-dash.md", "~tilde.md", "+plus.md", "@at.md", "2026 notes.md"):
+        (root / name).write_text(f"Content of {name} about narwhals.\n")
+    report = mem.ingest(root, memory_type="file")
+    assert report.ok and report.counts["created"] == 7, report.as_dict()
+
+
+@pytest.mark.parametrize("bad", ["..", "a/../b", "a/./b", "./a", "a/..", "../a", "a//b", "/a", "a/", "a b", "a\\b"])
+def test_dot_segments_and_separators_stay_invalid_in_names(mem, bad):
+    assert mem.add("body", "fact", name=bad).reason == "invalid_name"
+
+
 def test_ingest_invalid_inputs_are_typed(mem, tmp_path):
     assert mem.ingest(tmp_path / "does-not-exist").status == "invalid"
     assert mem.ingest(tmp_path / "does-not-exist").reason == "path_not_found"

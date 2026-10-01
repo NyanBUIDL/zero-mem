@@ -66,8 +66,9 @@ MAX_RECALL_LIMIT = 200
 MAX_CONTEXT_CHARS = 200_000
 DEFAULT_MAX_TOTAL_BYTES = 1024 * 1024 * 1024
 
-_SEGMENT = r"[A-Za-z0-9][A-Za-z0-9._:~+@%-]*"
-_NAME_RE = re.compile(rf"^{_SEGMENT}(?:/{_SEGMENT})*$")
+# One or more "/"-separated segments of ref-safe characters; "." and ".." segments are never allowed.
+_SEGMENT = r"[A-Za-z0-9._:~+@%-]+"
+_NAME_RE = re.compile(rf"^(?!(?:.*/)?\.{{1,2}}(?:/|$)){_SEGMENT}(?:/{_SEGMENT})*$")
 _DEVLOG_REF_RE = re.compile(r"^mem://devlog/([^/]+)/(\d{4}-\d{2}-\d{2})(?:/|$)")
 _WORD_RE = re.compile(r"\w", re.UNICODE)
 _WORDS_RE = re.compile(r"\w+", re.UNICODE)
@@ -483,6 +484,9 @@ class Memory:
 
         ``name`` makes the source versionable by name (``mem://<type>/<name>``): adding again with other text is
         a new version. Without a name the id is the content hash (immutable; identical text is a no-op).
+        ``provenance`` adds up to 8 short scalar fields (e.g. ``{"imported_from": "notes-v1"}``) to the registry's
+        provenance; it is scanned for secrets, is never part of the source identity and cannot override the pinned
+        ``channel`` / ``profile`` / ``writer`` / ``tool`` fields.
         """
         invalid_base = {"memory_type": memory_type if isinstance(memory_type, str) else None}
         try:
