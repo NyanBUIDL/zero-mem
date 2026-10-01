@@ -151,7 +151,8 @@ def _insert_unit(
         "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
         "ON CONFLICT(unit_id) DO UPDATE SET "
         "content_hash=excluded.content_hash, normalized_text=excluded.normalized_text, "
-        "kind=excluded.kind, duplicate_of=excluded.duplicate_of, "
+        "kind=excluded.kind, unit_order=excluded.unit_order, page=excluded.page, "
+        "parent_ref=excluded.parent_ref, duplicate_of=excluded.duplicate_of, "
         "lifecycle_status=excluded.lifecycle_status, sensitivity=excluded.sensitivity, "
         "provenance_hash=excluded.provenance_hash",
         (
@@ -204,6 +205,120 @@ class CorpusProjectionReport:
         }
 
 
+#: Max bound parameters per DELETE ... IN (...) (stay far below SQLite's limit).
+_DELETE_BATCH: Final[int] = 400
+
+
+def _prune_stale_units(cur: sqlite3.Cursor, source_id: str, keep_ids: set) -> None:
+    """DEF-050: drop units + FTS rows of ``source_id`` that are not in ``keep_ids``.
+
+    Runs inside the caller's transaction (never commits), so a reader sees either
+    the old version's complete unit set or the new version's, never a mix.
+    """
+    existing = [
+        row[0]
+        for row in cur.execute(
+            "SELECT unit_id FROM zm_corpus_units WHERE source_ref=?", (source_id,)
+        ).fetchall()
+    ]
+    stale = [uid for uid in existing if uid not in keep_ids]
+    for i in range(0, len(stale), _DELETE_BATCH):
+        chunk = stale[i:i + _DELETE_BATCH]
+        marks = ",".join("?" * len(chunk))
+        if _migrate_10.FTS5_AVAILABLE:
+            cur.execute(f"DELETE FROM zm_corpus_fts WHERE unit_id IN ({marks})", chunk)
+        cur.execute(f"DELETE FROM zm_corpus_units WHERE unit_id IN ({marks})", chunk)
+
+
+def _project_record(
+    cur: sqlite3.Cursor,
+    record: CorpusSourceRecord,
+    store,
+    report: "CorpusProjectionReport",
+) -> None:
+    """Project ONE source record (the shared core of project_source/project_corpus)."""
+    from .adapters.registry import select_adapter
+    from .extract import ExtractionStatus
+
+    _insert_source(cur, record)
+    report.sources_projected += 1
+
+    if store is None or not store.available or record.blob_ref is None:
+        # No blob available to re-extract (e.g. blob store unconfigured).
+        # Source projection still stands; units simply cannot be rebuilt, so
+        # whatever units exist are left untouched.
+        return
+
+    kept: set = set()
+    _extract_into(cur, record, store, report, kept, select_adapter, ExtractionStatus)
+    # DEF-050: the units of this source are exactly what the current version
+    # yielded; anything else belongs to an earlier version and must go.
+    _prune_stale_units(cur, record.source_id, kept)
+
+
+def _extract_into(cur, record, store, report, kept, select_adapter, ExtractionStatus) -> None:
+    try:
+        content = store.get(record.blob_ref)
+    except Exception:
+        report.extractions_failed += 1
+        return
+
+    adapter = select_adapter(record.kind)
+    if adapter is None or not adapter.is_available():
+        report.extractions_failed += 1
+        return
+
+    try:
+        result = adapter.extract(
+            source_ref=record.source_id,
+            content=content,
+            kind_hint=record.kind,
+        )
+    except Exception:
+        report.extractions_failed += 1
+        return
+
+    if not ExtractionStatus.validate(result.status).is_success:
+        report.extractions_failed += 1
+        return
+
+    norm = normalize_extraction(result)
+    if not norm.ok:
+        return
+
+    # Class C dedup within this source scope only (never across sources).
+    dedup = UnitDedupIndex()
+    for unit in norm.units:
+        try:
+            outcome = dedup.process(unit)
+        except Exception:
+            report.extractions_failed += 1
+            continue
+        try:
+            _insert_unit(
+                cur,
+                unit,
+                record,
+                duplicate_of=outcome.duplicate_of,
+            )
+            kept.add(_unit_id(unit, record))
+            report.units_projected += 1
+        except CorpusRedactionError:
+            report.units_rejected_secret += 1
+
+
+def _latest_records(registry: CorpusSourceRegistry) -> List[CorpusSourceRecord]:
+    """Latest registered version per logical source, in deterministic id order.
+
+    Older versions are superseded history (kept canonically in the registry); the
+    derived projection only ever represents the current version of a source.
+    """
+    latest: dict = {}
+    for record in registry.all_records():
+        latest[record.source_id] = record
+    return [latest[sid] for sid in sorted(latest)]
+
+
 def project_corpus(
     conn: sqlite3.Connection,
     registry: CorpusSourceRegistry,
@@ -217,82 +332,28 @@ def project_corpus(
     persists the derived projection. Idempotent: re-projection over the same
     canonical state produces the same derived rows (ON CONFLICT upserts).
 
+    Only the latest version of each logical source is projected; units of an
+    earlier version that the latest version no longer yields are removed in the
+    same (caller-owned) transaction (DEF-050).
+
     Secret-bearing units are rejected (fail-closed) and counted, never stored.
     """
-    from .adapters.registry import select_adapter
     from .blob_store import CorpusBlobStore
-    from .extract import ExtractionStatus
 
     store = blob_store or (
         CorpusBlobStore(root=registry._root) if registry._root is not None else None
     )
-    records = registry.all_records()
-    # Deterministic source order (by source_id) for reproducible projection.
-    records = sorted(records, key=lambda r: r.source_id)
+    records = _latest_records(registry)
 
     report = CorpusProjectionReport()
     cur = conn.cursor()
 
     # Version chain (derived; traceable supersession). Not persisted as a table
     # here, but the per-source latest/version logic is re-usable by M10.5.
-    _chain = build_version_chain(records)
+    _chain = build_version_chain(registry.all_records())
 
     for record in records:
-        _insert_source(cur, record)
-        report.sources_projected += 1
-
-        if store is None or not store.available or record.blob_ref is None:
-            # No blob available to re-extract (e.g. blob store unconfigured).
-            # Source projection still stands; units simply cannot be rebuilt.
-            continue
-
-        try:
-            content = store.get(record.blob_ref)
-        except Exception:
-            report.extractions_failed += 1
-            continue
-
-        adapter = select_adapter(record.kind)
-        if adapter is None or not adapter.is_available():
-            report.extractions_failed += 1
-            continue
-
-        try:
-            result = adapter.extract(
-                source_ref=record.source_id,
-                content=content,
-                kind_hint=record.kind,
-            )
-        except Exception:
-            report.extractions_failed += 1
-            continue
-
-        if not ExtractionStatus.validate(result.status).is_success:
-            report.extractions_failed += 1
-            continue
-
-        norm = normalize_extraction(result)
-        if not norm.ok:
-            continue
-
-        # Class C dedup within this source scope only (never across sources).
-        dedup = UnitDedupIndex()
-        for unit in norm.units:
-            try:
-                outcome = dedup.process(unit)
-            except Exception:
-                report.extractions_failed += 1
-                continue
-            try:
-                _insert_unit(
-                    cur,
-                    unit,
-                    record,
-                    duplicate_of=outcome.duplicate_of,
-                )
-                report.units_projected += 1
-            except CorpusRedactionError:
-                report.units_rejected_secret += 1
+        _project_record(cur, record, store, report)
 
     return report
 
