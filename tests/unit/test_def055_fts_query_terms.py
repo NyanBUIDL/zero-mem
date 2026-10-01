@@ -101,11 +101,16 @@ def test_underscore_and_dotted_names_match(tmp_path):
 
 def test_hyphen_in_multi_term_query_is_not_hidden_by_or_fallback(tmp_path):
     """Old behaviour: ``bluegreen`` AND-match failed, the OR fallback then
-    returned the unrelated 'rollout' unit and hid the real miss."""
+    returned the unrelated 'rollout' unit and hid the real miss.
+
+    T7: discovery is a single OR query ranked by BM25, so a partial match is no longer hidden when a full match
+    exists; it must rank BELOW the unit that holds every word of the query.
+    """
     both = "blue-green rollout plan for the api"
     only_rollout = "monthly rollout report"
     ro = _ro(tmp_path, both, only_rollout)
-    assert texts(search(ro, "blue-green rollout")) == [both]
+    found = texts(search(ro, "blue-green rollout"))
+    assert found == [both, only_rollout]
     ro.close()
 
 
