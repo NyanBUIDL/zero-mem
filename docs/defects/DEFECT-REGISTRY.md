@@ -87,6 +87,13 @@
 | DEF-064 | 2026-10-01 (shared-memory-runtime design audit, docs/design/SHARED-MEMORY-RUNTIME.md) | Packaging: no console script for the MCP server; top-level package named `src`; ingest tooling under `scripts*` is excluded from the wheel. | THAP | Packaging | OPEN (planned, owner chat authorization 2026-10-01) | feat/shared-memory-runtime | Evidence and file:line in docs/design/SHARED-MEMORY-RUNTIME.md section 6. Fix order: RED test -> smallest fix -> focused -> full suite. |
 | DEF-065 | 2026-10-01 (shared-memory-runtime design audit, docs/design/SHARED-MEMORY-RUNTIME.md) | Derived DB file mode is 0644 inside a 0700 directory (`secure_permissions` unused, `sqlite_store.py:264`). | THAP | Local security | OPEN (planned, owner chat authorization 2026-10-01) | feat/shared-memory-runtime | Evidence and file:line in docs/design/SHARED-MEMORY-RUNTIME.md section 6. Fix order: RED test -> smallest fix -> focused -> full suite. |
 | DEF-066 | 2026-10-01 (shared-memory-runtime design audit, docs/design/SHARED-MEMORY-RUNTIME.md) | Vestigial `corpus-store-path` config and doctor advice (`commands_doctor.py:138`): corpus search reads the main store; a bad configured path aborts MCP server start. | THAP | Config hygiene | OPEN (planned, owner chat authorization 2026-10-01) | feat/shared-memory-runtime | Evidence and file:line in docs/design/SHARED-MEMORY-RUNTIME.md section 6. Fix order: RED test -> smallest fix -> focused -> full suite. |
+| DEF-067 | 2026-10-01 (shared-memory-runtime build) | `Memory.forget(<ref>)` on an ambiguous `mem://` ref returned every matching source id, including another agent's private one. | TRUNG BINH | Access / privacy | FIXED | feat/shared-memory-runtime | See docs/defects/closures/T8.md. |
+| DEF-068 | 2026-10-01 (shared-memory-runtime build) | `Memory.forget` was an existence oracle (denied vs not_found; already_forgotten disclosed id/ref of another profile's source). | TRUNG BINH | Access / privacy | FIXED | feat/shared-memory-runtime | See docs/defects/closures/T8.md. |
+| DEF-069 | 2026-10-01 (shared-memory-runtime build) | First-run setup race outside the MCP server: simultaneous cold starts failed for most processes. | TRUNG BINH | Setup concurrency | FIXED | feat/shared-memory-runtime | See docs/defects/closures/T8.md. |
+| DEF-070 | 2026-10-01 (shared-memory-runtime build) | Token cost: default server listed ~17.5 KB of legacy tool schemas, verbose descriptions/hits; product goal is near-zero token cost. | TRUNG BINH | Product goal / MCP | FIXED (tools/list 18.7K -> 1.6K chars read-only) | feat/shared-memory-runtime | See docs/defects/closures/T8.md. |
+| DEF-071 | 2026-10-01 (shared-memory-runtime build) | No memory-runtime doctor checks; populated shared-memory backup/restore round trip untested. | THAP | Observability | FIXED | feat/shared-memory-runtime | See docs/defects/closures/T8.md. |
+| DEF-072 | 2026-10-01 (shared-memory-runtime build) | No LLM-free way to capture development history (`devlog --from-git`, hook snippets). | THAP | Feature gap | FIXED | feat/shared-memory-runtime | See docs/defects/closures/T8.md. |
+| DEF-073 | 2026-10-01 (shared-memory-runtime build) | Hidden (unauthorized) rows decided the AND/OR query fallback, so authorized recall could return nothing for queries whose AND match existed only in other agents' rows (T7-F1). | TRUNG BINH | Retrieval / scope | FIXED | feat/shared-memory-runtime | See docs/defects/closures/T7.md. |
 
 > **V1.6.1 CANDIDATE ASSIGNMENT (2026-08-28):** Fix version `next additive
 > patch` của DEF-041..046 được resolve thành **v1.6.1**. Exact candidate tree:
@@ -156,3 +163,13 @@
 ## Lịch sử
 
 - 2026-08-23: registry tạo theo chỉ đạo của maintainer (chat, 2026-08-23) — quyền tự quyết full-cycle cho gói v1.3.3 (fix DEF-001/002 → test → publish GitHub v1.3.3) được cấp trong chat, ghi vào mutation record.
+
+
+## Addendum V1.7.0 candidate (shared-memory-runtime) - 2026-10-01
+
+> Branch `feat/shared-memory-runtime`; owner chat authorization 2026-10-01. Per-task evidence (RED output, focused tests, files) in `docs/defects/closures/T1..T8.md`; design in `docs/design/SHARED-MEMORY-RUNTIME.md`.
+>
+> **Status of DEF-049..DEF-066:** FIXED: 049 (T1; central redactor widened + pre-store scan), 050, 053, 058, 059, 060 (T2), 051 (T1), 052, 062 (T6a), 054, 055, 056 (T3; ADR-V170-01), 057 (T2 secret withholding + T5 `forget` tombstone; raw blobs retained per AGENTS.md), 061 (T3 query side, T6a default limit, T7 ranking; scale cost documented in docs/benchmarks/RESULTS.md), 065 (T3), 066 (T3 + T6a).
+> **PARTIAL (remain OPEN, need maintainer decision):** DEF-063 - requested knowledge-space narrowing fixed; the same "unrequested grant rides along" behavior for profile and project grants is confirmed but untouched. DEF-064 - `zero-mem-mcp` console script shipped; top-level package still named `src` and `scripts*` still excluded from the wheel.
+> **Not verified:** real model-driven sessions for Codex/Hermes/OpenClaw (config and hooks run by the real CLIs only), Windows/macOS locks, LongMemEval real dataset (huggingface 403 via proxy), scale latency above ~13k units.
+> **Known environment-only failures:** `tests/unit/test_m9_6_hardening.py::test_readonly_vault_is_rejected_closed` and `::test_permission_denied_managed_root_fails_closed` fail when the suite runs as root (uid 0); unrelated to this work.
