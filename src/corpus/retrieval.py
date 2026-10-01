@@ -37,8 +37,10 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import unicodedata
 from collections import Counter
+from functools import lru_cache
 from dataclasses import dataclass, field, replace
 from typing import Any, List, Optional, Protocol, runtime_checkable
 
@@ -200,18 +202,37 @@ def _is_word_char(ch: str) -> bool:
     return ch.isalnum() or unicodedata.category(ch)[0] == "M"
 
 
+_ASCII_WORDS = re.compile(r"[A-Za-z0-9]+")
+_UNICODE_WORDS: Optional["re.Pattern[str]"] = None
+
+
+def _unicode_words() -> "re.Pattern[str]":
+    """``[^\\W_]`` is exactly ``str.isalnum``; the combining marks (category M*) of the BMP are added so a
+    decomposed accent stays inside its word.  Built once, on the first non-ASCII text (about 20 ms)."""
+    global _UNICODE_WORDS
+    if _UNICODE_WORDS is None:
+        ranges: List[str] = []
+        start = prev = None
+        for code in range(0x300, 0x10000):
+            if 0xD800 <= code < 0xE000 or unicodedata.category(chr(code))[0] != "M":
+                continue
+            if start is None:
+                start = prev = code
+            elif code == prev + 1:
+                prev = code
+            else:
+                ranges.append(f"\\u{start:04x}-\\u{prev:04x}")
+                start = prev = code
+        if start is not None:
+            ranges.append(f"\\u{start:04x}-\\u{prev:04x}")
+        _UNICODE_WORDS = re.compile("(?:[^\\W_]|[" + "".join(ranges) + "])+")
+    return _UNICODE_WORDS
+
+
 def _split_words(text: str) -> List[str]:
-    words: List[str] = []
-    current: List[str] = []
-    for ch in unicodedata.normalize("NFC", text):
-        if _is_word_char(ch):
-            current.append(ch)
-        elif current:
-            words.append("".join(current))
-            current = []
-    if current:
-        words.append("".join(current))
-    return words
+    if text.isascii():
+        return _ASCII_WORDS.findall(text)
+    return _unicode_words().findall(unicodedata.normalize("NFC", text))
 
 
 def _query_groups(text: str) -> List[List[str]]:
@@ -275,15 +296,26 @@ _BM25_B = 0.75
 _PHRASE_BONUS = 1.0
 
 
+@lru_cache(maxsize=65536)
 def _fold(word: str) -> str:
     """Case + diacritic folding for scoring (NFD, drop combining marks, đ -> d)."""
+    if word.isascii():
+        return word.lower()
     decomposed = unicodedata.normalize("NFD", word.lower())
     stripped = "".join(ch for ch in decomposed if unicodedata.category(ch) != "Mn")
     return stripped.replace("\u0111", "d")
 
 
+@lru_cache(maxsize=32768)
+def _doc_terms(text: str) -> tuple:
+    """``(folded tokens, Counter)`` of one unit text.  Pure function of the text, so caching it across queries is
+    safe (it never depends on which rows are authorized)."""
+    tokens = tuple(_fold(word) for word in _split_words(text))
+    return tokens, Counter(tokens)
+
+
 def _score_tokens(text: str) -> List[str]:
-    return [_fold(word) for word in _split_words(text)]
+    return list(_doc_terms(text)[0])
 
 
 def _scoring_terms(text: str) -> tuple:
@@ -326,8 +358,9 @@ def _bm25_scores(hits: List[CorpusHit], query_text: str) -> List[float]:
     terms, phrases = _scoring_terms(query_text)
     if not terms or not hits:
         return [0.0] * len(hits)
-    token_lists = [_score_tokens(hit.normalized_text) for hit in hits]
-    counters = [Counter(tokens) for tokens in token_lists]
+    docs = [_doc_terms(hit.normalized_text) for hit in hits]
+    token_lists = [tokens for tokens, _counts in docs]
+    counters = [counts for _tokens, counts in docs]
     n_docs = len(hits)
     avg_len = (sum(len(tokens) for tokens in token_lists) / n_docs) or 1.0
     freqs = [[_term_frequency(counts, term) for term in terms] for counts in counters]
@@ -465,11 +498,15 @@ def _discovery_cap(plan_limit: int) -> int:
 # DEF-061: ``duplicate_of`` marks an exact within-source repeat of an earlier unit
 # (same source => same scope, so collapsing never touches authorization identity);
 # excluding it in SQL also keeps repeats from consuming the discovery cap.
+# T7: the authorized scope and the closed metadata filter are part of the SELECT, so
+# the discovery cap, and the AND-then-OR fallback decision, are computed over
+# authorized rows only; rows of other principals can neither fill the window nor
+# decide which query form the caller gets.
 _FTS_DISCOVERY_SQL = (
     f"SELECT {_UNIT_COLUMNS} "
     f"FROM zm_corpus_fts JOIN zm_corpus_units u ON u.unit_id = zm_corpus_fts.unit_id "
     f"{_SOURCE_JOIN} "
-    "WHERE zm_corpus_fts MATCH ? AND u.duplicate_of IS NULL LIMIT ?"
+    "WHERE zm_corpus_fts MATCH ? AND u.duplicate_of IS NULL AND {scope} AND {meta} LIMIT ?"
 )
 
 
@@ -603,7 +640,11 @@ def retrieve_corpus(
         else:
             # FTS discovery: match unit_ids, then join units (bounded by cap).
             try:
-                rows = cur.execute(_FTS_DISCOVERY_SQL, (fts_expr, cap)).fetchall()
+                scope_sql, scope_params = _scope_predicate(scope)
+                meta_sql, meta_params = _metadata_predicate(plan.metadata)
+                discovery_sql = _FTS_DISCOVERY_SQL.format(scope=scope_sql, meta=meta_sql)
+                discovery_tail = [*scope_params, *meta_params, cap]
+                rows = cur.execute(discovery_sql, [fts_expr, *discovery_tail]).fetchall()
                 # DEF-031 (DEF-C2): precision-guarded OR fallback — only when
                 # the implicit-AND pass returned zero rows AND the query has
                 # >= 2 terms (single-term queries have nothing to fall back to).
@@ -612,7 +653,7 @@ def retrieve_corpus(
                 if not rows and _fts_term_count(plan.text) >= 2:
                     or_expr = _fts_or_query(plan.text)
                     if or_expr:
-                        rows = cur.execute(_FTS_DISCOVERY_SQL, (or_expr, cap)).fetchall()
+                        rows = cur.execute(discovery_sql, [or_expr, *discovery_tail]).fetchall()
             except Exception as exc:
                 # Malformed FTS expression or missing FTS table => fail closed to
                 # a typed error (never silently return everything).
