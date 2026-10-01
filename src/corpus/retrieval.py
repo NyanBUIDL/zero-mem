@@ -599,14 +599,22 @@ _CANDIDATE_LIMIT = 500
 
 
 def _fts_discovery_sql(n_terms: int, scope_sql: str, meta_sql: str) -> str:
+    # Two stages (measured): the window (best ``?`` units by coverage, then registration order) is chosen from narrow
+    # rows (unit id + rowid), and only the units that made the window are read with their text and source columns.
+    # ``CROSS JOIN`` fixes the join order (grouped matches first, units by primary key); without it SQLite scanned
+    # the duplicate_of index and built an automatic index over the grouped matches on every query.
     matches = " UNION ALL ".join("SELECT unit_id FROM zm_corpus_fts WHERE zm_corpus_fts MATCH ?" for _ in range(n_terms))
     return (
         f"SELECT {_UNIT_COLUMNS} "
+        f"FROM (SELECT u.rowid AS rid, m.coverage AS coverage "
         f"FROM (SELECT unit_id AS covered_id, COUNT(*) AS coverage FROM ({matches}) GROUP BY unit_id) m "
-        f"JOIN zm_corpus_units u ON u.unit_id = m.covered_id "
+        f"CROSS JOIN zm_corpus_units u ON u.unit_id = m.covered_id "
         f"{_SOURCE_JOIN} "
         f"WHERE u.duplicate_of IS NULL AND {scope_sql} AND {meta_sql} "
-        "ORDER BY m.coverage DESC, u.rowid LIMIT ?"
+        "ORDER BY m.coverage DESC, u.rowid LIMIT ?) w "
+        "JOIN zm_corpus_units u ON u.rowid = w.rid "
+        f"{_SOURCE_JOIN} "
+        "ORDER BY w.coverage DESC, w.rid"
     )
 
 
@@ -670,6 +678,14 @@ _NEIGHBOR_OFFSETS = tuple(d for d in range(-_NEIGHBOR_RANGE, _NEIGHBOR_RANGE + 1
 _NEIGHBOR_BATCH = 100
 
 
+def _neighbor_sql(n_positions: int) -> str:
+    # ``+u.duplicate_of`` keeps SQLite from choosing the duplicate_of index (a scan of every unit, ~O(store)) over
+    # the source index for the (source, order) lookups.
+    clause = " OR ".join("(u.source_ref = ? AND u.unit_order = ?)" for _ in range(n_positions))
+    return (f"SELECT {_UNIT_COLUMNS} FROM zm_corpus_units u {_SOURCE_JOIN} "
+            f"WHERE +u.duplicate_of IS NULL AND ({clause})")
+
+
 def _propagate_neighbors(cur, scope: AuthorizedCorpusScope, meta: CorpusMetadataFilter,
                          scored: List[tuple]) -> List[tuple]:
     """``scored`` and the result are ``(hit, lexical score, matched-term mask)`` triples (hits are copied only for
@@ -684,11 +700,8 @@ def _propagate_neighbors(cur, scope: AuthorizedCorpusScope, meta: CorpusMetadata
     fetched: List[CorpusHit] = []
     for start in range(0, len(wanted), _NEIGHBOR_BATCH):
         chunk = wanted[start:start + _NEIGHBOR_BATCH]
-        clause = " OR ".join("(u.source_ref = ? AND u.unit_order = ?)" for _ in chunk)
         rows = cur.execute(
-            f"SELECT {_UNIT_COLUMNS} FROM zm_corpus_units u {_SOURCE_JOIN} "
-            f"WHERE u.duplicate_of IS NULL AND ({clause})",
-            [value for key in chunk for value in key],
+            _neighbor_sql(len(chunk)), [value for key in chunk for value in key],
         ).fetchall()
         fetched.extend(_authorize_and_filter(rows, scope, meta))
     pool = list(scored) + [(h, 0.0, 0) for h in fetched]
