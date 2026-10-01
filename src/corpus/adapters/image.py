@@ -170,9 +170,37 @@ def _rapidocr_engine() -> OcrEngine:
 
     def run(data: bytes) -> list[str]:
         result, _elapsed = engine(data)
-        return [str(item[1]) for item in (result or []) if len(item) >= 2]
+        return _group_boxes_into_lines(result or [])
 
     return run
+
+
+def _group_boxes_into_lines(result: Any) -> list[str]:
+    """Join per-word OCR boxes ``[quad, text, score]`` into one string per visual line.
+
+    rapidocr emits a box per word/fragment; emitting each as its own line would shred phrases
+    (DEF-075). Boxes are grouped by vertical-centre overlap and ordered left to right.
+    """
+    boxes: list[tuple[float, float, float, str]] = []  # (cy, height, x0, text)
+    for item in result:
+        try:
+            quad, text = item[0], str(item[1])
+            ys = [float(pt[1]) for pt in quad]
+            xs = [float(pt[0]) for pt in quad]
+        except (TypeError, ValueError, IndexError):
+            continue
+        if text.strip() and ys:
+            boxes.append(((min(ys) + max(ys)) / 2, max(ys) - min(ys), min(xs), text.strip()))
+    boxes.sort(key=lambda b: b[0])
+    lines: list[list[tuple[float, float, float, str]]] = []
+    for box in boxes:
+        if lines:
+            ref = lines[-1][0]
+            if abs(box[0] - ref[0]) <= 0.5 * max(box[1], ref[1]):
+                lines[-1].append(box)
+                continue
+        lines.append([box])
+    return [" ".join(b[3] for b in sorted(line, key=lambda b: b[2])) for line in lines]
 
 
 def _tesseract_engine() -> OcrEngine:
