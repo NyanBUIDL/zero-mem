@@ -149,24 +149,27 @@ def test_upgrade_guard_does_not_count_forgotten_sources_as_an_empty_projection(e
     must not refuse it as ``CORPUS_PROJECTION_EMPTY``."""
     from zero_mem import upgrade as upgrade_mod
 
+    env.conn.execute("PRAGMA journal_mode=DELETE")  # the guard opens the staged DB immutable (no WAL)
     gone = env.add("mem://fact/gone", "beta forgotten unit")
     tombstone(env, gone)
     project_corpus(env.conn, env.registry, blob_store=env.blobs)
     env.conn.commit()
     db = tmp_path / "d.sqlite3"
-    assert upgrade_mod._corpus_counts(db, immutable=False) == (0, 0)
+    assert upgrade_mod._corpus_counts(db, immutable=True) == (0, 0)
     upgrade_mod._guard_corpus_projection(db, db)  # must not raise
 
 
 def test_upgrade_guard_still_refuses_live_sources_that_produced_no_units(env, tmp_path):
     from zero_mem import upgrade as upgrade_mod
 
+    env.conn.execute("PRAGMA journal_mode=DELETE")
     env.add("mem://fact/live", "alpha live unit")
     project_corpus(env.conn, env.registry, blob_store=env.blobs)
     env.conn.execute("DELETE FROM zm_corpus_fts")
     env.conn.execute("DELETE FROM zm_corpus_units")
     env.conn.commit()
     db = tmp_path / "d.sqlite3"
-    assert upgrade_mod._corpus_counts(db, immutable=False) == (1, 0)
-    with pytest.raises(upgrade_mod.UpgradeError):
+    assert upgrade_mod._corpus_counts(db, immutable=True) == (1, 0)
+    with pytest.raises(upgrade_mod.UpgradeError) as excinfo:
         upgrade_mod._guard_corpus_projection(db, db)
+    assert excinfo.value.code == "CORPUS_PROJECTION_EMPTY"
