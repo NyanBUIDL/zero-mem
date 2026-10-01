@@ -296,3 +296,28 @@ def test_backend_discovery_is_lazy_not_at_construction(monkeypatch):
     adapter.is_available()
     adapter.supports("png")
     assert not {"rapidocr_onnxruntime", "pytesseract", "PIL"} & set(imported)
+
+
+def _box(x0, y0, x1, y1):
+    return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
+
+
+def test_rapidocr_word_boxes_are_regrouped_into_lines(monkeypatch):
+    """DEF-075: rapidocr returns one box per word; they must be joined per visual line."""
+    from src.corpus.adapters import image as image_mod
+
+    class FakeRapidOCR:
+        def __call__(self, data):
+            # deliberately out of reading order
+            return ([
+                [_box(164, 35, 234, 61), "4471", 0.99],
+                [_box(22, 105, 147, 133), "Contact", 0.99],
+                [_box(23, 34, 147, 62), "Invoice", 0.99],
+                [_box(162, 104, 256, 134), "Priya", 0.99],
+            ], [0.0, 0.0, 0.0])
+
+    fake = types.ModuleType("rapidocr_onnxruntime")
+    fake.RapidOCR = FakeRapidOCR
+    monkeypatch.setitem(sys.modules, "rapidocr_onnxruntime", fake)
+    run = image_mod._rapidocr_engine()
+    assert run(b"x") == ["Invoice 4471", "Contact Priya"]

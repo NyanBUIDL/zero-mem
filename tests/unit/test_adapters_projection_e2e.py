@@ -312,3 +312,31 @@ def test_image_ocr_text_is_searchable_when_an_engine_is_injected(tmp_path, monke
     hits = env.search("ocrmarkerpanda").items
     assert hits and hits[0].kind == "text"
     assert not [h for h in env.search("unavailable").items]
+
+
+@pytest.mark.skipif(
+    not (importlib.util.find_spec("rapidocr_onnxruntime") and importlib.util.find_spec("PIL")),
+    reason="optional 'ocr' extra (rapidocr-onnxruntime) + Pillow not installed",
+)
+def test_real_rapidocr_on_rendered_png_is_recalled(tmp_path):
+    """DEF-075: real engine, real PNG (rendered with Pillow), through project + authorized search."""
+    import io
+    from PIL import Image, ImageDraw, ImageFont
+
+    try:
+        font = ImageFont.load_default(36)
+    except TypeError:  # Pillow < 10.1
+        pytest.skip("Pillow too old for scalable default font")
+    img = Image.new("RGB", (900, 200), "white")
+    draw = ImageDraw.Draw(img)
+    draw.text((20, 30), "Invoice 4471 due on March 3rd", fill="black", font=font)
+    draw.text((20, 100), "Contact Priya Natarajan about the zebra project", fill="black", font=font)
+    buf = io.BytesIO()
+    img.save(buf, "PNG")
+    env = Env(tmp_path, "realocr")
+    env.add("real.png", "png", buf.getvalue())
+    rep = env.project()
+    assert rep.extractions_failed == 0
+    texts = " ".join(h.normalized_text.lower() for h in env.search("Natarajan zebra").items)
+    assert "priya natarajan about the zebra project" in texts
+    assert env.search("Invoice 4471").items
