@@ -4,7 +4,7 @@
 (``python -m src.integration.m6.mcp_server --store-path <db> --profile-id <profile> --enable-memory --tools <set>
 [--enable-write] [--allow-root DIR]...``), so an agent client that registers ``serve`` talks to exactly one
 agent's identity. The default tool set is ``--tools memory``: ONLY ``memory_recall`` / ``memory_context`` (token cost
-is the product goal: the 11 legacy M6 read tools are ~17.5 KB of ``tools/list``); ``--tools all`` adds the legacy
+is the product goal: the 11 legacy M6 read tools are ~17 KB of ``tools/list``); ``--tools all`` adds the legacy
 tools. The write tools (``memory_add`` / ``memory_ingest`` / ``memory_forget``) exist only with ``--enable-write``.
 
 ``mcp-config`` prints, without touching any state, the registration for one agent client (Claude Code, Codex,

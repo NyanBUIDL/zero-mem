@@ -213,7 +213,9 @@ def _memory_runtime_checks() -> list[dict[str, str]]:
     if not snap["initialised"]:
         return [_check(i, "WARN", "memory runtime not initialised (run zero-mem setup)") for i in ids]
     checks: list[dict[str, str]] = []
-    if snap["data_root_writable"]:
+    if not snap["corpus_root_exists"]:
+        checks.append(_check("memory_data_root", "WARN", "corpus root or its registry is missing (run zero-mem setup)"))
+    elif snap["data_root_writable"]:
         checks.append(_check("memory_data_root", "PASS", "data root and corpus root are writable"))
     else:
         checks.append(_check("memory_data_root", "WARN", "data root is not writable by this user: memory writes will fail"))

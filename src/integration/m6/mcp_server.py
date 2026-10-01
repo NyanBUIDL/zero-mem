@@ -22,6 +22,11 @@ package ``src.integration.m6w`` (see ``mount_tool_set``).  They need a pinned id
 that profile only and delegate to ``zero_mem.memory.Memory`` (authorize -> secret pre-scan ->
 lock -> register).  Without those switches the server is exactly the read-only M6 surface.
 
+Tool set (T8, token cost): ``--tools memory`` (env ``ZM_M6_TOOLS``) lists and serves ONLY the
+mounted memory tools - the 11 M6 tools are ~17 KB of ``tools/list`` per agent session.  The
+default here stays ``all`` (the pinned T6a / T6b surface); ``zero-mem serve`` passes ``memory``
+unless it is given ``--tools all``.
+
 Server is configured with a derived-store path supplied at startup (argv or
 env ZM_M6_STORE_PATH). No hard-coded repository or user paths.
 
@@ -144,7 +149,7 @@ def get_identity() -> ServerIdentity:
 # acts as the pinned profile only, so mounting needs a pinned identity that equals its own.
 _TOOL_SETS: List[Any] = []
 
-# T8 (token footprint): the 11 legacy M6 tools are ~17.5 KB of ``tools/list`` that every agent session pays for.
+# T8 (token footprint): the 11 legacy M6 tools are ~17 KB of ``tools/list`` that every agent session pays for.
 # ``--tools memory`` lists and serves only the mounted memory tools; the default (``all``) is exactly the pinned T6a
 # surface, so a plain ``zero-mem-mcp`` is unchanged.  ``zero-mem serve`` passes ``memory`` unless told ``--tools all``.
 _LEGACY_TOOLS = True
@@ -415,7 +420,7 @@ def main(argv: Optional[list] = None) -> int:
                          "separated). Without any, memory_ingest is disabled.")
     ap.add_argument("--tools", choices=(TOOLS_ALL, TOOLS_MEMORY), default=None,
                     help="'all' (default): the 11 M6 read tools plus any mounted memory tools. 'memory': ONLY the "
-                         "memory tools (needs --enable-memory); ~17.5 KB less in every session's tools/list "
+                         "memory tools (needs --enable-memory); ~17 KB less in every session's tools/list "
                          "(env ZM_M6_TOOLS).")
     args = ap.parse_args(argv)
     tools_mode = args.tools or (os.environ.get("ZM_M6_TOOLS") or "").strip() or TOOLS_ALL

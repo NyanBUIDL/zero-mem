@@ -119,6 +119,16 @@ def test_an_unwritable_data_root_is_a_warning(home, monkeypatch):
     assert report["overall"] == "READY"
 
 
+def test_a_missing_corpus_root_is_a_warning_that_names_the_fix(home):
+    import shutil
+
+    layout = populate()
+    shutil.rmtree(layout.corpus_root)
+    _code, checks, _report, _raw = doctor(home)
+    assert checks["memory_data_root"]["status"] == "WARN"
+    assert "corpus root" in checks["memory_data_root"]["message"] and "zero-mem setup" in checks["memory_data_root"]["message"]
+
+
 def test_an_uninitialised_install_is_reported_without_creating_anything(home):
     code, checks, report, raw = doctor(home)
     assert not (home / "data").exists()
