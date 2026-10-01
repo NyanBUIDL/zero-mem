@@ -19,6 +19,7 @@ import os
 import re
 import shlex
 import sys
+import textwrap
 from typing import Any, Callable, Dict, List, Optional
 
 from . import paths
@@ -40,6 +41,14 @@ _CLIENT_LABEL = {
     "hermes": "Hermes",
     "openclaw": "OpenClaw",
 }
+#: What was actually exercised (docs/runbooks/agent-integration.md has the dated evidence). Only Claude Code's own
+#: CLI was available to run: `claude mcp add` took the printed command and `claude mcp list` (the client's real
+#: health check) reported the server Connected. Nothing was run in Codex, Hermes or OpenClaw.
+_VERIFIED_WITH_REAL_CLIENT = frozenset({"claude-code"})
+_NOTE_VERIFIED = ("verified with Claude Code's own CLI: `claude mcp add` accepted this command and `claude mcp list` "
+                  "reported the server Connected (Claude Code 2.1.286); the model's tool calls were not exercised")
+_NOTE_UNVERIFIED = ("NOT verified with the real {label} client: command, args and env were exercised with the zero-mem "
+                    "stdio test client only, and the {label} configuration format is documented from its spec")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -241,11 +250,18 @@ def build_registration(agent: str, profile: str, *, name: str = DEFAULT_SERVER_N
         "allow_roots": roots,
         "operator_steps": steps,
         "verified": {
-            "server_command": True,   # exercised with the zero-mem stdio test client (see docs/runbooks/agent-integration.md)
-            "client_config_format": False,  # documented from the client's spec, not run in the real client
+            "server_command": True,   # exercised with the zero-mem stdio test client
+            "client_config_format": agent in _VERIFIED_WITH_REAL_CLIENT,
         },
+        "verification_note": (_NOTE_VERIFIED if agent in _VERIFIED_WITH_REAL_CLIENT
+                              else _NOTE_UNVERIFIED.format(label=_CLIENT_LABEL[agent])),
         "snippets": _snippets(agent, name, command, args, env),
     }
+
+
+def _wrap(text: str, width: int = 112) -> List[str]:
+    """``text`` as ``# ``-prefixed comment lines (valid in TOML, shell and as a YAML comment)."""
+    return ["# " + line for line in textwrap.wrap(text, width, break_on_hyphens=False, break_long_words=False)]
 
 
 def render_text(reg: Dict[str, Any]) -> str:
@@ -261,9 +277,7 @@ def render_text(reg: Dict[str, Any]) -> str:
         "#",
         f"# 2. Register the server with {label}:",
         "#",
-        f"# Status: the command below was exercised with the zero-mem stdio test client; the {label} configuration",
-        "# format is documented from its spec and is NOT verified with the real client. See",
-        "# docs/runbooks/agent-integration.md for the verification matrix.",
+        *_wrap(f"Status: {reg['verification_note']}. See docs/runbooks/agent-integration.md for the verification matrix."),
     ]
     if reg["write_enabled"]:
         if reg["allow_roots"]:

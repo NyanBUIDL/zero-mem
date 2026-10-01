@@ -254,7 +254,7 @@ class MemoryToolSet:
         if project and str(result.notes.get("project", "")).startswith("DENY"):
             warning = "That project's dev log is not readable by this agent (needs the operator's read grant)."
         if not hits:
-            return make_result(tool, c.EMPTY, message="No matching memory.",
+            return make_result(tool, c.EMPTY, message="No matching memory." + (f" {warning}" if warning else ""),
                                data={"count": 0, "hits": [], "warning": warning})
         lines = [f"{tool}: SUCCESS - {len(hits)} result(s)" + (" (more were cut for size)" if truncated else "")]
         for index, h in enumerate(hits, 1):

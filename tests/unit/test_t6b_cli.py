@@ -112,7 +112,10 @@ def test_mcp_config_uses_the_absolute_interpreter_and_pins_the_agent_profile(hom
     assert reg["env"]["ZERO_MEM_DATA_ROOT"] == str(home / "data")
     assert reg["env"]["XDG_CONFIG_HOME"] == str(home / "xdg" / "config")
     assert reg["write_enabled"] is False
-    assert reg["verified"] == {"server_command": True, "client_config_format": False}
+    # only Claude Code's own CLI could be run here (add + health check); the others are documented from their specs
+    assert reg["verified"] == {"server_command": True, "client_config_format": agent == "claude-code"}
+    assert ("Connected" in reg["verification_note"]) is (agent == "claude-code")
+    assert ("NOT verified" in reg["verification_note"]) is (agent != "claude-code")
 
 
 def test_mcp_config_does_not_touch_the_filesystem(home):
@@ -192,7 +195,8 @@ def test_text_output_is_ready_to_paste_and_says_what_is_verified(home):
     entry = tomllib.loads(out)["mcp_servers"]["zero-mem"]
     assert entry["command"] == os.path.abspath(sys.executable) and "--enable-write" in entry["args"]
     code, out, _ = run("mcp-config", "--agent", "claude-code")
-    assert "claude mcp add zero-mem" in out and '"mcpServers"' in out
+    assert "claude mcp add zero-mem" in out and '"mcpServers"' in out and "Connected" in out
+    assert "NOT verified" not in out
     code, out, _ = run("mcp-config", "--agent", "hermes")
     assert '"mcpServers"' in out and "generic" in out.lower()
 

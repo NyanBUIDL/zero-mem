@@ -212,12 +212,12 @@ def _check_value(value: Any, schema: Dict[str, Any], path: str) -> Optional[str]
     if kind == "string":
         if not isinstance(value, str):
             return f"{path} must be a string"
-        if "\x00" in value or (path != "text" and _has_control(value)):
-            return f"{path} contains control characters"
         if len(value) < schema.get("minLength", 0):
             return f"{path} is too short"
-        if len(value) > schema.get("maxLength", 10 ** 9):
+        if len(value) > schema.get("maxLength", 10 ** 9):  # before any scan: never walk a giant string
             return f"{path} is too long (max {schema['maxLength']})"
+        if "\x00" in value or (path != "text" and _has_control(value)):
+            return f"{path} contains control characters"
         if "enum" in schema and value not in schema["enum"]:
             return f"{path} must be one of: " + ", ".join(schema["enum"])
         if "pattern" in schema and not re.fullmatch(schema["pattern"], value):

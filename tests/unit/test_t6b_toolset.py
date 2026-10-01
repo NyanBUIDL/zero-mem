@@ -218,6 +218,13 @@ def test_secrets_are_rejected_with_a_fixed_rule_id_and_never_stored_or_echoed(en
     assert env.files_containing("hunter2hunter2") == [] and env.files_containing(SECRET_TOKEN) == []
 
 
+def test_a_secret_hidden_in_the_name_is_rejected_too(env):
+    ts = toolset(env)
+    out = run(ts, "memory_add", text="harmless text", memory_type="fact", scope="private", name=SECRET_TOKEN)
+    assert out["status"] == "REJECTED_SECRET" and SECRET_TOKEN not in json.dumps(out)
+    assert env.registry_lines() == [] and env.files_containing(SECRET_TOKEN) == []
+
+
 @pytest.mark.parametrize("args,reason", [
     ({"text": "", "memory_type": "fact", "scope": "private"}, "SCHEMA_VIOLATION"),
     ({"text": "x", "memory_type": "diary", "scope": "private"}, "SCHEMA_VIOLATION"),
@@ -301,7 +308,9 @@ def test_recall_of_a_project_devlog_needs_a_read_grant(env):
     env.prov.grant_write("claude-code", project="zero-mem")
     run(cc, "memory_add", text="wrote the lock fix for ravens", memory_type="devlog", scope="project",
         project_id="zero-mem")
-    assert run(codex, "memory_recall", query="ravens", project_id="zero-mem")["status"] == "EMPTY"
+    unreadable = run(codex, "memory_recall", query="ravens", project_id="zero-mem")
+    assert unreadable["status"] == "EMPTY" and "not readable" in unreadable["warning"]
+    assert "not readable" in text_of(codex, "memory_recall", query="ravens", project_id="zero-mem")
     env.prov.grant_read("codex", project="zero-mem")
     out = run(codex, "memory_recall", query="ravens", project_id="zero-mem")
     assert out["status"] == "SUCCESS" and out["hits"][0]["scope"] == "project"
