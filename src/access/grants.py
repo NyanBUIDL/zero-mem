@@ -173,9 +173,17 @@ def compose_effective_scope(request: AccessRequest,
     # front; without this narrowing every granted space was added as a grant scope
     # whatever the request asked for, so an unknown/ungranted/unrequested space
     # returned the rows of every granted space.
-    grants = [g for g in (grants or [])
-              if not (g.target_type == "knowledge_space"
-                      and g.target_id not in requested_spaces)]
+    # DEF-063 (project part): same rule for project grants. Profile grants are NOT
+    # narrowed: M5 linked-traversal / grant tests pin them as applying to an own-profile
+    # request (see docs/defects/closures/T9.md).
+    def _named(g):
+        if g.target_type == "knowledge_space":
+            return g.target_id in requested_spaces
+        if g.target_type == "project":
+            return g.target_id in requested_projects
+        return True
+
+    grants = [g for g in (grants or []) if _named(g)]
 
     base_allowed_profiles = set(base.normalized_scope.allowed_profile_ids)
     if requester is not None:
