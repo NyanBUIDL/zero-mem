@@ -123,10 +123,22 @@ def add_memory_parsers(subparsers) -> None:
     p.add_argument("source_id", help="source id, unique id prefix, or mem:// reference")
     p.set_defaults(_memory_cmd="forget")
 
-    p = subparsers.add_parser("devlog", parents=[common], help="record a development-log entry for a project")
-    p.add_argument("text", nargs="+")
-    p.add_argument("--project", dest="project_id", required=True, help="project id")
-    p.set_defaults(_memory_cmd="devlog")
+    p = subparsers.add_parser(
+        "devlog", parents=[common],
+        help="record a development-log entry for a project, or (--from-git) turn recent git commits into one")
+    p.add_argument("text", nargs="*", help="the entry (not with --from-git)")
+    p.add_argument("--project", dest="project_id", default=None,
+                   help="project id (required; with --from-git it defaults to the repository directory name)")
+    p.add_argument("--from-git", action="store_true", default=False,
+                   help="no LLM: write one devlog entry per day from the git log (short hash, subject, files "
+                        "changed); idempotent, safe to run from an agent hook")
+    p.add_argument("--repo", default=None, metavar="DIR", help="with --from-git: the repository (default: the current directory)")
+    p.add_argument("--since", default=None, metavar="REF",
+                   help="with --from-git: only days with commits newer than this commit / tag / branch (each such "
+                        "day is written whole)")
+    p.add_argument("--days", type=int, default=None, metavar="N",
+                   help="with --from-git and no --since: the last N days including today (default 7)")
+    p.set_defaults(_memory_cmd="devlog", _devlog_parser=p)
 
     # NOT named "status": that command name is pinned as unregistered by the PKG-1/PKG-3 release-layer tests.
     p = subparsers.add_parser("memory-status", parents=[common],
@@ -265,6 +277,84 @@ def _cmd_add(args, *, devlog: bool = False) -> int:
     return _STATUS_EXIT.get(result.status, EXIT_ERROR)
 
 
+def _cmd_devlog(args) -> int:
+    if getattr(args, "from_git", False):
+        return _cmd_devlog_git(args)
+    parser = getattr(args, "_devlog_parser", None)
+    if parser is not None and args.project_id is None:
+        parser.error("the following arguments are required: --project")
+    if parser is not None and not args.text:
+        parser.error("the following arguments are required: text")
+    for option, value in (("--repo", args.repo), ("--since", args.since), ("--days", args.days)):
+        if value is not None:
+            _err(f"{option} only applies with --from-git")
+            return EXIT_ERROR
+    return _cmd_add(args, devlog=True)
+
+
+def _cmd_devlog_git(args) -> int:
+    from . import devlog_git
+    from .provisioning import valid_id
+
+    if args.text:
+        _err("give either TEXT or --from-git, not both")
+        return EXIT_ERROR
+    days = devlog_git.DEFAULT_DAYS if args.days is None else args.days
+    if not 1 <= days <= devlog_git.MAX_DAYS:
+        _err(f"--days must be between 1 and {devlog_git.MAX_DAYS}")
+        return EXIT_ERROR
+    repo = Path(args.repo or ".").expanduser()
+    try:
+        devlog_git.check_repo(repo)
+        if args.since is not None:
+            devlog_git.check_ref(repo, args.since)
+        project = args.project_id or devlog_git.default_project(repo)
+        if not project or not valid_id(project):
+            raise devlog_git.GitLogError("invalid project id: pass --project (letters, digits, . _ -)")
+        by_day = devlog_git.collect(repo, since=args.since, days=days)
+    except devlog_git.GitLogError as exc:
+        _err(str(exc))
+        return EXIT_ERROR
+    results, status = [], "ok"
+    if by_day:
+        memory = _open(args)
+        try:
+            for day, commits in by_day.items():
+                res = memory.add(devlog_git.render(commits), "devlog", name=day, scope="project", project_id=project)
+                results.append({"day": day, "commits": len(commits), "status": res.status,
+                                "ref": res.external_ref or f"mem://devlog/{project}/{day}",
+                                **({"reason": res.reason} if res.reason else {})})
+                if res.status == "denied":  # every other day would be denied too: one audit event, then stop
+                    break
+        finally:
+            memory.close()
+    counts = {k: sum(1 for r in results if r["status"] == k)
+              for k in ("created", "updated", "unchanged", "rejected_secret", "rejected_content", "denied", "invalid",
+                        "error")}
+    code = EXIT_OK
+    if counts["denied"]:
+        status, code = "denied", EXIT_DENIED
+    elif counts["rejected_secret"] or counts["rejected_content"]:
+        status, code = "partial", EXIT_REJECTED
+    elif counts["invalid"] or counts["error"]:
+        status, code = "error", EXIT_ERROR
+    if _wants_json(args):
+        _emit({"status": status, "project": project, "days": results, "counts": counts})
+        return code
+    if not results:
+        print(f"no commits to record for project {project}")
+        return code
+    for r in results:
+        print(f"{r['status']:<16} {r['day']}  {r['commits']} commit(s)  {r['ref']}")
+        if r["status"] == "denied":
+            _err(f"denied: profile '{args.profile}' may not write to this project; "
+                 + _hint_for_denied(args.profile, "project", project))
+        elif r["status"] == "rejected_secret":
+            _err(f"rejected {r['day']}: a credential-like value was detected in a commit subject or file name; "
+                 "that day was not stored")
+    return code
+
+
 def _summary_line(report) -> str:
     c = report.counts
     parts = [f"{c.get('created', 0)} created", f"{c.get('updated', 0)} updated", f"{c.get('unchanged', 0)} unchanged"]
@@ -382,6 +472,13 @@ def _cmd_status(args) -> int:
         status = memory.status()
     finally:
         memory.close()
+    try:  # T8: read-only runtime facts (writable, schema, grants, drift, last write); never blocks the status
+        from .memory_health import snapshot
+
+        status["runtime"] = snapshot()
+    except Exception:  # noqa: BLE001
+        status["runtime"] = None
+    runtime = status["runtime"] or {}
     if _wants_json(args):
         _emit(status)
         return EXIT_OK
@@ -392,6 +489,9 @@ def _cmd_status(args) -> int:
     print("by type      " + (", ".join(f"{k} {v}" for k, v in s["by_type"].items()) or "-"))
     print(f"shared space {status['shared_space']}: read={'yes' if status['can_read_shared'] else 'no'}, "
           f"write={'yes' if status['can_write_shared'] else 'no'}")
+    grants = runtime.get("grants") or {}
+    print(f"agents       {grants.get('agents', '?')} registered, {grants.get('active', '?')} active grant(s)")
+    print(f"last write   {runtime.get('last_write') or '-'}")
     if status["needs_rebuild"]:
         print(f"WARNING      {status['drifted_sources']} source(s) are not projected: run zero-mem upgrade")
     return EXIT_OK
@@ -506,7 +606,7 @@ def _cmd_agents_list(args) -> int:
 
 _HANDLERS = {
     "add": _cmd_add,
-    "devlog": lambda args: _cmd_add(args, devlog=True),
+    "devlog": _cmd_devlog,
     "ingest": _cmd_ingest,
     "search": _cmd_search,
     "context": _cmd_context,

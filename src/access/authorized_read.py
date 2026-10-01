@@ -954,47 +954,9 @@ class AuthorizedReadService:
 
 
 
-    def corpus_unit_search(
-        self,
-        request: AccessRequest,
-        text: str,
-        *,
-        metadata: Optional[dict] = None,
-        limit: Optional[int] = None,
-        semantic: Optional[Any] = None,
-        grants: Optional[List[AuthorizedReadGrant]] = None,
-    ) -> AuthorizedResult:
-        """Authorization-before-influence corpus_unit retrieval.
-
-        Authorization is performed by M5 BEFORE any corpus candidate discovery.
-        The effective scope (base + per-grant atomic scopes) is enumerated into
-        concrete (profile, project, space) tuples, and only units inside that
-        authorized scope may become candidates. FTS is used for lexical
-        discovery only; unauthorized units are dropped before ranking/scoring/
-        fusion/truncation (see src/corpus/retrieval.py).
-
-        `corpus_unit` is a DISTINCT resource type from `corpus_source`; a
-        `corpus_source` grant does NOT authorize `corpus_unit` reads and vice
-        versa (permanent M6.6 isolation, enforced by `_gate` resource_type check
-        and the explicit `resource_type="corpus_unit"` request).
-
-        Returns an ``AuthorizedResult`` whose ``items`` are ``CorpusHit``
-        objects (DATA only). Denials/errors yield nothing here.
-        """
-        eff = self._gate(request, grants)
-        if not eff.allow:
-            return self._denied(eff)
-        # Explicit resource_type gate: corpus_unit reads require corpus_unit
-        # authorization; a corpus_source-only scope must not leak corpus_unit.
-        if request.resource_type not in (None, "corpus_unit"):
-            return self._denied(eff)
-
-        from src.corpus.query_planner import build_query_plan
-        from src.corpus.retrieval import (
-            AuthorizedCorpusScope,
-            CorpusHit,
-            retrieve_corpus,
-        )
+    def _corpus_scope(self, eff: EffectiveReadScope):
+        """The concrete (profile, project, space) tuples a corpus_unit read under ``eff`` may touch."""
+        from src.corpus.retrieval import AuthorizedCorpusScope
 
         # Enumerate the authorized corpus scope from the M5 EffectiveReadScope.
         allowed: List[tuple] = []
@@ -1037,7 +999,60 @@ class AuthorizedReadService:
             if triple not in seen:
                 seen.add(triple)
                 deduped.append(triple)
-        auth_scope = AuthorizedCorpusScope(allowed_scopes=tuple(deduped))
+        return AuthorizedCorpusScope(allowed_scopes=tuple(deduped))
+
+    def corpus_scope(self, request: AccessRequest,
+                     grants: Optional[List[AuthorizedReadGrant]] = None):
+        """Authorize ``request`` (a ``corpus_unit`` READ) and return the row-level ``AuthorizedCorpusScope``
+        retrieval would apply, or ``None`` when the request is denied. ``scope.allows(profile, project, space)``
+        answers whether one stored row is inside what this requester may read (no retrieval, no content)."""
+        eff = self._gate(request, grants)
+        if not eff.allow or request.resource_type not in (None, "corpus_unit"):
+            return None
+        return self._corpus_scope(eff)
+
+    def corpus_unit_search(
+        self,
+        request: AccessRequest,
+        text: str,
+        *,
+        metadata: Optional[dict] = None,
+        limit: Optional[int] = None,
+        semantic: Optional[Any] = None,
+        grants: Optional[List[AuthorizedReadGrant]] = None,
+    ) -> AuthorizedResult:
+        """Authorization-before-influence corpus_unit retrieval.
+
+        Authorization is performed by M5 BEFORE any corpus candidate discovery.
+        The effective scope (base + per-grant atomic scopes) is enumerated into
+        concrete (profile, project, space) tuples, and only units inside that
+        authorized scope may become candidates. FTS is used for lexical
+        discovery only; unauthorized units are dropped before ranking/scoring/
+        fusion/truncation (see src/corpus/retrieval.py).
+
+        `corpus_unit` is a DISTINCT resource type from `corpus_source`; a
+        `corpus_source` grant does NOT authorize `corpus_unit` reads and vice
+        versa (permanent M6.6 isolation, enforced by `_gate` resource_type check
+        and the explicit `resource_type="corpus_unit"` request).
+
+        Returns an ``AuthorizedResult`` whose ``items`` are ``CorpusHit``
+        objects (DATA only). Denials/errors yield nothing here.
+        """
+        eff = self._gate(request, grants)
+        if not eff.allow:
+            return self._denied(eff)
+        # Explicit resource_type gate: corpus_unit reads require corpus_unit
+        # authorization; a corpus_source-only scope must not leak corpus_unit.
+        if request.resource_type not in (None, "corpus_unit"):
+            return self._denied(eff)
+
+        from src.corpus.query_planner import build_query_plan
+        from src.corpus.retrieval import (
+            CorpusHit,
+            retrieve_corpus,
+        )
+
+        auth_scope = self._corpus_scope(eff)
 
         try:
             # DEF-061: no caller limit -> the planner's token-friendly default

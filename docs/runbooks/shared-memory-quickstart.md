@@ -47,7 +47,10 @@ zero-mem --profile claude-code add "Nyan prefers terse answers and no emojis." -
 zero-mem --profile claude-code add "Always run pytest before every commit." --type workflow --name commit --scope shared
 zero-mem --profile claude-code add "Alice prefers PostgreSQL for storage."          # private fact
 zero-mem --profile claude-code devlog "Fixed the flaky lock test" --project zero-mem
+zero-mem --profile claude-code devlog --from-git --repo ~/code/zero-mem --project zero-mem   # no LLM: one entry per day from the git log, idempotent
 ```
+
+`devlog --from-git` is meant for agent hooks (Stop / SessionEnd): see [agent-integration.md](agent-integration.md#7-capture-dev-history-without-an-llm-zero-mem-devlog---from-git).
 
 Types: `persona`, `workflow`, `skill`, `devlog`, `fact` (default), `file`. Adding again under the same `--name` creates a new version
 (the old text is no longer returned); without `--name` the id is the text hash, so repeating a text is a no-op. `add -` reads stdin.
@@ -94,11 +97,12 @@ Agents, grants and approvals are canonical events inside the backup, so a restor
 
 ```bash
 zero-mem import-notes        # migrates <data root>/data/notes/notes-v1.jsonl (the retired notes store) into facts; idempotent; the file is kept
-zero-mem --profile codex serve    # execs the stdio MCP server pinned to profile "codex": read-only M6 tools + memory_recall / memory_context
+zero-mem --profile codex serve    # execs the stdio MCP server pinned to profile "codex": memory_recall / memory_context only (the lowest token cost)
 zero-mem mcp-config --agent codex # prints what to paste into the agent's MCP configuration
 ```
 
-`serve` takes `--enable-write` (adds `memory_add`, `memory_ingest`, `memory_forget`) and `--allow-root DIR` (folders `memory_ingest` may read). The server is pinned to
+`serve` takes `--enable-write` (adds `memory_add`, `memory_ingest`, `memory_forget`), `--allow-root DIR` (folders `memory_ingest` may read) and `--tools all` (also lists the 11
+legacy read-only M6 tools: `corpus_search`, `memory_query`, `project_*`, ...; about 17 KB more `tools/list` in every session). The server is pinned to
 one profile, so an agent cannot read another agent's private memory or name another identity. Registering each agent, the tool list, the security model, what has
 been verified with which client and troubleshooting are in [agent-integration.md](agent-integration.md).
 
@@ -113,5 +117,5 @@ been verified with which client and troubleshooting are in [agent-integration.md
 | 4 | content rejected (credential detected, unsupported, empty) - nothing was stored |
 | 5 | not found / nothing to revoke |
 
-Every command also takes `--json` for machine-readable output. Troubleshooting: `zero-mem doctor`, `zero-mem memory-status`; if `memory-status` warns that
-sources are not projected, run `zero-mem upgrade`.
+Every command also takes `--json` for machine-readable output. Troubleshooting: `zero-mem doctor` (its `memory_*` checks report writable roots, schema, grants, sources / units and the
+last write), `zero-mem memory-status [--json]`; if either warns that sources are not projected, run `zero-mem upgrade`.

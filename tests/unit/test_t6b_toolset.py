@@ -160,8 +160,8 @@ def test_add_creates_updates_and_dedups_with_structured_status(env):
     ts = toolset(env)
     first = run(ts, "memory_add", text="Alice prefers PostgreSQL for storage.", memory_type="fact", scope="private")
     assert first["status"] == "SUCCESS" and first["result"] == "created"
-    assert first["scope"] == "private" and first["memory_type"] == "fact"
-    assert first["ref"].startswith("mem://fact/") and re.fullmatch(r"[0-9a-f]{16}", first["source_id"])
+    assert first["scope"] == "private"
+    assert first["ref"].startswith("mem://fact/") and re.fullmatch(r"[0-9a-f]{10}", first["id"])
     again = run(ts, "memory_add", text="Alice prefers PostgreSQL for storage.", memory_type="fact", scope="private")
     assert again["status"] == "SUCCESS" and again["result"] == "unchanged"
     named = run(ts, "memory_add", text="Terse answers.", memory_type="persona", name="style", scope="private")
@@ -188,7 +188,7 @@ def test_add_to_the_shared_space_after_operator_approval_succeeds(env):
     assert out["status"] == "SUCCESS" and out["scope"] == "shared"
     other = toolset(env, "codex")
     hit = run(other, "memory_recall", query="persona text")["hits"][0]
-    assert hit["scope"] == "shared" and hit["ref"] == "mem://persona/style"
+    assert hit["type"] == "persona" and hit["ref"] == "mem://persona/style"  # codex reads what claude-code shared
 
 
 def test_devlog_needs_project_scope_and_a_project_grant(env):
@@ -248,19 +248,19 @@ def test_recall_returns_compact_hits_with_a_short_forgettable_id(env):
     ts = toolset(env)
     run(ts, "memory_add", text="Gazelles run very fast across the savanna.", memory_type="fact", scope="private")
     out = run(ts, "memory_recall", query="how fast do gazelles run")
-    assert out["status"] == "SUCCESS" and out["count"] == 1
+    assert out["status"] == "SUCCESS" and len(out["hits"]) == 1
     hit = out["hits"][0]
-    assert set(hit) == {"text", "ref", "type", "scope", "score", "source_id"}
-    assert "Gazelles run very fast" in hit["text"] and hit["scope"] == "private" and hit["type"] == "fact"
-    assert re.fullmatch(r"[0-9a-f]{16}", hit["source_id"])
+    assert set(hit) == {"id", "type", "ref", "score", "text"}  # T8: compact; test_t8_token_footprint pins the budget
+    assert "Gazelles run very fast" in hit["text"] and hit["type"] == "fact"
+    assert re.fullmatch(r"[0-9a-f]{10}", hit["id"])
     rendered = text_of(ts, "memory_recall", query="gazelles")
-    assert "Gazelles run very fast" in rendered and hit["source_id"] in rendered
+    assert "Gazelles run very fast" in rendered and hit["id"] in rendered
     assert "profile_id" not in json.dumps(out) and "unit_id" not in json.dumps(out)
 
 
 def test_recall_with_no_match_is_empty_and_not_an_error(env):
     out = run(toolset(env), "memory_recall", query="nonexistentword")
-    assert out["status"] == "EMPTY" and out["count"] == 0 and out["hits"] == []
+    assert out == {"status": "EMPTY"}
 
 
 def test_recall_filters_by_memory_type_and_bounds_the_limit(env):
@@ -268,8 +268,8 @@ def test_recall_filters_by_memory_type_and_bounds_the_limit(env):
     for i in range(10):
         run(ts, "memory_add", text=f"quokka fact number {i}", memory_type="fact", scope="private")
     run(ts, "memory_add", text="quokka workflow steps", memory_type="workflow", name="quokka", scope="private")
-    assert run(ts, "memory_recall", query="quokka")["count"] == 5  # default
-    assert run(ts, "memory_recall", query="quokka", limit=8)["count"] == 8
+    assert len(run(ts, "memory_recall", query="quokka")["hits"]) == 5  # default
+    assert len(run(ts, "memory_recall", query="quokka", limit=8)["hits"]) == 8
     only = run(ts, "memory_recall", query="quokka", memory_types=["workflow"])
     assert [h["type"] for h in only["hits"]] == ["workflow"]
     both = run(ts, "memory_recall", query="quokka", memory_types=["workflow", "fact"], limit=8)
@@ -289,11 +289,11 @@ def test_recall_output_is_token_bounded(env):
         run(ts, "memory_add", text=("lengthy " * 400) + f" marker{i} wallaby", memory_type="fact", scope="private")
     result = ts.call("memory_recall", {"query": "wallaby", "limit": 8})
     out = result["structuredContent"]
-    assert out["status"] == "SUCCESS" and out["count"] >= 1
-    assert all(len(h["text"]) <= 600 for h in out["hits"])
-    assert len(result["content"][0]["text"]) <= 6000
-    assert sum(len(h["text"]) for h in out["hits"]) <= 5000
-    assert len(json.dumps(out)) <= 9000
+    assert out["status"] == "SUCCESS" and len(out["hits"]) >= 1
+    assert all(len(h["text"]) <= 300 for h in out["hits"])
+    assert len(result["content"][0]["text"]) <= 3072
+    assert sum(len(h["text"]) for h in out["hits"]) <= 2400
+    assert len(json.dumps(out)) <= 3600  # (default json separators; test_t8_token_footprint pins the compact 3 KB)
 
 
 def test_private_notes_of_another_agent_are_never_returned(env):
@@ -313,7 +313,7 @@ def test_recall_of_a_project_devlog_needs_a_read_grant(env):
     assert "not readable" in text_of(codex, "memory_recall", query="ravens", project_id="zero-mem")
     env.prov.grant_read("codex", project="zero-mem")
     out = run(codex, "memory_recall", query="ravens", project_id="zero-mem")
-    assert out["status"] == "SUCCESS" and out["hits"][0]["scope"] == "project"
+    assert out["status"] == "SUCCESS" and out["hits"][0]["type"] == "devlog"
 
 
 # ----------------------------------------------------------------------------------------------- memory_context
@@ -329,17 +329,17 @@ def test_context_is_a_bounded_bundle_of_persona_workflow_skill_and_devlog(env):
     run(ts, "memory_add", text="Fixed the flaky lock test", memory_type="devlog", scope="project", project_id="zero-mem")
     result = ts.call("memory_context", {"max_chars": 2000, "project_id": "zero-mem"})
     out, text = result["structuredContent"], result["content"][0]["text"]
-    assert out["status"] == "SUCCESS" and out["max_chars"] == 2000 and len(text) <= 2000 and text == out["text"]
+    assert out["status"] == "SUCCESS" and len(text) <= 2000 and text == out["text"]
     assert "terse answers" in text and "pytest before every commit" in text
     assert "deploy" in text and "Deploy the service to staging" in text and "flaky lock test" in text
     small = run(ts, "memory_context", max_chars=200)
-    assert small["status"] == "SUCCESS" and small["chars"] <= 200 and small["truncated"] is True
+    assert small["status"] == "SUCCESS" and len(small["text"]) <= 200 and small["truncated"] is True
 
 
 def test_context_defaults_are_bounded_and_an_empty_memory_is_not_an_error(env):
     ts = toolset(env)
     out = run(ts, "memory_context")
-    assert out["status"] == "EMPTY" and out["max_chars"] == 3000
+    assert out["status"] == "EMPTY" and "text" not in out
     for bad in (0, 99, 199, 4001, 10**6, "300", 3.5, True, None):
         assert run(ts, "memory_context", max_chars=bad)["status"] == "INVALID", bad
     assert run(ts, "memory_context", project_id="bad id")["status"] == "INVALID"
@@ -351,7 +351,7 @@ def test_forget_removes_the_memory_from_recall_for_every_agent(env):
     env.prov.grant_write("claude-code", space="ks-shared")
     added = run(cc, "memory_add", text="shared fact about okapis", memory_type="fact", scope="shared")
     assert run(codex, "memory_recall", query="okapis")["status"] == "SUCCESS"
-    gone = run(cc, "memory_forget", source_id=added["source_id"])
+    gone = run(cc, "memory_forget", source_id=added["id"])
     assert gone["status"] == "SUCCESS" and gone["result"] == "forgotten" and gone["ref"] == added["ref"]
     assert run(codex, "memory_recall", query="okapis")["status"] == "EMPTY"
     assert run(cc, "memory_recall", query="okapis")["status"] == "EMPTY"
@@ -363,7 +363,7 @@ def test_forget_of_a_shared_memory_needs_the_write_approval(env):
     cc, codex = toolset(env, "claude-code"), toolset(env, "codex")
     env.prov.grant_write("claude-code", space="ks-shared")
     added = run(cc, "memory_add", text="shared fact about tapirs", memory_type="fact", scope="shared")
-    out = run(codex, "memory_forget", source_id=added["source_id"])
+    out = run(codex, "memory_forget", source_id=added["id"])
     assert out["status"] == "DENIED" and "grant-write codex --space ks-shared" in out["operator_hint"]
     assert run(codex, "memory_recall", query="tapirs")["status"] == "SUCCESS"
 
@@ -372,21 +372,35 @@ def test_forget_cannot_reach_another_agents_private_memory_and_leaks_no_ids(env)
     cc, codex = toolset(env, "claude-code"), toolset(env, "codex")
     mine = run(cc, "memory_add", text="same words in two private stores", memory_type="fact", scope="private")
     theirs = run(codex, "memory_add", text="same words in two private stores", memory_type="fact", scope="private")
-    assert mine["ref"] == theirs["ref"] and mine["source_id"] != theirs["source_id"]
+    assert mine["ref"] == theirs["ref"] and mine["id"] != theirs["id"]
     other = run(codex, "memory_forget", source_id="f" * 16)
     assert other["status"] == "NOT_FOUND"
     # codex knows claude-code's REAL private id (it leaked some other way): still not found, nothing is forgotten
-    foreign = run(codex, "memory_forget", source_id=mine["source_id"])
+    foreign = run(codex, "memory_forget", source_id=mine["id"])
     assert foreign["status"] == "NOT_FOUND" and foreign["reason_code"] == "unknown_source"
     assert run(cc, "memory_recall", query="private stores")["status"] == "SUCCESS"
-    # the shared ref names two sources (one per profile): the answer must not reveal codex's id
-    ambiguous = cc.call("memory_forget", {"source_id": mine["ref"]})
-    assert theirs["source_id"] not in json.dumps(ambiguous)
-    assert ambiguous["structuredContent"]["status"] == "INVALID"
-    assert ambiguous["structuredContent"]["reason_code"] == "AMBIGUOUS_REFERENCE"
-    assert run(cc, "memory_forget", source_id=mine["source_id"])["status"] == "SUCCESS"
+    # T8: the ref names two sources (one per profile) but only claude-code's is visible to claude-code, so the ref is
+    # not ambiguous for it: it forgets its own copy and the answer never mentions codex's id
+    own_ref = cc.call("memory_forget", {"source_id": mine["ref"]})
+    assert theirs["id"] not in json.dumps(own_ref)
+    assert own_ref["structuredContent"]["status"] == "SUCCESS"
+    assert own_ref["structuredContent"]["id"] == mine["id"]
     assert run(codex, "memory_recall", query="private stores")["status"] == "SUCCESS"
     assert run(cc, "memory_recall", query="private stores")["status"] == "EMPTY"
+
+
+def test_a_truly_ambiguous_ref_asks_for_the_id_and_never_lists_another_agents_private_id(env):
+    cc, codex = toolset(env, "claude-code"), toolset(env, "codex")
+    env.prov.grant_write("claude-code", space="ks-shared")
+    private = run(cc, "memory_add", text="copy about civets", memory_type="persona", scope="private", name="same")
+    shared = run(cc, "memory_add", text="shared copy about civets", memory_type="persona", scope="shared", name="same")
+    theirs = run(codex, "memory_add", text="copy about civets", memory_type="persona", scope="private", name="same")
+    ambiguous = cc.call("memory_forget", {"source_id": private["ref"]})
+    assert ambiguous["structuredContent"]["status"] == "INVALID"
+    assert ambiguous["structuredContent"]["reason_code"] == "AMBIGUOUS_REFERENCE"
+    assert theirs["id"] not in json.dumps(ambiguous)
+    assert run(cc, "memory_forget", source_id=shared["id"])["status"] == "SUCCESS"
+    assert run(codex, "memory_recall", query="civets")["status"] == "SUCCESS"
 
 
 @pytest.mark.parametrize("bad", ["", "abc", "x" * 601, 5, None])

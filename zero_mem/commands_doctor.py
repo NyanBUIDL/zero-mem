@@ -197,6 +197,61 @@ def _corpus_check() -> tuple[str, str]:
     return "PASS", f"corpus registry has {sources} source(s); derived store has {units} unit(s)"
 
 
+def _memory_runtime_checks() -> list[dict[str, str]]:
+    """T8: checks of the shared-memory runtime (read-only; counts and flags only, never paths or content).
+
+    Every one is PASS or WARN - never FAIL: the integrity of the canonical state is the ``memory`` / ``corpus`` checks'
+    job, and a rebuildable derived state or an empty memory must not block ``upgrade`` / ``restore``.
+    """
+    ids = ("memory_data_root", "memory_schema", "memory_grants", "memory_sources")
+    try:
+        from .memory_health import snapshot
+
+        snap = snapshot()
+    except Exception:  # noqa: BLE001 - doctor never crashes
+        return [_check(i, "WARN", "memory runtime status unavailable") for i in ids]
+    if not snap["initialised"]:
+        return [_check(i, "WARN", "memory runtime not initialised (run zero-mem setup)") for i in ids]
+    checks: list[dict[str, str]] = []
+    if not snap["corpus_root_exists"]:
+        checks.append(_check("memory_data_root", "WARN", "corpus root or its registry is missing (run zero-mem setup)"))
+    elif snap["data_root_writable"]:
+        checks.append(_check("memory_data_root", "PASS", "data root and corpus root are writable"))
+    else:
+        checks.append(_check("memory_data_root", "WARN", "data root is not writable by this user: memory writes will fail"))
+    if snap["schema_version"] is None:
+        checks.append(_check("memory_schema", "WARN", "derived schema unreadable (run zero-mem upgrade)"))
+    elif snap["schema_current"]:
+        checks.append(_check("memory_schema", "PASS", f"schema version {snap['schema_version']} (current)"))
+    else:
+        checks.append(_check("memory_schema", "WARN",
+                             f"schema version {snap['schema_version']} differs from this install (run zero-mem upgrade)"))
+    grants = snap["grants"]
+    if grants is None:
+        checks.append(_check("memory_grants", "WARN", "grants unreadable (run zero-mem upgrade)"))
+    elif grants["agents"] == 0:
+        checks.append(_check("memory_grants", "WARN", "no agents registered (zero-mem agents add <profile>)"))
+    else:
+        checks.append(_check("memory_grants", "PASS",
+                             f"{grants['active']} active grant(s) ({grants['read']} read, {grants['write']} write) "
+                             f"for {grants['agents']} agent(s)"))
+    sources = snap["sources"]
+    if not snap["registry_ok"]:
+        checks.append(_check("memory_sources", "WARN", "corpus registry unreadable (see the corpus check)"))
+    elif sources["total"] == 0:
+        checks.append(_check("memory_sources", "WARN", "no memories yet (zero-mem add / ingest)"))
+    else:
+        summary = (f"{sources['total']} source(s) ({sources['forgotten']} forgotten), "
+                   f"{snap['units'] if snap['units'] is not None else '?'} unit(s)"
+                   + (f"; last write {snap['last_write']}" if snap["last_write"] else ""))
+        if snap["drift"]:
+            checks.append(_check("memory_sources", "WARN",
+                                 f"{snap['drift']} source(s) not projected: {summary} (run zero-mem upgrade)"))
+        else:
+            checks.append(_check("memory_sources", "PASS", summary))
+    return checks
+
+
 def collect() -> dict[str, Any]:
     checks: list[dict[str, str]] = []
     implementation = getattr(sys, "implementation", None)
@@ -265,6 +320,7 @@ def collect() -> dict[str, Any]:
         checks.append(_check("hermes", "WARN", "Hermes integration status unavailable"))
     corpus_status, corpus_message = _corpus_check()
     checks.append(_check("corpus", corpus_status, corpus_message))
+    checks.extend(_memory_runtime_checks())
     checks.append(_check("obsidian", "WARN", "Obsidian projection not configured"))
     checks.append(_check("pypdf", "OPTIONAL", "optional PDF parser available" if importlib.util.find_spec("pypdf") else "optional PDF parser absent"))
     checks.append(_check("ai_api", "OPTIONAL", "AI API is not required"))
