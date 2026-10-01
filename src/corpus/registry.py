@@ -8,12 +8,14 @@ not authorize access; M5 remains the sole authorization authority.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import os
+import tempfile
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Final, List, Mapping, Optional
+from typing import Any, Final, Iterator, List, Mapping, Optional
 
 from .blob_store import (
     CONFIG_FILE_CORPUS_ROOT_KEY,
@@ -30,8 +32,61 @@ from .identity import (
     derive_source_id,
     source_descriptor,
 )
+from src.storage.coordination import locked
+from src.storage.platform import PlatformErrorCode, PlatformStorageError
 
 REGISTRY_FILENAME: Final[str] = "corpus_sources.jsonl"
+
+#: Cross-process advisory lock guarding every canonical registry mutation (DEF-053).
+WRITE_LOCK_FILENAME: Final[str] = ".write.lock"
+
+#: Seconds a writer waits for the cross-process lock before failing closed.
+WRITE_LOCK_TIMEOUT: Final[float] = 30.0
+
+#: Per-thread record of the corpus write locks already held (re-entrancy), so a
+#: caller can wrap "register + project" in one critical section.
+_HELD = threading.local()
+
+
+def _lock_path(root: Path) -> Path:
+    return Path(root).resolve() / WRITE_LOCK_FILENAME
+
+
+@contextlib.contextmanager
+def _held_lock(root: Path, mode: str) -> Iterator[None]:
+    key = str(_lock_path(root))
+    held = getattr(_HELD, "depth", None)
+    if held is None:
+        held = _HELD.depth = {}
+    if held.get(key, 0) > 0:
+        # This thread already holds the (exclusive) lock; flock on a second
+        # descriptor in the same process would otherwise self-deadlock.
+        held[key] += 1
+        try:
+            yield
+        finally:
+            held[key] -= 1
+        return
+    with locked(Path(key), mode=mode, timeout=WRITE_LOCK_TIMEOUT):  # type: ignore[arg-type]
+        if mode == "exclusive":
+            held[key] = 1
+        try:
+            yield
+        finally:
+            if mode == "exclusive":
+                held.pop(key, None)
+
+
+def corpus_write_lock(root: Path):
+    """Exclusive, cross-process, thread-reentrant lock for a corpus root.
+
+    Wrap ``register_*`` + projection in this when they must be one critical
+    section. ``CorpusSourceRegistry.register_*`` takes the same lock itself.
+    Do not wrap them in a raw ``src.storage.coordination.locked`` on the same
+    file: that lock is not re-entrant and would block the registry's own
+    acquisition until it times out.
+    """
+    return _held_lock(Path(root), "exclusive")
 
 
 def _now() -> str:
@@ -48,6 +103,12 @@ class CorpusSourceRegistry:
         self._by_id: dict[str, CorpusSourceRecord] = {}
         self._by_hash: dict[str, list[CorpusSourceRecord]] = {}
         self._records: list[CorpusSourceRecord] = []
+        # What has been read from the canonical JSONL so far (DEF-053): the
+        # file identity, the byte offset already indexed and the line count, so
+        # a writer can pick up other processes' appends incrementally.
+        self._file_id: Optional[tuple[int, int]] = None
+        self._loaded_size = 0
+        self._loaded_lines = 0
         if self._root is not None:
             self._root.mkdir(parents=True, exist_ok=True)
             if os.name != "nt":
@@ -64,26 +125,90 @@ class CorpusSourceRegistry:
         return self._path
 
     def _load(self) -> None:
-        assert self._path is not None
+        assert self._path is not None and self._root is not None
         if not self._path.exists():
             self._path.touch(mode=0o600)
             if os.name != "nt":
                 os.chmod(self._path, 0o600)
+        self.refresh()
+
+    def refresh(self) -> None:
+        """Re-read the canonical JSONL so this instance sees other writers.
+
+        Takes a shared lock (a writer mid-append is never observed) unless this
+        thread already holds the write lock. When the lock file cannot be
+        created (e.g. read-only media) the read proceeds unlocked, as it always
+        did.
+        """
+        assert self._root is not None
+        with self._lock:
+            try:
+                with _held_lock(self._root, "shared"):
+                    self._refresh_from_disk()
+            except PlatformStorageError as exc:
+                if exc.code is PlatformErrorCode.LOCK_TIMEOUT:
+                    raise ValidationError("corpus_registry: read_lock_timeout") from None
+                self._refresh_from_disk()
+
+    def _reset_index(self) -> None:
+        self._records = []
+        self._by_id = {}
+        self._by_hash = {}
+        self._file_id = None
+        self._loaded_size = 0
+        self._loaded_lines = 0
+
+    def _refresh_from_disk(self) -> None:
+        """Index every JSONL line not yet seen. Caller holds a registry lock."""
+        assert self._path is not None
+        try:
+            info = os.stat(self._path)
+        except FileNotFoundError:
+            self._reset_index()
+            self._path.touch(mode=0o600)
+            info = os.stat(self._path)
+        identity = (info.st_dev, info.st_ino)
+        if identity != self._file_id or info.st_size < self._loaded_size:
+            # First read, or the file was replaced/truncated: start over.
+            self._reset_index()
+        if info.st_size == self._loaded_size and self._file_id == identity:
             return
-        data = self._path.read_bytes()
+        with open(self._path, "rb") as stream:
+            stream.seek(self._loaded_size)
+            data = stream.read()
+            file_identity = os.fstat(stream.fileno())
         if data and not data.endswith(b"\n"):
             raise ValidationError("corpus_registry: partial_final_line")
-        for line_number, line in enumerate(data.splitlines(), start=1):
+        line_number = self._loaded_lines
+        for line in data.splitlines():
+            line_number += 1
             try:
                 record = json.loads(line.decode("utf-8"))
                 if not isinstance(record, dict):
                     raise ValueError
                 rec = CorpusSourceRecord.from_dict(record)
             except Exception:
+                self._reset_index()  # never keep a half-indexed view
                 raise ValidationError(
                     f"corpus_registry: malformed_historical_line:{line_number}"
                 ) from None
             self._index_record(rec)
+        self._loaded_lines = line_number
+        self._loaded_size += len(data)
+        self._file_id = (file_identity.st_dev, file_identity.st_ino)
+
+    @contextlib.contextmanager
+    def _exclusive(self) -> Iterator[None]:
+        """Cross-process write lock + fresh view of the canonical JSONL."""
+        assert self._root is not None
+        with contextlib.ExitStack() as stack:
+            try:
+                stack.enter_context(corpus_write_lock(self._root))
+            except PlatformStorageError as exc:
+                reason = "timeout" if exc.code is PlatformErrorCode.LOCK_TIMEOUT else "unavailable"
+                raise ValidationError(f"corpus_registry: write_lock_{reason}") from None
+            self._refresh_from_disk()
+            yield
 
     def _index_record(self, record: CorpusSourceRecord) -> None:
         self._records.append(record)
@@ -145,8 +270,10 @@ class CorpusSourceRegistry:
         """Register a logical source or append its changed immutable version.
 
         The descriptor determines ``source_id`` and bytes determine
-        ``content_hash``.  The check and append are intentionally kept under the
-        instance lock; distributed/process concurrency remains R5 scope.
+        ``content_hash``.  The dedup check and the append run under the
+        in-process lock AND the cross-process ``<root>/.write.lock`` (DEF-053),
+        after re-reading the JSONL inside the lock, so concurrent writers --
+        threads or processes -- register one logical source version exactly once.
         """
         if not self.available:
             raise ValidationError("corpus_registry: root_not_configured")
@@ -160,7 +287,7 @@ class CorpusSourceRegistry:
         )
         content_hash_value = compute_content_identity(content)
         source_id = derive_source_id(content_hash_value, descriptor)
-        with self._lock:
+        with self._lock, self._exclusive():
             existing = self._by_id.get(source_id)
             if existing is not None and existing.content_hash == content_hash_value:
                 return existing
@@ -190,14 +317,17 @@ class CorpusSourceRegistry:
                 predecessor_content_hash=predecessor_hash,
                 normalization_version="m10.3",
             )
+            line = self._serialize(record)
             try:
                 with self._path.open("ab") as stream:  # type: ignore[union-attr]
-                    stream.write(self._serialize(record))
+                    stream.write(line)
                     stream.flush()
                     os.fsync(stream.fileno())
             except Exception:
                 raise ValidationError("corpus_registry: append_failed") from None
             self._index_record(record)
+            self._loaded_size += len(line)
+            self._loaded_lines += 1
             return record
 
     def register_source_with_blob(
@@ -251,7 +381,7 @@ class CorpusSourceRegistry:
         """
         if not self.available or self._path is None:
             return
-        with self._lock:
+        with self._lock, self._exclusive():
             new_lines: list[bytes] = []
             replaced = False
             for r in self._records:
@@ -267,10 +397,23 @@ class CorpusSourceRegistry:
             if not replaced:
                 new_lines.append(self._serialize(record))
             data = b"".join(line.rstrip(b"\n") + b"\n" for line in new_lines)
-            tmp = self._path.with_suffix(".tmp")
-            tmp.write_bytes(data)
-            os.chmod(tmp, 0o600)
-            os.replace(tmp, self._path)
+            fd, tmp_name = tempfile.mkstemp(
+                dir=str(self._path.parent), prefix=".corpus_sources.", suffix=".tmp")
+            tmp = Path(tmp_name)
+            try:
+                with os.fdopen(fd, "wb") as stream:
+                    stream.write(data)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.chmod(tmp, 0o600)
+                os.replace(tmp, self._path)
+            except BaseException:
+                tmp.unlink(missing_ok=True)
+                raise
+            replaced_info = os.stat(self._path)
+            self._file_id = (replaced_info.st_dev, replaced_info.st_ino)
+            self._loaded_size = len(data)
+            self._loaded_lines = len(new_lines)
             self._records = [
                 record if r.source_id == record.source_id and r.source_version_id == record.source_version_id else r
                 for r in self._records
@@ -312,4 +455,6 @@ __all__ = [
     "CONFIG_FILE_RELATIVE_PATH",
     "CONFIG_FILE_CORPUS_ROOT_KEY",
     "REGISTRY_FILENAME",
+    "WRITE_LOCK_FILENAME",
+    "corpus_write_lock",
 ]
