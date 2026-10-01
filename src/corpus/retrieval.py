@@ -796,11 +796,9 @@ def retrieve_corpus(
     else:
         fts_expr = _fts_safe_query(plan.text)
         if not fts_expr:
-            # Nothing lexical to match: fall back to metadata-only discovery.
-            try:
-                rows = _read_all_units(cur, cap, scope, plan.metadata)
-            except Exception as exc:  # pragma: no cover - defensive
-                raise CorpusQueryError(f"corpus_query_failed: {type(exc).__name__}") from None
+            # T11: a NON-empty lexical query that yields no terms ("_", "---") matches nothing; only an
+            # explicitly empty query is metadata-only.
+            return []
         elif not _migrate_10.FTS5_AVAILABLE:
             lexical_query = True
             try:

@@ -153,9 +153,11 @@ class GrantAdminService:
         # the referenced M4 verification must be READ-ONLY verified.
         if event.operation == WRITE:
             self._require_verified(event.verification_ref)
+        # T11: canonical FIRST. If the append raises, nothing was projected, so no derived row can
+        # authorize anything the canonical stream does not hold (a rebuild reproduces this state).
+        self._writer(event.to_canonical_dict())
         project_grant_event(self._conn, event)
         self._conn.commit()
-        self._writer(event.to_canonical_dict())
         return {"action": "CREATE", "grant_id": req.grant_id, "status": "ok"}
 
     def revoke(self, req: GrantAdminRequest) -> dict:

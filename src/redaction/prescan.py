@@ -9,14 +9,18 @@ Verdicts come from the central redactor (``redact_payload``), so they always agr
 ``src.corpus.redact.scan_extracted_text``. Bytes are decoded best-effort: a UTF-8 view (invalid
 bytes replaced) and, when NUL bytes are present, a view with the NULs removed, which exposes the
 ASCII content of UTF-16/UTF-32 text with or without a BOM. Credentials are ASCII, so this finds
-them in any of those encodings without guessing the encoding. Compressed containers (docx/xlsx
-zip members, images) are NOT opened here; scan their extracted text instead.
+them in any of those encodings without guessing the encoding. Zip containers (docx/xlsx/pptx and
+anything else with a zip signature) are opened by ``scan_zip_members``, which scans EVERY member
+(and nested zips) under bounded limits and fails closed when it cannot finish; PDFs and images are
+scanned as raw bytes only.
 
 Nothing here logs, stores, or returns the matched value: results and errors carry fixed codes and
 rule ids only. No network, no LLM, no filesystem access.
 """
 from __future__ import annotations
 
+import io
+import zipfile
 from dataclasses import dataclass
 
 from .redactor import RedactionRejected, redact_payload
@@ -75,6 +79,79 @@ def scan_bytes(content: bytes) -> PrescanResult:
     return PrescanResult(safe=True)
 
 
+MAX_ZIP_DEPTH = 3
+_ZIP_MAGICS = (b"PK\x03\x04", b"PK\x05\x06")
+_UNSCANNABLE = PrescanResult(safe=False, reason="container_unscannable")
+
+
+def looks_like_zip(content: bytes) -> bool:
+    return bytes(content[:4]) in _ZIP_MAGICS
+
+
+def scan_zip_members(
+    content: bytes,
+    *,
+    max_entries: int | None = None,
+    max_total_uncompressed: int | None = None,
+    max_member_bytes: int | None = None,
+    _depth: int = 0,
+    _budget: list | None = None,
+) -> PrescanResult:
+    """Scan EVERY member of a zip container (decompressed; nested zips recursively).
+
+    Bounds are the OOXML adapters' (entry count, total/member uncompressed size) plus a nesting
+    depth. Anything that cannot be scanned completely (unreadable, encrypted, over a bound, too
+    deep) is UNSAFE with reason ``container_unscannable``: the caller must not store it.
+    """
+    from src.corpus.adapters import _ooxml
+
+    max_entries = _ooxml.DEFAULT_MAX_ENTRIES if max_entries is None else max_entries
+    max_total = _ooxml.DEFAULT_MAX_TOTAL_UNCOMPRESSED if max_total_uncompressed is None else max_total_uncompressed
+    max_member = _ooxml.DEFAULT_MAX_MEMBER_BYTES if max_member_bytes is None else max_member_bytes
+    if _depth > MAX_ZIP_DEPTH:
+        return _UNSCANNABLE
+    budget = _budget if _budget is not None else [max_entries, max_total]  # shared across nesting levels
+    try:
+        zf = _ooxml.open_package(bytes(content), max_entries=budget[0], max_total_uncompressed=budget[1])
+        infos = zf.infolist()
+    except Exception as exc:
+        if str(exc).startswith("not a readable zip"):
+            # Not a zip at all (corrupt/truncated): there are no compressed members to hide anything in, the raw
+            # bytes were already scanned, and the format adapter rejects it as a corrupt source.
+            return PrescanResult(safe=True)
+        return _UNSCANNABLE
+    budget[0] -= len(infos)
+    budget[1] -= sum(max(i.file_size, 0) for i in infos)
+    if budget[0] < 0 or budget[1] < 0:
+        return _UNSCANNABLE
+    rules: set[str] = set()
+    secret = False
+    with zf:
+        for info in infos:
+            if info.is_dir():
+                continue
+            try:
+                data = _ooxml.read_member(zf, info.filename, max_bytes=max_member)
+            except Exception:
+                return _UNSCANNABLE
+            verdict = scan_bytes(data)
+            if not verdict.safe:
+                secret = True
+                rules.update(verdict.rule_ids)
+                continue
+            if looks_like_zip(data):
+                inner = scan_zip_members(data, max_entries=max_entries, max_total_uncompressed=max_total,
+                                         max_member_bytes=max_member, _depth=_depth + 1, _budget=budget)
+                if not inner.safe:
+                    if inner.reason == "container_unscannable":
+                        return inner
+                    secret = True
+                    rules.update(inner.rule_ids)
+    if secret:
+        return PrescanResult(safe=False, rule_ids=tuple(sorted(rules)), reason="secret_detected")
+    return PrescanResult(safe=True)
+
+
 def _reject(result: PrescanResult) -> PrescanRejected:
     reason = result.reason or "secret_detected"
     if reason.startswith("redaction_rejected"):
@@ -101,5 +178,6 @@ def assert_bytes_safe(content: bytes) -> None:
 
 __all__ = [
     "PrescanRejected", "PrescanResult",
-    "assert_bytes_safe", "assert_text_safe", "scan_bytes", "scan_text",
+    "MAX_ZIP_DEPTH", "assert_bytes_safe", "assert_text_safe", "looks_like_zip", "scan_bytes", "scan_text",
+    "scan_zip_members",
 ]
