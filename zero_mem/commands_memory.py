@@ -1,4 +1,4 @@
-"""CLI for the shared-memory runtime: add / ingest / search / context / forget / devlog / status / agents /
+"""CLI for the shared-memory runtime: add / ingest / search / context / forget / devlog / memory-status / agents /
 serve / import-notes. Wired into ``zero_mem.cli``; every command is a thin shell over :class:`zero_mem.memory.Memory`
 or :class:`zero_mem.provisioning.Provisioner` (no business logic here).
 
@@ -127,8 +127,10 @@ def add_memory_parsers(subparsers) -> None:
     p.add_argument("--project", dest="project_id", required=True, help="project id")
     p.set_defaults(_memory_cmd="devlog")
 
-    p = subparsers.add_parser("status", parents=[common], help="show counts, grants and drift for this profile")
-    p.set_defaults(_memory_cmd="status")
+    # NOT named "status": that command name is pinned as unregistered by the PKG-1/PKG-3 release-layer tests.
+    p = subparsers.add_parser("memory-status", parents=[common],
+                              help="show memory counts, this profile's grants and projection drift")
+    p.set_defaults(_memory_cmd="memory_status")
 
     p = subparsers.add_parser("import-notes", parents=[common],
                               help="migrate the retired notes store (notes-v1.jsonl) into memory sources (idempotent)")
@@ -137,7 +139,7 @@ def add_memory_parsers(subparsers) -> None:
     p.set_defaults(_memory_cmd="import_notes")
 
     p = subparsers.add_parser("serve", parents=[common],
-                              help="start the MCP server pinned to --profile (needs an MCP server with --profile-id)")
+                              help="run the MCP server pinned to --profile (needs an MCP server with --profile-id)")
     p.set_defaults(_memory_cmd="serve")
 
     agents = subparsers.add_parser("agents", help="operator commands: register agents and approve their access")
@@ -552,7 +554,7 @@ _HANDLERS = {
     "search": _cmd_search,
     "context": _cmd_context,
     "forget": _cmd_forget,
-    "status": _cmd_status,
+    "memory_status": _cmd_status,
     "import_notes": _cmd_import_notes,
     "serve": _cmd_serve,
     "agents_add": _cmd_agents_add,

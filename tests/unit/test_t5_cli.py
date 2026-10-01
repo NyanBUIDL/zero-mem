@@ -252,11 +252,11 @@ def test_forget_someone_elses_shared_source_is_denied_with_a_hint(home, capsys):
     assert code == 3 and "denied" in err.lower()
 
 
-def test_status_command(home, capsys):
+def test_memory_status_command(home, capsys):
     run(capsys, "add", "a fact")
-    code, st, _ = jrun(capsys, "--json", "status")
+    code, st, _ = jrun(capsys, "--json", "memory-status")
     assert code == 0 and st["profile_id"] == "default" and st["sources"]["total"] == 1
-    code, out, _ = run(capsys, "status")
+    code, out, _ = run(capsys, "memory-status")
     assert code == 0 and "profile" in out and "sources" in out
 
 
@@ -400,6 +400,15 @@ def test_import_notes_skips_malformed_lines(home, capsys):
     path.write_text('{"chunk_id": "c1", "text": "Good note.", "source": "cli", "ts": 1}\nnot json\n{"no_text": 1}\n[1]\n')
     code, res, _ = jrun(capsys, "--json", "import-notes")
     assert code == 1 and res["counts"]["created"] == 1 and res["counts"]["skipped"] == 3
+
+
+def test_status_stays_unregistered_for_the_release_layer_gate(capsys):
+    """PKG-1/PKG-3 pin ``status`` and ``rebuild`` as not-yet-exposed commands."""
+    with pytest.raises(SystemExit):
+        cli.main(["--help"])
+    help_text = capsys.readouterr().out
+    assert " status" not in help_text and " rebuild" not in help_text
+    assert "memory-status" in help_text and "agents" in help_text
 
 
 # ----------------------------------------------------------------------------- real process

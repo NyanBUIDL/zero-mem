@@ -227,14 +227,18 @@ Do not rewrite canonical history, weaken access boundaries, treat derived state
 as canonical, commit generated/private data, or claim completion without
 executable evidence.
 
-## Quick notes: remember and search your own data
+## Shared memory: remember, ingest and search
 
 ```bash
-zero-mem add "Alice prefers PostgreSQL"      # remember a snippet
-zero-mem ingest ./notes-or-chat-logs         # .md/.txt (paragraphs) and .jsonl/.log (chat turns)
-zero-mem search "which database for Alice" -k 5 --json
+zero-mem add "Alice prefers PostgreSQL"                 # remember a snippet (private to the profile; secrets are rejected)
+zero-mem ingest ./notes --type file                     # md, txt, csv, json/jsonl chats, docx, xlsx, pptx, pdf, images
+zero-mem search "which database for Alice" -k 5 --json  # authorized, deduplicated hits with provenance
+zero-mem context                                        # compact session-start bundle: persona, workflow, skills, devlog
+zero-mem forget mem://fact/<id>                         # tombstone; raw bytes stay in the canonical corpus
 ```
 
-Notes live in an append-only JSONL with a rebuildable SQLite FTS5 index; secrets are rejected, never stored.
-Offline retrieval benchmark for LongMemEval / LoCoMo formats: `python benchmarks/memory_qa_benchmark.py locomo locomo10.json -k 1 5 10`
-(lexical baseline on LoCoMo10, turn-level: hit@10 0.63, recall@10 0.58).
+Every memory is a corpus source read and written through the access policy, so several agents can share one store: register them with
+`zero-mem agents add`, and approve shared writes explicitly with `zero-mem agents grant-write`. See
+[docs/runbooks/shared-memory-quickstart.md](docs/runbooks/shared-memory-quickstart.md). The retired notes store can be migrated once with
+`zero-mem import-notes`. Offline retrieval benchmark for LongMemEval / LoCoMo formats (real write and read path):
+`python benchmarks/memory_qa_benchmark.py locomo locomo10.json -k 1 5 10` (LoCoMo10, turn-level: hit@10 0.64, recall@10 0.59).
