@@ -151,14 +151,17 @@ def _corpus_root_for_upgrade() -> Path | None:
 
 
 def _corpus_counts(path: Path, *, immutable: bool) -> tuple[int, int] | None:
-    """(sources, units) in a derived DB, or None when it cannot be read."""
+    """(live sources, units) in a derived DB, or None when it cannot be read."""
     if path.is_symlink() or not path.is_file():
         return None
     suffix = "mode=ro&immutable=1" if immutable else "mode=ro"
     try:
         conn = sqlite3.connect(f"file:{path.as_posix()}?{suffix}", uri=True)
         try:
-            sources = conn.execute("SELECT COUNT(*) FROM zm_corpus_sources").fetchone()[0]
+            # DEF-057: a forgotten (lifecycle ``deleted``) source is meant to have no units.
+            sources = conn.execute(
+                "SELECT COUNT(*) FROM zm_corpus_sources WHERE lifecycle_status != 'deleted'"
+            ).fetchone()[0]
             units = conn.execute("SELECT COUNT(*) FROM zm_corpus_units").fetchone()[0]
             return int(sources), int(units)
         finally:
