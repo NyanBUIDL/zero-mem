@@ -7,7 +7,9 @@ Two responsibilities:
 
 1. **Query normalization** — sanitize/normalize a free-text query for FTS
    discovery the same way the repo normalizes M3 text (lowercased, whitespace
-   collapsed). Keeps determinism explicit; no stemming/tokenization surprises.
+   collapsed). Keeps determinism explicit; no stemming/tokenization surprises
+   here: the planner never rewrites words. Term splitting, English stemming and
+   scoring live in ``src/corpus/retrieval.py`` (T7) and see only authorized rows.
 
 2. **Metadata filter validation** — accept only the approved, closed set of
    deterministic corpus metadata dimensions (M10.1-M10.4 contracts only):
