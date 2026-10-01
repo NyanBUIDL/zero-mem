@@ -55,8 +55,10 @@ def test_output_format_is_unchanged():
                {"question": "What about redis eviction?", "evidence": ["D1:2"], "category": 1}],
     }]
     res = mod.run(mod.locomo_items(data), [1, 5, 10])
-    assert sorted(res) == sorted(["questions", "recall@1", "recall@5", "recall@10", "hit@1", "hit@5", "hit@10",
-                                  "hit@1_by_type"])
+    # T7 only ADDS keys (mrr, by_type, latency_ms, ingest, fingerprint, config): every T5 key keeps its meaning.
+    legacy = ["questions", "recall@1", "recall@5", "recall@10", "hit@1", "hit@5", "hit@10", "hit@1_by_type"]
+    assert set(legacy) <= set(res)
+    assert {"mrr", "by_type", "latency_ms", "ingest", "fingerprint", "config"} <= set(res)
     assert res["questions"] == 2 and res["hit@1"] == 1.0
     assert set(res["hit@1_by_type"]) == {"cat1", "cat2"}
 
