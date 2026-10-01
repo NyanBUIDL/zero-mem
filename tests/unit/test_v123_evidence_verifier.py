@@ -107,7 +107,7 @@ def test_rejects_modified_bytes_and_duplicate_checksum_paths(tmp_path: Path) -> 
     manifest = _write_bundle(root, source)
     _commit_bundle(root)
     sums = manifest.parent / "hashes/SHA256SUMS.txt"
-    sums.write_text(sums.read_text() + sums.read_text().splitlines()[0] + "\n", encoding="utf-8")
+    sums.write_text(sums.read_text(encoding="utf-8") + sums.read_text(encoding="utf-8").splitlines()[0] + "\n", encoding="utf-8")
     _run(root, "add", "docs/v1.2.3")
     _run(root, "commit", "-qm", "bad sums")
     with __import__("pytest").raises(EvidenceError, match="sha256sum_duplicate_path"):

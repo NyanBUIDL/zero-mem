@@ -23,6 +23,7 @@ No LLM, no network. Deterministic.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any, Callable, Optional
 
 from .contracts import WRITE, AccessDecision, AccessRequest, AllowedScope, ReasonCode
@@ -39,8 +40,10 @@ def authorize_write(request: AccessRequest, store,
     """Authorize a WRITE request.
 
     Order (plan §11.8 / M5.1 WRITE base policy preserved):
-      1. Base M5.1 policy. Same-profile local WRITE is allowed within the
-         explicitly authorized local scope.
+      1. Base M5.1 policy. Same-profile local WRITE (own profile only) is allowed
+         within the explicitly authorized local scope. Naming one's own profile
+         together with a project/knowledge space is NOT local (DEF-051): it needs the
+         same WRITE grant as the project/knowledge-space-only request.
       2. Cross-profile WRITE falls through the base policy as DENY.
       3. Persistent WRITE grant resolution: if exactly one active, non-revoked,
          target-matching, verification-verified WRITE grant exists, ALLOW with the
@@ -64,6 +67,14 @@ def authorize_write(request: AccessRequest, store,
     # Same-profile local WRITE: base policy already allows within local scope.
     if base.allow and not _requires_grant(req):
         return base
+
+    if base.allow:
+        # DEF-051: the base policy allowed this only because the requester's OWN profile is
+        # named, but the request also names a project/knowledge space, which is never
+        # "same-profile local". Naming one's own profile confers no right to another scope, so
+        # decide exactly like the project/knowledge-space-only request (grant required).
+        req = _without_own_profile(req)
+        base = evaluate(req)
 
     # Cross-profile (or otherwise base-denied) WRITE: try persistent WRITE grant.
     target_type, target_id = _primary_target(req)
@@ -123,6 +134,14 @@ def _requires_grant(req: AccessRequest) -> bool:
         # Cross-project / knowledge-space WRITE is not same-profile local.
         return True
     return False
+
+
+def _without_own_profile(req: AccessRequest) -> AccessRequest:
+    """Copy of ``req`` with the requester's own profile removed from the target profiles."""
+    return replace(
+        req,
+        target_profile_ids=[p for p in (req.target_profile_ids or [])
+                            if p != req.requesting_profile_id])
 
 
 def _primary_target(req: AccessRequest) -> tuple:

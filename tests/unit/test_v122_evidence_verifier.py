@@ -86,7 +86,7 @@ def test_valid_manifest_is_accepted(tmp_path: Path) -> None:
 
 def test_source_log_and_asset_integrity_fail_closed(tmp_path: Path) -> None:
     manifest = _write_fixture(tmp_path)
-    payload = json.loads(manifest.read_text())
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
 
     payload["source_sha"] = "b" * 40
     manifest.write_text(json.dumps(payload), encoding="utf-8")
@@ -109,7 +109,7 @@ def test_missing_evidence_and_collection_failure_are_rejected(tmp_path: Path) ->
     assert result.returncode == 1
     assert "collection_not_pass" in result.stdout
 
-    payload = json.loads(manifest.read_text())
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
     payload["collection"] = {"status": "PASS", "errors": False}
     manifest.write_text(json.dumps(payload), encoding="utf-8")
     assert "collection_count_missing_or_invalid" in _run(manifest).stdout
@@ -135,11 +135,11 @@ def test_missing_evidence_and_collection_failure_are_rejected(tmp_path: Path) ->
 def test_command_linkage_and_hash_paths_fail_closed(tmp_path: Path) -> None:
     manifest = _write_fixture(tmp_path)
     commands = manifest.parent / "commands.txt"
-    original = commands.read_text()
+    original = commands.read_text(encoding="utf-8")
     commands.write_text(original.replace("- Raw log SHA-256:", "- Raw log SHA-256:", 1).replace("`logs/pytest.log`", "`logs/missing.log`", 1))
     assert "command_log_hash_not_bound" in _run(manifest).stdout
 
     commands.write_text(original)
     sums = manifest.parent / "hashes/SHA256SUMS.txt"
-    sums.write_text(sums.read_text().replace("./assets/package.whl", "/etc/passwd"), encoding="utf-8")
+    sums.write_text(sums.read_text(encoding="utf-8").replace("./assets/package.whl", "/etc/passwd"), encoding="utf-8")
     assert "evidence_hash_path_unsafe" in _run(manifest).stdout

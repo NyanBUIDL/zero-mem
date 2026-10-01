@@ -168,6 +168,23 @@ def compose_effective_scope(request: AccessRequest,
     requested_projects = set(request.project_ids or [])
     requested_spaces = set(request.knowledge_space_ids or [])
 
+    # DEF-063: a knowledge-space grant applies only to a space the request names.
+    # Callers (the MCP handlers) resolve ALL of the requester's READ grants up
+    # front; without this narrowing every granted space was added as a grant scope
+    # whatever the request asked for, so an unknown/ungranted/unrequested space
+    # returned the rows of every granted space.
+    # DEF-063 (project part): same rule for project grants. Profile grants are NOT
+    # narrowed: M5 linked-traversal / grant tests pin them as applying to an own-profile
+    # request (see docs/defects/closures/T9.md).
+    def _named(g):
+        if g.target_type == "knowledge_space":
+            return g.target_id in requested_spaces
+        if g.target_type == "project":
+            return g.target_id in requested_projects
+        return True
+
+    grants = [g for g in (grants or []) if _named(g)]
+
     base_allowed_profiles = set(base.normalized_scope.allowed_profile_ids)
     if requester is not None:
         base_allowed_profiles.add(requester)

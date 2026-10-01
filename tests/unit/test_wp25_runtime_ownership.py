@@ -93,7 +93,7 @@ def test_production_adapter_observes_without_injected_store(tmp_path: Path) -> N
     )
     try:
         adapter._observe("on_session_start", {"session_id": "s-2"})
-        assert (tmp_path / "capture" / "canonical" / "events-v1.jsonl").read_text()
+        assert (tmp_path / "capture" / "canonical" / "events-v1.jsonl").read_text(encoding="utf-8")
     finally:
         adapter.shutdown()
 

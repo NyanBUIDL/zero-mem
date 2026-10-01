@@ -15,16 +15,25 @@ space grants on the event path. Configuration sources, highest first:
 
 When NOTHING is configured, ``open_corpus_conn()`` returns ``None`` and space
 grants stay fail-closed (non-authorizing) — the v1.4.0 behavior is preserved.
-A CONFIGURED but INVALID path fails LOUDLY at configure time.
+
+DEF-066: the setting is vestigial (corpus search reads the MAIN store and
+``open_corpus_conn`` has no production caller), so a CONFIGURED but INVALID path
+no longer aborts the server start.  It is dropped (fail-closed: no corpus
+connection), the stable error code is kept in ``corpus_store_config_error`` and
+logged once (code only, never the path).  Tests may still call
+``_validate_corpus_store_path`` directly to see the loud failure.
 """
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Optional
 
 import sqlite3
+
+_log = logging.getLogger(__name__)
 
 
 def open_readonly_store(store_path: Path):
@@ -102,9 +111,17 @@ class M6Runtime:
                  corpus_store_path: Optional[Path] = None) -> None:
         self._store_path = Path(store_path)
         resolved = _resolve_corpus_store_path(corpus_store_path)
+        self._corpus_store_config_error: Optional[str] = None
         if resolved is not None:
-            # Fail LOUD on a bad configured path (DEF-012 method A).
-            _validate_corpus_store_path(resolved)
+            try:
+                _validate_corpus_store_path(resolved)
+            except CorpusStoreConfigError as exc:
+                # DEF-066: vestigial setting - never abort the server for it.
+                self._corpus_store_config_error = exc.code
+                _log.warning(
+                    "ignoring configured corpus-store-path (%s); corpus search "
+                    "uses the main derived store", exc.code)
+                resolved = None
         self._corpus_store_path = resolved
 
     @property
@@ -114,6 +131,11 @@ class M6Runtime:
     @property
     def corpus_store_path(self) -> Optional[Path]:
         return self._corpus_store_path
+
+    @property
+    def corpus_store_config_error(self) -> Optional[str]:
+        """Stable code (no path) when a configured corpus store path was dropped."""
+        return self._corpus_store_config_error
 
     def open_store(self):
         return open_readonly_store(self._store_path)

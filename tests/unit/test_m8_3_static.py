@@ -20,7 +20,7 @@ import pathlib
 import pytest
 
 MODULE = pathlib.Path(__file__).resolve().parents[2] / "src" / "m8" / "graph_access.py"
-SOURCE = MODULE.read_text()
+SOURCE = MODULE.read_text(encoding="utf-8")
 TREE = ast.parse(SOURCE)
 
 FORBIDDEN_MODULES = {

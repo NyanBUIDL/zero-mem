@@ -304,7 +304,7 @@ class TestReadOnlyBoundaries:
         # Also forbid the class names being imported (defensive, name-level).
         name_forbidden = ("GrantAdminService", "AuthorizedWriteService")
         for f in base.glob("*.py"):
-            src = f.read_text()
+            src = f.read_text(encoding="utf-8")
             assert _imported(src) & forbidden == set(), f"{f.name} imports a writable module"
             for name in name_forbidden:
                 # only as an `import X`/`from ... import X` of the class itself
@@ -321,7 +321,7 @@ class TestReadOnlyBoundaries:
             "src.storage.ingest",
         }
         for f in base.glob("*.py"):
-            tree = ast.parse(f.read_text())
+            tree = ast.parse(f.read_text(encoding="utf-8"))
             for node in ast.walk(tree):
                 mods = []
                 if isinstance(node, ast.Import):
@@ -377,7 +377,7 @@ class TestZeroExternal:
         forbidden = {"openai", "requests", "httpx", "socket", "aiohttp",
                      "urllib", "http", "llm"}
         for f in base.glob("*.py"):
-            tree = ast.parse(f.read_text())
+            tree = ast.parse(f.read_text(encoding="utf-8"))
             for node in ast.walk(tree):
                 mods = []
                 if isinstance(node, ast.Import):

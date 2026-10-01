@@ -99,7 +99,7 @@ class TestSingleAuthority:
             "src/integration/hermes_registration.py",
         ]
         for f in src_files:
-            text = (REPO_ROOT / f).read_text()
+            text = (REPO_ROOT / f).read_text(encoding="utf-8")
             assert 'os.getenv("ZERO_MEM_ENABLED")' not in text
             assert 'os.environ.get("ZERO_MEM_ENABLED")' not in text
 
@@ -396,7 +396,7 @@ class TestEnvironment:
         assert (REPO_ROOT / "src/storage/migrations/migrate_10.py").exists()
 
     def test_gate_module_no_forbidden_imports(self):
-        text = (REPO_ROOT / "src/integration/zero_mem_runtime.py").read_text()
+        text = (REPO_ROOT / "src/integration/zero_mem_runtime.py").read_text(encoding="utf-8")
         tree = ast.parse(text)
         mods = set()
         for node in ast.walk(tree):
@@ -410,7 +410,7 @@ class TestEnvironment:
         assert not (mods & banned), mods & banned
 
     def test_no_llm_network_in_gate(self):
-        text = (REPO_ROOT / "src/integration/zero_mem_runtime.py").read_text()
+        text = (REPO_ROOT / "src/integration/zero_mem_runtime.py").read_text(encoding="utf-8")
         for tok in ("openai", "llm", "httpx", "requests", "socket.socket", "urllib"):
             assert tok not in text
 
@@ -419,6 +419,6 @@ class TestEnvironment:
                   "src/integration/hermes_read_adapter.py",
                   "src/integration/hermes_registration.py",
                   "src/integration/bridge_config.py"):
-            text = (REPO_ROOT / f).read_text()
+            text = (REPO_ROOT / f).read_text(encoding="utf-8")
             assert "/home/brian-nguyen" not in text
             assert "/home/brian-nguyan" not in text

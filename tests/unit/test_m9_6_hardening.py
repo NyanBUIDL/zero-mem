@@ -344,7 +344,7 @@ def test_edit_conflict_quarantined_original_untouched(tmp_path):
     r1, cfg = _project(tmp_path)
     target = cfg.managed_root / "Requirements" / "p" / "do-x--e38adf6f4f667a63.md"
     # Simulate a human edit of a managed note (bytes now differ from recorded).
-    target.write_text(target.read_text() + "\n# Human edit\n")
+    target.write_text(target.read_text(encoding="utf-8") + "\n# Human edit\n")
     edited = target.read_bytes()
     r2, _ = _project(tmp_path, prior_manifest=r1.manifest)
     # The human edit is PRESERVED (the original bytes the human wrote are not
@@ -366,8 +366,8 @@ def test_obsidian_config_and_out_of_root_untouched(tmp_path):
     (vault / "HumanNote.md").write_text("human\n")
     r1, cfg = _project(tmp_path, vault=vault)
     # .obsidian/ and the human note are byte-identical after projection.
-    assert (vault / ".obsidian" / "workspace.json").read_text() == "{}"
-    assert (vault / "HumanNote.md").read_text() == "human\n"
+    assert (vault / ".obsidian" / "workspace.json").read_text(encoding="utf-8") == "{}"
+    assert (vault / "HumanNote.md").read_text(encoding="utf-8") == "human\n"
 
 
 # ---------------------------------------------------------------------------
@@ -449,7 +449,7 @@ def test_real_vault_managed_subtree_absent_before_smoke(tmp_path, monkeypatch):
     # Precondition for a safe smoke: managed subtree absent.
     assert not managed.exists(), "managed subtree must not pre-exist the smoke"
     assert (vault / ".obsidian").is_dir()
-    assert (vault / "ExistingNote.md").read_text() == "human content\n"
+    assert (vault / "ExistingNote.md").read_text(encoding="utf-8") == "human content\n"
 
 
 def test_real_vault_dry_run_touches_no_pre_existing_path(tmp_path):
@@ -670,7 +670,7 @@ def test_secret_baseline_non_disableable_with_custom_patterns(tmp_path):
     # VC (custom marker) withheld because the operator supplied its pattern.
     assert not any("vc" in n.relative_path for n in r2.notes), \
         "custom-marker VC must be withheld when its pattern is supplied"
-    tree = "\n".join(p.read_text(errors="replace")
+    tree = "\n".join(p.read_text(errors="replace", encoding="utf-8")
                       for p in cfg2.managed_root.rglob("*.md"))
     assert CUSTOM_MARKER not in tree, "custom marker leaked"
     assert fx.SECRET not in tree, "baseline marker leaked under custom list"

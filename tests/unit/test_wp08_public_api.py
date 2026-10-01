@@ -58,7 +58,7 @@ def test_public_boundary_rejects_invalid_input_and_closed_use() -> None:
 
 
 def test_public_api_module_has_no_internal_src_dependency() -> None:
-    source = (Path(__file__).resolve().parents[2] / "zero_mem/api.py").read_text()
+    source = (Path(__file__).resolve().parents[2] / "zero_mem/api.py").read_text(encoding="utf-8")
     assert "from src" not in source and "import src" not in source
 
 

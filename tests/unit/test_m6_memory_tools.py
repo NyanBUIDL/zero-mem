@@ -356,7 +356,7 @@ class TestContractRegression:
     def test_no_m7_master_switch(self, rt):
         # No ON/OFF master switch in M6.2
         import src.integration.m6 as m6
-        src_blob = " ".join(Path(m6.__file__).read_text() for _ in [0])
+        src_blob = " ".join(Path(m6.__file__).read_text(encoding="utf-8") for _ in [0])
         for tok in ("ZERO_MEM_ENABLED", "zero_mem.enabled", "master_enable", "memory_system_enabled"):
             assert tok not in src_blob
 
@@ -375,7 +375,7 @@ class TestReadOnly:
                      "src.access.grant_events", "src.storage.migrations",
                      "src.storage.ingest"}
         for f in base.glob("*.py"):
-            assert _imported_modules(f.read_text()) & forbidden == set(), f"{f.name} imports writable module"
+            assert _imported_modules(f.read_text(encoding="utf-8")) & forbidden == set(), f"{f.name} imports writable module"
 
     def test_no_projector_or_canonical_writer_imports(self, rt):
         base = REPO_ROOT / "src" / "integration" / "m6"
@@ -383,7 +383,7 @@ class TestReadOnly:
                      "src.access.grant_events", "src.storage.migrations",
                      "src.storage.ingest"}
         for f in base.glob("*.py"):
-            assert _imported_modules(f.read_text()) & forbidden == set(), f"{f.name} imports writable module"
+            assert _imported_modules(f.read_text(encoding="utf-8")) & forbidden == set(), f"{f.name} imports writable module"
 
     def test_grant_admin_not_exposed(self, rt):
         assert get_tool("grant_admin") is None
@@ -397,7 +397,7 @@ class TestPathSafety:
         base = REPO_ROOT / "src" / "integration" / "m6"
         bad = ("/home/brian-nguyen", "/home/brian-nguyan")
         for f in base.glob("*.py"):
-            src = f.read_text()
+            src = f.read_text(encoding="utf-8")
             for tok in bad:
                 assert tok not in src, f"{f.name}: hard-coded user path '{tok}'"
 
@@ -458,7 +458,7 @@ class TestZeroExternal:
         base = REPO_ROOT / "src" / "integration" / "m6"
         forbidden = {"openai", "llm", "requests", "httpx", "socket", "aiohttp", "urllib", "http"}
         for f in base.glob("*.py"):
-            assert _imported_modules(f.read_text()) & forbidden == set(), f"{f.name} imports external module"
+            assert _imported_modules(f.read_text(encoding="utf-8")) & forbidden == set(), f"{f.name} imports external module"
 
     def test_dispatch_no_network(self, rt):
         r = dispatch({"tool": "memory_query", "requesting_profile_id": "A",

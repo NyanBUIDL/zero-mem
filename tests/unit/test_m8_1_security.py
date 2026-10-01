@@ -284,7 +284,7 @@ class TestNonScope:
         # Where M8.6 actually lives (src/integration/m7) it must only REUSE the
         # VERIFIED M8 public API and must not gain authorization authority or
         # mutate M8 contracts.
-        m8_int = (SRC_ROOT / "integration/m7/m8_integration.py").read_text()
+        m8_int = (SRC_ROOT / "integration/m7/m8_integration.py").read_text(encoding="utf-8")
         # Uses VERIFIED M8 public API only.
         assert "from src.m8.calibration import" in m8_int
         assert "from src.m8.retrieval_metadata import" in m8_int

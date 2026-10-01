@@ -488,7 +488,7 @@ class TestRuntimeHardening:
 
     def test_m1_recursion_absent(self):
         """Injection adapter does not import capture adapter."""
-        src = (REPO_ROOT / "src/integration/m7/injection_adapter.py").read_text()
+        src = (REPO_ROOT / "src/integration/m7/injection_adapter.py").read_text(encoding="utf-8")
         assert "capture_adapter" not in src
         assert "adapt_mapped" not in src
 
@@ -536,7 +536,7 @@ class TestStaticAudit:
         for f in ("src/integration/m7/hardening.py",
                   "src/integration/m7/injection_adapter.py",
                   "src/integration/m7/envelope.py"):
-            tree = ast.parse((REPO_ROOT / f).read_text())
+            tree = ast.parse((REPO_ROOT / f).read_text(encoding="utf-8"))
             mods = set()
             for n in ast.walk(tree):
                 if isinstance(n, ast.Import):
@@ -552,20 +552,20 @@ class TestStaticAudit:
         for f in ("src/integration/m7/hardening.py",
                   "src/integration/m7/injection_adapter.py",
                   "src/integration/m7/envelope.py"):
-            src = (REPO_ROOT / f).read_text()
+            src = (REPO_ROOT / f).read_text(encoding="utf-8")
             assert "GrantAdminService" not in src
 
     def test_no_writes(self):
         for f in ("src/integration/m7/hardening.py",
                   "src/integration/m7/injection_adapter.py"):
-            src = (REPO_ROOT / f).read_text()
+            src = (REPO_ROOT / f).read_text(encoding="utf-8")
             assert "authorized_write" not in src.lower()
 
     def test_no_hardcoded_home(self):
         for f in ("src/integration/m7/hardening.py",
                   "src/integration/m7/injection_adapter.py",
                   "src/integration/m7/envelope.py"):
-            src = (REPO_ROOT / f).read_text()
+            src = (REPO_ROOT / f).read_text(encoding="utf-8")
             assert "/home/brian" not in src
 
     def test_schema_v8(self):
@@ -578,7 +578,7 @@ class TestStaticAudit:
 
     def test_no_m8_features(self):
         for p in REPO_ROOT.glob("src/integration/m7/*.py"):
-            t = p.read_text().lower()
+            t = p.read_text(encoding="utf-8").lower()
             assert "vector retrieval" not in t
             assert "embeddings" not in t
             assert "graph traversal" not in t

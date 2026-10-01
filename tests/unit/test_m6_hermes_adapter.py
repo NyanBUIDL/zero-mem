@@ -356,7 +356,7 @@ class TestSecuritySurface:
                   base / "m6" / "mcp_wrapper.py", base / "m6" / "contracts.py", base / "m6" / "runtime.py",
                   base / "m6" / "tools.py", base / "m6" / "errors.py", base / "m6" / "__init__.py"):
             mods = set()
-            for n in ast.walk(ast.parse(f.read_text())):
+            for n in ast.walk(ast.parse(f.read_text(encoding="utf-8"))):
                 if isinstance(n, ast.Import):
                     for a in n.names: mods.add(a.name.split(".")[0])
                 elif isinstance(n, ast.ImportFrom):
@@ -379,7 +379,7 @@ class TestSecuritySurface:
         base = REPO_ROOT / "src" / "integration"
         mods = set()
         for f in base.glob("**/*.py"):
-            for n in ast.walk(ast.parse(f.read_text())):
+            for n in ast.walk(ast.parse(f.read_text(encoding="utf-8"))):
                 if isinstance(n, ast.Import):
                     for a in n.names: mods.add(a.name.split(".")[0])
                 elif isinstance(n, ast.ImportFrom):
@@ -391,7 +391,7 @@ class TestSecuritySurface:
         # BridgeConfig.zero_mem_enabled). No redundant/alias/per-subsystem switches.
         import ast
         base = REPO_ROOT / "src" / "integration"
-        src = "\n".join(f.read_text() for f in base.rglob("*.py"))
+        src = "\n".join(f.read_text(encoding="utf-8") for f in base.rglob("*.py"))
         assert "ZERO_MEM_ENABLED" in src
         assert "zero_mem_enabled" in src
         assert all(t not in src for t in ("zero_mem.enabled", "master_enable", "master_enabled",
@@ -400,7 +400,7 @@ class TestSecuritySurface:
     def test_no_hardcoded_username(self, adapter):
         import ast
         base = REPO_ROOT / "src" / "integration"
-        src = "\n".join(f.read_text() for f in base.rglob("*.py"))
+        src = "\n".join(f.read_text(encoding="utf-8") for f in base.rglob("*.py"))
         assert not any(u in src for u in ("/home/brian-nguyen", "/home/brian-nguyan"))
 
     def test_committed_paths_resolve(self, adapter):

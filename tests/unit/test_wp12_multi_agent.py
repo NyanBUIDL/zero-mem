@@ -43,7 +43,7 @@ def test_two_processes_share_canonical_writer_without_loss(tmp_path: Path) -> No
     for process in processes:
         process.join(10)
         assert process.exitcode == 0
-    records = [json.loads(line) for line in (tmp_path / "events-v1.jsonl").read_text().splitlines()]
+    records = [json.loads(line) for line in (tmp_path / "events-v1.jsonl").read_text(encoding="utf-8").splitlines()]
     assert len(records) == 100
     assert len({record["event_id"] for record in records}) == 100
     assert sorted(record["sequence"] for record in records) == list(range(100))

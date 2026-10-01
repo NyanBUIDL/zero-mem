@@ -25,7 +25,7 @@ def test_valid_append_and_one_record_per_line(tmp_path: Path) -> None:
     store = JsonlCaptureStore(CaptureStoreConfig(tmp_path))
     result = store.append(event({"value": "ok"}))
     assert result.status == "appended"
-    lines = store.path.read_text().splitlines(keepends=True)
+    lines = store.path.read_text(encoding="utf-8").splitlines(keepends=True)
     assert len(lines) == 1 and lines[0].endswith("\n")
     assert json.loads(lines[0])["event_id"] == "e1"
 
@@ -50,7 +50,7 @@ def test_sequence_recovery_and_timestamp_preservation(tmp_path: Path) -> None:
     first.close()
     second = JsonlCaptureStore(cfg)
     result = second.append(event({"value": 2}, event_id="e2"))
-    records = [json.loads(line) for line in second.path.read_text().splitlines()]
+    records = [json.loads(line) for line in second.path.read_text(encoding="utf-8").splitlines()]
     assert result.sequence == 1
     assert [record["sequence"] for record in records] == [0, 1]
     assert records[0]["created_at"].endswith("Z")
@@ -97,7 +97,7 @@ def test_redaction_before_persistence_and_secret_absence(tmp_path: Path) -> None
     safe = redact_payload({"api_key": secret})
     record = event({"api_key": secret}, event_id="safe")
     store.append(record)
-    assert secret not in store.path.read_text()
+    assert secret not in store.path.read_text(encoding="utf-8")
     with pytest.raises(CaptureRejected):
         store.append(normalize_event({"sanitized_content": {"api_key": secret}}, sequence=0, event_type=EventType.TOOL_OBSERVATION, source="test"))
 

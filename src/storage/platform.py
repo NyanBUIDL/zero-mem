@@ -879,6 +879,33 @@ def atomic_promote(source: Path, destination: Path, *, expected_source: FileIden
                 pass
 
 
+def use_utf8_stdio(*, lf_newlines: bool = False) -> None:
+    """Make the process's text streams UTF-8 (DEF-086).
+
+    On Windows a redirected stream uses the ANSI code page (``cp1252``), so printing or reading any
+    non-Latin text raised ``UnicodeEncodeError``/``UnicodeDecodeError: 'charmap'``. ``lf_newlines`` also stops
+    the CRT from rewriting LF as CRLF (line-delimited JSON protocols). A stream that cannot be
+    reconfigured (replaced by a test harness, already closed) is left alone.
+    """
+    import sys
+
+    for name, errors in (("stdin", "strict"), ("stdout", "replace"), ("stderr", "replace")):
+        stream = getattr(sys, name, None)
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        options: dict = {}
+        if (getattr(stream, "encoding", "") or "").lower().replace("_", "-") != "utf-8":
+            options.update(encoding="utf-8", errors=errors)
+        if lf_newlines and name == "stdout":
+            options["newline"] = "\n"
+        if options:
+            try:
+                reconfigure(**options)
+            except (ValueError, OSError):
+                pass
+
+
 def safe_cleanup(path: Path) -> None:
     """Remove only a verified regular file; missing is already clean."""
     safe_unlink(path)
@@ -891,5 +918,5 @@ __all__ = [
     "fsync_handle", "handle_info", "handle_size", "is_regular_info", "is_symlink_info", "list_relative",
     "locked", "open_parent_dir", "open_relative", "open_regular", "paths_alias", "read_all", "read_bytes", "read_from",
     "rename_relative", "safe_cleanup", "safe_unlink", "set_mode", "stat_relative", "unlink_relative", "validate_directory",
-    "validate_path", "write_all",
+    "use_utf8_stdio", "validate_path", "write_all",
 ]

@@ -10,7 +10,7 @@ MATRIX = Path(__file__).resolve().parents[2] / "artifacts/control/COMPATIBILITY-
 
 
 def test_matrix_freezes_policy_and_local_linux_row() -> None:
-    text = MATRIX.read_text()
+    text = MATRIX.read_text(encoding="utf-8")
     assert 'python_range: ">=3.11,<3.14"' in text
     assert "support_classification: SUPPORTED" in text
     assert "support_classification: NOT_SUPPORTED" in text

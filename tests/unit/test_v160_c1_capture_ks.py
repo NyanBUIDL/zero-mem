@@ -116,7 +116,7 @@ class TestC1CanonicalPreservation:
         env = _env(ks=["quant-theory"])
         store = JsonlCaptureStore(CaptureStoreConfig(tmp_path))
         store.append(env)
-        line = json.loads((tmp_path / "events-v1.jsonl").read_text().splitlines()[0])
+        line = json.loads((tmp_path / "events-v1.jsonl").read_text(encoding="utf-8").splitlines()[0])
         assert line["knowledge_space_ids"] == ["quant-theory"]
 
 

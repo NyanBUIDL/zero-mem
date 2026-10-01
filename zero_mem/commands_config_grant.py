@@ -21,6 +21,14 @@ class ConfigCommandError(Exception):
     pass
 
 
+# DEF-066: corpus search reads the main derived store; this key is only kept
+# for backward compatibility and never changes retrieval or readiness.
+VESTIGIAL_NOTE = (
+    "corpus-store-path is vestigial: corpus search reads the main derived store "
+    "and event-path grants authorize per-row; this setting has no effect"
+)
+
+
 def _validate_corpus_path(path: str) -> None:
     """Fail LOUD at set time when the path is not a usable corpus store."""
     import sqlite3
@@ -48,7 +56,8 @@ def run_config_set(key: str, value: str) -> dict:
     _validate_corpus_path(value)
     userconfig.set_corpus_store_path(value)
     return {"status": "ok", "key": key, "value": value,
-            "config_file": str(userconfig.config_file_path())}
+            "config_file": str(userconfig.config_file_path()),
+            "note": VESTIGIAL_NOTE}
 
 
 def run_config_unset(key: str) -> dict:
@@ -70,6 +79,7 @@ def run_config_show() -> dict:
         "config_file": str(userconfig.config_file_path()),
         "corpus_store_path": userconfig.get_corpus_store_path(),
         "env_override": os.environ.get("ZM_M6_CORPUS_STORE_PATH"),
+        "note": VESTIGIAL_NOTE,
     }
 
 

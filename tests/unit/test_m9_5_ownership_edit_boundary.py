@@ -224,7 +224,7 @@ def _edit_and_reconcile(vault, note, edit_kind):
     """Rebuild, then apply a human edit of ``edit_kind`` and reconcile."""
     rebuild(vault, [note])
     path = vault / note.relative_path
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     if edit_kind == "body":
         text = text.replace("body a", "body a EDITED BY HUMAN")
     elif edit_kind == "frontmatter":
@@ -249,7 +249,7 @@ def test_human_edit_detected_no_overwrite(tmp_path, edit_kind):
     note = _mk_note("requirements/unscoped/a.md", "body a v1", resource_id="A")
     rebuild(vault, [note])
     path = vault / note.relative_path
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     if edit_kind == "body":
         text = text.replace("body a v1", "body a v1 EDITED BY HUMAN")
     elif edit_kind == "frontmatter":
@@ -334,14 +334,14 @@ def test_edit_conflict_when_canonical_also_changed(tmp_path):
     rebuild(vault, [a, b])
     # Human edits B.
     bpath = vault / "requirements/unscoped/b.md"
-    human_text = bpath.read_text().replace("body b v1", "body b EDITED")
+    human_text = bpath.read_text(encoding="utf-8").replace("body b v1", "body b EDITED")
     bpath.write_text(human_text)
     # Canonical source ALSO changes B to v2.
     b2 = _mk_note("requirements/unscoped/b.md", "body b v2", resource_id="B")
     result = reconcile(vault, [a, b2])
 
     # Human file preserved byte-for-byte.
-    assert (vault / "requirements/unscoped/b.md").read_text() == human_text
+    assert (vault / "requirements/unscoped/b.md").read_text(encoding="utf-8") == human_text
     # Conflict recorded (exactly one).
     assert len(result.edit_conflicts) == 1
     cf = result.edit_conflicts[0]
@@ -351,7 +351,7 @@ def test_edit_conflict_when_canonical_also_changed(tmp_path):
     # Sibling written with the desired v2 content; human file never touched.
     sib = vault / "requirements/unscoped/b.zero-mem-new.md"
     assert sib.exists()
-    assert "body b v2" in sib.read_text()
+    assert "body b v2" in sib.read_text(encoding="utf-8")
     # Entry status is edit_conflict (DATA only).
     assert result.manifest.get(b.note_id).status is NoteStatus.EDIT_CONFLICT
 
@@ -362,7 +362,7 @@ def test_repeated_conflict_deterministic_zero_churn(tmp_path):
     b = _mk_note("requirements/unscoped/b.md", "body b v1", resource_id="B")
     rebuild(vault, [a, b])
     bpath = vault / "requirements/unscoped/b.md"
-    human_text = bpath.read_text().replace("body b" if False else "body b v1", "body b EDITED")
+    human_text = bpath.read_text(encoding="utf-8").replace("body b" if False else "body b v1", "body b EDITED")
     bpath.write_text(human_text)
     b2 = _mk_note("requirements/unscoped/b.md", "body b v2", resource_id="B")
 
@@ -401,11 +401,11 @@ def test_stale_and_human_edited_preserved(tmp_path):
     rebuild(vault, [a, b])
     # Human edits B.
     bpath = vault / "requirements/unscoped/b.md"
-    human_text = bpath.read_text().replace("body b", "body b EDITED")
+    human_text = bpath.read_text(encoding="utf-8").replace("body b", "body b EDITED")
     bpath.write_text(human_text)
     # Desire drops B entirely (stale) -> human edited + stale => preserve.
     result = reconcile(vault, [a])
-    assert (vault / "requirements/unscoped/b.md").read_text() == human_text
+    assert (vault / "requirements/unscoped/b.md").read_text(encoding="utf-8") == human_text
     assert (vault / "requirements/unscoped/b.md").exists()
     # The human-boundary note is skipped by retirement (no RETIRED outcome).
     assert not any(
@@ -424,15 +424,15 @@ def test_auth_revoked_and_human_edited_preserved(tmp_path):
     b = _mk_note("requirements/unscoped/b.md", "body b", resource_id="B")
     rebuild(vault, [a, b])
     bpath = vault / "requirements/unscoped/b.md"
-    human_text = bpath.read_text().replace("body b", "body b EDITED")
+    human_text = bpath.read_text(encoding="utf-8").replace("body b", "body b EDITED")
     bpath.write_text(human_text)
     # Authorization revoked -> note B no longer desired by the engine.
     result = reconcile(vault, [a])
     # Human file preserved; nothing about it is "re-authorized" just because it
     # is on disk.
-    assert (vault / "requirements/unscoped/b.md").read_text() == human_text
+    assert (vault / "requirements/unscoped/b.md").read_text(encoding="utf-8") == human_text
     # No hidden authoritative data written where B used to be.
-    assert not (vault / "requirements/unscoped/b.md").read_text().startswith("body b v")
+    assert not (vault / "requirements/unscoped/b.md").read_text(encoding="utf-8").startswith("body b v")
 
 
 # ---------------------------------------------------------------------------
@@ -448,13 +448,13 @@ def test_sensitivity_ineligible_and_human_edited_preserved(tmp_path):
     b = _mk_note("requirements/unscoped/b.md", "body b", resource_id="B")
     rebuild(vault, [a, b])
     bpath = vault / "requirements/unscoped/b.md"
-    human_text = bpath.read_text().replace("body b", "body b EDITED")
+    human_text = bpath.read_text(encoding="utf-8").replace("body b", "body b EDITED")
     bpath.write_text(human_text)
 
     # Simulate "desired source now secret/hidden": the engine passes NO desired
     # note for B (it would be filtered out upstream by sensitivity eligibility).
     result = reconcile(vault, [a])
-    assert (vault / "requirements/unscoped/b.md").read_text() == human_text
+    assert (vault / "requirements/unscoped/b.md").read_text(encoding="utf-8") == human_text
     # Because there is no desired note for B at all, no conflict is produced and
     # certainly no secret desired content is embedded anywhere.
     serialized = result.manifest.serialize().decode("utf-8")
@@ -523,7 +523,7 @@ def test_edit_conflict_metadata_contains_hashes_only(tmp_path):
     b = _mk_note("requirements/unscoped/b.md", "body b v1", resource_id="B")
     rebuild(vault, [a, b])
     bpath = vault / "requirements/unscoped/b.md"
-    human_text = bpath.read_text().replace("body b v1", "HUMAN-SECRET-SENTENCE")
+    human_text = bpath.read_text(encoding="utf-8").replace("body b v1", "HUMAN-SECRET-SENTENCE")
     bpath.write_text(human_text)
     b2 = _mk_note("requirements/unscoped/b.md",
                   "DESIRED-SECRET-SENTENCE", resource_id="B")
@@ -559,7 +559,7 @@ def test_human_edit_never_mutates_canonical(tmp_path):
     path.write_text(adversarial)
     result = reconcile(vault, [note])
     # The adversarial text is left exactly as-is; nothing canonical changed.
-    assert (vault / note.relative_path).read_text() == adversarial
+    assert (vault / note.relative_path).read_text(encoding="utf-8") == adversarial
     assert any(w.status is WriteStatus.SKIPPED_HUMAN_MODIFIED for w in result.writes)
     # The manifest entry for the note simply records human_modified; it does NOT
     # echo the promoted-to-canonical claim as truth.
@@ -581,7 +581,7 @@ def test_one_human_edit_does_not_rewrite_unrelated_notes(tmp_path):
     rebuild(vault, [a, b, c])
     # Human edits ONLY b.
     bpath = vault / "requirements/unscoped/b.md"
-    bpath.write_text(bpath.read_text().replace("body b", "body b EDITED"))
+    bpath.write_text(bpath.read_text(encoding="utf-8").replace("body b", "body b EDITED"))
     result = reconcile(vault, [a, b, c])
     # Exactly one human-boundary write outcome; a and c untouched (no writes).
     human_writes = [w for w in result.writes
@@ -603,7 +603,7 @@ def test_zero_write_rerun_after_edit_conflict(tmp_path):
     b = _mk_note("requirements/unscoped/b.md", "body b v1", resource_id="B")
     rebuild(vault, [a, b])
     bpath = vault / "requirements/unscoped/b.md"
-    bpath.write_text(bpath.read_text().replace("body b v1", "body b EDITED"))
+    bpath.write_text(bpath.read_text(encoding="utf-8").replace("body b v1", "body b EDITED"))
     b2 = _mk_note("requirements/unscoped/b.md", "body b v2", resource_id="B")
     r1 = reconcile(vault, [a, b2])
     assert len(r1.edit_conflicts) == 1

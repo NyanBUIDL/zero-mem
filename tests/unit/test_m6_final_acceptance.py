@@ -605,7 +605,7 @@ class TestZeroLLMNetwork:
         base = REPO_ROOT / "src" / "integration"
         mods = set()
         for f in base.rglob("*.py"):
-            for n in ast.walk(ast.parse(f.read_text())):
+            for n in ast.walk(ast.parse(f.read_text(encoding="utf-8"))):
                 if isinstance(n, ast.Import):
                     for a in n.names: mods.add(a.name.split(".")[0])
                 elif isinstance(n, ast.ImportFrom):
@@ -620,7 +620,7 @@ class TestM1NonInterference:
         import importlib
         import src.integration.capture_adapter as ca
         assert hasattr(ca, "adapt_mapped_event")
-        src = (REPO_ROOT / "src" / "integration" / "hermes_read_adapter.py").read_text()
+        src = (REPO_ROOT / "src" / "integration" / "hermes_read_adapter.py").read_text(encoding="utf-8")
         assert "adapt_mapped_event" not in src
 
 
@@ -637,7 +637,7 @@ class TestStaticAudit:
         base = REPO_ROOT / "src" / "integration"
         for f in files:
             mods = set()
-            for n in ast.walk(ast.parse((base / f).read_text())):
+            for n in ast.walk(ast.parse((base / f).read_text(encoding="utf-8"))):
                 if isinstance(n, ast.Import):
                     for a in n.names: mods.add(a.name.split(".")[0])
                 elif isinstance(n, ast.ImportFrom):
@@ -647,7 +647,7 @@ class TestStaticAudit:
     def test_no_hermes_core_modification(self, adapter):
         p = REPO_ROOT / "src" / "integration" / "hermes_read_adapter.py"
         assert p.exists()
-        src = p.read_text()
+        src = p.read_text(encoding="utf-8")
         assert "from hermes" not in src and "import hermes" not in src
 
     def test_grant_admin_unreachable(self, adapter):
@@ -661,7 +661,7 @@ class TestAbsenceGuards:
     def test_no_hardcoded_username(self, adapter):
         import ast
         base = REPO_ROOT / "src" / "integration"
-        src = "\n".join(f.read_text() for f in base.rglob("*.py"))
+        src = "\n".join(f.read_text(encoding="utf-8") for f in base.rglob("*.py"))
         assert "/home/brian-nguyen" not in src and "/home/brian-nguyan" not in src
 
     def test_all_verifier_targets_resolve(self, adapter):
@@ -675,7 +675,7 @@ class TestAbsenceGuards:
         # backed by BridgeConfig.zero_mem_enabled. No redundant/alias/per-subsystem
         # switches are permitted.
         base = REPO_ROOT / "src" / "integration"
-        src = "\n".join(f.read_text() for f in base.rglob("*.py"))
+        src = "\n".join(f.read_text(encoding="utf-8") for f in base.rglob("*.py"))
         # The one approved canonical switch IS present.
         assert "ZERO_MEM_ENABLED" in src
         assert "zero_mem_enabled" in src
@@ -700,7 +700,7 @@ class TestAbsenceGuards:
     def test_no_auto_injection(self, adapter):
         NL = chr(10)
         base = REPO_ROOT / "src" / "integration"
-        src = NL.join(f.read_text() for f in base.rglob("*.py"))
+        src = NL.join(f.read_text(encoding="utf-8") for f in base.rglob("*.py"))
         for t in ("controlled_injection", "auto_inject", "inject_results"):
             assert t not in src
 

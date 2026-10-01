@@ -40,6 +40,20 @@ class SourceSensitivity(str, Enum):
 _VALID_SENSITIVITY = {s.value for s in SourceSensitivity}
 
 
+def is_withheld_sensitivity(value: object) -> bool:
+    """True when a source/unit of this sensitivity must be withheld from derived and retrieved output.
+
+    DEF-057: ``secret`` is never projected into units nor returned by retrieval. Fail closed: anything that
+    is not exactly a recognized non-secret level (None, wrong case, unknown string, non-string) is withheld.
+    Pure; the single predicate projection and retrieval share.
+    """
+    if isinstance(value, SourceSensitivity):
+        return value is SourceSensitivity.SECRET
+    if isinstance(value, str) and value in _VALID_SENSITIVITY:
+        return value == SourceSensitivity.SECRET.value
+    return True
+
+
 class ValidationError(ValueError):
     """Closed-contract validation failure (fail closed)."""
 
@@ -146,4 +160,5 @@ __all__ = [
     "SourceSensitivity",
     "SourceLifecycle",
     "CORPUS_SOURCE_RESOURCE_TYPE",
+    "is_withheld_sensitivity",
 ]

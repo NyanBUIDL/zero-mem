@@ -11,8 +11,17 @@ from .version import __version__
 
 CONFIG_SCHEMA_VERSION = 1
 CONFIG_FILENAME = "config.json"
+# Operator keys that zero_mem.userconfig stores in the same file (DEF-066).
+_LEGACY_USER_KEYS = frozenset({"corpus-store-path"})
 MEMORY_STREAM_RELATIVE = Path("data/memory/traces/events-v1.jsonl")
 DERIVED_DB_RELATIVE = Path("data/derived/memory.sqlite3")
+# DEF-054: canonical corpus (registry + blobs) lives under the data root by
+# default so setup/upgrade/backup/restore/doctor agree on one location.
+CORPUS_RELATIVE = Path("data/corpus")
+CORPUS_ROOT_ENV = "ZERO_MEM_CORPUS_ROOT"
+# Mirrors src.corpus.registry.REGISTRY_FILENAME (a test pins the equality);
+# kept local so this light module does not import the corpus package.
+CORPUS_REGISTRY_FILENAME = "corpus_sources.jsonl"
 
 
 class SetupError(RuntimeError):
@@ -66,6 +75,22 @@ def derived_db() -> Path:
     return data_root() / DERIVED_DB_RELATIVE
 
 
+def corpus_root_is_explicit() -> bool:
+    """True when ``ZERO_MEM_CORPUS_ROOT`` overrides the default location."""
+    return bool((os.environ.get(CORPUS_ROOT_ENV) or "").strip())
+
+
+def corpus_root() -> Path:
+    """Canonical corpus root: ``ZERO_MEM_CORPUS_ROOT`` or ``<data root>/data/corpus``."""
+    explicit = (os.environ.get(CORPUS_ROOT_ENV) or "").strip()
+    if explicit:
+        candidate = Path(explicit).expanduser()
+        if not candidate.is_absolute():
+            raise ConfigurationError("corpus root must be absolute")
+        return candidate
+    return data_root() / CORPUS_RELATIVE
+
+
 def config_path() -> Path:
     return config_root() / CONFIG_FILENAME
 
@@ -116,8 +141,15 @@ def _validate_config(value: object) -> dict[str, Any]:
         "derived_store",
         "capture_stream",
     }
-    if set(value) != required | {"schema_version"}:
+    # DEF-066: ``zero-mem config set corpus-store-path`` (zero_mem.userconfig)
+    # writes into this same file.  The key is vestigial, so tolerate it instead
+    # of turning a harmless legacy setting into a doctor/upgrade/backup failure.
+    expected_keys = required | {"schema_version"}
+    present = set(value)
+    if expected_keys - present or present - expected_keys - _LEGACY_USER_KEYS:
         raise ConfigurationError("unsupported configuration fields")
+    if "corpus-store-path" in value and not isinstance(value["corpus-store-path"], str):
+        raise ConfigurationError("invalid configuration values")
     # The descriptor preserves a recorded application version for diagnostics;
     # it is not a data-format authority.  A new wheel must be able to inspect
     # and safely rebuild the same canonical state without rewriting it first.
@@ -175,6 +207,31 @@ def write_config() -> None:
             os.unlink(temporary)
         except FileNotFoundError:
             pass
+
+
+def ensure_corpus_root() -> Path:
+    """Create the private corpus root, blob directory and empty registry file.
+
+    Idempotent and non-destructive: an existing registry is never read or
+    rewritten, only its mode is tightened.  Returns the corpus root.
+    """
+    root = corpus_root()
+    ensure_private_dir(root, "corpus directory")
+    ensure_private_dir(root / "blobs", "corpus blob directory")
+    registry = root / CORPUS_REGISTRY_FILENAME
+    _reject_symlink(registry, "corpus registry")
+    try:
+        if not registry.exists():
+            registry.touch(mode=0o600)
+        if not registry.is_file():
+            raise SetupError("invalid corpus registry")
+        if os.name != "nt":
+            os.chmod(registry, 0o600)
+    except SetupError:
+        raise
+    except OSError:
+        raise SetupError("inaccessible corpus registry") from None
+    return root
 
 
 def ensure_empty_memory_stream() -> None:

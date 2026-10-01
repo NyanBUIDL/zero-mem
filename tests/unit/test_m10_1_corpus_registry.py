@@ -496,7 +496,7 @@ def test_corpus_module_has_no_llm_or_network_import():
     pkg = pathlib.Path(__file__).resolve().parents[2] / "src" / "corpus"
     banned = ("openai", "anthropic", "requests", "httpx", "urllib.request", "llm")
     for py in pkg.glob("*.py"):
-        tree = ast.parse(py.read_text())
+        tree = ast.parse(py.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:

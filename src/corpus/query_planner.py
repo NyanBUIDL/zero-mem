@@ -7,7 +7,9 @@ Two responsibilities:
 
 1. **Query normalization** — sanitize/normalize a free-text query for FTS
    discovery the same way the repo normalizes M3 text (lowercased, whitespace
-   collapsed). Keeps determinism explicit; no stemming/tokenization surprises.
+   collapsed). Keeps determinism explicit; no stemming/tokenization surprises
+   here: the planner never rewrites words. Term splitting, English stemming and
+   scoring live in ``src/corpus/retrieval.py`` (T7) and see only authorized rows.
 
 2. **Metadata filter validation** — accept only the approved, closed set of
    deterministic corpus metadata dimensions (M10.1-M10.4 contracts only):
@@ -18,6 +20,8 @@ Two responsibilities:
      - source_id          (the corpus_source identity the unit belongs to)
      - unit_kind          (closed coarse structural set)
      - lifecycle_status   (closed lifecycle enum)
+     - memory_type        (source ``custom_meta.memory_type``; ADR-V170-01)
+     - external_ref_prefix (prefix of the source ``external_ref``; ADR-V170-01)
 
    Any unknown dimension is rejected (fail closed). No domain-specific metadata
    (finance/quant/medical/legal) is introduced as core architecture — M10 remains
@@ -31,6 +35,8 @@ authorized scope the plan's metadata dimensions are checked against.
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, Dict, FrozenSet, List, Mapping, Optional, Tuple
 
@@ -63,8 +69,19 @@ VALID_METADATA_KEYS: FrozenSet[str] = frozenset(
         "source_id",
         "unit_kind",
         "lifecycle_status",
+        "memory_type",
+        "external_ref_prefix",
     }
 )
+
+# ADR-V170-01: bounds for the two source-provenance filters.
+_MEMORY_TYPE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-]{0,63}$")
+_MAX_EXTERNAL_REF_PREFIX = 512
+
+# DEF-061: agent-facing default is token-friendly; the ceiling bounds internal
+# callers (benchmarks, evidence building) that ask for a wider candidate window.
+DEFAULT_RESULT_LIMIT: int = 20
+MAX_RESULT_LIMIT: int = 500
 
 # Dimensions that default to 'active' exclusions handling: deleted is never
 # eligible corpus evidence (consistent with M7 eligibility for memory).
@@ -90,6 +107,8 @@ class CorpusMetadataFilter:
     source_id: Optional[str] = None
     unit_kind: Optional[str] = None
     lifecycle_status: Optional[str] = None
+    memory_type: Optional[str] = None
+    external_ref_prefix: Optional[str] = None
 
     def as_dict(self) -> Dict[str, Any]:
         out: Dict[str, Any] = {}
@@ -105,6 +124,10 @@ class CorpusMetadataFilter:
             out["unit_kind"] = self.unit_kind
         if self.lifecycle_status is not None:
             out["lifecycle_status"] = self.lifecycle_status
+        if self.memory_type is not None:
+            out["memory_type"] = self.memory_type
+        if self.external_ref_prefix is not None:
+            out["external_ref_prefix"] = self.external_ref_prefix
         return out
 
     @classmethod
@@ -121,6 +144,16 @@ class CorpusMetadataFilter:
                 raise CorpusQueryError(f"invalid_corpus_unit_kind: {value!r}")
             if key == "lifecycle_status" and value not in _VALID_LIFECYCLE:
                 raise CorpusQueryError(f"invalid_corpus_lifecycle: {value!r}")
+            if key == "memory_type" and (
+                not isinstance(value, str) or not _MEMORY_TYPE_RE.match(value)
+            ):
+                raise CorpusQueryError("invalid_corpus_memory_type")
+            if key == "external_ref_prefix" and (
+                not isinstance(value, str)
+                or not value
+                or len(value) > _MAX_EXTERNAL_REF_PREFIX
+            ):
+                raise CorpusQueryError("invalid_corpus_external_ref_prefix")
             cleaned[key] = value
         return cls(**cleaned)
 
@@ -134,13 +167,14 @@ class CorpusQueryPlan:
 
     - ``text`` is the normalized lexical query (may be empty for metadata-only).
     - ``metadata`` is the closed-set filter.
-    - ``limit`` is a conservative upper bound (the M7 EvidenceSet budget is the
-      final cap; this only bounds the retrieval candidate discovery).
+    - ``limit`` is the result cap: ``DEFAULT_RESULT_LIMIT`` unless a caller asks
+      for more, never above ``MAX_RESULT_LIMIT`` (the M7 EvidenceSet budget is
+      the final cap).
     """
 
     text: str
     metadata: CorpusMetadataFilter
-    limit: int = 100
+    limit: int = DEFAULT_RESULT_LIMIT
 
     @property
     def is_metadata_only(self) -> bool:
@@ -157,31 +191,38 @@ class CorpusQueryPlan:
 def normalize_query_text(text: Optional[str]) -> str:
     """Deterministic lexical normalization (mirrors repo M3 normalization).
 
-    Lowercase + collapse internal whitespace; strip trailing/leading space. No
-    stemming, no tokenization, no LLM. Empty/None input yields "".
+    Unicode NFC (units are stored NFC, so a decomposed query such as macOS
+    clipboard text still matches), lowercase, collapse internal whitespace;
+    strip trailing/leading space. No stemming, no tokenization, no LLM.
+    Empty/None input yields "".
     """
     if not text:
         return ""
-    return " ".join(str(text).lower().split())
+    return " ".join(unicodedata.normalize("NFC", str(text)).lower().split())
 
 
 def build_query_plan(
     text: Optional[str] = None,
     *,
     metadata: Optional[Mapping[str, Any]] = None,
-    limit: int = 100,
+    limit: Optional[int] = None,
 ) -> CorpusQueryPlan:
     """Construct a validated, deterministic corpus query plan.
 
     Raises ``CorpusQueryError`` on an unsupported metadata key or invalid enum
-    value (fail closed). ``limit`` is clamped to a conservative ceiling; an
-    invalid (<=0 / absurd) limit is treated as the default.
+    value (fail closed). ``limit`` defaults to ``DEFAULT_RESULT_LIMIT``; an
+    invalid (None / non-int / <=0 / above ``MAX_RESULT_LIMIT``) limit is treated
+    as the default, so there is never an unbounded corpus scan.
     """
     norm = normalize_query_text(text)
     meta = CorpusMetadataFilter.from_dict(metadata)
-    # Conservative hard ceiling; never an unbounded corpus scan.
-    if not isinstance(limit, int) or limit <= 0 or limit > 500:
-        limit = 100
+    if (
+        not isinstance(limit, int)
+        or isinstance(limit, bool)
+        or limit <= 0
+        or limit > MAX_RESULT_LIMIT
+    ):
+        limit = DEFAULT_RESULT_LIMIT
     return CorpusQueryPlan(text=norm, metadata=meta, limit=limit)
 
 
@@ -194,6 +235,8 @@ def _match_metadata(
     source_id: Optional[str],
     unit_kind: Optional[str],
     lifecycle_status: Optional[str],
+    memory_type: Optional[str] = None,
+    external_ref: Optional[str] = None,
 ) -> bool:
     """True when a candidate row satisfies the closed-set metadata filter.
 
@@ -212,10 +255,18 @@ def _match_metadata(
         return False
     if meta.lifecycle_status is not None and meta.lifecycle_status != lifecycle_status:
         return False
+    if meta.memory_type is not None and meta.memory_type != memory_type:
+        return False
+    if meta.external_ref_prefix is not None and not (external_ref or "").startswith(
+        meta.external_ref_prefix
+    ):
+        return False
     return True
 
 
 __all__ = [
+    "DEFAULT_RESULT_LIMIT",
+    "MAX_RESULT_LIMIT",
     "CorpusQueryError",
     "CorpusMetadataFilter",
     "CorpusQueryPlan",

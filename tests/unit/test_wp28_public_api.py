@@ -65,6 +65,6 @@ def test_wp28_async_queue_and_deadline_are_bounded() -> None:
 
 
 def test_wp28_public_module_stays_transport_and_storage_neutral() -> None:
-    source = (Path(__file__).resolve().parents[2] / "zero_mem/api.py").read_text()
+    source = (Path(__file__).resolve().parents[2] / "zero_mem/api.py").read_text(encoding="utf-8")
     assert "from src" not in source and "import src" not in source
     assert "sqlite" not in source.lower()
