@@ -43,7 +43,9 @@ def test_pdf_adapter_selected_for_pdf():
 
 
 def test_unsupported_format_returns_none():
-    assert select_adapter("docx") is None
+    # T4: docx is now a supported format (DocxAdapter); use genuinely unsupported hints.
+    assert select_adapter("mp4") is None
+    assert select_adapter("binary") is None
     assert select_adapter("") is None
 
 
@@ -51,18 +53,19 @@ def test_future_adapter_can_register_without_core_change():
     # Proves the registry is open for extension without touching corpus core:
     # a new adapter instance is selectable by its `supports()` predicate, and
     # selection iterates the registry in registration order.
-    class MdAdapter(TxtAdapter):
+    # T4: "md" is now a built-in format, so the "future" kind used here is "log".
+    class LogAdapter(TxtAdapter):
         format = FormatKind.TXT  # reuse an existing enum member; only `supports` differs
 
         def supports(self, kind_hint: str) -> bool:
-            return kind_hint.lower() == "md"
+            return kind_hint.lower() == "log"
 
     from src.corpus.adapters.registry import ADAPTER_REGISTRY
 
-    adapter = MdAdapter()
+    adapter = LogAdapter()
     ADAPTER_REGISTRY.append(adapter)  # direct extension, no core change
     try:
-        assert select_adapter("md") is adapter
+        assert select_adapter("log") is adapter
         # Unrelated formats still resolve to their own adapters.
         assert isinstance(select_adapter("txt"), TxtAdapter)
     finally:
@@ -76,9 +79,11 @@ def test_txt_extraction_deterministic_and_ordered():
     content = b"line one\n\nline two\nline three\n"
     res = TxtAdapter().extract(source_ref="s#1", content=content, kind_hint="txt")
     assert res.status == ExtractionStatus.COMPLETE.value
-    # Only non-empty lines become units; order reflects sequential line numbers.
-    assert [u.text.strip() for u in res.units] == ["line one", "line two", "line three"]
-    assert [u.order for u in res.units] == [1, 3, 4]
+    # T4: units are blank-line separated PARAGRAPHS (was: one unit per line), in
+    # source order; ``order`` is the 1-based unit sequence; ids are start-line anchored.
+    assert [u.text for u in res.units] == ["line one", "line two\nline three"]
+    assert [u.order for u in res.units] == [1, 2]
+    assert [u.unit_id for u in res.units] == ["s#1#L1", "s#1#L3"]
     assert all(u.kind == "text" for u in res.units)
 
 
