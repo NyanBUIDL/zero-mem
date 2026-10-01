@@ -94,10 +94,13 @@ Agents, grants and approvals are canonical events inside the backup, so a restor
 
 ```bash
 zero-mem import-notes        # migrates <data root>/data/notes/notes-v1.jsonl (the retired notes store) into facts; idempotent; the file is kept
-zero-mem --profile codex serve    # execs `python -m src.integration.m6.mcp_server --store-path <db> --profile-id codex`
+zero-mem --profile codex serve    # execs the stdio MCP server pinned to profile "codex": read-only M6 tools + memory_recall / memory_context
+zero-mem mcp-config --agent codex # prints what to paste into the agent's MCP configuration
 ```
 
-`serve` refuses to start until the MCP server supports `--profile-id` (an unpinned server would trust the caller's claimed profile).
+`serve` takes `--enable-write` (adds `memory_add`, `memory_ingest`, `memory_forget`) and `--allow-root DIR` (folders `memory_ingest` may read). The server is pinned to
+one profile, so an agent cannot read another agent's private memory or name another identity. Registering each agent, the tool list, the security model, what has
+been verified with which client and troubleshooting are in [agent-integration.md](agent-integration.md).
 
 ## Exit codes
 

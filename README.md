@@ -239,6 +239,8 @@ zero-mem forget mem://fact/<id>                         # tombstone; raw bytes s
 
 Every memory is a corpus source read and written through the access policy, so several agents can share one store: register them with
 `zero-mem agents add`, and approve shared writes explicitly with `zero-mem agents grant-write`. See
-[docs/runbooks/shared-memory-quickstart.md](docs/runbooks/shared-memory-quickstart.md). The retired notes store can be migrated once with
+[docs/runbooks/shared-memory-quickstart.md](docs/runbooks/shared-memory-quickstart.md). Agents (Claude Code, Codex, Hermes, OpenClaw) connect over MCP with
+`zero-mem serve --profile <agent>`; `zero-mem mcp-config --agent <agent>` prints the registration
+([docs/runbooks/agent-integration.md](docs/runbooks/agent-integration.md)). The retired notes store can be migrated once with
 `zero-mem import-notes`. Offline retrieval benchmark for LongMemEval / LoCoMo formats (real write and read path):
 `python benchmarks/memory_qa_benchmark.py locomo locomo10.json -k 1 5 10` (LoCoMo10, turn-level: hit@10 0.64, recall@10 0.59).
