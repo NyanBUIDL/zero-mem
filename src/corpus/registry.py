@@ -205,9 +205,8 @@ class CorpusSourceRegistry:
             try:
                 stack.enter_context(corpus_write_lock(self._root))
             except PlatformStorageError as exc:
-                raise ValidationError(
-                    f"corpus_registry: write_lock_{exc.code.value.lower()}"
-                ) from None
+                reason = "timeout" if exc.code is PlatformErrorCode.LOCK_TIMEOUT else "unavailable"
+                raise ValidationError(f"corpus_registry: write_lock_{reason}") from None
             self._refresh_from_disk()
             yield
 

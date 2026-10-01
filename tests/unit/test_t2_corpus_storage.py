@@ -322,6 +322,19 @@ class TestDef053RegistryConcurrency:
         t.join(20)
         assert done == [True], "register/construct inside corpus_write_lock deadlocked"
 
+    def test_lock_timeout_fails_closed_without_writing(self, tmp_path, monkeypatch):
+        import src.corpus.registry as reg_mod
+        from src.corpus.contracts import ValidationError
+        from src.storage.coordination import locked
+
+        root = tmp_path / "corpus"
+        reg = CorpusSourceRegistry(root=root)
+        monkeypatch.setattr(reg_mod, "WRITE_LOCK_TIMEOUT", 0.2)
+        with locked((root / ".write.lock").resolve(), mode="exclusive"):
+            with pytest.raises(ValidationError, match="write_lock_timeout"):
+                reg.register_source(content=b"x", external_ref="mem://p/t", kind="txt")
+        assert (root / "corpus_sources.jsonl").read_bytes() == b""
+
 
 # ---------------------------------------------------------------------------
 # DEF-058 - project_source(): O(1) incremental projection
