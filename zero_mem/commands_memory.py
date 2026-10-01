@@ -382,6 +382,13 @@ def _cmd_status(args) -> int:
         status = memory.status()
     finally:
         memory.close()
+    try:  # T8: read-only runtime facts (writable, schema, grants, drift, last write); never blocks the status
+        from .memory_health import snapshot
+
+        status["runtime"] = snapshot()
+    except Exception:  # noqa: BLE001
+        status["runtime"] = None
+    runtime = status["runtime"] or {}
     if _wants_json(args):
         _emit(status)
         return EXIT_OK
@@ -392,6 +399,9 @@ def _cmd_status(args) -> int:
     print("by type      " + (", ".join(f"{k} {v}" for k, v in s["by_type"].items()) or "-"))
     print(f"shared space {status['shared_space']}: read={'yes' if status['can_read_shared'] else 'no'}, "
           f"write={'yes' if status['can_write_shared'] else 'no'}")
+    grants = runtime.get("grants") or {}
+    print(f"agents       {grants.get('agents', '?')} registered, {grants.get('active', '?')} active grant(s)")
+    print(f"last write   {runtime.get('last_write') or '-'}")
     if status["needs_rebuild"]:
         print(f"WARNING      {status['drifted_sources']} source(s) are not projected: run zero-mem upgrade")
     return EXIT_OK
