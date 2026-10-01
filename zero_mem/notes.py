@@ -26,11 +26,6 @@ _STOPWORDS = frozenset(
     "so than that the their them then there these they this to us was we were what when where which who whom "
     "why will with would you your".split()
 )
-_VENDOR_SECRET = re.compile(
-    r"sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{30,}|xox[abprs]-[A-Za-z0-9-]{10,}"
-    r"|bearer\s+[A-Za-z0-9._~+/=-]{20,}|AIza[0-9A-Za-z_-]{30,}",
-    re.I,
-)
 _TURN = re.compile(r"^\s*(user|assistant|human|ai|system|me|bot)\s*:\s*(.*)$", re.I)
 
 
@@ -152,7 +147,7 @@ class NotesStore:
                     if cid in known:
                         duplicate += 1
                         continue
-                    if _VENDOR_SECRET.search(text) or not scan_extracted_text(text).safe:
+                    if not scan_extracted_text(text).safe:  # central redactor (DEF-049)
                         rejected += 1
                         continue
                     rec = {"chunk_id": cid, "text": text, "source": source, "ts": int(time.time())}
