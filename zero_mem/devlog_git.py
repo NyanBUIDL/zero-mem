@@ -142,6 +142,12 @@ _FORMAT = f"--format={_RS}%h{_US}%cs{_US}%s"
 def collect(repo: Path, *, since: Optional[str], days: int, today: Optional[date] = None) -> dict:
     """``{day: [Commit, ...]}`` (newest commit first) for the days to write; every returned day is complete."""
     today = today or date.today()
+    try:
+        _git(repo, "rev-parse", "--verify", "--quiet", "HEAD^{commit}")
+    except GitLogError as exc:
+        if str(exc) == "git log failed":  # a repository with no commits yet: nothing to record (DEF-075)
+            return {}
+        raise
     if since is not None:
         touched = {c.day for c in _parse(_git(repo, "log", "--name-only", _FORMAT, f"{since}..HEAD"))}
     else:
