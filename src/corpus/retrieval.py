@@ -461,6 +461,7 @@ def _rank_key(hit: CorpusHit) -> tuple:
 # Core retrieval
 # ---------------------------------------------------------------------------
 
+@lru_cache(maxsize=1024)
 def _memory_type_from_custom_meta(raw: Any) -> Optional[str]:
     """``memory_type`` from a source's JSON ``custom_meta`` (None when absent/invalid)."""
     if not raw or not isinstance(raw, str):
@@ -633,13 +634,14 @@ _NEIGHBOR_BATCH = 100
 
 
 def _propagate_neighbors(cur, scope: AuthorizedCorpusScope, meta: CorpusMetadataFilter,
-                         hits: List[CorpusHit]) -> List[CorpusHit]:
-    top = sorted((h for h in hits if h.lexical_score > 0.0),
-                 key=lambda h: (-h.lexical_score, h.source_id, h.unit_order))[:_NEIGHBOR_TOP]
+                         scored: List[tuple]) -> List[tuple]:
+    """``scored`` and the result are ``(hit, lexical score)`` pairs (hits are copied only for the returned top)."""
+    top = sorted((pair for pair in scored if pair[1] > 0.0),
+                 key=lambda pair: (-pair[1], pair[0].source_id, pair[0].unit_order))[:_NEIGHBOR_TOP]
     if not top:
-        return hits
-    known = {(h.source_id, h.unit_order) for h in hits}
-    wanted = sorted({(h.source_id, h.unit_order + d) for h in top for d in _NEIGHBOR_OFFSETS
+        return scored
+    known = {(h.source_id, h.unit_order) for h, _score in scored}
+    wanted = sorted({(h.source_id, h.unit_order + d) for h, _score in top for d in _NEIGHBOR_OFFSETS
                      if h.unit_order + d >= 0} - known)
     fetched: List[CorpusHit] = []
     for start in range(0, len(wanted), _NEIGHBOR_BATCH):
@@ -651,13 +653,13 @@ def _propagate_neighbors(cur, scope: AuthorizedCorpusScope, meta: CorpusMetadata
             [value for key in chunk for value in key],
         ).fetchall()
         fetched.extend(_authorize_and_filter(rows, scope, meta))
-    pool = list(hits) + fetched
-    base = {(h.source_id, h.unit_order): h.lexical_score for h in pool}
-    boosted: List[CorpusHit] = []
-    for hit in pool:
+    pool = list(scored) + [(h, 0.0) for h in fetched]
+    base = {(h.source_id, h.unit_order): score for h, score in pool}
+    boosted: List[tuple] = []
+    for hit, score in pool:
         near = [base[key] for key in ((hit.source_id, hit.unit_order + d) for d in _NEIGHBOR_OFFSETS) if key in base]
         bonus = _NEIGHBOR_ALPHA * max(near) if near else 0.0
-        boosted.append(replace(hit, lexical_score=round(hit.lexical_score + bonus, 6)) if bonus > 0.0 else hit)
+        boosted.append((hit, round(score + bonus, 6) if bonus > 0.0 else score))
     return boosted
 
 
@@ -772,28 +774,34 @@ def retrieve_corpus(
     if not hits:
         return []
 
-    # Step 4: deterministic BM25 over the AUTHORIZED subset only (DEF-061).
-    scores = _bm25_scores(hits, plan.text)
-    hits = [_scored(h, score) for h, score in zip(hits, scores)]
+    # Step 4: deterministic BM25 over the AUTHORIZED subset only (DEF-061).  Hits are carried as (hit, score) pairs
+    # and copied only once, for the units that are returned (copying a 22-field frozen dataclass per candidate was
+    # half of the query time).
+    scored = list(zip(hits, _bm25_scores(hits, plan.text)))
     if lexical_query:
-        hits = [h for h in hits if h.lexical_score > 0.0]
-        if not hits:
+        scored = [pair for pair in scored if pair[1] > 0.0]
+        if not scored:
             return []
     if not plan.is_metadata_only:
         # Neighbor propagation (T7), over the authorized scope only.
-        hits = _propagate_neighbors(cur, scope, plan.metadata, hits)
+        scored = _propagate_neighbors(cur, scope, plan.metadata, scored)
+
+    if not semantic.available:
+        # Steps 5-6 without a semantic adapter: deterministic ordering, then the bounded result.
+        scored.sort(key=_scored_rank_key)
+        return [_lexical_final(h, score) for h, score in scored[: plan.limit]]
+
+    hits = [_scored(h, score) for h, score in scored]
 
     # Step 5: optional semantic fusion over the authorized set ONLY.
-    semantic_active = False
-    if semantic.available:
-        semantic_active = True
-        try:
-            ranked = semantic.rank(plan.text, hits)
-            hits = [_fused(h) for h in ranked]
-        except Exception:
-            # Semantic failure degrades safely to lexical (never expands scope).
-            hits = [_lexical_only(h) for h in hits]
-            semantic_active = False
+    semantic_active = True
+    try:
+        ranked = semantic.rank(plan.text, hits)
+        hits = [_fused(h) for h in ranked]
+    except Exception:
+        # Semantic failure degrades safely to lexical (never expands scope).
+        hits = [_lexical_only(h) for h in hits]
+        semantic_active = False
 
     # Step 6: deterministic combined ordering (lexical + optional semantic).
     hits = [_with_combined(h, semantic_active) for h in hits]
@@ -805,6 +813,23 @@ def retrieve_corpus(
 # ``replace`` keeps every other field (incl. provenance) untouched.
 def _scored(h: CorpusHit, lexical_score: float) -> CorpusHit:
     return replace(h, lexical_score=lexical_score)
+
+
+def _lexical_final(h: CorpusHit, score: float) -> CorpusHit:
+    return replace(h, lexical_score=score, combined_score=score, retrieval_mode="lexical")
+
+
+def _scored_rank_key(pair: tuple) -> tuple:
+    """``_rank_key`` of a (hit, lexical score) pair when the combined score equals the lexical one."""
+    hit, score = pair
+    return (
+        -round(score, 6),
+        hit.profile_id or "",
+        hit.project_id or "",
+        hit.source_id or "",
+        hit.unit_id or "",
+        hit.unit_order,
+    )
 
 
 def _fused(h: CorpusHit) -> CorpusHit:
