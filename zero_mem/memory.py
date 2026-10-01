@@ -34,7 +34,6 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Optional, Sequence, Union
 from urllib.parse import quote
 
-from . import memory_results as _res
 from .memory_layout import Layout, LayoutError
 from .memory_results import (
     ContextBundle,
@@ -813,22 +812,45 @@ class Memory:
 
         return sorted(groups, key=key, reverse=True)
 
-    @staticmethod
-    def _skill_line(ref: str, hits: list) -> str:
+    def _skill_line(self, ref: str, hits: list) -> str:
         name = ref.rsplit("/", 1)[-1] or ref
-        description = ""
-        for hit in hits:
-            if hit.kind == "metadata":
-                match = re.search(r"(?im)^description\s*:\s*(.+)$", hit.normalized_text)
-                if match:
-                    description = match.group(1).strip().strip("'\"")
-                    break
+        description = self._front_matter_description(hits[0].source_id)
         if not description:
             for hit in hits:
                 if hit.kind in ("text", "other") and hit.normalized_text.strip():
                     description = " ".join(hit.normalized_text.split())
                     break
         return f"- {name}: {_clip(description, 160)}" if description else f"- {name}"
+
+    def _front_matter_description(self, source_id: str) -> str:
+        """``description:`` of a SKILL.md-style front matter, read from the (already authorized) source's blob."""
+        try:
+            registry, blobs = self._corpus()
+            record = registry.get_by_source_id(source_id)
+            if record is None or record.blob_ref is None or record.lifecycle_status == "deleted":
+                return ""
+            head = blobs.get(record.blob_ref)[:16384].decode("utf-8", errors="replace").replace("\r\n", "\n")
+        except Exception:
+            return ""
+        match = re.match(r"\A\ufeff?---[ \t]*\n(.*?)\n---[ \t]*(?:\n|\Z)", head, re.S)
+        if not match:
+            return ""
+        lines = match.group(1).split("\n")
+        for index, line in enumerate(lines):
+            key = re.match(r"(?i)description\s*:\s*(.*)$", line)
+            if not key:
+                continue
+            value = key.group(1).strip()
+            if value in (">", "|", ">-", "|-", ">+", "|+"):
+                folded = []
+                for follow in lines[index + 1:]:
+                    if follow[:1] in (" ", "\t"):
+                        folded.append(follow.strip())
+                    else:
+                        break
+                value = " ".join(folded)
+            return " ".join(value.strip("'\"").split())
+        return ""
 
     @staticmethod
     def _devlog_line(ref: str, hits: list) -> str:
