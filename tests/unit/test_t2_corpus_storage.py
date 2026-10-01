@@ -126,8 +126,8 @@ def fake_adapter(monkeypatch):
     return adapter
 
 
-V1 = b"Persona prefers terse answers.\nWorkflow: run pytest before every commit.\nLine three will be deleted.\n"
-V2 = b"Persona prefers terse answers.\nWorkflow: run pytest before every commit.\n"
+V1 = b"Persona prefers terse answers.\n\nWorkflow: run pytest before every commit.\n\nLine three will be deleted.\n"
+V2 = b"Persona prefers terse answers.\n\nWorkflow: run pytest before every commit.\n"
 
 
 # ---------------------------------------------------------------------------
@@ -158,7 +158,7 @@ class TestDef050StaleUnits:
         env.register(V2)
         env.project()
         after = {r["source_location_id"]: r["unit_id"] for r in env.unit_rows()}
-        assert set(after) == set(before) - {k for k in before if k.endswith("#L3")}
+        assert set(after) == set(before) - {k for k in before if k.endswith("#L5")}
         for loc, uid in after.items():
             assert before[loc] == uid, "unchanged unit must keep its unit_id"
 
@@ -174,9 +174,9 @@ class TestDef050StaleUnits:
         assert len(env.fts_ids()) == 3
 
     def test_unit_that_becomes_secret_in_v2_is_removed(self, env):
-        env.register(b"keep this line\nrotate me later\n")
+        env.register(b"keep this line\n\nrotate me later\n")
         env.project()
-        env.register(b"keep this line\npassword=hunter2 rotate me later\n")
+        env.register(b"keep this line\n\npassword=hunter2 rotate me later\n")
         report = env.project()
         texts = [r["normalized_text"] for r in env.unit_rows()]
         assert texts == ["keep this line"]
@@ -357,7 +357,7 @@ class TestDef058ProjectSource:
     def test_project_source_equals_project_corpus_per_source(self, tmp_path):
         from src.corpus.derived_store import project_source
 
-        docs = [(f"doc {i} alpha beta\nsecond line {i}\n".encode(), f"mem://d/{i}") for i in range(6)]
+        docs = [(f"doc {i} alpha beta\n\nsecond line {i}\n".encode(), f"mem://d/{i}") for i in range(6)]
         a, b = Env(tmp_path, "a"), Env(tmp_path, "b")
         try:
             for env_ in (a, b):
@@ -562,7 +562,7 @@ class TestDef060SourceStatus:
     def test_failed_v2_extraction_removes_stale_v1_units(self, env):
         from src.corpus.derived_store import source_status
 
-        rec = env.register(b"v1 line one\nv1 line two\n", ref="mem://note/gone")
+        rec = env.register(b"v1 line one\n\nv1 line two\n", ref="mem://note/gone")
         env.project()
         assert len(env.unit_rows()) == 2
         env.register(b"  \n", ref="mem://note/gone")  # v2: nothing extractable
@@ -574,7 +574,7 @@ class TestDef060SourceStatus:
         from src.corpus.derived_store import source_status
 
         only = env.register(b"password=hunter2 and more words\n", ref="mem://note/onlysecret")
-        mixed = env.register(b"safe line here\napi_key = sk_live_abcdef0123456789abcd\n", ref="mem://note/mixed")
+        mixed = env.register(b"safe line here\n\napi_key = sk_live_abcdef0123456789abcd\n", ref="mem://note/mixed")
         report = env.project()
         e_only = source_status(env.conn, only.source_id)
         e_mixed = source_status(env.conn, mixed.source_id)
@@ -675,7 +675,7 @@ class TestDef059RebuildReaderSafe:
         blobs = CorpusBlobStore(root=root)
         for i in range(self.N_SOURCES):
             registry.register_source_with_blob(
-                content=f"doc {i} first line\nsecond line {i}\n".encode(),
+                content=f"doc {i} first line\n\nsecond line {i}\n".encode(),
                 external_ref=f"mem://d/{i}", kind="txt", profile_id="p", blob_store=blobs)
         project_corpus(store._conn, registry, blob_store=blobs)
         store._conn.commit()

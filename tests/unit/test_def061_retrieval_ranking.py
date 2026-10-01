@@ -123,7 +123,7 @@ def test_hidden_candidates_do_not_shift_scores(tmp_path):
 
 def test_within_source_duplicate_units_are_collapsed(tmp_path):
     repeated = "always run pytest before commit"
-    content = "\n".join([repeated] * 5 + ["a different pytest line"])
+    content = "\n\n".join([repeated] * 5 + ["a different pytest line"])
     ro = build_store(tmp_path, [doc(content)])
     result = search(ro, "pytest")
     assert sorted(texts(result)) == sorted([repeated, "a different pytest line"])
@@ -144,7 +144,7 @@ def test_duplicates_across_sources_are_not_collapsed(tmp_path):
 def test_duplicate_rows_do_not_consume_discovery_cap(tmp_path):
     from src.corpus import retrieval
 
-    content = "\n".join(["pytest duplicate line"] * 30 + ["pytest unique tail"])
+    content = "\n\n".join(["pytest duplicate line"] * 30 + ["pytest unique tail"])
     ro = build_store(tmp_path, [doc(content)])
     scope = AuthorizedCorpusScope(allowed_scopes=(("p1", None, None),))
     plan = build_query_plan("pytest", limit=1)
