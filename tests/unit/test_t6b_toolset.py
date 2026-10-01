@@ -323,15 +323,15 @@ def test_context_is_a_bounded_bundle_of_persona_workflow_skill_and_devlog(env):
     assert out["status"] == "SUCCESS" and out["max_chars"] == 2000 and len(text) <= 2000 and text == out["text"]
     assert "terse answers" in text and "pytest before every commit" in text
     assert "deploy" in text and "Deploy the service to staging" in text and "flaky lock test" in text
-    small = run(ts, "memory_context", max_chars=150)
-    assert small["status"] == "SUCCESS" and small["chars"] <= 150 and small["truncated"] is True
+    small = run(ts, "memory_context", max_chars=200)
+    assert small["status"] == "SUCCESS" and small["chars"] <= 200 and small["truncated"] is True
 
 
 def test_context_defaults_are_bounded_and_an_empty_memory_is_not_an_error(env):
     ts = toolset(env)
     out = run(ts, "memory_context")
     assert out["status"] == "EMPTY" and out["max_chars"] == 3000
-    for bad in (0, 99, 4001, 10**6, "100", 3.5, True, None):
+    for bad in (0, 99, 199, 4001, 10**6, "300", 3.5, True, None):
         assert run(ts, "memory_context", max_chars=bad)["status"] == "INVALID", bad
     assert run(ts, "memory_context", project_id="bad id")["status"] == "INVALID"
 
