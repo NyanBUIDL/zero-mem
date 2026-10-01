@@ -5,6 +5,7 @@ import contextlib
 import io
 import json
 import os
+import tempfile
 import shlex
 import sys
 import tomllib
@@ -82,7 +83,7 @@ def test_serve_makes_relative_allow_roots_absolute(home, execs, tmp_path, monkey
 @pytest.mark.parametrize("argv,needle", [
     (["--profile", "bad profile!", "serve"], "profile"),
     (["serve", "--profile", "codex", "--enable-write", "--allow-root", "/definitely/not/here"], "allow-root"),
-    (["serve", "--profile", "codex", "--allow-root", "/tmp"], "--enable-write"),
+    (["serve", "--profile", "codex", "--allow-root", os.path.realpath(tempfile.gettempdir())], "--enable-write"),
 ])
 def test_serve_refuses_bad_input_without_exec(home, execs, argv, needle):
     code, _o, err = run(*argv)
@@ -194,7 +195,8 @@ def test_openclaw_snippets(home):
 
 
 def test_hostile_characters_in_paths_survive_every_format(home, tmp_path, monkeypatch):
-    weird = tmp_path / 'a b"c\'d\\e $x'
+    # Windows forbids " and \ inside a file name; keep every other hostile character there
+    weird = tmp_path / ("a b'c$x" if os.name == "nt" else 'a b"c\'d\\e $x')
     weird.mkdir()
     monkeypatch.setenv("ZERO_MEM_DATA_ROOT", str(weird / "d"))
     for agent in ("claude-code", "codex"):

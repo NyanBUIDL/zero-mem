@@ -360,3 +360,11 @@ projected - `run zero-mem upgrade` - and the time of the last write). `zero-mem 
 
 Rollback: unregister the server in the client (`claude mcp remove zero-mem -s user`, delete the TOML block, ...). Nothing else changes; memories stay in the data root.
 `zero-mem agents revoke <agent> --write` withdraws an agent's shared-write approval immediately.
+
+## Windows note: stop agent servers before upgrade or restore
+
+A running `zero-mem serve` process keeps a read connection to the derived SQLite database open (T7). Windows does not let
+SQLite files be replaced or deleted while a connection holds them, so `zero-mem upgrade`, `backup restore` and a manual
+rebuild can fail with `PermissionError` while agent MCP servers are running. Stop the agents' servers first, run the
+command, then restart them. Linux and macOS are not affected. (Recorded in the defect registry addendum; two connection tests
+are skipped on Windows for this reason.)

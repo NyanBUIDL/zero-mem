@@ -91,6 +91,7 @@ def _swap_in_a_rebuilt_database(memory, keep_units: bool) -> None:
     os.replace(staged, db)
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows cannot delete or replace a SQLite file while a connection holds it open; see runbook")
 def test_a_replaced_database_file_is_reopened(env, opens):
     m = env.open("claude-code")
     m.add("tapirs live in forests")
@@ -133,6 +134,7 @@ def test_concurrent_recalls_are_serialized_and_consistent(env):
     assert not errors and set(results) == {20}
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows cannot delete or replace a SQLite file while a connection holds it open; see runbook")
 def test_a_missing_database_still_reports_a_typed_error(env, opens):
     m = env.open("claude-code")
     m.add("something")
