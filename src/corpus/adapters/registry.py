@@ -1,7 +1,7 @@
 """M10.2 — adapter registry + deterministic format selection.
 
-Adding a future adapter (Markdown, HTML, DOCX, CSV, JSON, source code, logs)
-requires NO core redesign: instantiate it and register it here. Selection is
+Adding a future adapter (HTML, source code, logs) requires NO core redesign:
+instantiate it and register it here (one adapter per distinct ``.format``). Selection is
 deterministic and adapter-choice grants nothing (authorization is separate).
 """
 from __future__ import annotations
@@ -40,10 +40,22 @@ def available_adapters() -> list[FormatAdapter]:
 
 
 def _default_registry() -> list[FormatAdapter]:
+    from .docx import DocxAdapter
+    from .image import ImageAdapter
+    from .json_chat import JsonAdapter
+    from .markdown import MarkdownAdapter
     from .pdf import PdfAdapter
+    from .pptx import PptxAdapter
+    from .tabular import CsvAdapter
     from .txt import TxtAdapter
+    from .xlsx import XlsxAdapter
 
-    return [TxtAdapter(), PdfAdapter()]
+    return [
+        TxtAdapter(), PdfAdapter(),
+        MarkdownAdapter(), CsvAdapter(), JsonAdapter(),
+        DocxAdapter(), XlsxAdapter(), PptxAdapter(),
+        ImageAdapter(),
+    ]
 
 
 # Populate the default registry once at import (idempotent).

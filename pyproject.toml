@@ -15,6 +15,10 @@ dependencies = []
 
 [project.optional-dependencies]
 pdf = ["pypdf"]
+# Optional OCR for image sources (corpus ImageAdapter). Without it images degrade to a
+# single metadata unit (format, size, "ocr unavailable"); `pytesseract` + `Pillow` + the
+# `tesseract` binary are also auto-detected as a fallback but are not packaged here.
+ocr = ["rapidocr-onnxruntime"]
 # AGPL/commercial dual-license — tooling-only (corpus PDF extraction scripts),
 # NOT a runtime dependency. Do not move into core/pdf extras.
 pdf-advanced = ["pymupdf"]
