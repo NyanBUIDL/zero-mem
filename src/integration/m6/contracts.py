@@ -69,6 +69,7 @@ MAX_SEARCH_LENGTH = 4000
 MAX_PAYLOAD_FIELDS = 64
 MAX_LIST_ITEMS = 64          # per id-list field (profiles/projects/spaces)
 MAX_CURSOR_LENGTH = 4096     # opaque cursor bound
+MAX_SPACE_ID_LENGTH = 256    # DEF-063: bound for a requested knowledge-space id
 MAX_QUERY_LENGTH = 4000      # structured query bound
 _ALLOWED_RELATIONS = frozenset({"incoming", "outgoing", "parent", "children"})
 
@@ -175,6 +176,21 @@ def _as_str_list(value: Any, field_name: str) -> Optional[List[str]]:
     return list(dict.fromkeys(value))
 
 
+def _validated_space_ids(value: Any) -> Optional[List[str]]:
+    """DEF-063: requested knowledge-space ids must be real, bounded identifiers.
+
+    There is no space registry, so existence is not checked here; authorization
+    (``compose_effective_scope``) decides what a named space may return. Empty,
+    blank, overlong or control-character ids are malformed requests.
+    """
+    ids = _as_str_list(value, "knowledge_space_ids")
+    for space in ids or []:
+        if (not space.strip() or len(space) > MAX_SPACE_ID_LENGTH
+                or any(ord(ch) < 32 or ord(ch) == 127 for ch in space)):
+            raise ContractError("knowledge_space_ids contains a malformed id")
+    return ids
+
+
 def validate_request(raw: Dict[str, Any]) -> M6Request:
     """Strictly validate and normalize a raw M6 request dict.
 
@@ -277,7 +293,7 @@ def validate_request(raw: Dict[str, Any]) -> M6Request:
         requesting_profile_id=raw.get("requesting_profile_id"),  # explicit only; may be None
         target_profile_ids=_as_str_list(raw.get("target_profile_ids"), "target_profile_ids"),
         project_ids=_as_str_list(raw.get("project_ids"), "project_ids"),
-        knowledge_space_ids=_as_str_list(raw.get("knowledge_space_ids"), "knowledge_space_ids"),
+        knowledge_space_ids=_validated_space_ids(raw.get("knowledge_space_ids")),
         isolated_mode=bool(raw.get("isolated_mode", False)),
         include_global=raw.get("include_global"),
         resource_type=resource_type,

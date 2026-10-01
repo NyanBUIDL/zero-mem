@@ -43,7 +43,11 @@ def test_release_and_core_namespaces_are_importable() -> None:
 
 def test_console_entry_point_is_declared_exactly_once() -> None:
     document = _project()
-    assert document["project"]["scripts"] == {"zero-mem": "zero_mem.cli:main"}
+    # DEF-064: the MCP server console script is the only addition to the CLI shim.
+    assert document["project"]["scripts"] == {
+        "zero-mem": "zero_mem.cli:main",
+        "zero-mem-mcp": "src.integration.m6.mcp_server:main",
+    }
 
 
 def test_cli_help_version_and_version_subcommand() -> None:
