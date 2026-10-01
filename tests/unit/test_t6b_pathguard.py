@@ -64,7 +64,7 @@ def test_files_and_folders_under_the_root_are_accepted(tree):
     (lambda root, out: str(root) + "-sibling", c.DENY_PATH_OUTSIDE_ALLOWLIST),
     (lambda root, out: str(root) + "/../outside/o.txt", c.DENY_PATH_OUTSIDE_ALLOWLIST),
     (lambda root, out: ABS_PASSWD, c.DENY_PATH_OUTSIDE_ALLOWLIST),
-    (lambda root, out: "/", c.DENY_PATH_OUTSIDE_ALLOWLIST),
+    (lambda root, out: ABS_ROOT, c.DENY_PATH_OUTSIDE_ALLOWLIST),
     (lambda root, out: str(root) + "/missing.md", c.PATH_NOT_FOUND),
     (lambda root, out: str(root) + "/sub/missing/x.md", c.PATH_NOT_FOUND),
 ])
