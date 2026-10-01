@@ -24,3 +24,16 @@ def test_def076_import_notes_survives_deeply_nested_json_line(home):  # noqa: F8
         report = import_notes(memory, notes)
     assert report.counts["created"] == 1
     assert report.skipped == [{"name": "line 1", "reason": "malformed_json"}]
+
+
+def test_def077_ingest_and_import_notes_reject_an_empty_path_instead_of_using_the_cwd(home, monkeypatch):  # noqa: F811
+    from tests.unit.test_t8_devlog_git import run_cli
+
+    work = home / "cwd"
+    work.mkdir()
+    (work / "stray.md").write_text("must not be ingested\n", encoding="utf-8")
+    monkeypatch.chdir(work)
+    code, out, err = run_cli("--profile", "claude-code", "ingest", "")
+    assert code == 2 and "ingested" not in out, (out, err)
+    code, out, err = run_cli("--profile", "claude-code", "import-notes", "--path", "")
+    assert code == 2 and "imported" not in out, (out, err)

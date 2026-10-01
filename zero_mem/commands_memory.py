@@ -387,6 +387,9 @@ def _print_report(report, args, *, label: str) -> int:
 def _cmd_ingest(args) -> int:
     if args.format is not None:
         _err("note: --format is ignored (file formats are detected automatically)")
+    if not args.path.strip():  # Path("") would silently mean the current directory
+        _err("not found: empty path")
+        return EXIT_ERROR
     memory = _open(args)
     try:
         report = memory.ingest(Path(args.path), memory_type=args.memory_type or "fact", scope=args.scope,
@@ -503,7 +506,7 @@ def _cmd_import_notes(args) -> int:
     memory = _open(args)
     try:
         try:
-            report = import_notes(memory, Path(args.path) if args.path else None,
+            report = import_notes(memory, Path(args.path) if args.path is not None else None,
                                   memory_type=args.memory_type or "fact", scope=args.scope,
                                   project_id=args.project_id)
         except NotesImportError as exc:
