@@ -375,6 +375,10 @@ def test_forget_cannot_reach_another_agents_private_memory_and_leaks_no_ids(env)
     assert mine["ref"] == theirs["ref"] and mine["source_id"] != theirs["source_id"]
     other = run(codex, "memory_forget", source_id="f" * 16)
     assert other["status"] == "NOT_FOUND"
+    # codex knows claude-code's REAL private id (it leaked some other way): still not found, nothing is forgotten
+    foreign = run(codex, "memory_forget", source_id=mine["source_id"])
+    assert foreign["status"] == "NOT_FOUND" and foreign["reason_code"] == "unknown_source"
+    assert run(cc, "memory_recall", query="private stores")["status"] == "SUCCESS"
     # the shared ref names two sources (one per profile): the answer must not reveal codex's id
     ambiguous = cc.call("memory_forget", {"source_id": mine["ref"]})
     assert theirs["source_id"] not in json.dumps(ambiguous)

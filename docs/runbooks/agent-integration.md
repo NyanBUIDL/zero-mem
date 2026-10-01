@@ -122,6 +122,9 @@ Register one server per agent profile; do not share one server between agents.
 | `--store-path DB` | `ZM_M6_STORE_PATH` | must be the data root's database when the memory tools are enabled (default: the data root's) |
 | | `ZM_M6_INGEST_MAX_FILES`, `ZM_M6_INGEST_MAX_BYTES` | ingest caps (200, 64 MiB) |
 
+Start order does not matter: a client may launch every agent's server at the same moment on a data root nobody initialised. First-run setup is serialized under
+`<data root>/.layout.lock` (`zero_mem/memory_bootstrap.py`); without it most of the simultaneous starts failed with "unable to initialize derived store".
+
 The server refuses to start (exit 2, one stderr line) for: memory tools without a pinned profile, a store path that is not the data root's database, an `--allow-root` that
 is relative, missing, a file or `/`. `--allow-root` without the memory switches is ignored with a warning.
 

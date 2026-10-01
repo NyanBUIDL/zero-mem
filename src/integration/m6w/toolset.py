@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from zero_mem.memory import Memory
+from zero_mem.memory_bootstrap import ensure_layout
 from zero_mem.memory_layout import Layout, LayoutError
 from zero_mem.provisioning import valid_id
 
@@ -222,10 +223,13 @@ class MemoryToolSet:
 
     def _denied(self, tool: str, reason: Optional[str], scope: Optional[str], project_id: Optional[str]) -> Dict[str, Any]:
         hint = _hint(self._profile, scope, project_id, self._space())
-        if scope == "shared":
-            message = "Writing to the shared space needs the operator's approval. Tell the user, or use scope=private."
-        elif scope == "project":
-            message = "Writing to this project needs the operator's approval. Tell the user, or use scope=private."
+        forgetting = tool == c.TOOL_FORGET
+        verb = "Forgetting" if forgetting else "Writing to"
+        target = {"shared": "a shared memory" if forgetting else "the shared space",
+                  "project": "a project memory" if forgetting else "this project"}.get(scope or "")
+        if target:
+            message = f"{verb} {target} needs the operator's approval. Tell the user" + (
+                "." if forgetting else ", or use scope=private.")
         else:
             message = "This is not permitted for this agent."
         return make_result(tool, c.DENIED, reason_code=reason or "DENIED", message=message,
@@ -479,7 +483,7 @@ def build_tool_set(*, profile_id: Any, layout: Optional[Layout] = None, enable_w
         raise ToolSetConfigError(str(exc)) from None
     try:
         resolved = layout if layout is not None else Layout.resolve(None)
-        resolved.ensure()
+        ensure_layout(resolved)  # race-safe: every agent's server may start at the same moment
     except LayoutError:
         raise ToolSetConfigError("the zero-mem data root cannot be set up (run zero-mem doctor)") from None
     reserved = [resolved.data_root, resolved.corpus_root, resolved.memory_stream.parent, resolved.derived_db.parent]

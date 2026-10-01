@@ -23,6 +23,7 @@ import textwrap
 from typing import Any, Callable, Dict, List, Optional
 
 from . import paths
+from .memory_bootstrap import ensure_layout
 from .memory_layout import Layout, LayoutError
 from .provisioning import SHARED_SPACE, valid_id
 
@@ -144,7 +145,7 @@ def run_serve(args, exec_fn: Optional[Callable] = None) -> int:
     try:
         roots = _absolute_roots(args.allow_root, args.enable_write)
         layout = Layout.resolve(None)
-        layout.ensure()
+        ensure_layout(layout)  # race-safe: a client may start every agent's server at once
     except UsageError as exc:
         _err(str(exc))
         return EXIT_ERROR

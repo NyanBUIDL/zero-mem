@@ -128,7 +128,7 @@ _DESCRIPTIONS: Dict[str, str] = {
         "Unchanged files are skipped, changed files become new versions."),
     TOOL_FORGET: (
         "Hide one memory from recall and context for every agent (the raw record is kept for audit). Pass the "
-        "source_id or ref returned by memory_recall or memory_add. Forgetting a shared memory needs the same operator "
+        "source_id (preferred) or ref returned by memory_recall or memory_add. Forgetting a shared memory needs the same operator "
         "approval as writing one; another agent's private memory cannot be reached. Use it for wrong or outdated "
         "memories, not for edits: to change a named memory call memory_add with the same name."),
 }
