@@ -13,7 +13,6 @@ import json
 import os
 import queue
 import subprocess
-import sys
 import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence

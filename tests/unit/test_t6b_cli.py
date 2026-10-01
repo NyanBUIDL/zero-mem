@@ -8,11 +8,10 @@ import os
 import shlex
 import sys
 import tomllib
-from pathlib import Path
 
 import pytest
 
-from tests.unit.t6b_helpers import AGENTS, REPO_ROOT, McpProc, apply_env, isolated_env, registration
+from tests.unit.t6b_helpers import AGENTS, McpProc, apply_env, isolated_env, registration
 from zero_mem import cli
 
 

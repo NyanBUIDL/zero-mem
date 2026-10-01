@@ -17,7 +17,6 @@ import pytest
 from src.integration.m6 import mcp_server
 from src.integration.m6.mcp_wrapper import tool_schemas
 from src.integration.m6w import build_tool_set
-from tests.unit.t5_memory_helpers import Env
 from tests.unit.t6b_helpers import REPO_ROOT, McpProc, isolated_env
 
 M6_TOOLS = sorted(t["name"] for t in tool_schemas())
