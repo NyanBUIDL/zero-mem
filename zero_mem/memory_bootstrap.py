@@ -1,55 +1,20 @@
-"""First-run setup that survives several processes starting at the same moment.
+"""Compatibility alias for race-safe first-run setup.
 
-``Layout.ensure()`` is idempotent but not safe to run concurrently on a data root nobody initialised: simultaneous
-schema creation fails for most callers (``LayoutError: setup failed``). That is exactly what happens when a client
-launches one MCP server per agent at once, so every long-lived entry point (``zero-mem serve``, the MCP memory tool
-set) calls :func:`ensure_layout` instead: the setup runs under an exclusive cross-process lock on
-``<data root>/.layout.lock`` (the lock file is created next to the data, in the private data directory), and a failed
-attempt is retried a few times with a short jittered back-off, which also covers a sibling that is not holding the
-lock (a concurrent ``zero-mem add`` on a fresh install).
-
-Zero dependencies beyond the storage lock helper already used by the library; no network.
+The setup lock now lives in :meth:`zero_mem.memory_layout.Layout.ensure` itself (T8), so every entry point - library,
+CLI and MCP server - is safe when several processes start at the same moment on a data root nobody initialised.
+:func:`ensure_layout` is kept for the callers that predate that (``zero-mem serve``, the MCP tool set); it is exactly
+``layout.ensure(attempts=...)``.
 """
 from __future__ import annotations
 
-import random
-import time
-from typing import Optional
+from .memory_layout import LOCK_NAME, SETUP_ATTEMPTS, Layout
 
-from . import paths
-from .memory_layout import Layout, LayoutError
-
-LOCK_NAME = ".layout.lock"
-LOCK_TIMEOUT = 60.0
-ATTEMPTS = 4
-
-
-def _ensure_locked(layout: Layout) -> None:
-    from src.storage.coordination import locked
-
-    try:
-        paths.ensure_private_dir(layout.data_root, "data directory")  # the lock file lives in it
-        with locked(layout.data_root / LOCK_NAME, mode="exclusive", timeout=LOCK_TIMEOUT):
-            layout.ensure()
-    except LayoutError:
-        raise
-    except Exception:  # noqa: BLE001 - sanitized, like Layout.ensure
-        raise LayoutError("setup failed") from None
+ATTEMPTS = SETUP_ATTEMPTS
 
 
 def ensure_layout(layout: Layout, *, attempts: int = ATTEMPTS) -> None:
     """Idempotently create private dirs, the canonical stream, the corpus root and the schema (race-safe)."""
-    last: Optional[LayoutError] = None
-    for attempt in range(max(1, attempts)):
-        try:
-            _ensure_locked(layout)
-            return
-        except LayoutError as exc:
-            last = exc
-            if attempt + 1 < attempts:
-                time.sleep(0.05 * (2 ** attempt) + random.random() * 0.05)
-    assert last is not None
-    raise last
+    layout.ensure(attempts=attempts)
 
 
 __all__ = ["ATTEMPTS", "LOCK_NAME", "ensure_layout"]

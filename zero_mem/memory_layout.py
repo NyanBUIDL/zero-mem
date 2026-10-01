@@ -9,21 +9,47 @@ Two modes:
   is ``<root>/data/corpus`` unless ``corpus_root`` is passed (the corpus env override is deliberately ignored: an
   explicit root must never write elsewhere), and the user's configuration directory is never touched.
 
+First-run setup is race-safe (T8): :meth:`Layout.ensure` (and ``zero-mem setup``, which shares the default-mode
+setup) runs under an exclusive cross-process lock on ``<data root>/.layout.lock`` (created in the private data
+directory), so any number of processes - CLI commands, library users, one MCP server per agent - may start at the same
+moment on a data root nobody initialised. Concurrent schema creation used to fail for most of them. A failure that
+looks transient (an unexpected error, or the derived store failing to initialise) is retried a few times with a short
+jittered back-off; validation errors and a lock that stays held are raised at once.
+
 Zero dependencies, no network.
 """
 from __future__ import annotations
 
+import contextlib
+import random
+import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Union
+from typing import Iterator, Optional, Union
 
 from . import paths
 
 PathLike = Union[str, Path]
 
+LOCK_NAME = ".layout.lock"
+LOCK_TIMEOUT = 60.0
+SETUP_ATTEMPTS = 4
+#: Sanitized messages of failures worth retrying; every other layout error is a permanent verdict.
+_TRANSIENT = frozenset({"setup failed", "unable to initialize derived store"})
+
 
 class LayoutError(RuntimeError):
     """Sanitized layout / setup failure (no path or content in the message)."""
+
+
+@contextlib.contextmanager
+def setup_lock(data_root: Path) -> Iterator[None]:
+    """Exclusive cross-process lock for first-run setup (the lock file lives in the private data directory)."""
+    from src.storage.coordination import locked
+
+    paths.ensure_private_dir(data_root, "data directory")
+    with locked(data_root / LOCK_NAME, mode="exclusive", timeout=LOCK_TIMEOUT):
+        yield
 
 
 @dataclass(frozen=True)
@@ -63,24 +89,41 @@ class Layout:
         except paths.ConfigurationError as exc:
             raise LayoutError(str(exc)) from None
 
-    def ensure(self) -> None:
-        """Idempotently create private dirs, the empty canonical stream, the corpus root and the schema."""
+    def ensure(self, *, attempts: int = SETUP_ATTEMPTS) -> None:
+        """Idempotently create private dirs, the empty canonical stream, the corpus root and the schema.
+
+        Safe under simultaneous calls from any number of processes (exclusive lock, see the module docstring).
+        """
+        for attempt in range(max(1, attempts)):
+            try:
+                self._ensure_once()
+                return
+            except LayoutError as exc:
+                if str(exc) not in _TRANSIENT or attempt + 1 >= attempts:
+                    raise
+                time.sleep(0.05 * (2 ** attempt) + random.random() * 0.05)
+
+    def _ensure_once(self) -> None:
         try:
             if not self.explicit:
                 from .commands_setup import run
 
-                run()
+                run()  # validates the configuration first, then creates everything under the setup lock
                 return
-            paths.ensure_private_dir(self.data_root, "data directory")
-            paths.ensure_private_dir(self.derived_db.parent, "derived directory")
-            paths.ensure_private_dir(self.memory_stream.parent, "canonical memory directory")
-            self._ensure_stream()
-            self._ensure_corpus()
-            self._ensure_schema()
+            with setup_lock(self.data_root):
+                paths.ensure_private_dir(self.derived_db.parent, "derived directory")
+                paths.ensure_private_dir(self.memory_stream.parent, "canonical memory directory")
+                self._ensure_stream()
+                self._ensure_corpus()
+                self._ensure_schema()
         except LayoutError:
             raise
         except (paths.ConfigurationError, paths.SetupError) as exc:
             raise LayoutError(str(exc)) from None
+        except OSError as exc:
+            if getattr(getattr(exc, "code", None), "value", None) == "LOCK_TIMEOUT":
+                raise LayoutError("setup lock is held by another process") from None
+            raise LayoutError("setup failed") from None
         except Exception:
             raise LayoutError("setup failed") from None
 
@@ -121,4 +164,4 @@ class Layout:
             store.close()
 
 
-__all__ = ["Layout", "LayoutError"]
+__all__ = ["LOCK_NAME", "Layout", "LayoutError", "SETUP_ATTEMPTS", "setup_lock"]
