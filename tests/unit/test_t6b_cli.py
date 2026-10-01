@@ -54,7 +54,7 @@ def test_serve_execs_the_pinned_server_with_the_data_root_database(home, execs):
     assert exe == sys.executable and argv[0] == sys.executable
     db = home / "data" / "data" / "derived" / "memory.sqlite3"
     assert argv[1:] == ["-m", "src.integration.m6.mcp_server", "--store-path", str(db), "--profile-id", "codex",
-                        "--enable-memory"]
+                        "--enable-memory", "--tools", "memory"]  # T8: memory-only is the default tool set
     assert db.exists()  # first-run setup was ensured before the exec
 
 
@@ -95,8 +95,8 @@ def test_serve_really_starts_a_pinned_stdio_server(home):
         info = srv.initialize()
         assert info["serverInfo"]["identity"] == "pinned"
         names = srv.tool_names()
-        assert "memory_recall" in names and "memory_context" in names and "corpus_search" in names
-        assert not any(n in names for n in ("memory_add", "memory_ingest", "memory_forget"))
+        assert names == ["memory_recall", "memory_context"]  # T8: the 11 legacy M6 tools need `--tools all`
+        assert not any(n in names for n in ("memory_add", "memory_ingest", "memory_forget", "corpus_search"))
         assert srv.env("memory_recall", {"query": "nothing yet"})["status"] == "EMPTY"
         assert srv.env("memory_recall", {"query": "x", "requesting_profile_id": "claude-code"})["status"] == "DENIED"
 

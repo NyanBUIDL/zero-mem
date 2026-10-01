@@ -144,6 +144,13 @@ def get_identity() -> ServerIdentity:
 # acts as the pinned profile only, so mounting needs a pinned identity that equals its own.
 _TOOL_SETS: List[Any] = []
 
+# T8 (token footprint): the 11 legacy M6 tools are ~17.5 KB of ``tools/list`` that every agent session pays for.
+# ``--tools memory`` lists and serves only the mounted memory tools; the default (``all``) is exactly the pinned T6a
+# surface, so a plain ``zero-mem-mcp`` is unchanged.  ``zero-mem serve`` passes ``memory`` unless told ``--tools all``.
+_LEGACY_TOOLS = True
+TOOLS_ALL = "all"
+TOOLS_MEMORY = "memory"
+
 
 def mount_tool_set(tool_set: Any) -> None:
     """Add ``tool_set``'s tools to ``tools/list`` and route their ``tools/call`` to it."""
@@ -284,7 +291,7 @@ def _handle_rpc(method: str, params: Dict[str, Any], request_id: Optional[Any]) 
         return _respond(request_id, result=info)
 
     if method == "tools/list":
-        tools = tool_schemas(include_identity=not _IDENTITY.pinned)
+        tools = tool_schemas(include_identity=not _IDENTITY.pinned) if _LEGACY_TOOLS else []
         for mounted in _TOOL_SETS:
             tools = tools + mounted.schemas()
         return _respond(request_id, result={"tools": tools})
@@ -302,6 +309,10 @@ def _handle_rpc(method: str, params: Dict[str, Any], request_id: Optional[Any]) 
         for mounted in _TOOL_SETS:  # T6b: mounted tools answer with their own complete MCP result
             if mounted.handles(tool):
                 return _respond(request_id, result=mounted.call(tool, arguments))
+        if not _LEGACY_TOOLS:  # memory-only server: a legacy tool is not exposed at all (same answer as an unknown tool)
+            envelope = M6Response(status=ResponseStatus.UNSUPPORTED_TOOL, reason_code="UNSUPPORTED_TOOL",
+                                  diagnostics={"bounded": True}).to_dict()
+            return _respond(request_id, result=_tool_result(tool, envelope))
         envelope = _apply_identity(tool, arguments)
         if envelope is None:
             envelope = handle_call(tool, arguments, dispatcher=_make_dispatcher())
@@ -319,12 +330,20 @@ def _handle_rpc(method: str, params: Dict[str, Any], request_id: Optional[Any]) 
 
 def serve(store_path: Path, *, in_stream=None, out_stream=None,
           profile_id: Optional[str] = None, default_ks: Optional[str] = None,
-          tool_sets: Optional[List[Any]] = None) -> None:
-    """Run the stdio JSON-RPC loop until EOF on stdin (``tool_sets`` are mounted for the loop's lifetime)."""
+          tool_sets: Optional[List[Any]] = None, legacy_tools: bool = True) -> None:
+    """Run the stdio JSON-RPC loop until EOF on stdin (``tool_sets`` are mounted for the loop's lifetime).
+
+    ``legacy_tools=False`` serves ONLY the mounted tool sets (``--tools memory``): the 11 M6 tools are neither
+    listed nor callable.
+    """
+    global _LEGACY_TOOLS
+    if not legacy_tools and not tool_sets:
+        raise ValueError("a server without the legacy tools needs a mounted tool set")
     configure(store_path)  # wires M6.2/M6.3 handlers onto default dispatcher
     _make_dispatcher()     # ensure shared dispatcher is returned consistently
     identity = set_identity(profile_id, default_ks)
     unmount_tool_sets()
+    _LEGACY_TOOLS = bool(legacy_tools)
     for tool_set in tool_sets or ():
         mount_tool_set(tool_set)
     if not identity.pinned:
@@ -361,6 +380,7 @@ def serve(store_path: Path, *, in_stream=None, out_stream=None,
                 out.flush()
     finally:
         unmount_tool_sets()
+        _LEGACY_TOOLS = True
         set_identity(None, None)
 
 
@@ -393,9 +413,20 @@ def main(argv: Optional[list] = None) -> int:
     ap.add_argument("--allow-root", action="append", default=None, metavar="DIR",
                     help="Folder memory_ingest may read (repeatable; env ZM_M6_ALLOW_ROOTS, path-separator "
                          "separated). Without any, memory_ingest is disabled.")
+    ap.add_argument("--tools", choices=(TOOLS_ALL, TOOLS_MEMORY), default=None,
+                    help="'all' (default): the 11 M6 read tools plus any mounted memory tools. 'memory': ONLY the "
+                         "memory tools (needs --enable-memory); ~17.5 KB less in every session's tools/list "
+                         "(env ZM_M6_TOOLS).")
     args = ap.parse_args(argv)
+    tools_mode = args.tools or (os.environ.get("ZM_M6_TOOLS") or "").strip() or TOOLS_ALL
+    if tools_mode not in (TOOLS_ALL, TOOLS_MEMORY):
+        sys.stderr.write("ERROR: --tools must be 'all' or 'memory'\n")
+        return 2
     want_write = bool(args.enable_write) or _env_flag("ZM_M6_ENABLE_WRITE")
     want_memory = want_write or bool(args.enable_memory) or _env_flag("ZM_M6_ENABLE_MEMORY")
+    if tools_mode == TOOLS_MEMORY and not want_memory:
+        sys.stderr.write("ERROR: --tools memory needs --enable-memory (or --enable-write)\n")
+        return 2
     if not args.store_path and not want_memory:
         sys.stderr.write("ERROR: --store-path (or ZM_M6_STORE_PATH) is required\n")
         return 2
@@ -436,7 +467,7 @@ def main(argv: Optional[list] = None) -> int:
         store_path = store_path or str(memory_tools.store_path)
         tool_sets.append(memory_tools)
         sys.stderr.write(f"zero-mem-mcp: memory tools mounted (write {'on' if want_write else 'off'}, "
-                         f"{len(allow_roots)} allowed folder(s))\n")
+                         f"{len(allow_roots)} allowed folder(s), tools {tools_mode})\n")
         for note in memory_tools.startup_notes():
             sys.stderr.write(f"zero-mem-mcp: {note}\n")
         sys.stderr.flush()
@@ -444,7 +475,8 @@ def main(argv: Optional[list] = None) -> int:
         sys.stderr.write("zero-mem-mcp: WARNING allow-root ignored: the memory tools are not enabled "
                          "(--enable-memory / --enable-write)\n")
         sys.stderr.flush()
-    serve(Path(store_path), profile_id=profile_id, default_ks=default_ks, tool_sets=tool_sets)
+    serve(Path(store_path), profile_id=profile_id, default_ks=default_ks, tool_sets=tool_sets,
+          legacy_tools=tools_mode == TOOLS_ALL)
     return 0
 
 

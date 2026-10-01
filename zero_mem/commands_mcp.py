@@ -1,10 +1,11 @@
 """CLI for the MCP integration: ``zero-mem serve`` and ``zero-mem mcp-config``.
 
 ``serve`` replaces this process (``os.execv``) with the pinned stdio MCP server
-(``python -m src.integration.m6.mcp_server --store-path <db> --profile-id <profile> --enable-memory
+(``python -m src.integration.m6.mcp_server --store-path <db> --profile-id <profile> --enable-memory --tools <set>
 [--enable-write] [--allow-root DIR]...``), so an agent client that registers ``serve`` talks to exactly one
-agent's identity. The server exposes the read-only M6 tools plus ``memory_recall`` / ``memory_context``; the write
-tools (``memory_add`` / ``memory_ingest`` / ``memory_forget``) exist only with ``--enable-write``.
+agent's identity. The default tool set is ``--tools memory``: ONLY ``memory_recall`` / ``memory_context`` (token cost
+is the product goal: the 11 legacy M6 read tools are ~17.5 KB of ``tools/list``); ``--tools all`` adds the legacy
+tools. The write tools (``memory_add`` / ``memory_ingest`` / ``memory_forget``) exist only with ``--enable-write``.
 
 ``mcp-config`` prints, without touching any state, the registration for one agent client (Claude Code, Codex,
 Hermes, OpenClaw): the absolute interpreter, the ``serve`` arguments and the environment that pins the data root.
@@ -75,6 +76,9 @@ def _profile_parent() -> argparse.ArgumentParser:
     return common
 
 
+TOOLS_CHOICES = ("memory", "all")
+
+
 def _server_options(p: argparse.ArgumentParser) -> None:
     p.add_argument("--enable-write", action="store_true", default=False,
                    help="also expose memory_add, memory_ingest and memory_forget (shared and project writes still "
@@ -82,6 +86,10 @@ def _server_options(p: argparse.ArgumentParser) -> None:
     p.add_argument("--allow-root", action="append", default=None, metavar="DIR",
                    help="folder memory_ingest may read (repeatable, needs --enable-write; without one memory_ingest "
                         "is disabled)")
+    p.add_argument("--tools", choices=TOOLS_CHOICES, default="memory",
+                   help="tool set to list: 'memory' (default) = only the memory tools (memory_recall, memory_context "
+                        "and with --enable-write memory_add, memory_ingest, memory_forget), the lowest token cost; "
+                        "'all' = also the 11 legacy read-only M6 tools (corpus_search, memory_query, project_*, ...)")
 
 
 def add_mcp_parsers(subparsers) -> None:
@@ -126,12 +134,15 @@ def _absolute_roots(values: Optional[List[str]], enable_write: bool) -> List[str
     return roots
 
 
-def _server_argv(profile: str, enable_write: bool, roots: List[str]) -> List[str]:
+def _server_argv(profile: str, enable_write: bool, roots: List[str], tools: str = "memory") -> List[str]:
+    """The ``serve`` arguments a client registers. The memory-only default is implicit (shortest registration)."""
     argv = ["serve", "--profile", profile]
     if enable_write:
         argv.append("--enable-write")
     for root in roots:
         argv += ["--allow-root", root]
+    if tools != "memory":
+        argv += ["--tools", tools]
     return argv
 
 
@@ -153,7 +164,7 @@ def run_serve(args, exec_fn: Optional[Callable] = None) -> int:
         _err(str(exc))
         return EXIT_ERROR
     argv = [sys.executable, "-m", MCP_MODULE, "--store-path", str(layout.derived_db),
-            "--profile-id", args.profile, "--enable-memory"]
+            "--profile-id", args.profile, "--enable-memory", "--tools", getattr(args, "tools", "memory")]
     if args.enable_write:
         argv.append("--enable-write")
     for root in roots:
@@ -262,11 +273,11 @@ def _snippets(agent: str, name: str, command: str, args: List[str], env: Dict[st
 
 
 def build_registration(agent: str, profile: str, *, name: str = DEFAULT_SERVER_NAME, enable_write: bool = False,
-                       allow_roots: Optional[List[str]] = None) -> Dict[str, Any]:
+                       allow_roots: Optional[List[str]] = None, tools: str = "memory") -> Dict[str, Any]:
     """The registration of one agent client: pure data (the CLI prints it)."""
     roots = list(allow_roots or [])
     command = os.path.abspath(sys.executable)  # NOT realpath: a venv interpreter is a symlink that must stay one
-    args = ["-m", "zero_mem.cli", *_server_argv(profile, enable_write, roots)]
+    args = ["-m", "zero_mem.cli", *_server_argv(profile, enable_write, roots, tools)]
     env = _pinned_env()
     steps = [f"zero-mem agents add {profile}"]
     if enable_write:
@@ -280,6 +291,7 @@ def build_registration(agent: str, profile: str, *, name: str = DEFAULT_SERVER_N
         "args": args,
         "env": env,
         "write_enabled": bool(enable_write),
+        "tools": tools,
         "allow_roots": roots,
         "operator_steps": steps,
         "verified": {
@@ -301,7 +313,8 @@ def render_text(reg: Dict[str, Any]) -> str:
     agent, profile = reg["agent"], reg["profile"]
     label = _CLIENT_LABEL[agent]
     lines = [
-        f"# zero-mem MCP registration for {label} (profile \"{profile}\", writes {'ENABLED' if reg['write_enabled'] else 'off'})",
+        f"# zero-mem MCP registration for {label} (profile \"{profile}\", writes {'ENABLED' if reg['write_enabled'] else 'off'}, "
+        f"tools: {'memory only' if reg['tools'] == 'memory' else 'memory + 11 legacy read tools'})",
         "#",
         "# 1. Operator, once, in your own terminal (do not give agents a shell that can run these):",
     ]
@@ -348,7 +361,8 @@ def run_mcp_config(args) -> int:
         return EXIT_ERROR
     try:
         roots = _absolute_roots(args.allow_root, args.enable_write)
-        reg = build_registration(args.agent, profile, name=args.name, enable_write=args.enable_write, allow_roots=roots)
+        reg = build_registration(args.agent, profile, name=args.name, enable_write=args.enable_write, allow_roots=roots,
+                                 tools=getattr(args, "tools", "memory"))
     except UsageError as exc:
         _err(str(exc))
         return EXIT_ERROR

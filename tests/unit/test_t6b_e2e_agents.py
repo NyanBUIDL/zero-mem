@@ -34,10 +34,12 @@ class Fleet:
         self.docs.mkdir()
         self.procs: dict[str, McpProc] = {}
 
-    def start(self, agent: str, *, write: bool = True, roots=None) -> McpProc:
+    def start(self, agent: str, *, write: bool = True, roots=None, tools: str = "memory") -> McpProc:
         flags = ["--enable-write"] if write else []
         for root in (roots if roots is not None else ([self.docs] if write else [])):
             flags += ["--allow-root", str(root)]
+        if tools != "memory":  # T8: the memory-only tool set is the default; the legacy M6 tools need `--tools all`
+            flags += ["--tools", tools]
         proc = launch(registration(agent, *flags), cwd=self.tmp)
         self.procs[agent] = proc
         return proc
@@ -75,14 +77,15 @@ def texts(envelope):
 
 # ----------------------------------------------------------------------------------------------- (a) shared persona
 def test_a_claude_code_adds_a_shared_persona_and_codex_recalls_it_from_its_own_server(fleet):
-    servers = fleet.start_all()
+    servers = fleet.start_all(tools="all")  # `all`: the legacy M6 corpus_search is compared below
     fleet.prov.grant_write("claude-code", space="ks-shared", basis="owner approved in chat")
     out = add(servers["claude-code"], "Nyan prefers terse answers and no emojis.", "persona", "shared", name="style")
     assert out["status"] == "SUCCESS" and out["result"] == "created" and out["ref"] == "mem://persona/style"
+    assert out["scope"] == "shared"
     for reader in ("codex", "hermes", "openclaw", "claude-code"):
         got = recall(servers[reader], "terse answers", memory_types=["persona"])
         assert got["status"] == "SUCCESS", (reader, got)
-        assert got["hits"][0]["ref"] == "mem://persona/style" and got["hits"][0]["scope"] == "shared"
+        assert got["hits"][0]["ref"] == "mem://persona/style" and got["hits"][0]["type"] == "persona"
         assert "terse answers" in got["hits"][0]["text"]
     # the M6 read tool of ANOTHER agent's server sees the same shared unit through the same authorization
     legacy = servers["codex"].call("corpus_search", {"search_text": "terse", "knowledge_space_ids": ["ks-shared"]})
@@ -96,7 +99,7 @@ def test_a_claude_code_adds_a_shared_persona_and_codex_recalls_it_from_its_own_s
 
 # ----------------------------------------------------------------------------------------------- (b) private + spoof
 def test_b_private_notes_are_not_visible_to_other_agents_and_a_spoofed_identity_is_rejected(fleet):
-    servers = fleet.start_all()
+    servers = fleet.start_all(tools="all")  # `all`: the M6 read surface of the same server is checked below
     add(servers["claude-code"], "claude-code private note about the vault of narwhals")
     assert recall(servers["claude-code"], "narwhals")["status"] == "SUCCESS"
     for other in ("codex", "hermes", "openclaw"):
@@ -194,7 +197,7 @@ def test_e_a_folder_of_docx_xlsx_and_md_is_ingested_under_the_allowlist_and_reca
         for reader in ("codex", "openclaw"):
             got = recall(servers[reader], query)
             assert got["status"] == "SUCCESS" and needle in got["hits"][0]["text"].lower(), (reader, query, got)
-            assert got["hits"][0]["type"] == "file" and got["hits"][0]["scope"] == "shared"
+            assert got["hits"][0]["type"] == "file" and got["hits"][0]["ref"].startswith("file://")
     again = servers["claude-code"].env("memory_ingest", {"path": str(fleet.docs), "memory_type": "file",
                                                          "scope": "shared"})
     assert again["counts"]["unchanged"] == 3 and again["counts"]["created"] == 0
@@ -237,10 +240,10 @@ def test_f_forget_removes_a_shared_memory_from_the_recall_of_every_agent(fleet):
     for agent in AGENTS:
         assert recall(servers[agent], "okapis")["status"] == "SUCCESS", agent
     # a reader without the write approval cannot forget it
-    denied = servers["codex"].call("memory_forget", {"source_id": added["source_id"]})
+    denied = servers["codex"].call("memory_forget", {"source_id": added["id"]})
     assert denied["isError"] is True and denied["structuredContent"]["status"] == "DENIED"
     assert recall(servers["codex"], "okapis")["status"] == "SUCCESS"
-    gone = servers["claude-code"].env("memory_forget", {"source_id": added["source_id"]})
+    gone = servers["claude-code"].env("memory_forget", {"source_id": added["id"]})
     assert gone["status"] == "SUCCESS" and gone["result"] == "forgotten"
     for agent in AGENTS:
         assert recall(servers[agent], "okapis")["status"] == "EMPTY", agent
@@ -304,9 +307,9 @@ def test_g_four_server_processes_write_concurrently_with_no_loss_and_a_correct_r
         reader = servers[AGENTS[(AGENTS.index(agent) + 1) % len(AGENTS)]]
         for i in range(N_PER_AGENT):
             got = recall(reader, f"{_KEY[agent]}shared{i:03d}marker")
-            assert got["status"] == "SUCCESS" and got["hits"][0]["scope"] == "shared", (agent, i, got)
+            assert got["status"] == "SUCCESS" and f"{_KEY[agent]}shared{i:03d}marker" in got["hits"][0]["text"], (agent, i, got)
             mine = recall(servers[agent], f"{_KEY[agent]}private{i:03d}marker")
-            assert mine["status"] == "SUCCESS" and mine["hits"][0]["scope"] == "private", (agent, i, mine)
+            assert mine["status"] == "SUCCESS" and f"{_KEY[agent]}private{i:03d}marker" in mine["hits"][0]["text"], (agent, i, mine)
             leak = recall(reader, f"{_KEY[agent]}private{i:03d}marker")
             assert leak["status"] == "EMPTY", (agent, i, leak)
 
@@ -325,16 +328,17 @@ def test_h_the_context_bundle_has_persona_and_workflow_and_respects_max_chars(fl
     add(cc, "Fixed the flaky lock test", "devlog", "project", project_id="zero-mem")
     add(cc, "claude private fact that codex must not see in its bundle: salamander", "fact", "private")
     bundle = codex.env("memory_context", {"max_chars": 2000, "project_id": "zero-mem"})
-    assert bundle["status"] == "SUCCESS" and bundle["chars"] <= 2000 == bundle["max_chars"]
+    assert bundle["status"] == "SUCCESS" and len(bundle["text"]) <= 2000
     text = bundle["text"]
     assert "terse answers" in text and "pytest before every commit" in text
     assert "deploy" in text and "flaky lock test" in text and "salamander" not in text
-    assert {"Persona", "Workflow", "Skills", "Recent devlog"} <= set(bundle["sections"])
+    assert all(f"## {section}" in text for section in ("Persona", "Workflow", "Skills", "Recent devlog"))
     raw = codex.call("memory_context", {"max_chars": 2000, "project_id": "zero-mem"})
     assert raw["content"][0]["text"] == text
+    assert codex.env("memory_context", {"project_id": "zero-mem"})["text"] == text  # T8: 2000 is the default
     for limit in (200, 300, 700, 1200, 4000):
         small = codex.env("memory_context", {"max_chars": limit})
-        assert small["chars"] <= limit and "terse answers" in small["text"], limit
+        assert len(small["text"]) <= limit and "terse answers" in small["text"], limit
     assert codex.env("memory_context", {"max_chars": 4001})["status"] == "INVALID"
     assert servers["hermes"].env("memory_context")["text"].startswith("## Persona")
 

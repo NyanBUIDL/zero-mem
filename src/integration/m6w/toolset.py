@@ -86,14 +86,46 @@ def _clip(text: str, limit: int) -> str:
     return text[: limit - 1].rstrip() + "…"
 
 
+def _snippet(text: str, terms: Sequence[str], limit: int) -> "tuple[str, bool]":
+    """``text`` cut to at most ``limit`` characters, as ``(snippet, was_cut)``.
+
+    A text that fits is returned whole. A longer one keeps its head, unless the first query term only occurs later:
+    then the window is centred on that term (so a hit never hides the very words it matched), with an ellipsis on
+    every side that was cut. Always a word boundary, never longer than ``limit``.
+    """
+    if len(text) <= limit:
+        return text, False
+    lower = text.lower()
+    found = [i for i in (lower.find(t) for t in terms) if i >= 0]
+    first = min(found) if found else -1
+    if first < limit - 40:
+        return _clip(text, limit), True
+    start = max(0, first - 60)
+    space = text.find(" ", start, first)
+    if space >= 0:
+        start = space + 1
+    end = start + limit - 2  # room for the two ellipses
+    body = text[start:end]
+    if end < len(text):
+        cut = body.rfind(" ")
+        if cut > len(body) // 2:
+            body = body[:cut]
+    tail = "…" if end < len(text) else ""
+    return "…" + body.rstrip() + tail, True
+
+
 def _short(source_id: Optional[str]) -> Optional[str]:
     return source_id[: c.SOURCE_ID_SHORT] if source_id else None
 
 
 def make_result(tool: str, status: str, *, reason_code: Optional[str] = None, message: Optional[str] = None,
                 data: Optional[Dict[str, Any]] = None, text: Optional[str] = None) -> Dict[str, Any]:
-    """One MCP ``tools/call`` result. ``content`` is what a text-only client shows the model."""
-    structured: Dict[str, Any] = {"status": status, "tool": tool}
+    """One MCP ``tools/call`` result. ``content`` is what a text-only client shows the model.
+
+    Token budget: ``structuredContent`` is what some clients hand to the model, so it carries no echo of the tool name
+    (the caller knows what it called); only ``content[0].text`` names the tool, for a human reading a failure.
+    """
+    structured: Dict[str, Any] = {"status": status}
     if reason_code:
         structured["reason_code"] = reason_code
     if message:
@@ -266,32 +298,37 @@ class MemoryToolSet:
                                message="This agent may not read memory.")
         if result.status != "ok" and result.status != "empty":
             return self._failure(tool, result.status, result.reason)
+        terms = [w for w in re.findall(r"\w+", str(args["query"]).lower()) if len(w) >= 3]
         hits: List[Dict[str, Any]] = []
         used = 0
         truncated = False
         for hit in result.hits:
-            text = _clip(_flat(hit.text), c.HIT_TEXT_CHARS)
+            text, cut = _snippet(_flat(hit.text), terms, c.HIT_TEXT_CHARS)
             if hits and used + len(text) > c.RECALL_TOTAL_CHARS:
                 truncated = True
                 break
             used += len(text)
-            hits.append({"text": text, "ref": hit.external_ref, "type": hit.memory_type, "scope": hit.scope,
-                         "score": round(float(hit.score), 3), "source_id": _short(hit.source_id)})
+            truncated = truncated or cut
+            row = {"id": _short(hit.source_id), "type": hit.memory_type, "ref": hit.external_ref,
+                   "score": round(float(hit.score), 2), "text": text}
+            hits.append({k: v for k, v in row.items() if v is not None})
         warning = None
         project = args.get("project_id")
         if project and str(result.notes.get("project", "")).startswith("DENY"):
             warning = "That project's dev log is not readable by this agent (needs the operator's read grant)."
         if not hits:
-            return make_result(tool, c.EMPTY, message="No matching memory." + (f" {warning}" if warning else ""),
-                               data={"count": 0, "hits": [], "warning": warning})
-        lines = [f"{tool}: SUCCESS - {len(hits)} result(s)" + (" (more were cut for size)" if truncated else "")]
+            return make_result(tool, c.EMPTY, data={"warning": warning},
+                               text=f"{tool}: EMPTY - " + (warning or "nothing matched"))
+        lines = []
         for index, h in enumerate(hits, 1):
-            lines.append(f"{index}. [{h['type'] or '-'}|{h['scope']}] {h['ref'] or '-'} (id {h['source_id']})")
+            lines.append(f"{index}. {h.get('type', '-')} {h.get('ref', '-')} {h['score']} id={h['id']}")
             lines.append(f"   {h['text']}")
+        if truncated:
+            lines.append("(text was trimmed or hits were cut for size)")
         if warning:
             lines.append(warning)
-        return make_result(tool, c.SUCCESS, data={"count": len(hits), "hits": hits, "truncated": truncated or None,
-                                                  "warning": warning}, text="\n".join(lines))
+        return make_result(tool, c.SUCCESS, data={"hits": hits, "truncated": truncated or None, "warning": warning},
+                           text="\n".join(lines))
 
     # -- memory_context --------------------------------------------------------------------------------------
     def _context(self, args: Dict[str, Any]) -> Dict[str, Any]:
@@ -305,13 +342,12 @@ class MemoryToolSet:
         if bundle.status not in ("ok", "empty"):
             return self._failure(tool, bundle.status, bundle.reason)
         text = bundle.text
-        # No per-source list: clients such as Claude Code hand ``structuredContent`` to the model, so every field costs tokens.
-        data = {"text": text, "chars": len(text), "max_chars": max_chars, "truncated": bool(bundle.truncated),
-                "sections": dict(bundle.sections)}
+        # Only the text (and a cut flag): clients such as Claude Code hand ``structuredContent`` to the model, so every
+        # field costs tokens. The size, the section counts and the source list are not echoed.
         if not text:
-            return make_result(tool, c.EMPTY, message="Nothing saved yet: no persona, workflow, skill or dev log.",
-                               data=data)
-        return make_result(tool, c.SUCCESS, data=data, text=text)
+            return make_result(tool, c.EMPTY, message="Nothing saved yet.")
+        return make_result(tool, c.SUCCESS, data={"text": text, "truncated": True if bundle.truncated else None},
+                           text=text)
 
     # -- memory_add ------------------------------------------------------------------------------------------
     def _add(self, args: Dict[str, Any]) -> Dict[str, Any]:
@@ -327,10 +363,9 @@ class MemoryToolSet:
 
     def _write_outcome(self, tool: str, result: Any, scope: Optional[str], project: Optional[str]) -> Dict[str, Any]:
         if result.ok:
-            data = {"result": result.status, "ref": result.external_ref, "source_id": _short(result.source_id),
-                    "memory_type": result.memory_type, "scope": result.scope, "units": result.units}
-            text = f"{tool}: SUCCESS - {result.status} {result.external_ref} ({result.scope}"
-            text += f", {result.units} unit(s))" if result.units is not None else ")"
+            data = {"result": result.status, "ref": result.external_ref, "id": _short(result.source_id),
+                    "scope": result.scope}
+            text = f"{tool}: SUCCESS - {result.status} {result.external_ref} ({result.scope})"
             return make_result(tool, c.SUCCESS, data=data, text=text)
         if result.status == "denied":
             return self._denied(tool, result.reason, scope, project)
@@ -354,17 +389,17 @@ class MemoryToolSet:
         finally:
             memory.close()
         if result.ok:
-            data = {"result": result.status, "ref": result.external_ref, "source_id": _short(result.source_id),
-                    "memory_type": result.memory_type}
+            data = {"result": result.status, "ref": result.external_ref, "id": _short(result.source_id)}
             return make_result(tool, c.SUCCESS, data=data,
                                text=f"{tool}: SUCCESS - {result.status} {result.external_ref or ''}".rstrip())
         if result.status == "not_found":
             return make_result(tool, c.NOT_FOUND, reason_code=result.reason or "unknown_source",
                                message="No memory with that id or ref is visible to you.")
         if result.status == "ambiguous":
-            # the library lists every matching id, including other agents' private sources: never forward them
+            # the library lists only sources this agent can read (T8); candidates are still not forwarded: the agent
+            # picks by the id memory_recall printed
             return make_result(tool, c.INVALID, reason_code=c.AMBIGUOUS_REFERENCE,
-                               message="Several memories share that ref. Pass the source_id from memory_recall.")
+                               message="Several memories match that ref. Pass the id from memory_recall.")
         if result.status == "denied":
             if result.reason == "DENY_GLOBAL_WRITE":
                 return make_result(tool, c.DENIED, reason_code=result.reason,
