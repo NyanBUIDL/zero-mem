@@ -14,7 +14,13 @@ Protocol handled (minimal MCP subset sufficient for read tools):
 
 All reads are funneled through the dispatcher, so the READ-only / authorization
 contracts in src/integration/m6 are fully preserved. No SQLite/JSONL/grant-admin
-/ WRITE path is reachable from this server. 0 LLM + 0 external network.
+/ WRITE path is reachable through the 11 M6 tools. 0 LLM + 0 external network.
+
+Optional memory tools (T6b): ``--enable-memory`` mounts memory_recall / memory_context and
+``--enable-write`` additionally memory_add / memory_ingest / memory_forget from the separate
+package ``src.integration.m6w`` (see ``mount_tool_set``).  They need a pinned identity, run as
+that profile only and delegate to ``zero_mem.memory.Memory`` (authorize -> secret pre-scan ->
+lock -> register).  Without those switches the server is exactly the read-only M6 surface.
 
 Server is configured with a derived-store path supplied at startup (argv or
 env ZM_M6_STORE_PATH). No hard-coded repository or user paths.
@@ -59,11 +65,13 @@ try:
     from .contracts import M6Response, ResponseStatus
     from .dispatcher import _default_dispatcher
     from .mcp_wrapper import handle_call, tool_schemas
+    from .tools import list_tool_names
 except ImportError:  # direct script execution: absolute imports (root is on sys.path)
     from src.integration.m6 import configure  # noqa: E402
     from src.integration.m6.contracts import M6Response, ResponseStatus  # noqa: E402
     from src.integration.m6.dispatcher import _default_dispatcher  # noqa: E402
     from src.integration.m6.mcp_wrapper import handle_call, tool_schemas  # noqa: E402
+    from src.integration.m6.tools import list_tool_names  # noqa: E402
 
 # Envelope statuses that are NOT tool errors: a valid query that found something, or
 # nothing.  Every other status (POLICY_DENIED, INVALID_REQUEST, UNSUPPORTED_*,
@@ -123,6 +131,35 @@ def set_identity(profile_id: Optional[str] = None,
 
 def get_identity() -> ServerIdentity:
     return _IDENTITY
+
+
+# --------------------------------------------------------------------------
+# Extension tool sets (T6b)
+# --------------------------------------------------------------------------
+# The 11 M6 tools above stay read-only and exactly as pinned.  A separate package
+# (``src.integration.m6w``: memory_recall / memory_context and, only with
+# ``--enable-write``, memory_add / memory_ingest / memory_forget) is MOUNTED here, never
+# registered in M6's own ``TOOL_REGISTRY``.  A tool set provides ``profile_id``, ``names``,
+# ``schemas()``, ``handles(name)`` and ``call(name, arguments) -> MCP tool result``; it
+# acts as the pinned profile only, so mounting needs a pinned identity that equals its own.
+_TOOL_SETS: List[Any] = []
+
+
+def mount_tool_set(tool_set: Any) -> None:
+    """Add ``tool_set``'s tools to ``tools/list`` and route their ``tools/call`` to it."""
+    if not _IDENTITY.pinned or getattr(tool_set, "profile_id", None) != _IDENTITY.profile_id:
+        raise ValueError("a tool set can only be mounted on a server pinned to the same profile")
+    taken = set(list_tool_names())
+    for mounted in _TOOL_SETS:
+        taken.update(mounted.names)
+    clash = taken.intersection(tool_set.names)
+    if clash:
+        raise ValueError("tool name already in use: " + ", ".join(sorted(clash)))
+    _TOOL_SETS.append(tool_set)
+
+
+def unmount_tool_sets() -> None:
+    _TOOL_SETS.clear()
 
 
 def _apply_identity(tool: str, arguments: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -235,16 +272,22 @@ def _handle_rpc(method: str, params: Dict[str, Any], request_id: Optional[Any]) 
         return _respond(request_id, result={})
 
     if method == "initialize":
-        return _respond(request_id, result={
+        info: Dict[str, Any] = {
             "protocolVersion": "2024-11-05",
             "capabilities": {"tools": {}},
             "serverInfo": {"name": "zero-mem-m6", "version": _zm_version,
                            "identity": "pinned" if _IDENTITY.pinned else "unpinned"},
-        })
+        }
+        notes = [t for t in (getattr(mounted, "instructions", "") for mounted in _TOOL_SETS) if t]
+        if notes:  # only when extension tools are mounted: the plain M6 server answers exactly as before
+            info["instructions"] = "\n".join(notes)
+        return _respond(request_id, result=info)
 
     if method == "tools/list":
-        return _respond(request_id, result={
-            "tools": tool_schemas(include_identity=not _IDENTITY.pinned)})
+        tools = tool_schemas(include_identity=not _IDENTITY.pinned)
+        for mounted in _TOOL_SETS:
+            tools = tools + mounted.schemas()
+        return _respond(request_id, result={"tools": tools})
 
     if method == "tools/call":
         tool = params.get("name")
@@ -256,6 +299,9 @@ def _handle_rpc(method: str, params: Dict[str, Any], request_id: Optional[Any]) 
             return _respond(request_id, error={
                 "code": -32602, "message": "invalid params: arguments must be object"})
         arguments = dict(arguments)
+        for mounted in _TOOL_SETS:  # T6b: mounted tools answer with their own complete MCP result
+            if mounted.handles(tool):
+                return _respond(request_id, result=mounted.call(tool, arguments))
         envelope = _apply_identity(tool, arguments)
         if envelope is None:
             envelope = handle_call(tool, arguments, dispatcher=_make_dispatcher())
@@ -272,11 +318,15 @@ def _handle_rpc(method: str, params: Dict[str, Any], request_id: Optional[Any]) 
 
 
 def serve(store_path: Path, *, in_stream=None, out_stream=None,
-          profile_id: Optional[str] = None, default_ks: Optional[str] = None) -> None:
-    """Run the stdio JSON-RPC loop until EOF on stdin."""
+          profile_id: Optional[str] = None, default_ks: Optional[str] = None,
+          tool_sets: Optional[List[Any]] = None) -> None:
+    """Run the stdio JSON-RPC loop until EOF on stdin (``tool_sets`` are mounted for the loop's lifetime)."""
     configure(store_path)  # wires M6.2/M6.3 handlers onto default dispatcher
     _make_dispatcher()     # ensure shared dispatcher is returned consistently
     identity = set_identity(profile_id, default_ks)
+    unmount_tool_sets()
+    for tool_set in tool_sets or ():
+        mount_tool_set(tool_set)
     if not identity.pinned:
         sys.stderr.write(
             "zero-mem-mcp: WARNING identity unpinned - callers choose requesting_profile_id "
@@ -310,11 +360,20 @@ def serve(store_path: Path, *, in_stream=None, out_stream=None,
                 out.write("\n")
                 out.flush()
     finally:
+        unmount_tool_sets()
         set_identity(None, None)
 
 
+_TRUE_WORDS = frozenset({"1", "true", "yes", "on"})
+
+
+def _env_flag(name: str) -> bool:
+    return (os.environ.get(name) or "").strip().lower() in _TRUE_WORDS
+
+
 def main(argv: Optional[list] = None) -> int:
-    ap = argparse.ArgumentParser(description="Zero-Mem M6 MCP read-only server (stdio)")
+    ap = argparse.ArgumentParser(
+        description="Zero-Mem M6 MCP server (stdio): read-only unless --enable-memory / --enable-write")
     ap.add_argument("--store-path", type=str, default=os.environ.get("ZM_M6_STORE_PATH"),
                     help="Path to the derived Zero-Mem SQLite store (read-only).")
     ap.add_argument("--profile-id", type=str, default=None,
@@ -325,8 +384,19 @@ def main(argv: Optional[list] = None) -> int:
                          "knowledge_space_ids (env ZM_M6_DEFAULT_KS).")
     ap.add_argument("--transport", type=str, default="stdio",
                     help="Transport (only 'stdio' supported in V140-03).")
+    ap.add_argument("--enable-memory", action="store_true", default=False,
+                    help="Also mount the memory_recall and memory_context tools (env ZM_M6_ENABLE_MEMORY=1). "
+                         "Needs --profile-id; the store must be the zero-mem data root's database.")
+    ap.add_argument("--enable-write", action="store_true", default=False,
+                    help="Also mount memory_add, memory_ingest and memory_forget (env ZM_M6_ENABLE_WRITE=1); "
+                         "implies --enable-memory. Off by default: the server is read-only unless asked.")
+    ap.add_argument("--allow-root", action="append", default=None, metavar="DIR",
+                    help="Folder memory_ingest may read (repeatable; env ZM_M6_ALLOW_ROOTS, path-separator "
+                         "separated). Without any, memory_ingest is disabled.")
     args = ap.parse_args(argv)
-    if not args.store_path:
+    want_write = bool(args.enable_write) or _env_flag("ZM_M6_ENABLE_WRITE")
+    want_memory = want_write or bool(args.enable_memory) or _env_flag("ZM_M6_ENABLE_MEMORY")
+    if not args.store_path and not want_memory:
         sys.stderr.write("ERROR: --store-path (or ZM_M6_STORE_PATH) is required\n")
         return 2
     if args.transport != "stdio":
@@ -344,7 +414,37 @@ def main(argv: Optional[list] = None) -> int:
     except ValueError as exc:
         sys.stderr.write(f"ERROR: {exc}\n")
         return 2
-    serve(Path(args.store_path), profile_id=profile_id, default_ks=default_ks)
+    allow_roots = list(args.allow_root or []) + [
+        p for p in (os.environ.get("ZM_M6_ALLOW_ROOTS") or "").split(os.pathsep) if p.strip()]
+    tool_sets: List[Any] = []
+    store_path = args.store_path
+    if want_memory:
+        if profile_id is None:
+            sys.stderr.write("ERROR: the memory tools act as one agent: pin it with --profile-id "
+                             "(or ZM_M6_PROFILE_ID)\n")
+            return 2
+        try:
+            from src.integration.m6w import ToolSetConfigError, build_tool_set
+            memory_tools = build_tool_set(profile_id=profile_id, enable_write=want_write, allow_roots=allow_roots)
+        except ToolSetConfigError as exc:
+            sys.stderr.write(f"ERROR: {exc}\n")
+            return 2
+        if store_path and Path(store_path).resolve() != memory_tools.store_path.resolve():
+            sys.stderr.write("ERROR: --store-path is not the database of the zero-mem data root "
+                             "(ZERO_MEM_DATA_ROOT); the memory tools and the read tools must use one store\n")
+            return 2
+        store_path = store_path or str(memory_tools.store_path)
+        tool_sets.append(memory_tools)
+        sys.stderr.write(f"zero-mem-mcp: memory tools mounted (write {'on' if want_write else 'off'}, "
+                         f"{len(allow_roots)} allowed folder(s))\n")
+        for note in memory_tools.startup_notes():
+            sys.stderr.write(f"zero-mem-mcp: {note}\n")
+        sys.stderr.flush()
+    elif allow_roots:
+        sys.stderr.write("zero-mem-mcp: WARNING allow-root ignored: the memory tools are not enabled "
+                         "(--enable-memory / --enable-write)\n")
+        sys.stderr.flush()
+    serve(Path(store_path), profile_id=profile_id, default_ks=default_ks, tool_sets=tool_sets)
     return 0
 
 

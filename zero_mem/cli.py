@@ -69,7 +69,10 @@ def build_parser() -> argparse.ArgumentParser:
     upgrade_parser.add_argument("--check", action="store_true", help="inspect upgrade compatibility without changing state")
     upgrade_parser.add_argument("--json", action="store_true", help="emit machine-readable output")
     upgrade_parser.set_defaults(_upgrade=True)
-    add_memory_parsers(subparsers)  # add / ingest / search / context / forget / devlog / status / agents / serve / import-notes
+    add_memory_parsers(subparsers)  # add / ingest / search / context / forget / devlog / status / agents / import-notes
+    from .commands_mcp import add_mcp_parsers
+
+    add_mcp_parsers(subparsers)  # serve / mcp-config
     from .commands_config_grant import add_config_parsers
 
     add_config_parsers(subparsers)
@@ -83,6 +86,11 @@ def main(argv: list[str] | None = None) -> int:
     memory_code = dispatch_memory(args)
     if memory_code is not None:
         return memory_code
+    from .commands_mcp import dispatch as dispatch_mcp
+
+    mcp_code = dispatch_mcp(args)
+    if mcp_code is not None:
+        return mcp_code
     if getattr(args, "_show_version", False):
         print(__version__)
     elif getattr(args, "_setup", False):

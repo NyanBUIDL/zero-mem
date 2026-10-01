@@ -1,6 +1,7 @@
 """CLI for the shared-memory runtime: add / ingest / search / context / forget / devlog / memory-status / agents /
-serve / import-notes. Wired into ``zero_mem.cli``; every command is a thin shell over :class:`zero_mem.memory.Memory`
-or :class:`zero_mem.provisioning.Provisioner` (no business logic here).
+import-notes (``serve`` and ``mcp-config`` live in ``zero_mem.commands_mcp``). Wired into ``zero_mem.cli``; every
+command is a thin shell over :class:`zero_mem.memory.Memory` or :class:`zero_mem.provisioning.Provisioner` (no
+business logic here).
 
 Exit codes (stable, also in docs/runbooks/shared-memory-quickstart.md):
 
@@ -16,7 +17,7 @@ import os
 import sys
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 from .memory import MAX_TEXT_BYTES, MEMORY_TYPES, SCOPES, Memory, MemoryConfigError
 from .memory_layout import Layout, LayoutError
@@ -138,11 +139,7 @@ def add_memory_parsers(subparsers) -> None:
     _target_options(p, name_option=False)
     p.set_defaults(_memory_cmd="import_notes")
 
-    p = subparsers.add_parser("serve", parents=[common],
-                              help="run the MCP server pinned to --profile (needs an MCP server with --profile-id)")
-    p.set_defaults(_memory_cmd="serve")
-
-    agents = subparsers.add_parser("agents", help="operator commands: register agents and approve their access")
+    agents =subparsers.add_parser("agents", help="operator commands: register agents and approve their access")
     sub = agents.add_subparsers(dest="agents_command", required=True)
 
     p = sub.add_parser("add", parents=[common], help="register agents (READ on ks-shared; private write only)")
@@ -418,46 +415,6 @@ def _cmd_import_notes(args) -> int:
 
 
 # ---------------------------------------------------------------------------------------------
-# serve
-# ---------------------------------------------------------------------------------------------
-_MCP_MODULE = "src.integration.m6.mcp_server"
-
-
-def _mcp_supports_profile_pin() -> bool:
-    """True when the installed MCP server module can pin identity (``--profile-id``)."""
-    import importlib.util
-
-    try:
-        spec = importlib.util.find_spec(_MCP_MODULE)
-        if spec is None or not spec.origin:
-            return False
-        return "--profile-id" in Path(spec.origin).read_text(encoding="utf-8", errors="replace")
-    except Exception:
-        return False
-
-
-def _cmd_serve(args, exec_fn: Callable = None) -> int:
-    from .memory import valid_id
-
-    if not valid_id(args.profile):
-        _err("invalid profile id")
-        return EXIT_ERROR
-    if not _mcp_supports_profile_pin():
-        _err("this build's MCP server cannot pin an agent identity yet (it has no --profile-id option), and an unpinned "
-             "server would trust whatever profile a caller claims. Refusing to start. Track: DEF-062 / task T6.")
-        return EXIT_ERROR
-    try:
-        layout = Layout.resolve(None)
-        layout.ensure()
-    except LayoutError as exc:
-        _err(str(exc))
-        return EXIT_ERROR
-    argv = [sys.executable, "-m", _MCP_MODULE, "--store-path", str(layout.derived_db), "--profile-id", args.profile]
-    (exec_fn or os.execv)(sys.executable, argv)
-    return EXIT_OK  # only reached when exec is stubbed
-
-
-# ---------------------------------------------------------------------------------------------
 # agents (operator)
 # ---------------------------------------------------------------------------------------------
 def _provisioner() -> Provisioner:
@@ -556,7 +513,6 @@ _HANDLERS = {
     "forget": _cmd_forget,
     "memory_status": _cmd_status,
     "import_notes": _cmd_import_notes,
-    "serve": _cmd_serve,
     "agents_add": _cmd_agents_add,
     "agents_grant_write": _cmd_agents_grant_write,
     "agents_grant_read": _cmd_agents_grant_read,

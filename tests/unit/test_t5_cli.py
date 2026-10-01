@@ -323,28 +323,9 @@ def test_agents_grant_read_for_a_project(home, capsys):
 
 
 # ----------------------------------------------------------------------------- serve
-def test_serve_refuses_an_unpinnable_server_and_execs_a_pinned_one(home, capsys, monkeypatch):
-    from zero_mem import commands_memory
-
-    monkeypatch.setattr(commands_memory, "_mcp_supports_profile_pin", lambda: False)
-    code, _o, err = run(capsys, "--profile", "codex", "serve")
-    assert code == 2 and "--profile-id" in err
-
-    calls = []
-    monkeypatch.setattr(commands_memory, "_mcp_supports_profile_pin", lambda: True)
-    monkeypatch.setattr(commands_memory.os, "execv", lambda exe, argv: calls.append((exe, list(argv))))
-    code, _o, _e = run(capsys, "--profile", "codex", "serve")
-    assert code == 0 and len(calls) == 1
-    exe, argv = calls[0]
-    assert exe == sys.executable
-    assert argv[1:5] == ["-m", "src.integration.m6.mcp_server", "--store-path", str(home / "data" / "data/derived/memory.sqlite3")]
-    assert argv[-2:] == ["--profile-id", "codex"]
-
-
-def test_serve_support_detection_reads_the_server_source(tmp_path, monkeypatch):
-    from zero_mem import commands_memory
-
-    assert isinstance(commands_memory._mcp_supports_profile_pin(), bool)
+# T6b: the placeholder refusal ("this build's MCP server cannot pin an identity") is gone - the MCP server pins
+# --profile-id since T6a - and ``serve`` / ``mcp-config`` now live in zero_mem/commands_mcp.py. Their tests are in
+# tests/unit/test_t6b_cli.py (exec argv, refusals, a real stdio server started through ``serve``).
 
 
 # ----------------------------------------------------------------------------- import-notes
