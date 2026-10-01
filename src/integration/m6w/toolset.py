@@ -61,9 +61,12 @@ def _config_from_env() -> ToolSetConfig:
         if not raw:
             continue
         try:
-            values[key] = int(raw)
+            number = int(raw)
         except ValueError:
             raise ToolSetConfigError(f"{env_name} must be a positive integer") from None
+        if number < 1:
+            raise ToolSetConfigError(f"{env_name} must be a positive integer")
+        values[key] = number
     return ToolSetConfig(**values)
 
 
@@ -168,6 +171,11 @@ class MemoryToolSet:
     @property
     def names(self) -> tuple:
         return c.READ_TOOLS + (c.WRITE_TOOLS if self._write else ())
+
+    @property
+    def instructions(self) -> str:
+        """Short usage guide for the ``initialize`` result (clients such as Claude Code show it to the model)."""
+        return c.SERVER_INSTRUCTIONS + (c.SERVER_INSTRUCTIONS_WRITE if self._write else "")
 
     def schemas(self) -> List[Dict[str, Any]]:
         return c.tool_definitions(write=self._write)

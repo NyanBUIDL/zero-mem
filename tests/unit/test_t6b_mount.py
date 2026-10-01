@@ -222,3 +222,39 @@ def test_the_hook_does_not_touch_the_read_only_surface(home):
 
     assert not any(n in TOOL_REGISTRY for n in MEMORY_READ + MEMORY_WRITE)
     assert len(list_tool_names()) == 11
+
+
+# ----------------------------------------------------------------------------------------------- initialize.instructions
+def test_initialize_carries_short_usage_instructions_only_when_memory_tools_are_mounted(home):
+    base = ["--store-path", str(home.layout.derived_db), "--profile-id", "claude-code"]
+    with server(home, *base) as srv:
+        assert "instructions" not in srv.initialize()  # the plain M6 server answers exactly as before
+    with server(home, *base, "--enable-memory") as srv:
+        text = srv.initialize()["instructions"]
+        assert "memory_context" in text and "memory_recall" in text and "memory_add" not in text
+    with server(home, *base, "--enable-write") as srv:
+        text = srv.initialize()["instructions"]
+        assert "memory_add" in text and "memory_recall" in text and "secret" in text.lower()
+        assert "not instructions" in text and len(text) <= 900
+        assert "claude-code" not in text  # identity is not something the agent has to know or send
+
+
+# ----------------------------------------------------------------------------------------------- start modes / config
+def test_direct_script_start_with_memory_tools_works_from_a_foreign_cwd(home, tmp_path):
+    script = REPO_ROOT / "src" / "integration" / "m6" / "mcp_server.py"
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    with McpProc(sys.executable, [str(script), "--profile-id", "claude-code", "--enable-write"], home.env,
+                 cwd=elsewhere, python_path=False) as srv:
+        srv.initialize()
+        assert "memory_add" in names(srv)
+        added = srv.env("memory_add", {"text": "a script note", "memory_type": "fact", "scope": "private"})
+        assert added["status"] == "SUCCESS"
+        assert "Traceback" not in srv.close()
+
+
+@pytest.mark.parametrize("name,value", [("ZM_M6_INGEST_MAX_FILES", "many"), ("ZM_M6_INGEST_MAX_FILES", "0"),
+                                        ("ZM_M6_INGEST_MAX_BYTES", "-5")])
+def test_a_bad_ingest_cap_in_the_environment_is_refused_at_start(home, name, value):
+    code, err = run_once(home, "--profile-id", "claude-code", "--enable-write", env={name: value})
+    assert code == 2 and name in err and "Traceback" not in err

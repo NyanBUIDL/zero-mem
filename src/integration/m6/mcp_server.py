@@ -272,12 +272,16 @@ def _handle_rpc(method: str, params: Dict[str, Any], request_id: Optional[Any]) 
         return _respond(request_id, result={})
 
     if method == "initialize":
-        return _respond(request_id, result={
+        info: Dict[str, Any] = {
             "protocolVersion": "2024-11-05",
             "capabilities": {"tools": {}},
             "serverInfo": {"name": "zero-mem-m6", "version": _zm_version,
                            "identity": "pinned" if _IDENTITY.pinned else "unpinned"},
-        })
+        }
+        notes = [t for t in (getattr(mounted, "instructions", "") for mounted in _TOOL_SETS) if t]
+        if notes:  # only when extension tools are mounted: the plain M6 server answers exactly as before
+            info["instructions"] = "\n".join(notes)
+        return _respond(request_id, result=info)
 
     if method == "tools/list":
         tools = tool_schemas(include_identity=not _IDENTITY.pinned)
