@@ -17,6 +17,11 @@ from tests.unit.t6b_helpers import (AGENTS, SECRET_ENV, SECRET_TOKEN, McpProc, a
 from zero_mem.memory_layout import Layout
 from zero_mem.provisioning import Provisioner
 
+# Python 3.13 on Windows no longer treats "/etc/passwd" as absolute: build platform-absolute outside paths.
+ABS_PASSWD = os.path.abspath(os.sep + "etc" + os.sep + "passwd")
+ABS_ETC = os.path.abspath(os.sep + "etc")
+ABS_ROOT = os.path.abspath(os.sep)
+
 
 class Fleet:
     """One data root, four registered agents, servers started on demand from the printed registrations."""
@@ -211,7 +216,7 @@ def test_e2_paths_outside_the_allowlist_and_symlinks_are_refused(fleet):
     (fleet.docs / "sneaky.txt").symlink_to(outside / "vault.txt")
     (fleet.docs / "sneaky-dir").symlink_to(outside, target_is_directory=True)
     cc = fleet.start("claude-code")
-    for target in (outside, outside / "vault.txt", "/etc/passwd", "/", str(fleet.docs) + "/../outside"):
+    for target in (outside, outside / "vault.txt", ABS_PASSWD, ABS_ROOT, str(fleet.docs) + "/../outside"):
         result = cc.call("memory_ingest", {"path": str(target), "memory_type": "file", "scope": "private"})
         assert result["isError"] is True and result["structuredContent"]["status"] == "DENIED", target
         assert result["structuredContent"]["reason_code"] == "DENY_PATH_OUTSIDE_ALLOWLIST"

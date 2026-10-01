@@ -17,6 +17,11 @@ from tests.unit import adapters_fixtures as fx
 from tests.unit.t5_memory_helpers import Env
 from tests.unit.t6b_helpers import SECRET_ENV, SECRET_TOKEN, STATUS_ERRORS
 
+# Python 3.13 on Windows no longer treats "/etc/passwd" as absolute: build platform-absolute outside paths.
+ABS_PASSWD = os.path.abspath(os.sep + "etc" + os.sep + "passwd")
+ABS_ETC = os.path.abspath(os.sep + "etc")
+ABS_ROOT = os.path.abspath(os.sep)
+
 READ_TOOLS = ["memory_recall", "memory_context"]
 WRITE_TOOLS = ["memory_add", "memory_ingest", "memory_forget"]
 
@@ -448,7 +453,7 @@ def test_ingest_refuses_paths_outside_the_allowlist_without_revealing_anything(e
     outside.mkdir()
     (outside / "private.txt").write_text("the vault code is orchid", encoding="utf-8")
     ts = toolset(env, roots=[allowed])
-    for target in (outside, outside / "private.txt", tmp_path / "does-not-exist", "/etc/passwd", "/",
+    for target in (outside, outside / "private.txt", tmp_path / "does-not-exist", ABS_PASSWD, ABS_ROOT,
                    str(allowed) + "/../outside", str(allowed.parent), str(allowed) + "x"):
         result = ts.call("memory_ingest", {"path": str(target), "memory_type": "file", "scope": "private"})
         out = result["structuredContent"]
@@ -575,7 +580,7 @@ def test_error_results_carry_everything_the_model_needs_in_the_content_text(env,
          ["INVALID", "UNKNOWN_ARGUMENT", "colour"]),
         (("memory_add", {"text": "x", "memory_type": "fact", "scope": "private", "requesting_profile_id": "codex"}),
          ["DENIED", "DENY_IDENTITY_PINNED", "Remove it"]),
-        (("memory_ingest", {"path": "/etc", "memory_type": "file", "scope": "private"}),
+        (("memory_ingest", {"path": ABS_ETC, "memory_type": "file", "scope": "private"}),
          ["DENIED", "DENY_PATH_OUTSIDE_ALLOWLIST", "allowed"]),
         (("memory_ingest", {"path": str(allowed), "memory_type": "file", "scope": "private"}),
          ["PARTIAL", "1 created", "1 rejected", "leak.md", "secret_detected", "NOT stored"]),

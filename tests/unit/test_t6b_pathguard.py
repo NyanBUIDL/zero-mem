@@ -7,6 +7,11 @@ import pytest
 
 from src.integration.m6w import PathGuard, RootsConfigError, contracts as c, normalize_roots
 
+# Python 3.13 on Windows no longer treats "/etc/passwd" as absolute: build platform-absolute outside paths.
+ABS_PASSWD = os.path.abspath(os.sep + "etc" + os.sep + "passwd")
+ABS_ETC = os.path.abspath(os.sep + "etc")
+ABS_ROOT = os.path.abspath(os.sep)
+
 
 @pytest.fixture
 def tree(tmp_path):
@@ -58,7 +63,7 @@ def test_files_and_folders_under_the_root_are_accepted(tree):
     (lambda root, out: root.parent, c.DENY_PATH_OUTSIDE_ALLOWLIST),
     (lambda root, out: str(root) + "-sibling", c.DENY_PATH_OUTSIDE_ALLOWLIST),
     (lambda root, out: str(root) + "/../outside/o.txt", c.DENY_PATH_OUTSIDE_ALLOWLIST),
-    (lambda root, out: "/etc/passwd", c.DENY_PATH_OUTSIDE_ALLOWLIST),
+    (lambda root, out: ABS_PASSWD, c.DENY_PATH_OUTSIDE_ALLOWLIST),
     (lambda root, out: "/", c.DENY_PATH_OUTSIDE_ALLOWLIST),
     (lambda root, out: str(root) + "/missing.md", c.PATH_NOT_FOUND),
     (lambda root, out: str(root) + "/sub/missing/x.md", c.PATH_NOT_FOUND),
@@ -138,7 +143,7 @@ def test_no_roots_means_nothing_is_allowed(tree):
 def test_refusals_never_contain_a_path(tree):
     root, out = tree
     g = guard(root)
-    for target in (out / "o.txt", root / "missing", "/etc/passwd"):
+    for target in (out / "o.txt", root / "missing", ABS_PASSWD):
         verdict = g.check(str(target))
         assert str(root) not in repr(verdict) and str(out) not in repr(verdict)
 
