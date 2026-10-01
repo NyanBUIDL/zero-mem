@@ -74,3 +74,38 @@ def test_random_strings_split_identically():
         assert retrieval._split_words(text) == _ref_split(text), repr(text)
         for word in _ref_split(text):
             assert retrieval._fold(word) == _ref_fold(word), repr(word)
+
+
+# ----------------------------------------------------------------------------- phrase matching parity
+def _ref_token_matches(token: str, term: str) -> bool:
+    return token.startswith(term) if len(term) > 1 else token == term
+
+
+def _ref_has_phrase(tokens, phrase) -> bool:
+    width = len(phrase)
+    for start in range(len(tokens) - width + 1):
+        if all(_ref_token_matches(tokens[start + i], phrase[i]) for i in range(width)):
+            return True
+    return False
+
+
+def test_has_phrase_matches_the_reference_on_random_token_streams():
+    rng = random.Random(7)
+    vocab = ["blue", "green", "greenhouse", "c", "x", "rollout", "roll", "pre", "commit", "a", "ab", "abc", "deploy"]
+    for _ in range(600):
+        tokens = [rng.choice(vocab) for _ in range(rng.randint(0, 12))]
+        phrase = tuple(rng.choice(vocab) for _ in range(rng.randint(2, 3)))
+        assert retrieval._has_phrase(tokens, phrase) == _ref_has_phrase(tokens, phrase), (tokens, phrase)
+
+
+def test_prefix_term_frequency_matches_a_full_scan():
+    rng = random.Random(3)
+    vocab = ["roll", "rollout", "rolls", "rolled", "ro", "r", "blue", "green", "5", "23", "2023", "x", "xy"]
+    for _ in range(300):
+        text = " ".join(rng.choice(vocab) for _ in range(rng.randint(0, 15)))
+        doc = retrieval._doc_terms(text)
+        for word in vocab:
+            term = retrieval._QueryTerm(word, word, "")
+            expected = (sum(c for t, c in doc[1].items() if t.startswith(word)) if len(word) > 1
+                        else doc[1].get(word, 0))
+            assert retrieval._term_frequency(doc, term) == expected, (text, word)

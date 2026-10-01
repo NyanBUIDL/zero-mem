@@ -147,12 +147,36 @@ def test_neighbors_never_cross_a_source_boundary(tmp_path):
         ro.close()
 
 
-def test_a_neighbor_that_matches_the_query_is_boosted_by_its_strong_neighbor(tmp_path):
-    ro = _store(tmp_path, [_session("quokka quokka quokka facts", "a short quokka remark", "something else entirely"),
-                           doc("one more quokka remark of the same length", ref="file://solo.txt")])
+def test_a_neighbor_that_completes_the_question_is_boosted_by_its_strong_neighbor(tmp_path):
+    # query "alpha beta": unit 2 holds only "beta", its neighbor unit 1 holds "alpha" strongly -> adjacency completes the
+    # question and lifts unit 2 above an otherwise identical unit of another source.
+    ro = _store(tmp_path, [_session("alpha alpha alpha facts here", "a short beta remark", "something else entirely"),
+                           doc("a short beta remark", ref="file://solo.txt")])
     try:
-        ranked = texts(search(ro, "quokka", limit=10))
-        assert ranked.index("a short quokka remark") < ranked.index("one more quokka remark of the same length")
+        found = [(h.normalized_text, h.source_id) for h in search(ro, "alpha beta", limit=10).items]
+        beta_units = [source for text, source in found if text == "a short beta remark"]
+        assert len(beta_units) == 2
+        scores = {h.source_id: h.lexical_score for h in search(ro, "alpha beta", limit=10).items
+                  if h.normalized_text == "a short beta remark"}
+        assert max(scores.values()) > min(scores.values())
+        winner = max(scores, key=scores.get)
+        session_source = next(h.source_id for h in search(ro, "alpha beta", limit=10).items
+                              if h.normalized_text.startswith("alpha alpha"))
+        assert winner == session_source
+    finally:
+        ro.close()
+
+
+def test_adjacent_units_that_hold_the_same_words_do_not_lift_each_other(tmp_path):
+    # A run of rows that all contain "alpha" must not outrank an isolated unit that is the better match: only a
+    # neighbor that brings query terms the unit lacks counts as context.
+    rows = ["alpha row one", "alpha row two", "alpha row three", "alpha row four"]
+    ro = _store(tmp_path, [doc("\n\n".join(rows), ref="file://table.txt"),
+                           doc("alpha alpha", ref="file://isolated.txt")])
+    try:
+        assert texts(search(ro, "alpha", limit=10))[0] == "alpha alpha"
+        plain = {h.normalized_text: h.lexical_score for h in search(ro, "alpha", limit=10).items}
+        assert len({round(plain[row], 6) for row in rows}) <= 2  # no cluster reinforcement spread across the rows
     finally:
         ro.close()
 
@@ -199,5 +223,48 @@ def test_ranking_is_identical_across_calls_and_cache_states(tmp_path):
         retrieval_mod._doc_terms.cache_clear()
         second = [(h.normalized_text, h.lexical_score) for h in search(ro, "camping quokka", limit=10).items]
         assert first == second
+    finally:
+        ro.close()
+
+
+# ----------------------------------------------------------------------------- bounded candidate set
+@pytest.fixture
+def small_candidate_limit(monkeypatch):
+    monkeypatch.setattr(retrieval_mod, "_CANDIDATE_LIMIT", 5)
+
+
+def test_units_covering_more_query_terms_survive_the_candidate_limit(tmp_path, small_candidate_limit):
+    # 30 single-term matches registered BEFORE the one unit that holds both terms: rowid-order truncation would drop it.
+    docs = [doc(f"alpha filler number {i}", ref=f"file://a{i:02d}.txt") for i in range(30)]
+    docs.append(doc("alpha and beta together", ref="file://zz-both.txt"))
+    ro = _store(tmp_path, docs)
+    try:
+        found = texts(search(ro, "alpha beta", limit=3))
+        assert found[0] == "alpha and beta together"
+    finally:
+        ro.close()
+
+
+def test_the_candidate_limit_is_deterministic_and_never_counts_hidden_rows(tmp_path, small_candidate_limit):
+    visible = [doc(f"alpha note {i}", ref=f"file://v{i}.txt", profile="me") for i in range(12)]
+    visible.append(doc("alpha beta gamma", ref="file://v-best.txt", profile="me"))
+    hidden = [doc(f"alpha beta gamma delta {i}", ref=f"file://h{i}.txt", profile="other") for i in range(40)]
+    clean = _store(tmp_path, visible)
+    noisy = _store(tmp_path, hidden + visible)
+    try:
+        first = [(h.normalized_text, h.lexical_score) for h in search(clean, "alpha beta", profile="me", limit=4).items]
+        second = [(h.normalized_text, h.lexical_score) for h in search(noisy, "alpha beta", profile="me", limit=4).items]
+        assert first == second and first[0][0] == "alpha beta gamma"
+    finally:
+        clean.close()
+        noisy.close()
+
+
+def test_a_single_term_query_over_many_units_returns_a_stable_window(tmp_path, small_candidate_limit):
+    ro = _store(tmp_path, [doc(f"quokka entry {i}", ref=f"file://q{i:02d}.txt") for i in range(20)])
+    try:
+        a = texts(search(ro, "quokka", limit=10))
+        b = texts(search(ro, "quokka", limit=10))
+        assert a == b and len(a) == 5  # at most _CANDIDATE_LIMIT units are scored
     finally:
         ro.close()
