@@ -42,9 +42,12 @@ def test_secret_pattern_registry_is_explicit() -> None:
         "authorization_header",
         "bearer_token",
         "credential_url_userinfo",
+        "env_secret_assignment",  # DEF-049
+        "jwt_token",  # DEF-049
         "oauth_secret",
         "password_assignment",
         "private_key_block",
+        "vendor_api_token",  # DEF-049
     )
 
 

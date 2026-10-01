@@ -11,8 +11,9 @@ from typing import Any
 
 _RULES = (
     "api_key_assignment", "authorization_header", "bearer_token",
-    "credential_url_userinfo", "oauth_secret", "password_assignment",
-    "private_key_block",
+    "credential_url_userinfo", "env_secret_assignment", "jwt_token",
+    "oauth_secret", "password_assignment", "private_key_block",
+    "vendor_api_token",
 )
 _MARKER = "[REDACTED:{rule}]"
 
@@ -96,10 +97,73 @@ def _field_rule(key: str) -> str | None:
 
 _BEARER = re.compile(r"^\s*Bearer\s+\S+\s*$", re.I)
 _AUTH = re.compile(r"^\s*(?:Basic|Digest|Negotiate)\s+\S+\s*$", re.I)
-_URL_USER = re.compile(r"^[a-z][a-z0-9+.-]*://[^/@:]+:[^/@]+@", re.I)
+# DEF-049: credentials are detected ANYWHERE in free text, not only on anchored lines. Every
+# start-of-token guard below also keeps the scan linear on long unbroken runs of characters.
+_URL_USER = re.compile(r"(?<![A-Za-z0-9+.-])[a-z][a-z0-9+.-]*://[^\s/@:]+:[^\s/@]+@", re.I)
+_VENDOR_TOKEN = re.compile(
+    r"(?<![A-Za-z0-9_])(?:"
+    r"sk-[A-Za-z0-9_-]{20,}"             # Anthropic sk-ant-..., OpenAI sk-... / sk-proj-...
+    r"|(?:AKIA|ASIA)[0-9A-Z]{16}"        # AWS access key id
+    r"|gh[pousr]_[A-Za-z0-9]{20,}"       # GitHub ghp_ gho_ ghu_ ghs_ ghr_
+    r"|github_pat_[A-Za-z0-9_]{20,}"
+    r"|xox[abprs]-[A-Za-z0-9-]{10,}"     # Slack
+    r"|AIza[0-9A-Za-z_-]{30,}"           # Google API key
+    r"|[sr]k_live_[A-Za-z0-9]{16,}"      # Stripe secret / restricted key
+    r"|hf_[A-Za-z0-9]{30,}"              # Hugging Face
+    r")"
+)
+_JWT = re.compile(r"(?<![A-Za-z0-9_])eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}")
+# Inline header; "$VAR", "${VAR}", "<placeholder>" and "%s" are documentation, not credentials.
+_AUTH_INLINE = re.compile(
+    r"\bauthorization[\"']?[ \t]*[:=][ \t]*[\"']?(?:bearer|basic|token)[ \t]+(?![$<{%])[^\s\"']{6,}", re.I)
+_BEARER_INLINE = re.compile(r"\bbearer\s+(?=[A-Za-z0-9._~+/=-]*\d)[A-Za-z0-9._~+/=-]{20,}", re.I)
+_ENV_ASSIGN = re.compile(
+    r"(?<![A-Za-z0-9_.-])(?P<export>export[ \t]+)?(?P<name>[A-Za-z_][A-Za-z0-9_]*)[ \t]*=(?!=)[ \t]*"
+    r"(?P<value>\"[^\"\n]{6,}\"|'[^'\n]{6,}'|(?![$<{%\[(=])[^\s\"']{6,})")
+_ENV_SECRET_WORDS = frozenset({"TOKEN", "SECRET", "KEY", "APIKEY", "PASSWORD", "PASSWD", "PASSPHRASE"})
+# A trailing word that marks metadata about a secret (a path, an id...), not the secret itself.
+_ENV_METADATA_TAIL = frozenset({"PATH", "FILE", "DIR", "URL", "URI", "ID", "NAME", "TYPE", "HEADER",
+                                "BINDING", "BINDINGS", "LENGTH", "SIZE", "COUNT", "TTL", "LIMIT"})
 _PRIVATE = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*-----END [A-Z0-9 ]*PRIVATE KEY-----", re.S)
 _PRIVATE_BEGIN = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----", re.S)
 _ASSIGN = re.compile(r"(?:api[_-]?key|api[_-]?secret|password|passwd|passphrase|client[_-]?secret|access[_-]?token|refresh[_-]?token)\s*[:=]\s*\S+", re.I)
+
+
+def _has_env_secret(value: str) -> bool:
+    """``export NAME=value`` / ``NAME=value`` where NAME names a token/secret/key/password."""
+    for match in _ENV_ASSIGN.finditer(value):
+        name = match.group("name")
+        if not match.group("export") and name != name.upper():
+            continue  # lower-case "key=value" outside an export is ordinary code/prose
+        words = name.upper().split("_")
+        if not _ENV_SECRET_WORDS.intersection(words) or words[-1] in _ENV_METADATA_TAIL:
+            continue
+        literal = match.group("value")
+        if literal[0] in "\"'":
+            literal = literal[1:-1]
+        elif any(ch in literal for ch in "()[]"):
+            continue  # a code reference such as os.environ["X"], not a literal
+        if literal[:1] in "$<{%" or literal.startswith("[REDACTED:"):
+            continue  # placeholder or an already-redacted marker
+        if literal.lower().replace("-", "_") == name.lower():
+            continue  # enum-style label such as SECRET = "secret"
+        return True
+    return False
+
+
+def _text_secret_rule(value: str) -> str | None:
+    """Rule id of a credential embedded anywhere in free text (DEF-049), else None."""
+    if _VENDOR_TOKEN.search(value):
+        return "vendor_api_token"
+    if _JWT.search(value):
+        return "jwt_token"
+    if _AUTH_INLINE.search(value):
+        return "authorization_header"
+    if _BEARER_INLINE.search(value):
+        return "bearer_token"
+    if _has_env_secret(value):
+        return "env_secret_assignment"
+    return None
 
 
 def _redact_string(value: str, path: str, key_rule: str | None, audit: dict[str, Any]) -> str:
@@ -114,10 +178,12 @@ def _redact_string(value: str, path: str, key_rule: str | None, audit: dict[str,
         rule = "authorization_header"
     elif key_rule == "authorization_header":
         rule = "authorization_header"
-    elif _URL_USER.match(value):
+    elif _URL_USER.search(value):
         rule = "credential_url_userinfo"
     elif _ASSIGN.search(value):
         rule = rule or "api_key_assignment"
+    else:
+        rule = rule or _text_secret_rule(value)
     if rule:
         audit["rules"].add(rule)
         audit["paths"].add(path)
