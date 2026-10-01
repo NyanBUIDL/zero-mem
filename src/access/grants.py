@@ -168,6 +168,15 @@ def compose_effective_scope(request: AccessRequest,
     requested_projects = set(request.project_ids or [])
     requested_spaces = set(request.knowledge_space_ids or [])
 
+    # DEF-063: a knowledge-space grant applies only to a space the request names.
+    # Callers (the MCP handlers) resolve ALL of the requester's READ grants up
+    # front; without this narrowing every granted space was added as a grant scope
+    # whatever the request asked for, so an unknown/ungranted/unrequested space
+    # returned the rows of every granted space.
+    grants = [g for g in (grants or [])
+              if not (g.target_type == "knowledge_space"
+                      and g.target_id not in requested_spaces)]
+
     base_allowed_profiles = set(base.normalized_scope.allowed_profile_ids)
     if requester is not None:
         base_allowed_profiles.add(requester)

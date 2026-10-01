@@ -297,17 +297,42 @@ def handle_project_list_artifacts(req: M6Request, runtime: Optional[M6Runtime] =
 # -------------------------------------------------------------------------
 # M6.5 — derived corpus knowledge-base read (authorization-safe, reuse M5)
 # -------------------------------------------------------------------------
+# ADR-V170-01: the two source-provenance filters ``corpus_search`` accepts. They narrow
+# AFTER authorization (retrieve_corpus) and can never widen the authorized scope.
+_CORPUS_FILTER_KEYS = ("memory_type", "external_ref_prefix")
+
+
+def _corpus_filters(req: M6Request) -> Dict[str, Any]:
+    """Validated ``corpus_search`` filters; anything unsupported is INVALID_REQUEST
+    (silently ignoring a filter would hand the agent unfiltered results)."""
+    filters = req.filters or {}
+    if any(key not in _CORPUS_FILTER_KEYS for key in filters):
+        raise M6Error(M6ErrorCode.INVALID_REQUEST, "unsupported corpus_search filter",
+                      reason_code="UNSUPPORTED_FILTER")
+    selected = {key: filters[key] for key in _CORPUS_FILTER_KEYS
+                if filters.get(key) is not None}
+    if selected:
+        from src.corpus.query_planner import CorpusMetadataFilter, CorpusQueryError
+        try:
+            CorpusMetadataFilter.from_dict(selected)
+        except CorpusQueryError:
+            raise M6Error(M6ErrorCode.INVALID_REQUEST, "invalid corpus_search filter value",
+                          reason_code="INVALID_FILTER") from None
+    return selected
+
+
 def handle_corpus_search(req: M6Request, runtime: Optional[M6Runtime] = None) -> List[Dict[str, Any]]:
     runtime = runtime or get_runtime()
     if not req.search_text:
         raise M6Error(M6ErrorCode.INVALID_REQUEST, "search_text required")
+    metadata = _corpus_filters(req)
     svc, store, grants = _open_facade(runtime, req)
     try:
         # corpus_unit_search forces resource_type="corpus_unit" internally and
         # enumerates the authorized scope before any FTS discovery (M5/M6.6).
         ar = svc.corpus_unit_search(
             build_access_request(req, resource_type=ResourceType.CORPUS_UNIT),
-            req.search_text, grants=grants, limit=req.limit)
+            req.search_text, metadata=metadata or None, grants=grants, limit=req.limit)
         return _translate_items(ar)
     finally:
         store.close()

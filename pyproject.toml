@@ -27,6 +27,8 @@ ci = ["build"]
 
 [project.scripts]
 zero-mem = "zero_mem.cli:main"
+# Read-only MCP server (stdio). Pin the agent identity: zero-mem-mcp --profile-id <agent>.
+zero-mem-mcp = "src.integration.m6.mcp_server:main"
 
 [tool.setuptools]
 include-package-data = false

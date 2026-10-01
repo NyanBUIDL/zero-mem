@@ -13,6 +13,13 @@ Usage:
   python3 examples/mcp_client_poc.py --store-path <derived.sqlite> \
       --tool memory_search --arguments '{"search_text":"kelly criterion","...}'
 
+  Add --profile-id <agent> to pin the identity server-side (DEF-052); the tool
+  arguments then must not carry another requesting_profile_id.
+
+Result shape (DEF-062): ``structuredContent`` is the complete sanitized envelope
+(status, results, reason_code, diagnostics); ``content[0].text`` is only a short
+summary of it; ``isError`` is true for every status except SUCCESS and EMPTY.
+
 Or run the bundled demo:
   python3 examples/mcp_demo.py --store-path <derived.sqlite>
 """
@@ -49,12 +56,16 @@ def call_tool(proc, tool: str, arguments: Dict[str, Any], request_id: int = 3) -
     return resp["result"]
 
 
-def run_poc(store_path: Path, tool: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+def run_poc(store_path: Path, tool: str, arguments: Dict[str, Any],
+            profile_id: Optional[str] = None) -> Dict[str, Any]:
     server = Path(__file__).resolve().parent.parent / "src" / "integration" / "m6" / "mcp_server.py"
     if not server.exists():
         raise RuntimeError(f"MCP server not found at {server}")
+    command = [sys.executable, str(server), "--store-path", str(store_path)]
+    if profile_id:
+        command += ["--profile-id", profile_id]
     proc = subprocess.Popen(
-        [sys.executable, str(server), "--store-path", str(store_path)],
+        command,
         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
         text=True, bufsize=1,
     )
@@ -79,12 +90,14 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--store-path", required=True)
     ap.add_argument("--tool", default="memory_search")
+    ap.add_argument("--profile-id", default=None,
+                    help="Pin the requesting profile server-side (zero-mem-mcp --profile-id).")
     ap.add_argument("--arguments", default='{"search_text":"kelly criterion","limit":3}',
                     help="JSON object of tool arguments.")
     args = ap.parse_args()
 
     arguments = json.loads(args.arguments)
-    result = run_poc(Path(args.store_path), args.tool, arguments)
+    result = run_poc(Path(args.store_path), args.tool, arguments, args.profile_id)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 

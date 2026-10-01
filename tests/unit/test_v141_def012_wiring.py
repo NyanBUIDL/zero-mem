@@ -6,7 +6,8 @@ zero_mem_runtime, m7/m8_integration). These tests pin the REQUIRED behavior:
 
 1. M6Runtime.configure accepts an optional corpus_store_path and exposes a
    read-only corpus connection; unconfigured => None (fail-closed preserved).
-2. Bad configured path fails LOUDLY at configure time (not silently).
+2. Bad configured path: DEF-066 supersedes 'fails loudly' - corpus search reads the
+   main store, so a bad path is dropped with a recorded error code (server still starts).
 3. The m6 handler facade (_open_facade) passes the corpus connection through,
    so a knowledge-space grant authorizes event reads THROUGH THE REAL HANDLER
    PATH (integration-level, not hand-constructed service).
@@ -122,14 +123,21 @@ class TestRuntimeCorpusPath:
         finally:
             rt.close_default()
 
-    def test_configure_with_bad_corpus_path_fails_loudly(self, tmp_path):
-        """Configured but invalid path => error AT CONFIGURE TIME (loud),
-        never a silent silent-degrade into non-authorizing mode."""
+    def test_configure_with_bad_corpus_path_degrades_without_aborting(self, tmp_path):
+        """DEF-066 (supersedes 'fails loudly'): corpus search reads the main store,
+        so a configured-but-invalid corpus store path must NOT abort the server.
+        The runtime starts, drops the path (fail-closed: no corpus connection) and
+        records the stable error code (no path) for diagnostics."""
         from src.integration.m6 import runtime as rt
 
-        with pytest.raises(Exception):
-            rt.configure(tmp_path / "main.sqlite",
-                         corpus_store_path=tmp_path / "missing.sqlite")
+        try:
+            r = rt.configure(tmp_path / "main.sqlite",
+                             corpus_store_path=tmp_path / "missing.sqlite")
+            assert r.corpus_store_path is None
+            assert r.open_corpus_conn() is None
+            assert r.corpus_store_config_error == "missing_corpus_store"
+        finally:
+            rt.close_default()
 
     def test_env_var_fallback(self, tmp_path, monkeypatch):
         from src.integration.m6 import runtime as rt
@@ -143,11 +151,18 @@ class TestRuntimeCorpusPath:
             if rt._default_runtime is not None:
                 rt.close_default()
 
-    def test_relative_path_rejected(self, tmp_path):
+    def test_relative_path_degrades_without_aborting(self, tmp_path):
+        """DEF-066 (supersedes 'rejected'): a relative path is still never used,
+        but it no longer aborts the server start."""
         from src.integration.m6 import runtime as rt
 
-        with pytest.raises(Exception):
-            rt.configure(tmp_path / "main.sqlite", corpus_store_path="relative/db.sqlite")
+        try:
+            r = rt.configure(tmp_path / "main.sqlite",
+                             corpus_store_path="relative/db.sqlite")
+            assert r.corpus_store_path is None
+            assert r.corpus_store_config_error == "relative_corpus_store_path"
+        finally:
+            rt.close_default()
 
 
 def _make_service(runtime):

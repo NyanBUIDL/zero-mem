@@ -1040,7 +1040,9 @@ class AuthorizedReadService:
         auth_scope = AuthorizedCorpusScope(allowed_scopes=tuple(deduped))
 
         try:
-            plan = build_query_plan(text, metadata=metadata, limit=limit or 100)
+            # DEF-061: no caller limit -> the planner's token-friendly default
+            # (DEFAULT_RESULT_LIMIT); an explicit limit is honoured up to its cap.
+            plan = build_query_plan(text, metadata=metadata, limit=limit)
         except Exception as exc:
             return self._downstream(eff, f"corpus_query_plan_error:{type(exc).__name__}")
 
