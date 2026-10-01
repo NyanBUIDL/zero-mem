@@ -119,6 +119,15 @@ def _scope_of(profile_id: Optional[str], project_id: Optional[str], space: Optio
     return "private"
 
 
+def _file_identity(path: Path) -> Optional[tuple]:
+    """``(device, inode)`` of ``path`` (None when it does not exist): changes when the file is replaced."""
+    try:
+        info = os.stat(path)
+    except OSError:
+        return None
+    return info.st_dev, info.st_ino
+
+
 def _clip(text: str, limit: int) -> str:
     """Cut ``text`` to at most ``limit`` chars at a word boundary, marking the cut with an ellipsis."""
     if limit <= 0:
@@ -159,6 +168,11 @@ class Memory:
         self._blobs = None
         self._lookup = OperatorApprovalLookup(layout.memory_stream)
         self._closed = False
+        # Read side (T7): one read-only connection reused by recall/context while the database file is the same
+        # (opening it fingerprints the whole file twice, which grows with the store); serialized by its own lock.
+        self._ro = None
+        self._ro_ident: Optional[tuple] = None
+        self._read_lock = threading.RLock()
 
     # ------------------------------------------------------------------ lifecycle
     @classmethod
@@ -209,6 +223,8 @@ class Memory:
             self._registry = None
             self._blobs = None
             self._closed = True
+        with self._read_lock:
+            self._drop_readonly()
 
     def __enter__(self) -> "Memory":
         return self
@@ -634,6 +650,24 @@ class Memory:
         return build_ingest_report(status, reason, results, skipped)
 
     # ------------------------------------------------------------------ reads: shared plumbing
+    def _drop_readonly(self) -> None:
+        ro, self._ro, self._ro_ident = self._ro, None, None
+        if ro is not None:
+            ro.close()
+
+    def _readonly(self):
+        """The reused read-only connection; reopened when the derived database file was replaced (upgrade, restore)."""
+        from src.retrieval.db import open_readonly
+
+        path = self._layout.derived_db
+        ident = _file_identity(path)
+        if self._ro is not None and ident is not None and ident == self._ro_ident:
+            return self._ro
+        self._drop_readonly()
+        ro = open_readonly(path)
+        self._ro, self._ro_ident = ro, _file_identity(path)
+        return ro
+
     def _read_requests(self, include_private: bool, project_id: Optional[str]) -> list:
         from src.access import AccessRequest
 
@@ -653,28 +687,29 @@ class Memory:
     def _search(self, requests: list, text: str, metadata: Optional[dict], limit: int):
         """Run every request through the authorized facade; return ``(hits_by_unit_id, notes, errors)``."""
         from src.access import AuthorizedReadService
-        from src.retrieval.db import open_readonly
 
-        ro = open_readonly(self._layout.derived_db)
         merged: dict[str, Any] = {}
         notes: dict[str, str] = {}
         errors: list[str] = []
-        try:
-            service = AuthorizedReadService(ro, self._profile, grant_conn=ro.conn)
-            for label, request in requests:
-                result = service.corpus_unit_search(request, text, metadata=metadata, limit=limit)
-                notes[label] = result.reason_code
-                if result.denied:
-                    continue
-                if result.is_downstream_error:
-                    errors.append(f"{label}:{result.error}")
-                    continue
-                for hit in result.items:
-                    best = merged.get(hit.unit_id)
-                    if best is None or hit.combined_score > best.combined_score:
-                        merged[hit.unit_id] = hit
-        finally:
-            ro.close()
+        with self._read_lock:
+            try:
+                ro = self._readonly()
+                service = AuthorizedReadService(ro, self._profile, grant_conn=ro.conn)
+                for label, request in requests:
+                    result = service.corpus_unit_search(request, text, metadata=metadata, limit=limit)
+                    notes[label] = result.reason_code
+                    if result.denied:
+                        continue
+                    if result.is_downstream_error:
+                        errors.append(f"{label}:{result.error}")
+                        continue
+                    for hit in result.items:
+                        best = merged.get(hit.unit_id)
+                        if best is None or hit.combined_score > best.combined_score:
+                            merged[hit.unit_id] = hit
+            except Exception:
+                self._drop_readonly()  # never keep a connection that failed mid-call
+                raise
         return merged, notes, errors
 
     def _to_hit(self, hit) -> RecallHit:
