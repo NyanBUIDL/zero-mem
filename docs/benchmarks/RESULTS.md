@@ -15,10 +15,11 @@ raw JSON reports are reproducible with the commands in section 11. Zero LLM call
   the order of the units: hit@10 **0.7891**, recall@10 **0.7352** on the same questions and gold turns (T5 ranking: 0.6372 / 0.5865).
 * LoCoMo session-level: hit@10 0.9384 -> **0.9596**, recall@10 0.8958 -> **0.9240**.
 * **LongMemEval itself could not be measured**: `huggingface.co` answers HTTP 403 to the sandbox proxy (organization egress
-  policy; not retried, not routed around). The session-level pipeline was exercised on a **synthetic** LongMemEval-format file
+  policy; not retried, not routed around; T10b re-tried every alternative source, all blocked, section 10). The session-level pipeline was exercised on a **synthetic** LongMemEval-format file
   (`benchmarks/synth_longmemeval.py`); its numbers are not LongMemEval numbers (section 10).
 * Median `Memory.recall` latency on a LoCoMo conversation **29 -> 7 ms** (p95 41 -> 9 ms), because of three behaviour-neutral
-  performance fixes. On a 13k-unit store the new ranking is slower than the old AND-first one (p50 31-46 ms vs 1-2 ms, section 9).
+  performance fixes. On a 13k-unit store the new ranking is slower than the old AND-first one (p50 31-46 ms vs 1-2 ms, section 9);
+  T10b cut that by about 30 % with two SQL plan fixes (p50 30.6 -> 19-24 ms on the probe of section 9, ranking fingerprints unchanged).
 * One authorization finding (hidden rows decided the AND/OR fallback) was fixed and pinned by black-box tests (section 8).
 
 ## 2. What is and is not measured
@@ -297,12 +298,43 @@ of neighbor propagation had lost 0.08 p@1 there before it was made coverage-awar
 but it is not the 1-5 ms of the previous ranking. A follow-up could choose the ranking per memory type (chat-like sources vs files);
 that is not done here.
 
+### T10b follow-up: scale latency (DEF-076)
+
+Profile of `Memory.recall` on the 13,687-unit store built from `docs/` (150 queries of 4 random words of a random unit, warm process):
+70 % of the time was SQLite. Two plans were wrong, both fixed without touching ranking or authorization:
+
+* neighbor lookup `WHERE u.duplicate_of IS NULL AND ((source_ref = ? AND unit_order = ?) OR ...)` picked the `duplicate_of` index
+  and scanned every unit (3.5 ms per call); `+u.duplicate_of` keeps the `source_ref` index (0.01 ms). `_propagate_neighbors` 10.6 -> 1.5 ms per recall.
+* the discovery join let SQLite scan `duplicate_of` and build an automatic index over the grouped FTS matches on every query (a query with
+  one hit cost 3.9 ms, now 0.03 ms); `CROSS JOIN` fixes the order, and the 500-unit window is chosen from narrow rows before the text and
+  source columns are read (`_fts_discovery_sql`).
+
+| 13.7k-unit store, 4-word queries | recall p50 | p95 | mean |
+|---|---|---|---|
+| before (`98e13be`) | 30.6-31.1 ms | 38-39 | 31 |
+| after | 19.0-24.3 ms (3 runs) | 32-39 | 20-25 |
+
+LoCoMo is unchanged to the byte: fingerprints `67acb66a2455abe8` (A), `972f8f2058a3fb26` (B), `6ddd43ce16a38e80` (C), `--check-determinism` passes;
+hit@10 / recall@10 0.6907 / 0.6313 (A), 0.7891 / 0.7352 (B), 0.9596 / 0.9240 (C); LoCoMo latency p50 7.3 / 8.5 / 8.5 ms.
+
+Rejected (measured, not kept): dropping 40 English stopwords from the discovery terms saved about 3 ms more and left LoCoMo hit@10 / recall@10
+at 0.6907 / 0.6313 and 0.9596 / 0.9240, but it changed the ranking fingerprints (`61a12a6266e0b025`, `6e4291d884fae0c4`) and hard-codes an
+English list in the discovery path for a 10 % gain. Not pursued: the private and shared sub-requests each run the full pipeline (the recall
+makes two `retrieve_corpus` calls); merging them changes authorization plumbing. Remaining cost is the FTS grouping of common words (about 6 ms
+per retrieve) and Python BM25 (about 5 ms per recall); the 1-2 ms of the old AND-first ranking is not recoverable with this design.
+
 ## 10. Honest limits
 
 * **No real LongMemEval numbers.** Download of `longmemeval_s_cleaned.json` failed (HTTP 403 from the egress policy on
   `huggingface.co`). Section 4 D is a synthetic template-based set: it checks the session-level code path and ranks changes that
   affect word matching (stemming moved single-session-assistant hit@1 from 0.50 to 1.00), and it saturates at 0.8667 hit@10 because the remaining questions need meaning.
   Do not quote D as a LongMemEval result. `benchmarks/README.md` documents how to run the real file.
+  T10b (2026-10-01) retried the legitimate alternatives; every one is blocked by the egress policy (proxy `CONNECT` 403, status endpoint
+  reports `connect_rejected`): `huggingface.co` (resolve URL and API), `hf-mirror.com`, `github.com` and `api.github.com` (repo, releases),
+  `drive.google.com`, `drive.usercontent.google.com`, `docs.google.com`, `modelscope.cn`, `zenodo.org`, the project page `xiaowu0162.github.io`.
+  Reachable: `raw.githubusercontent.com` and PyPI, but the GitHub repo ships no data files (`/data/` and `/data/longmemeval_oracle.json` are 404; the
+  README points only at Hugging Face and Google Drive) and no PyPI package carries the dataset (`huggingface_hub` would use the blocked host).
+  No LongMemEval number exists in this repository; none was estimated.
 * **Lexical only.** No semantic or embedding matching, no query rewriting; "which novel" will never match "book". The optional
   `SemanticAdapter` hook in `retrieval.py` is untouched and unused.
 * **Retrieval is not QA accuracy.** The official LoCoMo / LongMemEval metrics are LLM-judged answers; recall of the evidence is an
@@ -313,7 +345,7 @@ that is not done here.
   differences); that is why the bar was 0.005 for a change and 0.01 for a regression.
 * **English only** stopwords and stemming. Vietnamese diacritic folding is kept; Vietnamese matching of tone-marked text still depends
   on the FTS tokenizer options of the derived store (T2 scope).
-* **Large stores** answer slower than before (section 9); within-source duplicate units are still excluded at discovery.
+* **Large stores** answer slower than before (section 9, partly recovered in the T10b follow-up); within-source duplicate units are still excluded at discovery.
 * The coordination factor costs the session-level configuration 0.004 hit@10 (section 6).
 * LoCoMo evidence ids that match no turn (9 questions) cap the turn-level recall slightly; the benchmark keeps them as the dataset has them.
 
