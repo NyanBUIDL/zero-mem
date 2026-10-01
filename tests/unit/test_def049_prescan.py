@@ -112,19 +112,24 @@ def test_scan_is_pure_and_repeatable():
     assert data == before
 
 
-def test_notes_store_reuses_central_redactor(tmp_path):
-    from zero_mem import notes
-    from zero_mem.notes import NotesStore
+def test_memory_write_path_reuses_central_redactor(tmp_path):
+    """Ported from the retired notes store: the library has no private credential regex, it rejects through the
+    central redactor, and a rejected text leaves nothing behind."""
+    from zero_mem import memory as memory_mod
+    from zero_mem.memory import Memory
 
-    assert not hasattr(notes, "_VENDOR_SECRET"), "notes.py must reuse src.redaction, not its own regex"
-    store = NotesStore(tmp_path / "n.jsonl", tmp_path / "n.sqlite3")
-    extra = [
-        "hf" + "_" + "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789"[:34],
-        "sk" + "_live_" + "A1b2C3d4E5f6G7h8I9j0K1l2",
-        "export GITHUB_TOKEN=abcdef1234567890",
-        "connect postgres://admin:s3cretpw@db.internal:5432/app now",
-    ]
-    for text in extra:
-        assert store.add_text(f"remember {text} for later")["rejected_secret"] == 1, text
-    assert store.count() == 0
-    assert store.add_text("Alice prefers PostgreSQL.")["added"] == 1
+    assert not hasattr(memory_mod, "_VENDOR_SECRET"), "memory.py must reuse src.redaction, not its own regex"
+    mem = Memory.open("p1", data_root=tmp_path / "zm")
+    try:
+        extra = [
+            "hf" + "_" + "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789"[:34],
+            "sk" + "_live_" + "A1b2C3d4E5f6G7h8I9j0K1l2",
+            "export GITHUB_TOKEN=abcdef1234567890",
+            "connect postgres://admin:s3cretpw@db.internal:5432/app now",
+        ]
+        for text in extra:
+            assert mem.add(f"remember {text} for later").status == "rejected_secret", text
+        assert mem.status()["sources"]["total"] == 0
+        assert mem.add("Alice prefers PostgreSQL.").status == "created"
+    finally:
+        mem.close()

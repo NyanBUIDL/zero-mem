@@ -42,6 +42,7 @@ from .memory_results import (
     RecallHit,
     RecallResult,
     WriteResult,
+    build_ingest_report,
 )
 from .provisioning import (
     SHARED_SPACE,
@@ -69,6 +70,16 @@ _SEGMENT = r"[A-Za-z0-9][A-Za-z0-9._:~+@%-]*"
 _NAME_RE = re.compile(rf"^{_SEGMENT}(?:/{_SEGMENT})*$")
 _DEVLOG_REF_RE = re.compile(r"^mem://devlog/([^/]+)/(\d{4}-\d{2}-\d{2})(?:/|$)")
 _WORD_RE = re.compile(r"\w", re.UNICODE)
+_WORDS_RE = re.compile(r"\w+", re.UNICODE)
+#: Function words dropped from natural-language questions before retrieval (never when nothing else is left).
+_STOPWORDS = frozenset(
+    "a an and are as at be but by did do does for from had has have how i if in is it its me my of on or our "
+    "so than that the their them then there these they this to us was we were what when where which who whom "
+    "why will with would you your".split()
+)
+_PROVENANCE_KEY_RE = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
+MAX_PROVENANCE_KEYS = 8
+MAX_PROVENANCE_VALUE_CHARS = 200
 
 _SCOPE_FIELDS = {  # scope -> (uses project, uses shared space)
     "private": (False, False),
@@ -81,7 +92,6 @@ _CONTEXT_SECTIONS = (  # (title, memory_type, share of the budget)
     ("Skills", "skill", 0.20),
     ("Recent devlog", "devlog", 0.20),
 )
-_BENIGN_SKIPS = frozenset({"hidden", "excluded_dir", "symlink", "empty", "unsupported_binary", "not_regular_file"})
 
 
 class MemoryConfigError(ValueError):
@@ -251,6 +261,24 @@ class Memory:
         return clean
 
     @staticmethod
+    def _check_provenance(provenance: Any) -> dict:
+        """Closed caller provenance: <= 8 short scalar fields. Never part of the source identity."""
+        if provenance is None:
+            return {}
+        if not isinstance(provenance, dict) or len(provenance) > MAX_PROVENANCE_KEYS:
+            raise _Invalid("invalid_provenance")
+        for key, value in provenance.items():
+            if not isinstance(key, str) or not _PROVENANCE_KEY_RE.fullmatch(key):
+                raise _Invalid("invalid_provenance")
+            if isinstance(value, bool) or not isinstance(value, (str, int)):
+                raise _Invalid("invalid_provenance")
+            if isinstance(value, str) and len(value) > MAX_PROVENANCE_VALUE_CHARS:
+                raise _Invalid("invalid_provenance")
+            if isinstance(value, int) and abs(value) > 2 ** 53:
+                raise _Invalid("invalid_provenance")
+        return dict(provenance)
+
+    @staticmethod
     def _check_name(name: Any, limit: int = MAX_NAME_CHARS) -> Optional[str]:
         if name is None:
             return None
@@ -384,7 +412,8 @@ class Memory:
         base = dict(name=display_name, external_ref=external_ref, memory_type=memory_type, scope=scope, **fields)
         if len(external_ref) > 512:
             return WriteResult(status="invalid", reason="name_too_long", **base)
-        blocked = self._preflight(content, kind, [external_ref])
+        scanned = [external_ref] + [v for v in (provenance or {}).values() if isinstance(v, str)]
+        blocked = self._preflight(content, kind, scanned)
         if blocked is not None:
             status, reason, rule_ids = blocked
             return WriteResult(status=status, reason=reason, rule_ids=rule_ids, **base)
@@ -401,7 +430,7 @@ class Memory:
         from src.corpus.registry import corpus_write_lock
 
         meta = {"memory_type": memory_type}
-        prov = {"channel": self._channel, "writer": "zero_mem.memory", "profile": self._profile, **provenance}
+        prov = {**provenance, "channel": self._channel, "writer": "zero_mem.memory", "profile": self._profile}
         with self._lock:
             registry, blobs = self._corpus()
             conn = self._conn()
@@ -448,6 +477,7 @@ class Memory:
         project_id: Optional[str] = None,
         *,
         kind: Optional[str] = None,
+        provenance: Optional[dict] = None,
     ) -> WriteResult:
         """Remember ``text`` as ``memory_type`` in ``scope`` (default private; devlog is always project).
 
@@ -460,6 +490,7 @@ class Memory:
             name = self._check_name(name)
             if kind is not None and kind not in TEXT_KINDS:
                 raise _Invalid("invalid_kind")
+            extra = self._check_provenance(provenance)
             clean = self._clean_text(text)
         except _Invalid as exc:
             return WriteResult(status="invalid", reason=exc.reason, **invalid_base)
@@ -473,7 +504,7 @@ class Memory:
             return self._write_one(
                 content=content, kind=kind or _DEFAULT_KIND.get(memory_type, "txt"), memory_type=memory_type,
                 scope=scope, project_id=project_id, ref_name=name,
-                provenance={"tool": "add"})
+                provenance={**extra, "tool": "add"})
         except Exception as exc:
             return WriteResult(status="error", reason=f"internal_error:{type(exc).__name__}", **invalid_base)
 
@@ -596,16 +627,7 @@ class Memory:
 
     @staticmethod
     def _report(status: Optional[str], reason: Optional[str], results: list, skipped: list) -> IngestReport:
-        counts = {k: 0 for k in ("created", "updated", "unchanged", "rejected_secret", "rejected_content",
-                                 "invalid", "denied", "error")}
-        for res in results:
-            counts[res.status] = counts.get(res.status, 0) + 1
-        counts["skipped"] = len(skipped)
-        if status is None:
-            bad = sum(counts[k] for k in ("rejected_secret", "rejected_content", "invalid", "denied", "error"))
-            loud_skips = [s for s in skipped if s.get("reason") not in _BENIGN_SKIPS]
-            status = "ok" if not bad and not loud_skips else "partial"
-        return IngestReport(status=status, reason=reason, files=results, skipped=skipped, counts=counts)
+        return build_ingest_report(status, reason, results, skipped)
 
     # ------------------------------------------------------------------ reads: shared plumbing
     def _read_requests(self, include_private: bool, project_id: Optional[str]) -> list:
@@ -687,7 +709,7 @@ class Memory:
             metadata = {"memory_type": types[0]} if len(types) == 1 else None
             internal = limit if len(types) <= 1 else min(MAX_RECALL_LIMIT * 2, limit * 5)
             merged, notes, errors = self._search(
-                self._read_requests(include_private, project_id), query.strip(), metadata, internal)
+                self._read_requests(include_private, project_id), self._search_text(query), metadata, internal)
             if errors and not merged:
                 return RecallResult(status="error", reason="retrieval_failed", notes=notes)
             if notes and all(code.startswith("DENY") for code in notes.values()):
@@ -700,6 +722,15 @@ class Memory:
             return RecallResult(status="ok" if out else "empty", hits=out, notes=notes)
         except Exception as exc:
             return RecallResult(status="error", reason=f"internal_error:{type(exc).__name__}")
+
+    @staticmethod
+    def _search_text(query: str) -> str:
+        """The query without English function words ("what is the name of the cat" -> "name cat").
+
+        Deterministic and local. A query made only of function words is searched as written.
+        """
+        kept = [w for w in _WORDS_RE.findall(query.lower()) if w not in _STOPWORDS]
+        return " ".join(kept) if kept else query.strip()
 
     @staticmethod
     def _check_types(memory_types: Any) -> list[str]:

@@ -59,6 +59,27 @@ def test_recall_finds_hyphenated_and_symbol_terms(env, query, needle):
     assert needle in m.recall(query)[0].text
 
 
+def test_recall_ignores_stopwords_in_natural_language_questions(env):
+    m = env.open("claude-code")
+    m.add("A: I adopted a cat named Miso.")
+    m.add("B: The weather is lovely today.")
+    res = m.recall("What is the name of the cat?")
+    assert res[0].text == "A: I adopted a cat named Miso."
+
+
+def test_recall_keeps_the_original_query_when_it_is_only_stopwords(env):
+    m = env.open("claude-code")
+    m.add("To be or not to be, that is the question.")
+    assert m.recall("to be or not to be").status == "ok"
+
+
+def test_recall_keeps_single_letter_terms_that_are_not_stopwords(env):
+    m = env.open("claude-code")
+    m.add("We use R for statistics.")
+    m.add("Unrelated line about gardening.")
+    assert m.recall("what is R used for")[0].text == "We use R for statistics."
+
+
 def test_recall_respects_limit_and_orders_by_score(env):
     m = env.open("claude-code")
     for i in range(6):
@@ -213,6 +234,31 @@ def test_a_rebuild_keeps_a_forgotten_source_forgotten(env):
     finally:
         store.close()
     assert _hits(m, "dingos", limit=10) == [keep.external_ref]
+
+
+def test_a_clean_rebuild_equals_the_incremental_state_and_recall_is_unchanged(env):
+    """Ported from the notes store's rebuild test: derived state is rebuildable from canonical sources."""
+    from src.corpus.blob_store import CorpusBlobStore
+    from src.corpus.derived_store import rebuild_from_corpus
+    from src.corpus.registry import CorpusSourceRegistry
+    from src.storage.sqlite_store import SQLiteStore, SQLiteStoreConfig
+
+    m = env.open("claude-code")
+    m.add("Deploy staging on fly.io.\n\nProd runs on bare metal.", "workflow", name="deploy")
+    m.add("Deploy staging on fly.io.\n\nProd runs on kubernetes now.", "workflow", name="deploy")
+    m.add("Unrelated fact about zebras.")
+    gone = m.add("Forgotten fact about zebras too.")
+    m.forget(gone.source_id)
+    before_units, before_hits = env.units(), [h.external_ref for h in m.recall("deploy fly.io", limit=10)]
+    store = SQLiteStore(SQLiteStoreConfig(path=env.layout.derived_db))
+    try:
+        rebuild_from_corpus(store._conn, CorpusSourceRegistry(root=env.layout.corpus_root),
+                            blob_store=CorpusBlobStore(root=env.layout.corpus_root))
+    finally:
+        store.close()
+    assert env.units() == before_units
+    assert [h.external_ref for h in m.recall("deploy fly.io", limit=10)] == before_hits
+    assert m.recall("bare metal").status == "empty" and m.recall("kubernetes").status == "ok"
 
 
 def test_forget_is_idempotent_and_typed_for_unknown_ids(env):

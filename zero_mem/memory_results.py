@@ -79,6 +79,24 @@ class IngestReport:
         return out
 
 
+#: Skip reasons that are expected for ordinary trees and never make an ingest "partial".
+BENIGN_SKIPS = frozenset({"hidden", "excluded_dir", "symlink", "empty", "unsupported_binary", "not_regular_file"})
+_COUNT_KEYS = ("created", "updated", "unchanged", "rejected_secret", "rejected_content", "invalid", "denied", "error")
+
+
+def build_ingest_report(status: Optional[str], reason: Optional[str], results: list, skipped: list) -> IngestReport:
+    """Aggregate per-file results; ``status=None`` derives ok/partial (rejections or non-benign skips = partial)."""
+    counts = {k: 0 for k in _COUNT_KEYS}
+    for res in results:
+        counts[res.status] = counts.get(res.status, 0) + 1
+    counts["skipped"] = len(skipped)
+    if status is None:
+        bad = sum(counts[k] for k in ("rejected_secret", "rejected_content", "invalid", "denied", "error"))
+        loud = [s for s in skipped if s.get("reason") not in BENIGN_SKIPS]
+        status = "ok" if not bad and not loud else "partial"
+    return IngestReport(status=status, reason=reason, files=list(results), skipped=list(skipped), counts=counts)
+
+
 @dataclass(frozen=True)
 class RecallHit:
     text: str
@@ -180,6 +198,6 @@ class ForgetResult:
 
 
 __all__ = [
-    "ContextBundle", "ForgetResult", "IngestReport", "OK_WRITE_STATUSES", "RecallHit", "RecallResult",
+    "BENIGN_SKIPS", "build_ingest_report", "ContextBundle", "ForgetResult", "IngestReport", "OK_WRITE_STATUSES", "RecallHit", "RecallResult",
     "WRITE_STATUSES", "WriteResult",
 ]

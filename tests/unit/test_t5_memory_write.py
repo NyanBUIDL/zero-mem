@@ -537,3 +537,60 @@ def test_two_instances_adding_concurrently_land_every_source_once(env):
     [t.join() for t in threads]
     assert errors == []
     assert len(env.registry_lines()) == 30 and len(env.units()) == 30
+
+
+# ----------------------------------------------------------------------------- ported from the retired notes store
+def test_long_text_is_chunked_into_bounded_units(mem, env):
+    res = mem.add("word " * 1000)
+    assert res.ok and res.units > 1
+    assert all(len(u) <= 800 for u in env.units())
+
+
+def test_chat_logs_become_one_unit_per_turn(mem, env):
+    jsonl = b'{"role":"user","content":"hi"}\n{"role":"assistant","content":[{"text":"yo"}]}\n'
+    (res,) = mem.ingest(jsonl, filename="chat.jsonl", memory_type="fact").files
+    assert res.ok and res.units == 2
+    assert sorted(env.units()) == ["assistant: yo", "user: hi"]
+    messages = b'{"messages":[{"role":"user","content":"ping"},{"role":"assistant","content":"pong"}]}'
+    (res2,) = mem.ingest(messages, filename="export.json", memory_type="fact").files
+    assert res2.ok and "assistant: pong" in env.units()
+
+
+def test_notes_style_search_dedup_and_secret_rejection_end_to_end(mem):
+    assert mem.add("Alice prefers PostgreSQL for storage.").status == "created"
+    assert mem.add("Alice prefers PostgreSQL for storage.").status == "unchanged"
+    assert "PostgreSQL" in mem.recall("which database does Alice prefer? PostgreSQL")[0].text
+    assert mem.recall("zzzunknown").status == "empty"
+    assert mem.add("token " + SECRET_TOKEN).status == "rejected_secret"
+    assert mem.status()["sources"]["total"] == 1
+
+
+# ----------------------------------------------------------------------------- caller provenance (closed, scanned)
+def test_add_records_caller_provenance_outside_the_source_identity(mem, env):
+    a = mem.add("provenance carrying fact", provenance={"imported_from": "notes-v1", "notes_ts": 5})
+    line = env.registry_lines()[-1]
+    assert line["provenance"]["imported_from"] == "notes-v1" and line["provenance"]["notes_ts"] == 5
+    assert line["provenance"]["channel"] == "library" and line["provenance"]["tool"] == "add"
+    b = mem.add("provenance carrying fact", provenance={"imported_from": "other"})
+    assert b.status == "unchanged" and b.source_id == a.source_id  # provenance is not identity
+
+
+def test_the_pinned_provenance_fields_cannot_be_overridden(mem, env):
+    mem.add("override attempt", provenance={"channel": "mcp", "profile": "someone-else", "writer": "x", "tool": "y"})
+    prov = env.registry_lines()[-1]["provenance"]
+    assert prov["channel"] == "library" and prov["profile"] == "claude-code" and prov["writer"] == "zero_mem.memory"
+    assert prov["tool"] == "add"
+
+
+@pytest.mark.parametrize("bad", [
+    "text", ["a"], {"k": ["nested"]}, {"k": {"n": 1}}, {"bad key": "v"}, {"": "v"}, {"k": "x" * 201},
+    {f"k{i}": i for i in range(9)}, {"k": 1.5}, {"k": None},
+])
+def test_invalid_provenance_is_rejected_before_any_write(mem, env, bad):
+    res = mem.add("provenance validation", provenance=bad)
+    assert res.status == "invalid" and res.reason == "invalid_provenance" and env.registry_lines() == []
+
+
+def test_a_secret_in_provenance_is_rejected_not_stored(mem, env):
+    res = mem.add("harmless text", provenance={"note": SECRET_TOKEN})
+    assert res.status == "rejected_secret" and env.files_containing(SECRET_TOKEN) == []
