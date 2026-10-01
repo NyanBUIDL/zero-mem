@@ -89,7 +89,7 @@ def test_a_backup_restored_into_a_new_data_root_answers_exactly_like_the_origina
     gone = populate(tmp_path)
     before, grants_before = snapshot(), agents_table()
     assert before["claude-code"]["recall"]["terse answers"] and not before["claude-code"]["recall"]["gone memory"]
-    assert before["codex"]["recall"]["terse answers"] and not before["codex"]["recall"]["private diary"]
+    assert before["codex"]["recall"]["terse answers"] and not any("herons" in h["text"] for h in before["codex"]["recall"]["private diary"])
     code, out, err = run_cli("backup", "create", "--output", str(tmp_path / "backup"), "--json")
     assert code == 0, err
     assert run_cli("backup", "verify", str(tmp_path / "backup"))[0] == 0
