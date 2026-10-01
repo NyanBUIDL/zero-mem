@@ -70,7 +70,7 @@ DEFAULT_MAX_TOTAL_BYTES = 1024 * 1024 * 1024
 _SEGMENT = r"[A-Za-z0-9._:~+@%-]+"
 _NAME_RE = re.compile(rf"^(?!(?:.*/)?\.{{1,2}}(?:/|$)){_SEGMENT}(?:/{_SEGMENT})*$")
 _DEVLOG_REF_RE = re.compile(r"^mem://devlog/([^/]+)/(\d{4}-\d{2}-\d{2})(?:/|$)")
-_WORD_RE = re.compile(r"\w", re.UNICODE)
+_WORD_RE = re.compile(r"[^\W_]", re.UNICODE)  # alphanumeric: "_" is a separator for the retriever
 _WORDS_RE = re.compile(r"\w+", re.UNICODE)
 #: Function words dropped from natural-language questions before retrieval (never when nothing else is left).
 _STOPWORDS = frozenset(
@@ -370,7 +370,7 @@ class Memory:
         from src.corpus.extract import ExtractionStatus
         from src.corpus.normalize import normalize_extraction
         from src.corpus.redact import scan_extracted_text
-        from src.redaction.prescan import scan_bytes, scan_text
+        from src.redaction.prescan import looks_like_zip, scan_bytes, scan_text, scan_zip_members
 
         for text in scan_names:
             verdict = scan_text(text)
@@ -379,6 +379,10 @@ class Memory:
         verdict = scan_bytes(content)
         if not verdict.safe:
             return "rejected_secret", "secret_detected", tuple(verdict.rule_ids)
+        if looks_like_zip(content):  # every member (customXml, comments, embeddings, nested zips), not just extracted units
+            verdict = scan_zip_members(content)
+            if not verdict.safe:
+                return "rejected_secret", verdict.reason or "secret_detected", tuple(verdict.rule_ids)
         adapter = select_adapter(kind)
         if adapter is None:
             return "rejected_content", "unsupported_format", ()
