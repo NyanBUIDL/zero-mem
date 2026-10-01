@@ -321,3 +321,88 @@ class TestDef053RegistryConcurrency:
         t.start()
         t.join(20)
         assert done == [True], "register/construct inside corpus_write_lock deadlocked"
+
+
+# ---------------------------------------------------------------------------
+# DEF-058 - project_source(): O(1) incremental projection
+# ---------------------------------------------------------------------------
+
+def _dump_derived(conn):
+    """Order-independent, complete image of the derived corpus tables."""
+    src = {tuple(r) for r in conn.execute(
+        "SELECT source_id, content_hash, external_ref, kind, profile_id, project_id, "
+        "knowledge_space_id, sensitivity, lifecycle_status, blob_ref FROM zm_corpus_sources")}
+    units = {tuple(r) for r in conn.execute(
+        "SELECT unit_id, source_ref, source_location_id, content_hash, normalized_text, kind, "
+        "unit_order, page, parent_ref, profile_id, project_id, knowledge_space_id, duplicate_of, "
+        "lifecycle_status, sensitivity, provenance_hash FROM zm_corpus_units")}
+    fts = {tuple(r) for r in conn.execute("SELECT unit_id, content FROM zm_corpus_fts")}
+    return src, units, fts
+
+
+class TestDef058ProjectSource:
+    def test_project_source_equals_project_corpus_per_source(self, tmp_path):
+        from src.corpus.derived_store import project_source
+
+        docs = [(f"doc {i} alpha beta\nsecond line {i}\n".encode(), f"mem://d/{i}") for i in range(6)]
+        a, b = Env(tmp_path, "a"), Env(tmp_path, "b")
+        try:
+            for env_ in (a, b):
+                for content, ref in docs:
+                    env_.register(content, ref=ref)
+            a.project()
+            for rec in b.registry.all_records():
+                report = project_source(b.conn, b.registry, rec, blob_store=b.blobs)
+                assert report.sources_projected == 1
+            b.conn.commit()
+            assert _dump_derived(a.conn) == _dump_derived(b.conn)
+            assert len(_dump_derived(b.conn)[1]) == 12
+        finally:
+            a.close()
+            b.close()
+
+    def test_project_source_accepts_source_id_and_unknown_id_fails_closed(self, env):
+        from src.corpus.derived_store import CorpusProjectionError, project_source
+
+        rec = env.register(V1)
+        report = project_source(env.conn, env.registry, rec.source_id, blob_store=env.blobs)
+        env.conn.commit()
+        assert (report.sources_projected, report.units_projected) == (1, 3)
+        with pytest.raises(CorpusProjectionError):
+            project_source(env.conn, env.registry, "no-such-source", blob_store=env.blobs)
+
+    def test_project_source_never_regresses_to_an_older_version(self, env):
+        from src.corpus.derived_store import project_source
+
+        v1 = env.register(V1)
+        v2 = env.register(V2)
+        project_source(env.conn, env.registry, v1, blob_store=env.blobs)  # stale record handed in
+        env.conn.commit()
+        assert len(env.unit_rows()) == 2
+        row = env.conn.execute("SELECT content_hash FROM zm_corpus_sources").fetchone()
+        assert row[0] == v2.content_hash
+
+    def test_project_source_does_not_commit(self, env):
+        from src.corpus.derived_store import project_source
+
+        rec = env.register(V1)
+        project_source(env.conn, env.registry, rec, blob_store=env.blobs)
+        env.conn.rollback()
+        assert env.unit_rows() == []
+
+    def test_adding_one_source_to_1000_does_not_reextract_the_others(self, env, fake_adapter):
+        from src.corpus.derived_store import project_source
+
+        for i in range(1000):
+            env.register(f"fact number {i} about topic {i % 7}\n".encode(), ref=f"mem://fact/{i}", kind="t2fake")
+        full = env.project()
+        assert full.sources_projected == 1000 and fake_adapter.calls == 1000
+
+        new = env.register(b"brand new persona fact\n", ref="mem://fact/new", kind="t2fake")
+        fake_adapter.calls = 0
+        report = project_source(env.conn, env.registry, new, blob_store=env.blobs)
+        env.conn.commit()
+        assert fake_adapter.calls == 1, "only the new source may be extracted"
+        assert (report.sources_projected, report.units_projected) == (1, 1)
+        assert env.conn.execute("SELECT COUNT(*) FROM zm_corpus_sources").fetchone()[0] == 1001
+        assert any("brand new" in t for t in env.search("brand"))

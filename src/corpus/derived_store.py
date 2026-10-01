@@ -204,6 +204,13 @@ class CorpusProjectionReport:
             "extractions_failed": self.extractions_failed,
         }
 
+    def merge(self, other: "CorpusProjectionReport") -> None:
+        """Fold ``other`` (e.g. one source's report) into this aggregate."""
+        self.sources_projected += other.sources_projected
+        self.units_projected += other.units_projected
+        self.units_rejected_secret += other.units_rejected_secret
+        self.extractions_failed += other.extractions_failed
+
 
 #: Max bound parameters per DELETE ... IN (...) (stay far below SQLite's limit).
 _DELETE_BATCH: Final[int] = 400
@@ -319,6 +326,44 @@ def _latest_records(registry: CorpusSourceRegistry) -> List[CorpusSourceRecord]:
     return [latest[sid] for sid in sorted(latest)]
 
 
+def _resolve_store(registry: CorpusSourceRegistry, blob_store):
+    from .blob_store import CorpusBlobStore
+
+    return blob_store or (
+        CorpusBlobStore(root=registry._root) if registry._root is not None else None
+    )
+
+
+def project_source(
+    conn: sqlite3.Connection,
+    registry: CorpusSourceRegistry,
+    source,
+    blob_store=None,
+) -> CorpusProjectionReport:
+    """Project ONE logical source (DEF-058): O(that source), not O(registry).
+
+    ``source`` is a ``source_id`` or a :class:`CorpusSourceRecord`. Semantics are
+    exactly those of :func:`project_corpus` applied to that source: the *latest*
+    registered version is extracted, normalized, deduplicated and persisted, and
+    units of any earlier version it no longer yields are removed (DEF-050). A
+    stale record handed in for a source that has since been superseded is
+    resolved to the registry's latest version, so the derived state can never
+    regress. Runs inside the caller's transaction and never commits.
+
+    Raises :class:`CorpusProjectionError` for a ``source_id`` the registry does
+    not know.
+    """
+    if isinstance(source, CorpusSourceRecord):
+        record = registry.get_by_source_id(source.source_id) or source
+    else:
+        record = registry.get_by_source_id(source) if isinstance(source, str) else None
+        if record is None:
+            raise CorpusProjectionError("corpus_projection: unknown_source")
+    report = CorpusProjectionReport()
+    _project_record(conn.cursor(), record, _resolve_store(registry, blob_store), report)
+    return report
+
+
 def project_corpus(
     conn: sqlite3.Connection,
     registry: CorpusSourceRegistry,
@@ -332,28 +377,23 @@ def project_corpus(
     persists the derived projection. Idempotent: re-projection over the same
     canonical state produces the same derived rows (ON CONFLICT upserts).
 
-    Only the latest version of each logical source is projected; units of an
-    earlier version that the latest version no longer yields are removed in the
-    same (caller-owned) transaction (DEF-050).
+    Only the latest version of each logical source is projected (via
+    :func:`project_source`); units of an earlier version that the latest version
+    no longer yields are removed in the same (caller-owned) transaction (DEF-050).
 
     Secret-bearing units are rejected (fail-closed) and counted, never stored.
     """
-    from .blob_store import CorpusBlobStore
-
-    store = blob_store or (
-        CorpusBlobStore(root=registry._root) if registry._root is not None else None
-    )
+    store = _resolve_store(registry, blob_store)
     records = _latest_records(registry)
 
     report = CorpusProjectionReport()
-    cur = conn.cursor()
 
     # Version chain (derived; traceable supersession). Not persisted as a table
     # here, but the per-source latest/version logic is re-usable by M10.5.
     _chain = build_version_chain(registry.all_records())
 
     for record in records:
-        _project_record(cur, record, store, report)
+        report.merge(project_source(conn, registry, record, blob_store=store))
 
     return report
 
@@ -400,5 +440,6 @@ __all__ = [
     "CorpusProjectionError",
     "CorpusProjectionReport",
     "project_corpus",
+    "project_source",
     "rebuild_from_corpus",
 ]
