@@ -179,7 +179,7 @@ def _group_boxes_into_lines(result: Any) -> list[str]:
     """Join per-word OCR boxes ``[quad, text, score]`` into one string per visual line.
 
     rapidocr emits a box per word/fragment; emitting each as its own line would shred phrases
-    (DEF-075). Boxes are grouped by vertical-centre overlap and ordered left to right.
+    (DEF-078). Boxes are grouped by vertical-centre overlap and ordered left to right.
     """
     boxes: list[tuple[float, float, float, str]] = []  # (cy, height, x0, text)
     for item in result:

@@ -303,7 +303,7 @@ def _box(x0, y0, x1, y1):
 
 
 def test_rapidocr_word_boxes_are_regrouped_into_lines(monkeypatch):
-    """DEF-075: rapidocr returns one box per word; they must be joined per visual line."""
+    """DEF-078: rapidocr returns one box per word; they must be joined per visual line."""
     from src.corpus.adapters import image as image_mod
 
     class FakeRapidOCR:

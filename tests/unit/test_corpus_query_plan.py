@@ -1,4 +1,4 @@
-"""DEF-076: the corpus discovery / neighbor SQL must keep index-driven plans (latency at scale)."""
+"""DEF-079: the corpus discovery / neighbor SQL must keep index-driven plans (latency at scale)."""
 from __future__ import annotations
 
 import sqlite3

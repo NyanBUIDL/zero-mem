@@ -319,7 +319,7 @@ def test_image_ocr_text_is_searchable_when_an_engine_is_injected(tmp_path, monke
     reason="optional 'ocr' extra (rapidocr-onnxruntime) + Pillow not installed",
 )
 def test_real_rapidocr_on_rendered_png_is_recalled(tmp_path):
-    """DEF-075: real engine, real PNG (rendered with Pillow), through project + authorized search."""
+    """DEF-078: real engine, real PNG (rendered with Pillow), through project + authorized search."""
     import io
     from PIL import Image, ImageDraw, ImageFont
 

@@ -298,7 +298,7 @@ of neighbor propagation had lost 0.08 p@1 there before it was made coverage-awar
 but it is not the 1-5 ms of the previous ranking. A follow-up could choose the ranking per memory type (chat-like sources vs files);
 that is not done here.
 
-### T10b follow-up: scale latency (DEF-076)
+### T10b follow-up: scale latency (DEF-079)
 
 Profile of `Memory.recall` on the 13,687-unit store built from `docs/` (150 queries of 4 random words of a random unit, warm process):
 70 % of the time was SQLite. Two plans were wrong, both fixed without touching ranking or authorization:
