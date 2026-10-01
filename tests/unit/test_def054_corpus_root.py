@@ -293,3 +293,19 @@ def test_doctor_corpus_malformed_registry_fails(monkeypatch, tmp_path):
     (paths.corpus_root() / REGISTRY_FILENAME).write_bytes(b'{"source_id": "x"')  # truncated line
     assert _corpus_check()["status"] == "FAIL"
     assert collect()["overall"] == "NOT_READY"
+
+
+def test_restore_without_corpus_projects_kept_live_corpus_into_derived_db(monkeypatch, tmp_path):
+    """DEF-074: kept live corpus must be projected, not left as 0 units + SUCCESS."""
+    _env(monkeypatch, tmp_path)
+    setup()
+    shutil.rmtree(paths.corpus_root())
+    backup = create_backup(tmp_path / "bk-no-corpus-proj")
+    paths.ensure_corpus_root()
+    _register(paths.corpus_root())
+
+    result = restore_backup(backup, yes=True)
+
+    assert result["status"] == "SUCCESS"
+    assert _corpus_units() > 0
+    assert _corpus_check()["status"] == "PASS"

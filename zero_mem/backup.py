@@ -35,6 +35,7 @@ from src.storage.sqlite_store import SQLiteStore, SQLiteStoreConfig
 
 from .hermes_integration import IntegrationConfig
 from .paths import (
+    CORPUS_REGISTRY_FILENAME,
     ConfigurationError,
     cache_root,
     config_path,
@@ -657,9 +658,26 @@ def restore_backup(
                 if os.name != "nt":
                     os.chmod(destination, 0o600)
         _validate_memory_file(staging / "data/memory/traces/events-v1.jsonl")
-        if corpus_staging is not None:
-            _validate_corpus_root(corpus_staging)
-        _rebuild_staged_derived(staging, corpus_staging)
+        projection_corpus = corpus_staging
+        if corpus_staging is None and target_corpus_root is None:
+            # DEF-074: the backup carries no corpus, so the live one is kept; project
+            # it into the rebuilt derived DB (default root: copied into the staged
+            # data root so it is swapped atomically; explicit env root: read in place).
+            if corpus_root_is_explicit():
+                live = corpus_root()
+            else:
+                live = target / "data/corpus"
+            if live.is_dir() and not live.is_symlink() and (live / CORPUS_REGISTRY_FILENAME).is_file():
+                if corpus_root_is_explicit():
+                    projection_corpus = live
+                else:
+                    corpus_staging = staging / "data/corpus"
+                    shutil.copytree(live, corpus_staging, symlinks=False)
+                    corpus_in_data = True
+                    projection_corpus = corpus_staging
+        if projection_corpus is not None:
+            _validate_corpus_root(projection_corpus)
+        _rebuild_staged_derived(staging, projection_corpus)
         config_home = staging / "config-home"
         with _temporary_environment({
             "ZERO_MEM_DATA_ROOT": str(staging),

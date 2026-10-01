@@ -63,7 +63,7 @@ def import_notes(
                 continue
             try:
                 record = json.loads(raw)
-            except ValueError:
+            except (ValueError, RecursionError):  # RecursionError: absurdly nested JSON (DEF-076)
                 skipped.append({"name": f"line {number}", "reason": "malformed_json"})
                 continue
             text = record.get("text") if isinstance(record, dict) else None
