@@ -901,6 +901,10 @@ class Memory:
         The source disappears from recall/context and from every projection (a rebuild keeps it gone); the raw
         blobs of earlier versions stay in the canonical corpus (AGENTS.md: raw traces are never deleted).
         ``source_id`` may be the full id, a unique prefix (8+ hex chars) or an exact ``external_ref``.
+
+        Only sources this profile can READ are ever matched (T8): a source that does not exist and one the caller
+        cannot read (another profile's private memory, a project or space without a READ grant) answer the same
+        ``not_found`` / ``unknown_source``, and an ambiguous reference lists only candidates the caller can read.
         """
         if not isinstance(source_id, str) or not 4 <= len(source_id.strip()) <= 600:
             return ForgetResult(status="invalid", reason="invalid_source_id")
@@ -908,7 +912,7 @@ class Memory:
             with self._lock:
                 registry, _blobs = self._corpus()
                 registry.refresh()
-                record, problem = self._resolve(registry, source_id.strip())
+                record, problem = self._resolve(registry, source_id.strip(), self._reader())
                 if record is None:
                     status, reason, candidates = problem
                     return ForgetResult(status=status, reason=reason, candidates=candidates)
@@ -922,9 +926,6 @@ class Memory:
                 if scope == "global":
                     return ForgetResult(status="denied", reason="DENY_GLOBAL_WRITE", source_id=record.source_id,
                                         external_ref=record.external_ref, memory_type=memory_type)
-                if scope == "private" and record.profile_id != self._profile:
-                    # another profile's private source: indistinguishable from a missing one
-                    return ForgetResult(status="not_found", reason="unknown_source")
                 decision = self._authorize_forget(record, scope)
                 if not decision.allow:
                     return ForgetResult(status="denied", reason=decision.reason_code, source_id=record.source_id,
@@ -962,19 +963,50 @@ class Memory:
             pass
         return decision
 
+    def _reader(self) -> Callable[[Any], bool]:
+        """``record -> bool``: may this profile READ the source (its own private rows, global rows, ``ks-shared`` and
+        projects it holds a READ grant for)? Exactly the row-level scope ``recall`` retrieves under (the authorized
+        read facade's ``corpus_scope``), decided once per project."""
+        from src.access import AccessRequest, AuthorizedReadService
+        from src.corpus.retrieval import AuthorizedCorpusScope
+
+        service = AuthorizedReadService(None, self._profile, grant_conn=self._conn())
+        scopes: dict[Optional[str], Any] = {}
+
+        def scope_for(project_id: Optional[str]):
+            if project_id not in scopes:
+                base = dict(operation="READ", requesting_profile_id=self._profile, resource_type="corpus_unit")
+                requests = [AccessRequest(**base), AccessRequest(**base, knowledge_space_ids=[self._shared])]
+                if project_id is not None:
+                    requests.append(AccessRequest(**base, project_ids=[project_id]))
+                allowed: list = []
+                for request in requests:
+                    scope = service.corpus_scope(request)
+                    if scope is not None:
+                        allowed.extend(scope.allowed_scopes)
+                scopes[project_id] = AuthorizedCorpusScope(allowed_scopes=tuple(allowed))
+            return scopes[project_id]
+
+        def can_read(record) -> bool:
+            return scope_for(record.project_id).allows(record.profile_id, record.project_id, record.knowledge_space_id)
+
+        return can_read
+
     @staticmethod
-    def _resolve(registry, ident: str):
+    def _resolve(registry, ident: str, can_read: Callable[[Any], bool]):
+        """Resolve ``ident`` among the sources ``can_read`` accepts; an unreadable source is simply not there."""
         latest: dict[str, Any] = {}
         for rec in registry.all_records():
             latest[rec.source_id] = rec
         if ident in latest:
-            return latest[ident], None
+            return (latest[ident], None) if can_read(latest[ident]) else (None, ("not_found", "unknown_source", ()))
         if "://" in ident:
             matches = [r for r in latest.values() if r.external_ref == ident]
         elif re.fullmatch(r"[0-9a-f]{8,63}", ident):
             matches = [r for r in latest.values() if r.source_id.startswith(ident)]
         else:
             matches = []
+        matches = [r for r in matches if can_read(r)]
         if len(matches) == 1:
             return matches[0], None
         if len(matches) > 1:

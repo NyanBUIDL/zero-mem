@@ -379,14 +379,28 @@ def test_forget_cannot_reach_another_agents_private_memory_and_leaks_no_ids(env)
     foreign = run(codex, "memory_forget", source_id=mine["source_id"])
     assert foreign["status"] == "NOT_FOUND" and foreign["reason_code"] == "unknown_source"
     assert run(cc, "memory_recall", query="private stores")["status"] == "SUCCESS"
-    # the shared ref names two sources (one per profile): the answer must not reveal codex's id
-    ambiguous = cc.call("memory_forget", {"source_id": mine["ref"]})
-    assert theirs["source_id"] not in json.dumps(ambiguous)
-    assert ambiguous["structuredContent"]["status"] == "INVALID"
-    assert ambiguous["structuredContent"]["reason_code"] == "AMBIGUOUS_REFERENCE"
-    assert run(cc, "memory_forget", source_id=mine["source_id"])["status"] == "SUCCESS"
+    # T8: the ref names two sources (one per profile) but only claude-code's is visible to claude-code, so the ref is
+    # not ambiguous for it: it forgets its own copy and the answer never mentions codex's id
+    own_ref = cc.call("memory_forget", {"source_id": mine["ref"]})
+    assert theirs["source_id"] not in json.dumps(own_ref)
+    assert own_ref["structuredContent"]["status"] == "SUCCESS"
+    assert own_ref["structuredContent"]["source_id"] == mine["source_id"][:16]
     assert run(codex, "memory_recall", query="private stores")["status"] == "SUCCESS"
     assert run(cc, "memory_recall", query="private stores")["status"] == "EMPTY"
+
+
+def test_a_truly_ambiguous_ref_asks_for_the_id_and_never_lists_another_agents_private_id(env):
+    cc, codex = toolset(env, "claude-code"), toolset(env, "codex")
+    env.prov.grant_write("claude-code", space="ks-shared")
+    private = run(cc, "memory_add", text="copy about civets", memory_type="persona", scope="private", name="same")
+    shared = run(cc, "memory_add", text="shared copy about civets", memory_type="persona", scope="shared", name="same")
+    theirs = run(codex, "memory_add", text="copy about civets", memory_type="persona", scope="private", name="same")
+    ambiguous = cc.call("memory_forget", {"source_id": private["ref"]})
+    assert ambiguous["structuredContent"]["status"] == "INVALID"
+    assert ambiguous["structuredContent"]["reason_code"] == "AMBIGUOUS_REFERENCE"
+    assert theirs["source_id"] not in json.dumps(ambiguous)
+    assert run(cc, "memory_forget", source_id=shared["source_id"])["status"] == "SUCCESS"
+    assert run(codex, "memory_recall", query="civets")["status"] == "SUCCESS"
 
 
 @pytest.mark.parametrize("bad", ["", "abc", "x" * 601, 5, None])
