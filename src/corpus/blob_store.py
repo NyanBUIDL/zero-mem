@@ -19,6 +19,7 @@ import threading
 from pathlib import Path
 from typing import Final, Optional
 
+from . import _fsretry
 from .config import (
     CONFIG_FILE_CORPUS_ROOT_KEY,
     CONFIG_FILE_RELATIVE_PATH,
@@ -92,7 +93,7 @@ class CorpusBlobStore:
                 if target.is_symlink() or not target.is_file():
                     raise BlobStoreError("blob_store: invalid_blob_target")
                 try:
-                    if self._sha256(target.read_bytes()) != digest:
+                    if self._sha256(self._read(target)) != digest:
                         raise BlobStoreError("blob_store: content_hash_mismatch")
                 except BlobStoreError:
                     raise
@@ -119,26 +120,41 @@ class CorpusBlobStore:
                 stream.write(content)
             if os.name != "nt":
                 os.chmod(tmp, 0o600)
-            try:
-                os.replace(tmp, target)  # atomic
-            except OSError:
-                # Windows can refuse to replace a file another process has open;
-                # identical content-addressed bytes already in place are success.
-                if not self._target_matches(target, digest):
+            def replace() -> None:
+                try:
+                    os.replace(tmp, target)  # atomic
+                except OSError as exc:
+                    # Windows can refuse to replace a file another process has
+                    # open; identical content-addressed bytes already in place
+                    # are success (DEF-090).
+                    if _fsretry.is_transient(exc) and self._target_matches(target, digest):
+                        return
                     raise
-                tmp.unlink(missing_ok=True)
+
+            try:
+                _fsretry.retry_transient(replace)
+            except OSError as exc:
+                if _fsretry.is_transient(exc):
+                    raise BlobStoreError("blob_store: replace_failed") from None
+                raise
+            tmp.unlink(missing_ok=True)
         except BaseException:
             tmp.unlink(missing_ok=True)
             raise
         if os.name != "nt":
             os.chmod(target, 0o600)
 
+    @staticmethod
+    def _read(target: Path) -> bytes:
+        """Read a blob, retrying transient Windows sharing violations."""
+        return _fsretry.retry_transient(target.read_bytes)
+
     def _target_matches(self, target: Path, digest: str) -> bool:
         try:
             return (
                 target.is_file()
                 and not target.is_symlink()
-                and self._sha256(target.read_bytes()) == digest
+                and self._sha256(self._read(target)) == digest
             )
         except OSError:
             return False
@@ -154,7 +170,7 @@ class CorpusBlobStore:
         if target.is_symlink() or not target.is_file():
             raise BlobStoreError("blob_store: invalid_blob_target")
         try:
-            content = target.read_bytes()
+            content = self._read(target)
         except FileNotFoundError:
             raise BlobStoreError("blob_store: missing_blob") from None
         except IsADirectoryError:
@@ -174,17 +190,28 @@ class CorpusBlobStore:
         if not target.exists() or target.is_symlink() or not target.is_file():
             return False
         try:
-            return self._sha256(target.read_bytes()) == digest
+            return self._sha256(self._read(target)) == digest
         except OSError:
             return False
 
     def _assert_within_root(self, path: Path) -> None:
+        """Containment check on the PARENT directory plus a hex-digest filename.
+
+        DEF-090: the file itself is never resolved -- on Windows another process
+        replacing it makes ``resolve()`` of the file transiently unreliable. The
+        parent directory is stable; resolving it still rejects ``..`` traversal
+        and symlinked parents. The filename must be a valid digest.
+        """
         assert self._blob_dir is not None
-        resolved = path.resolve()
-        root_resolved = self._blob_dir.resolve()
         try:
-            resolved.relative_to(root_resolved)
-        except ValueError:
+            self._validate_digest(path.name)
+            parent = path.parent.resolve()
+            parent.relative_to(self._blob_dir.resolve())
+        except (ValueError, BlobStoreError):
+            raise BlobStoreError("blob_store: path_escape_attempt") from None
+        except OSError:
+            raise BlobStoreError("blob_store: path_escape_attempt") from None
+        if parent.name != path.name[:2] or parent.parent != self._blob_dir.resolve():
             raise BlobStoreError("blob_store: path_escape_attempt")
 
 

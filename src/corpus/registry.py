@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Final, Iterator, List, Mapping, Optional
 
+from . import _fsretry
 from .blob_store import (
     CONFIG_FILE_CORPUS_ROOT_KEY,
     CONFIG_FILE_RELATIVE_PATH,
@@ -173,10 +174,20 @@ class CorpusSourceRegistry:
             self._reset_index()
         if info.st_size == self._loaded_size and self._file_id == identity:
             return
-        with open(self._path, "rb") as stream:
-            stream.seek(self._loaded_size)
-            data = stream.read()
-            file_identity = os.fstat(stream.fileno())
+        path = self._path
+        offset = self._loaded_size
+
+        def read_tail() -> tuple[bytes, os.stat_result]:
+            with path.open("rb") as stream:
+                stream.seek(offset)
+                return stream.read(), os.fstat(stream.fileno())
+
+        try:
+            data, file_identity = _fsretry.retry_transient(read_tail)
+        except OSError as exc:
+            if _fsretry.is_transient(exc):
+                raise ValidationError("corpus_registry: read_failed") from None
+            raise
         if data and not data.endswith(b"\n"):
             raise ValidationError("corpus_registry: partial_final_line")
         line_number = self._loaded_lines
@@ -318,11 +329,16 @@ class CorpusSourceRegistry:
                 normalization_version="m10.3",
             )
             line = self._serialize(record)
-            try:
-                with self._path.open("ab") as stream:  # type: ignore[union-attr]
+            path = self._path
+
+            def append() -> None:
+                with path.open("ab") as stream:  # type: ignore[union-attr]
                     stream.write(line)
                     stream.flush()
                     os.fsync(stream.fileno())
+
+            try:
+                _fsretry.retry_transient(append)
             except Exception:
                 raise ValidationError("corpus_registry: append_failed") from None
             self._index_record(record)
@@ -406,9 +422,11 @@ class CorpusSourceRegistry:
                     stream.flush()
                     os.fsync(stream.fileno())
                 os.chmod(tmp, 0o600)
-                os.replace(tmp, self._path)
-            except BaseException:
+                _fsretry.retry_transient(lambda: os.replace(tmp, self._path))
+            except BaseException as exc:
                 tmp.unlink(missing_ok=True)
+                if isinstance(exc, OSError) and _fsretry.is_transient(exc):
+                    raise ValidationError("corpus_registry: replace_failed") from None
                 raise
             replaced_info = os.stat(self._path)
             self._file_id = (replaced_info.st_dev, replaced_info.st_ino)
