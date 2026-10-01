@@ -837,7 +837,7 @@ def test_no_forbidden_imports_in_product_modules():
                  "vector_db"}
     base = ROOT / "src" / "projection"
     for path in base.glob("*.py"):
-        tree = ast.parse(path.read_text())
+        tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
@@ -854,7 +854,7 @@ def test_no_hardcoded_operator_path():
     base = ROOT / "src" / "projection"
     bad = ("/home/brian-nguyen", "brian-nguyen")
     for path in base.glob("*.py"):
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         assert not any(b in text for b in bad), f"{path.name} hard-codes operator path"
 
 

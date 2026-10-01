@@ -133,7 +133,7 @@ class TestRebuild:
         conn, jl = _build_corpus("-bad")
         before_grants = rebuild.normalize_grants(conn)
         before_audit = rebuild.normalize_audit(conn)
-        valid = json.loads(jl.read_text().splitlines()[0])
+        valid = json.loads(jl.read_text(encoding="utf-8").splitlines()[0])
         bad = jl.parent / "malformed-policy.jsonl"
         lines = ["{malformed policy event", json.dumps(valid)]
         if not malformed_first:
@@ -147,7 +147,7 @@ class TestRebuild:
 
     def test_valid_unrelated_domain_event_remains_skippable(self):
         conn, jl = _build_corpus("-mixed")
-        valid_policy = json.loads(jl.read_text().splitlines()[0])
+        valid_policy = json.loads(jl.read_text(encoding="utf-8").splitlines()[0])
         unrelated = {
             "event_id": "M4-UNRELATED",
             "event_type": "m4_charter",
@@ -350,7 +350,7 @@ class TestAuditSafety:
 class TestZeroExternal:
     def test_no_network_in_rebuild(self):
         import ast
-        src = (Path(__file__).resolve().parents[2] / "src" / "access" / "rebuild.py").read_text()
+        src = (Path(__file__).resolve().parents[2] / "src" / "access" / "rebuild.py").read_text(encoding="utf-8")
         tree = ast.parse(src)
         imported = set()
         for node in ast.walk(tree):

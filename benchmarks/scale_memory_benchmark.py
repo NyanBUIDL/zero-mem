@@ -164,11 +164,11 @@ def _build_store(root: Path, events: list[dict]):
     store = SQLiteStore(SQLiteStoreConfig(path=root / "m.sqlite"))
     store.ensure_schema()
     jl = root / "memory.jsonl"
-    jl.write_text("\n".join(json.dumps(e) for e in events) + "\n")
+    jl.write_text("\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8", newline="\n")
     ingest_file(store, jl)
     m4jl = root / "m4.jsonl"
     m4events = [e for e in events if e.get("event_type") == "m4_x"]
-    m4jl.write_text("\n".join(json.dumps(e) for e in m4events) + "\n")
+    m4jl.write_text("\n".join(json.dumps(e) for e in m4events) + "\n", encoding="utf-8", newline="\n")
     rebuild_project_memory(store, m4jl, project_id=PROJECT)
     store._conn.commit()
     state_rows = store._conn.execute(

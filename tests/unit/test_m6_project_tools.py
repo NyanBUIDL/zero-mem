@@ -305,7 +305,7 @@ class TestReadOnlySecurity:
                      "src.storage.ingest"}
         for f in base.glob("*.py"):
             mods = set()
-            for n in ast.walk(ast.parse(f.read_text())):
+            for n in ast.walk(ast.parse(f.read_text(encoding="utf-8"))):
                 if isinstance(n, ast.Import):
                     for a in n.names: mods.add(a.name.split(".")[0])
                 elif isinstance(n, ast.ImportFrom):
@@ -324,7 +324,7 @@ class TestReadOnlySecurity:
         import ast
         mods = set()
         for f in base.glob("*.py"):
-            for n in ast.walk(ast.parse(f.read_text())):
+            for n in ast.walk(ast.parse(f.read_text(encoding="utf-8"))):
                 if isinstance(n, ast.Import):
                     for a in n.names: mods.add(a.name.split(".")[0])
                 elif isinstance(n, ast.ImportFrom):
@@ -334,12 +334,12 @@ class TestReadOnlySecurity:
 
     def test_no_master_switch_token(self, rt):
         base = REPO_ROOT / "src" / "integration" / "m6"
-        src = "\n".join(f.read_text() for f in base.glob("*.py"))
+        src = "\n".join(f.read_text(encoding="utf-8") for f in base.glob("*.py"))
         assert all(t not in src for t in ("ZERO_MEM_ENABLED", "zero_mem.enabled", "master_enable", "memory_system_enabled"))
 
     def test_no_hardcoded_username_path(self, rt):
         base = REPO_ROOT / "src" / "integration" / "m6"
-        src = "\n".join(f.read_text() for f in base.glob("*.py"))
+        src = "\n".join(f.read_text(encoding="utf-8") for f in base.glob("*.py"))
         assert not any(u in src for u in ("/home/brian-nguyen", "/home/brian-nguyan"))
 
     def test_committed_paths_resolve(self, rt):

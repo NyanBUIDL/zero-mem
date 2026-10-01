@@ -80,16 +80,21 @@ def append_canonical_event(stream: Path, event: Mapping[str, Any]) -> None:
     if not isinstance(event, Mapping) or not isinstance(event.get("event_id"), str) or not event["event_id"]:
         raise ProvisioningError("invalid_event", "canonical events need a string event_id")
     from src.storage.coordination import locked
+    from src.storage.platform import O_BINARY
 
     data = (json.dumps(dict(event), ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
     stream = Path(stream)
-    flags = os.O_RDWR | os.O_APPEND | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+    flags = os.O_RDWR | os.O_APPEND | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0) | O_BINARY
     try:
         with locked(stream.with_name(stream.name + ".lock"), mode="exclusive", timeout=_LOCK_TIMEOUT):
             fd = os.open(stream, flags, 0o600)
             try:
                 size = os.fstat(fd).st_size
-                if size and os.pread(fd, 1, size - 1) != b"\n":
+                # DEF-082: os.pread does not exist on Windows; lseek+read is portable (O_APPEND writes still
+                # land at EOF regardless of the file offset).
+                if size:
+                    os.lseek(fd, size - 1, os.SEEK_SET)
+                if size and os.read(fd, 1) != b"\n":
                     raise ProvisioningError("stream_not_terminated", "canonical stream ends mid-record; run zero-mem doctor")
                 view = memoryview(data)
                 while view:

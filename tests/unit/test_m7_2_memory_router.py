@@ -161,7 +161,7 @@ class TestResearchMemory:
         d = route(RouterRequest(normalized_text="Recall the source material."))
         assert d.route is MemoryRoute.RESEARCH
         # Architecture proof: no retrieval implementation imported/referenced.
-        tree = ast.parse((REPO_ROOT / "src/integration/m7/memory_router.py").read_text())
+        tree = ast.parse((REPO_ROOT / "src/integration/m7/memory_router.py").read_text(encoding="utf-8"))
         refs = set()
         for n in ast.walk(tree):
             if isinstance(n, ast.ImportFrom) and n.module:
@@ -171,7 +171,7 @@ class TestResearchMemory:
                     refs.add(a.name)
         assert not any("retrieval" in r for r in refs)
         assert not any("m6.dispatcher" in r or "m6.handlers" in r for r in refs)
-        assert "handle_call" not in (REPO_ROOT / "src/integration/m7/memory_router.py").read_text()
+        assert "handle_call" not in (REPO_ROOT / "src/integration/m7/memory_router.py").read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -207,7 +207,7 @@ class TestExternalCurrent:
 
     def test_no_network_call(self):
         # Architecture proof: no network client module imported or referenced.
-        tree = ast.parse((REPO_ROOT / "src/integration/m7/memory_router.py").read_text())
+        tree = ast.parse((REPO_ROOT / "src/integration/m7/memory_router.py").read_text(encoding="utf-8"))
         mods = set()
         for n in ast.walk(tree):
             if isinstance(n, ast.ImportFrom) and n.module:
@@ -217,7 +217,7 @@ class TestExternalCurrent:
                     mods.add(a.name)
         banned = {"httpx", "requests", "aiohttp", "socket", "urllib", "subprocess"}
         assert not (mods & banned), mods & banned
-        src = (REPO_ROOT / "src/integration/m7/memory_router.py").read_text()
+        src = (REPO_ROOT / "src/integration/m7/memory_router.py").read_text(encoding="utf-8")
         for ident in ("httpx.", "requests.get", "aiohttp", "socket.socket", "urllib.", "urlopen"):
             assert ident not in src
 
@@ -296,14 +296,14 @@ class TestSecurity:
     def test_route_does_not_authorize(self):
         d = route(RouterRequest(normalized_text="Continue the project."))
         assert d.route is MemoryRoute.PROJECT
-        assert "AccessDecision" not in (REPO_ROOT / "src/integration/m7/memory_router.py").read_text()
+        assert "AccessDecision" not in (REPO_ROOT / "src/integration/m7/memory_router.py").read_text(encoding="utf-8")
 
     def test_no_grant_admin_import(self):
-        src = (REPO_ROOT / "src/integration/m7/memory_router.py").read_text()
+        src = (REPO_ROOT / "src/integration/m7/memory_router.py").read_text(encoding="utf-8")
         assert "GrantAdminService" not in src and "AuthorizedWriteService" not in src
 
     def test_no_raw_sql_no_jsonl(self):
-        src = (REPO_ROOT / "src/integration/m7/memory_router.py").read_text().lower()
+        src = (REPO_ROOT / "src/integration/m7/memory_router.py").read_text(encoding="utf-8").lower()
         assert "sqlite" not in src and ".jsonl" not in src and "canonical writers" not in src
 
     def test_router_input_narrower_than_auth(self):
@@ -351,7 +351,7 @@ class TestEnvironment:
         assert CURRENT_SCHEMA_VERSION == 13
 
     def test_router_module_no_forbidden_imports(self):
-        tree = ast.parse((REPO_ROOT / "src/integration/m7/memory_router.py").read_text())
+        tree = ast.parse((REPO_ROOT / "src/integration/m7/memory_router.py").read_text(encoding="utf-8"))
         mods = set()
         for n in ast.walk(tree):
             if isinstance(n, ast.Import):
@@ -365,7 +365,7 @@ class TestEnvironment:
 
     def test_no_llm_network_in_package(self):
         for f in ("src/integration/m7/contracts.py", "src/integration/m7/memory_router.py"):
-            tree = ast.parse((REPO_ROOT / f).read_text())
+            tree = ast.parse((REPO_ROOT / f).read_text(encoding="utf-8"))
             mods = set()
             for n in ast.walk(tree):
                 if isinstance(n, ast.ImportFrom) and n.module:
@@ -379,19 +379,19 @@ class TestEnvironment:
             assert not any("openai" in m for m in mods)
         # No network-ident call sites in source.
         for f in ("src/integration/m7/contracts.py", "src/integration/m7/memory_router.py"):
-            src = (REPO_ROOT / f).read_text()
+            src = (REPO_ROOT / f).read_text(encoding="utf-8")
             for ident in ("httpx.", "requests.get", "aiohttp", "socket.socket", "urllib.", "urlopen"):
                 assert ident not in src
 
     def test_path_safety_no_hardcoded_user(self):
         for f in ("src/integration/m7/contracts.py", "src/integration/m7/memory_router.py"):
-            t = (REPO_ROOT / f).read_text()
+            t = (REPO_ROOT / f).read_text(encoding="utf-8")
             assert "/home/brian-nguyen" not in t and "/home/brian-nguyan" not in t
 
     def test_master_authority_consulted_not_reparsed(self):
         cfg_rt(enabled=True)
         assert get_runtime().is_enabled() is True
-        src = (REPO_ROOT / "src/integration/m7/contracts.py").read_text()
+        src = (REPO_ROOT / "src/integration/m7/contracts.py").read_text(encoding="utf-8")
         assert 'os.getenv("ZERO_MEM_ENABLED")' not in src
 
 
@@ -442,12 +442,12 @@ class TestDeferredAbsence:
         assert (REPO_ROOT / "src/integration/m7/hardening.py").exists()
         # No M8 features.
         for p in REPO_ROOT.rglob("src/integration/m7/*.py"):
-            t = p.read_text().lower()
+            t = p.read_text(encoding="utf-8").lower()
             assert "vector retrieval" not in t and "embeddings" not in t
 
     def test_no_m8_features(self):
         for p in REPO_ROOT.rglob("src/**/*.py"):
-            t = p.read_text().lower()
+            t = p.read_text(encoding="utf-8").lower()
             body = t.replace("deferred", "")
             assert "dense retrieval" not in body
             assert "vector search" not in body

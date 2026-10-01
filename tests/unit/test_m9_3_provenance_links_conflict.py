@@ -619,7 +619,7 @@ def test_human_file_collision_not_overwritten(tmp_path):
     human_path.write_text("# HUMAN OWNED\nDo not touch.\n")
     outcomes = write_notes(tmp_path / "v", (note,), dry_run=False)
     # The human file must be unchanged (writer returns a collision outcome).
-    assert human_path.read_text() == "# HUMAN OWNED\nDo not touch.\n"
+    assert human_path.read_text(encoding="utf-8") == "# HUMAN OWNED\nDo not touch.\n"
     assert any(not o.written for o in outcomes)
 
 

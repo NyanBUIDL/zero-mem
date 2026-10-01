@@ -357,11 +357,11 @@ def build_store(root: Path):
 
     jl = root / "memory.jsonl"
     events = _memory_events()
-    jl.write_text("\n".join(json.dumps(e) for e in events) + "\n")
+    jl.write_text("\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8", newline="\n")
     ingest_file(store, jl)
 
     corpus = root / "m4-corpus.jsonl"
-    corpus.write_text("\n".join(json.dumps(e) for e in _m4_corpus()) + "\n")
+    corpus.write_text("\n".join(json.dumps(e) for e in _m4_corpus()) + "\n", encoding="utf-8", newline="\n")
     rebuild_project_memory(store, corpus, project_id=PROJECT)
     rebuild_all_project_memory(store, corpus, project_id=PROJECT)
 

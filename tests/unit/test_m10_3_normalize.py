@@ -381,7 +381,7 @@ def test_normalized_units_not_persisted_into_memory_jsonl(tmp_path, monkeypatch)
     rec = reg.register_source_with_blob(
         content=content, external_ref="s3://b/a.pdf", kind="pdf", project_id="p1",
     )
-    raw = (tmp_path / "corpus" / "corpus_sources.jsonl").read_text()
+    raw = (tmp_path / "corpus" / "corpus_sources.jsonl").read_text(encoding="utf-8")
     assert rec.source_id in raw
     assert "secret finance doc content" not in raw
     # No M10.4 derived SQLite tables exist.

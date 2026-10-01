@@ -23,7 +23,7 @@ from pathlib import Path
 
 def _load_corpus(corpus: Path) -> Path:
     digest_file = corpus.with_suffix(".sha256")
-    expected = digest_file.read_text().strip()
+    expected = digest_file.read_text(encoding="utf-8").strip()
     actual = hashlib.sha256(corpus.read_bytes()).hexdigest()
     assert actual == expected, f"D1 determinism gate failed: {actual} != {expected}"
     return corpus
@@ -72,7 +72,7 @@ def run_benchmark(store_dir: Path, corpus: Path) -> dict:
 
     ro = open_readonly(store_dir / "bench.sqlite")
 
-    results: dict = {"corpus_events": sum(1 for _ in corpus.open()), "t_ingest_s": round(t_ingest, 3),
+    results: dict = {"corpus_events": sum(1 for _ in corpus.open(encoding="utf-8")), "t_ingest_s": round(t_ingest, 3),
                      "temporal_index_rows": proj.get("inserted_rows"),
                      "m4_projected": m4.get("projected") if isinstance(m4, dict) else None}
 
@@ -167,7 +167,7 @@ def main() -> None:
     args = ap.parse_args()
     res = run_benchmark(Path(args.store_dir), Path(args.corpus))
     out = Path(args.out)
-    out.write_text(json.dumps(res, indent=2, sort_keys=True) + "\n")
+    out.write_text(json.dumps(res, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
     print(json.dumps(res, indent=2))
 
 

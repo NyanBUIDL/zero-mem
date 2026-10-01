@@ -423,6 +423,9 @@ def main(argv: Optional[list] = None) -> int:
                          "memory tools (needs --enable-memory); ~17 KB less in every session's tools/list "
                          "(env ZM_M6_TOOLS).")
     args = ap.parse_args(argv)
+    from src.storage.platform import use_utf8_stdio
+
+    use_utf8_stdio(lf_newlines=True)  # DEF-083: JSON-RPC lines are UTF-8 with bare LF on every platform
     tools_mode = args.tools or (os.environ.get("ZM_M6_TOOLS") or "").strip() or TOOLS_ALL
     if tools_mode not in (TOOLS_ALL, TOOLS_MEMORY):
         sys.stderr.write("ERROR: --tools must be 'all' or 'memory'\n")

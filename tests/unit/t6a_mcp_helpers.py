@@ -147,7 +147,7 @@ class StdioServer:
                 base_env["PYTHONPATH"] = str(REPO_ROOT)
         self.proc = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            text=True, bufsize=1, cwd=str(run_cwd) if run_cwd else None, env=base_env)
+            text=True, encoding="utf-8", bufsize=1, cwd=str(run_cwd) if run_cwd else None, env=base_env)
         self._next_id = 0
         self._stderr_cache: Optional[str] = None
 

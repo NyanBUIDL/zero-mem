@@ -89,7 +89,7 @@ def _spawn_cli(tmp_path: Path, argvs: list) -> list:
     env.update(isolated_env(tmp_path))
     go = tmp_path / "go"
     procs = [subprocess.Popen([sys.executable, "-c", _GO_SCRIPT, str(REPO_ROOT), str(go), *argv], cwd=str(tmp_path),
-                              env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) for argv in argvs]
+                              env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8") for argv in argvs]
     time.sleep(1.5)  # every process has imported the CLI and spins on the go file
     go.touch()
     done = []
@@ -130,7 +130,7 @@ sys.exit(0 if r["structuredContent"]["status"] == "SUCCESS" else 3)
     env.update(isolated_env(tmp_path))
     go = tmp_path / "go"
     procs = [subprocess.Popen([sys.executable, "-c", code, str(REPO_ROOT), str(go), f"agent{i}"], cwd=str(tmp_path),
-                              env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                              env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8")
              for i in range(PROCESSES)]
     time.sleep(1.5)
     go.touch()
@@ -160,7 +160,8 @@ def test_the_lock_file_is_private_and_never_blocks_a_second_sequential_setup(tmp
     layout = Layout.resolve(tmp_path / "zm")
     layout.ensure()
     lock = layout.data_root / ".layout.lock"
-    assert stat.S_IMODE(lock.stat().st_mode) & 0o077 == 0
+    if os.name != "nt":  # POSIX permission bits only
+        assert stat.S_IMODE(lock.stat().st_mode) & 0o077 == 0
     started = time.monotonic()
     for _ in range(3):
         layout.ensure()

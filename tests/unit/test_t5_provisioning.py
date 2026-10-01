@@ -389,4 +389,5 @@ def test_stream_permissions_stay_private(prov, lay):
     import os
     import stat
     prov.add_agent("codex")
-    assert stat.S_IMODE(os.stat(lay.memory_stream).st_mode) == 0o600
+    if os.name != "nt":  # POSIX permission bits only (Windows reports 0o666/0o777)
+        assert stat.S_IMODE(os.stat(lay.memory_stream).st_mode) == 0o600

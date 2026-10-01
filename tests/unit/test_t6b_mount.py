@@ -49,7 +49,7 @@ def run_once(home, *args, env=None):
     base.update(env or {})
     base["PYTHONPATH"] = str(REPO_ROOT)
     done = subprocess.run([sys.executable, "-m", "src.integration.m6.mcp_server", *args], stdin=subprocess.DEVNULL,
-                          capture_output=True, text=True, cwd=str(REPO_ROOT), env=base, timeout=60)
+                          capture_output=True, text=True, encoding="utf-8", cwd=str(REPO_ROOT), env=base, timeout=60)
     return done.returncode, done.stderr
 
 
@@ -72,7 +72,7 @@ def test_enable_memory_adds_only_the_two_read_tools(home):
         out = srv.call("memory_add", {"text": "x", "memory_type": "fact", "scope": "private"})
         assert out["isError"] is True  # not mounted: the M6 dispatcher refuses it (nothing is written)
         assert out["structuredContent"]["status"] in ("UNSUPPORTED_TOOL", "INVALID_REQUEST")
-    assert not (home.layout.corpus_root / "corpus_sources.jsonl").read_text()
+    assert not (home.layout.corpus_root / "corpus_sources.jsonl").read_text(encoding="utf-8")
 
 
 def test_enable_write_adds_recall_context_and_the_three_write_tools(home):
@@ -147,7 +147,7 @@ def test_bad_allow_roots_are_refused_at_start(home, bad):
 
 def test_an_allow_root_that_is_a_file_is_refused(home, tmp_path):
     f = tmp_path / "file.txt"
-    f.write_text("x")
+    f.write_text("x", encoding="utf-8", newline="\n")
     code, err = run_once(home, "--profile-id", "claude-code", "--enable-write", "--allow-root", str(f))
     assert code == 2 and "allow-root" in err
 

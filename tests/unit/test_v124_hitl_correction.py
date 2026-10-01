@@ -107,7 +107,7 @@ def test_rationale_secret_never_persisted(tmp_path: Path) -> None:
         assert raw_secret not in preview.rationale
         if preview.payload is not None:
             assert raw_secret not in json.dumps(preview.payload)
-        raw = runtime.writer_path.read_text()
+        raw = runtime.writer_path.read_text(encoding="utf-8")
         assert raw_secret not in raw, "secret leaked into canonical JSONL"
     finally:
         runtime.close()
@@ -155,7 +155,7 @@ def test_two_corrections_on_same_target_distinct_events(tmp_path: Path) -> None:
         assert r1.status in ("APPENDED", "APPENDED_WITH_PROJECTION_LAG")
         assert r2.status in ("APPENDED", "APPENDED_WITH_PROJECTION_LAG")
         assert r1.control_event_id != r2.control_event_id
-        lines = runtime.writer_path.read_text().splitlines()
+        lines = runtime.writer_path.read_text(encoding="utf-8").splitlines()
         # 1 original + 2 distinct control events.
         assert len(lines) == 3
         eids = {json.loads(line)["event_id"] for line in lines}
@@ -194,7 +194,7 @@ def test_delete_request_tombstones_without_removing_canonical(tmp_path: Path) ->
         receipt = ctrl.confirm(preview)
         assert receipt.status in ("APPENDED", "APPENDED_WITH_PROJECTION_LAG")
         assert receipt.kind == CorrectionKind.DELETE_REQUEST
-        lines = runtime.writer_path.read_text().splitlines()
+        lines = runtime.writer_path.read_text(encoding="utf-8").splitlines()
         assert len(lines) == 2
         assert target in lines[0]
         # Ingest-compatible deletion block is present; original canonical line is intact.
@@ -214,7 +214,7 @@ def test_supersession_links_original_trace(tmp_path: Path) -> None:
         preview = ctrl.propose(target, CorrectionKind.SUPERSESSION, "updated version", {"note": "v2"})
         receipt = ctrl.confirm(preview)
         assert receipt.linked_target == target
-        lines = runtime.writer_path.read_text().splitlines()
+        lines = runtime.writer_path.read_text(encoding="utf-8").splitlines()
         assert len(lines) == 2
         assert target in lines[1]
         ctrl_event = json.loads(lines[1])
@@ -227,10 +227,10 @@ def test_confirm_preserves_original_no_silent_overwrite(tmp_path: Path) -> None:
     runtime, ctrl = _make_controller(tmp_path)
     try:
         target = _capture(runtime, 1)
-        original_line = runtime.writer_path.read_text().splitlines()[0]
+        original_line = runtime.writer_path.read_text(encoding="utf-8").splitlines()[0]
         preview = ctrl.propose(target, CorrectionKind.CORRECTION, "fix typo", {"note": "corrected"})
         ctrl.confirm(preview)
-        lines = runtime.writer_path.read_text().splitlines()
+        lines = runtime.writer_path.read_text(encoding="utf-8").splitlines()
         assert lines[0] == original_line
         assert len(lines) == 2
         assert lines[1].startswith("{") and '"control_event":true' in lines[1]
@@ -244,7 +244,7 @@ def test_delete_request_projects_real_derived_tombstone(tmp_path: Path) -> None:
     runtime, ctrl = _make_controller(tmp_path)
     try:
         target = _capture(runtime, 1)
-        original_line = runtime.writer_path.read_text().splitlines()[0]
+        original_line = runtime.writer_path.read_text(encoding="utf-8").splitlines()[0]
         receipt = ctrl.confirm(ctrl.propose(target, CorrectionKind.DELETE_REQUEST, "rm", None))
         assert receipt.status in ("APPENDED", "APPENDED_WITH_PROJECTION_LAG")
         runtime.flush_projection(timeout=5.0)
@@ -269,7 +269,7 @@ def test_delete_request_projects_real_derived_tombstone(tmp_path: Path) -> None:
         # Target is removed from the active FTS/read surface.
         assert fts == []
         # Original canonical record is byte-for-byte unchanged.
-        assert runtime.writer_path.read_text().splitlines()[0] == original_line
+        assert runtime.writer_path.read_text(encoding="utf-8").splitlines()[0] == original_line
     finally:
         runtime.close()
 

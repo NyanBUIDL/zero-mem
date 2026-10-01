@@ -253,7 +253,7 @@ def test_stale_retirement_ownership_not_proven_preserves(tmp_path):
     human_path.write_text("# Human note\n\nThis is my personal file, not generated.\n")
     # Desire drops B. Without the marker, retirement must NOT delete it.
     r2 = reconcile(vault, [note_a])
-    assert (vault / "requirements/unscoped/b.md").read_text() == \
+    assert (vault / "requirements/unscoped/b.md").read_text(encoding="utf-8") == \
         "# Human note\n\nThis is my personal file, not generated.\n"
     # The outcome is a safe skip (ownership unproven for deletion), never a
     # retire. M9.5 classifies the marker-less replacement precisely as
@@ -296,11 +296,11 @@ def test_human_modified_managed_note_not_silently_overwritten(tmp_path):
     # not a foreign file). M9.4 must refuse a silent overwrite of the human
     # change and let M9.5 resolve it.
     edited_path = vault / "requirements/unscoped/b.md"
-    edited_content = edited_path.read_text().replace("body b", "body b EDITED BY HUMAN")
+    edited_content = edited_path.read_text(encoding="utf-8").replace("body b", "body b EDITED BY HUMAN")
     edited_path.write_text(edited_content)
     r2 = reconcile(vault, [note_a, note_b])
     # The human-edited bytes are preserved exactly; no UPDATE happened.
-    assert edited_path.read_text() == edited_content
+    assert edited_path.read_text(encoding="utf-8") == edited_content
     assert not any(w.status is WriteStatus.UPDATED for w in r2.writes)
     assert any(w.status is WriteStatus.SKIPPED_HUMAN_MODIFIED
                for w in r2.writes) or \

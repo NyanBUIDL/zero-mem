@@ -546,7 +546,7 @@ class TestStaticSecurity:
     def test_no_forbidden_imports(self):
         for f in ("src/integration/m7/m8_integration.py",
                   "src/integration/m7/evidence_builder.py"):
-            tree = ast.parse((REPO_ROOT / f).read_text())
+            tree = ast.parse((REPO_ROOT / f).read_text(encoding="utf-8"))
             mods = set()
             for n in ast.walk(tree):
                 if isinstance(n, ast.Import):
@@ -563,7 +563,7 @@ class TestStaticSecurity:
         # Import-based check (not prose): M8.6 must not pull in any LLM, network,
         # embedding, or vector module. This avoids overfitting to our own
         # "zero embeddings" / "zero vectors" self-describing text.
-        src = (REPO_ROOT / "src/integration/m7/m8_integration.py").read_text()
+        src = (REPO_ROOT / "src/integration/m7/m8_integration.py").read_text(encoding="utf-8")
         tree = ast.parse(src)
         mods = set()
         for n in ast.walk(tree):
@@ -595,7 +595,7 @@ class TestStaticSecurity:
             return tree
 
         tree = _strip(ast.parse(
-            (REPO_ROOT / "src/integration/m7/m8_integration.py").read_text()))
+            (REPO_ROOT / "src/integration/m7/m8_integration.py").read_text(encoding="utf-8")))
         code = ast.unparse(tree).lower()
         # Real API markers only — never bare prose like "embedding"/"vector".
         for tok in ("embed(", "vector_index", "cosine_similarity", "ann_index",
@@ -604,7 +604,7 @@ class TestStaticSecurity:
 
     def test_no_m8_authorization_logic(self):
         # M8.6 must not call any authorization decision surface of M5.
-        src = (REPO_ROOT / "src/integration/m7/m8_integration.py").read_text()
+        src = (REPO_ROOT / "src/integration/m7/m8_integration.py").read_text(encoding="utf-8")
         assert "create_grant" not in src and "revoke_grant" not in src
         assert "GrantAdminService" not in src and "AuthorizedWriteService" not in src
 
@@ -623,7 +623,7 @@ class TestStaticSecurity:
 
         chunks = []
         for p in sorted((REPO_ROOT / "src/m8").glob("*.py")):
-            tree = _strip_docstrings(ast.parse(p.read_text()))
+            tree = _strip_docstrings(ast.parse(p.read_text(encoding="utf-8")))
             chunks.append(ast.unparse(tree))
         m8_code = "\n".join(chunks)
         assert "EvidenceSet" not in m8_code

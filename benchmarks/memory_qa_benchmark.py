@@ -144,7 +144,7 @@ class MemoryEngine:
     """One pinned-profile ``Memory`` in its own data root: ``add`` = write path, ``search`` = authorized recall."""
 
     def __init__(self, root: Path) -> None:
-        self.memory = Memory.open(PROFILE, data_root=Path(root) / "zm", channel="benchmark")
+        self.memory = Memory.open(PROFILE, data_root=Path(root).resolve() / "zm", channel="benchmark")
 
     def add(self, text: str, name: Optional[str] = None):
         return self.memory.add(text, "fact", name=name)
@@ -252,11 +252,13 @@ def _cache_key(chunks, ingest: str) -> str:
 def _open_haystack(chunks, ingest: str, engine_factory: Callable, cache_dir: Optional[Path]):
     """Returns ``(haystack, cleanup)``; the temp root (or, with a cache, nothing) is removed by ``cleanup``."""
     if cache_dir is None:
-        tmp = tempfile.TemporaryDirectory(prefix="zm-bench-")
-        engine = engine_factory(Path(tmp.name))
+        tmp = tempfile.TemporaryDirectory(prefix="zm-bench-", ignore_cleanup_errors=True)
+        # DEF-082: the layout safety check rejects symlinked ancestors, and macOS temp dirs live under the
+        # /var -> /private/var alias, so hand the engine the resolved real path.
+        engine = engine_factory(Path(tmp.name).resolve())
         ref_tag, text_tag, adds, rejected, seconds = _fill(engine, chunks, ingest)
         return _Haystack(engine, ref_tag, text_tag, adds, rejected, seconds, False), tmp.cleanup
-    root = Path(cache_dir) / _cache_key(chunks, ingest)
+    root = Path(cache_dir).resolve() / _cache_key(chunks, ingest)
     marker = root / "READY.json"
     if marker.exists():
         saved = json.loads(marker.read_text(encoding="utf-8"))

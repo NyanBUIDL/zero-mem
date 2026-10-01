@@ -367,19 +367,19 @@ def _tree(tmp_path):
     root = tmp_path / "docs"
     (root / "sub").mkdir(parents=True)
     (root / "node_modules").mkdir()
-    (root / "a.md").write_text("# Title\n\nAlpha paragraph about postgres tuning.\n")
-    (root / "b.txt").write_text("Beta plain text about redis caching.\n")
-    (root / "sub" / "data.csv").write_text("name,role\nalice,admin\nbob,viewer\n")
+    (root / "a.md").write_text("# Title\n\nAlpha paragraph about postgres tuning.\n", encoding="utf-8", newline="\n")
+    (root / "b.txt").write_text("Beta plain text about redis caching.\n", encoding="utf-8", newline="\n")
+    (root / "sub" / "data.csv").write_text("name,role\nalice,admin\nbob,viewer\n", encoding="utf-8", newline="\n")
     (root / "sub" / "chat.jsonl").write_text(
-        '{"role":"user","content":"hello gamma"}\n{"role":"assistant","content":"hi delta"}\n')
+        '{"role":"user","content":"hello gamma"}\n{"role":"assistant","content":"hi delta"}\n', encoding="utf-8", newline="\n")
     (root / "report.docx").write_bytes(fx.make_docx([("h", 1, "Quarterly"), ("p", "Epsilon revenue grew.")]))
     (root / "sheet.xlsx").write_bytes(fx.make_xlsx([("S1", [["k", "v"], ["zeta", "9"]])]))
-    (root / "empty.txt").write_text("")
-    (root / ".hidden.md").write_text("hidden text")
-    (root / "node_modules" / "x.md").write_text("node module text")
+    (root / "empty.txt").write_text("", encoding="utf-8", newline="\n")
+    (root / ".hidden.md").write_text("hidden text", encoding="utf-8", newline="\n")
+    (root / "node_modules" / "x.md").write_text("node module text", encoding="utf-8", newline="\n")
     (root / "blob.bin").write_bytes(b"\x00\x01\x02\xff" * 64)
     (root / "link.md").symlink_to(root / "a.md")
-    (root / "secret.txt").write_text(f"notes\n{SECRET_ENV}\n")
+    (root / "secret.txt").write_text(f"notes\n{SECRET_ENV}\n", encoding="utf-8", newline="\n")
     return root
 
 
@@ -406,8 +406,8 @@ def test_ingest_directory_reports_created_rejected_and_skipped(mem, env, tmp_pat
 def test_ingest_clean_directory_is_ok_and_reingest_is_a_noop(mem, env, tmp_path):
     root = tmp_path / "clean"
     root.mkdir()
-    (root / "one.md").write_text("# One\n\nFirst note about kafka.\n")
-    (root / "two.txt").write_text("Second note about nginx.\n")
+    (root / "one.md").write_text("# One\n\nFirst note about kafka.\n", encoding="utf-8", newline="\n")
+    (root / "two.txt").write_text("Second note about nginx.\n", encoding="utf-8", newline="\n")
     first = mem.ingest(root)
     assert first.ok and first.status == "ok" and first.counts["created"] == 2
     lines_before, blobs_before = len(env.registry_lines()), env.blob_count()
@@ -420,9 +420,9 @@ def test_changed_file_becomes_a_new_version_and_old_text_is_gone(mem, env, tmp_p
     root = tmp_path / "ver"
     root.mkdir()
     f = root / "note.md"
-    f.write_text("Old claim about mongo.\n")
+    f.write_text("Old claim about mongo.\n", encoding="utf-8", newline="\n")
     mem.ingest(root)
-    f.write_text("New claim about sqlite.\n")
+    f.write_text("New claim about sqlite.\n", encoding="utf-8", newline="\n")
     report = mem.ingest(root)
     assert report.counts["updated"] == 1 and report.counts["created"] == 0
     assert env.units() == ["New claim about sqlite."]
@@ -431,7 +431,7 @@ def test_changed_file_becomes_a_new_version_and_old_text_is_gone(mem, env, tmp_p
 
 def test_ingest_single_file_and_bytes(mem, env, tmp_path):
     f = tmp_path / "solo.md"
-    f.write_text("Solo file about haskell.\n")
+    f.write_text("Solo file about haskell.\n", encoding="utf-8", newline="\n")
     r1 = mem.ingest(f, memory_type="fact")
     assert r1.ok and r1.files[0].external_ref == "mem://fact/solo.md"
     r2 = mem.ingest(b"Bytes about erlang.\n", filename="bytes.txt", memory_type="file")
@@ -443,8 +443,8 @@ def test_ingest_single_file_and_bytes(mem, env, tmp_path):
 def test_non_ascii_names_are_percent_encoded_and_collision_free(mem, tmp_path):
     root = tmp_path / "vn"
     root.mkdir()
-    (root / "tài liệu.md").write_text("Nội dung một.\n")
-    (root / "tai lieu.md").write_text("Nội dung hai.\n")
+    (root / "tài liệu.md").write_text("Nội dung một.\n", encoding="utf-8", newline="\n")
+    (root / "tai lieu.md").write_text("Nội dung hai.\n", encoding="utf-8", newline="\n")
     report = mem.ingest(root, memory_type="file")
     refs = [r.external_ref for r in report.files]
     assert report.ok and len(set(refs)) == 2 and all(re.fullmatch(r"file://vn/[A-Za-z0-9%._~+@-]+", r) for r in refs)
@@ -454,7 +454,7 @@ def test_names_that_start_with_a_non_ascii_letter_or_punctuation_are_ingested(me
     root = tmp_path / "odd"
     root.mkdir()
     for name in ("ánh.md", "_draft.md", "-dash.md", "~tilde.md", "+plus.md", "@at.md", "2026 notes.md"):
-        (root / name).write_text(f"Content of {name} about narwhals.\n")
+        (root / name).write_text(f"Content of {name} about narwhals.\n", encoding="utf-8", newline="\n")
     report = mem.ingest(root, memory_type="file")
     assert report.ok and report.counts["created"] == 7, report.as_dict()
 
@@ -480,10 +480,10 @@ def test_ingest_invalid_inputs_are_typed(mem, tmp_path):
 def test_ingest_honours_allow_roots(mem, tmp_path):
     root = tmp_path / "allowed"
     root.mkdir()
-    (root / "f.md").write_text("inside\n")
+    (root / "f.md").write_text("inside\n", encoding="utf-8", newline="\n")
     outside = tmp_path / "outside"
     outside.mkdir()
-    (outside / "g.md").write_text("outside\n")
+    (outside / "g.md").write_text("outside\n", encoding="utf-8", newline="\n")
     assert mem.ingest(root, allow_roots=[root]).ok
     res = mem.ingest(outside, allow_roots=[root])
     assert res.status == "invalid" and res.reason == "path_outside_allow_roots"
@@ -494,7 +494,7 @@ def test_ingest_authorizes_once_per_call_and_denies_the_whole_batch(env, tmp_pat
     root = tmp_path / "shared-docs"
     root.mkdir()
     for i in range(3):
-        (root / f"f{i}.md").write_text(f"shared doc number {i}\n")
+        (root / f"f{i}.md").write_text(f"shared doc number {i}\n", encoding="utf-8", newline="\n")
     report = m.ingest(root, scope="shared")
     assert report.status == "denied" and report.reason == "DENY_CROSS_PROFILE_WRITE"
     assert report.files == [] and env.registry_lines() == []
@@ -506,7 +506,7 @@ def test_ingest_into_shared_with_a_grant_stores_every_file_in_the_shared_space(e
     root = tmp_path / "shared-docs"
     root.mkdir()
     for i in range(3):
-        (root / f"f{i}.md").write_text(f"shared doc number {i}\n")
+        (root / f"f{i}.md").write_text(f"shared doc number {i}\n", encoding="utf-8", newline="\n")
     report = m.ingest(root, scope="shared", memory_type="file")
     assert report.ok and report.counts["created"] == 3
     assert {l["knowledge_space_id"] for l in env.registry_lines()} == {SHARED}
@@ -525,8 +525,8 @@ def test_ingest_unsupported_and_corrupt_inputs_are_rejected_with_a_reason(mem, e
 def test_secret_file_in_a_batch_does_not_stop_the_other_files(mem, tmp_path):
     root = tmp_path / "mixed"
     root.mkdir()
-    (root / "a_secret.txt").write_text(SECRET_TOKEN + "\n")
-    (root / "b_fine.txt").write_text("a fine note about grpc\n")
+    (root / "a_secret.txt").write_text(SECRET_TOKEN + "\n", encoding="utf-8", newline="\n")
+    (root / "b_fine.txt").write_text("a fine note about grpc\n", encoding="utf-8", newline="\n")
     report = mem.ingest(root)
     statuses = {r.name: r.status for r in report.files}
     assert statuses == {"a_secret.txt": "rejected_secret", "b_fine.txt": "created"}

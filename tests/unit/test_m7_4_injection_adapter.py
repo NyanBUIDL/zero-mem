@@ -527,7 +527,7 @@ class TestM1Recursion:
         pre_llm_call as an llm_api_lifecycle event (observer only), and the
         injection adapter does NOT import or call the capture adapter."""
         # Verify the injection adapter module has no capture import
-        src = (REPO_ROOT / "src/integration/m7/injection_adapter.py").read_text()
+        src = (REPO_ROOT / "src/integration/m7/injection_adapter.py").read_text(encoding="utf-8")
         assert "capture_adapter" not in src
         assert "adapt_mapped_event" not in src
         assert "ingest" not in src.lower() or "no writes" in src.lower()
@@ -567,7 +567,7 @@ class TestStaticAudit:
     def test_no_forbidden_imports(self):
         for f in ("src/integration/m7/injection_adapter.py",
                   "src/integration/m7/envelope.py"):
-            tree = ast.parse((REPO_ROOT / f).read_text())
+            tree = ast.parse((REPO_ROOT / f).read_text(encoding="utf-8"))
             mods = set()
             for n in ast.walk(tree):
                 if isinstance(n, ast.Import):
@@ -582,7 +582,7 @@ class TestStaticAudit:
     def test_no_grant_admin(self):
         for f in ("src/integration/m7/injection_adapter.py",
                   "src/integration/m7/envelope.py"):
-            src = (REPO_ROOT / f).read_text()
+            src = (REPO_ROOT / f).read_text(encoding="utf-8")
             assert "GrantAdminService" not in src
             assert "create_grant" not in src and "revoke_grant" not in src
 
@@ -590,7 +590,7 @@ class TestStaticAudit:
         """M7.4 modules contain no write/append/mutation calls."""
         for f in ("src/integration/m7/injection_adapter.py",
                   "src/integration/m7/envelope.py"):
-            src = (REPO_ROOT / f).read_text()
+            src = (REPO_ROOT / f).read_text(encoding="utf-8")
             assert "authorized_write" not in src.lower()
             assert ".append(" not in src or "parts.append" in src  # parts.append is list building, not storage
 
@@ -613,7 +613,7 @@ class TestStaticAudit:
     def test_no_hardcoded_home(self):
         for f in ("src/integration/m7/injection_adapter.py",
                   "src/integration/m7/envelope.py"):
-            src = (REPO_ROOT / f).read_text()
+            src = (REPO_ROOT / f).read_text(encoding="utf-8")
             assert "/home/brian" not in src
 
     def test_no_m7_5_implementation(self):
@@ -622,13 +622,13 @@ class TestStaticAudit:
         # No M7.6-specific module (M7.6 is acceptance/closure, not a new module)
         # No M8 features
         for p in REPO_ROOT.glob("src/integration/m7/*.py"):
-            t = p.read_text().lower()
+            t = p.read_text(encoding="utf-8").lower()
             assert "vector retrieval" not in t
             assert "embeddings" not in t
 
     def test_no_m8_implementation(self):
         for p in REPO_ROOT.glob("src/integration/m7/*.py"):
-            t = p.read_text().lower()
+            t = p.read_text(encoding="utf-8").lower()
             assert "vector retrieval" not in t
             assert "embeddings" not in t
             assert "graph traversal" not in t

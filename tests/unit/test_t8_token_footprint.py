@@ -296,6 +296,6 @@ def test_the_plain_server_module_keeps_its_legacy_default_and_validates_the_swit
 
     base["PYTHONPATH"] = str(REPO_ROOT)
     done = subprocess.run([sys.executable, "-m", "src.integration.m6.mcp_server", "--store-path", store,
-                           "--tools", "memory"], stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                           "--tools", "memory"], stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8",
                           cwd=str(REPO_ROOT), env=base, timeout=60)
     assert done.returncode == 2 and "--enable-memory" in done.stderr

@@ -80,6 +80,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from src.storage.platform import use_utf8_stdio
+
+    use_utf8_stdio()  # DEF-083: never depend on the Windows ANSI code page for CLI input/output
     args = build_parser().parse_args(argv)
     from .commands_memory import dispatch as dispatch_memory
 

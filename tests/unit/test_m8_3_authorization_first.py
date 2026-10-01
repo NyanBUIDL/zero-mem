@@ -486,7 +486,7 @@ class TestZeroLlmNetwork:
         import pathlib
         src = pathlib.Path(__file__).resolve().parents[2].joinpath(
             "src", "m8", "graph_access.py"
-        ).read_text()
+        ).read_text(encoding="utf-8")
         tree = ast.parse(src)
         forbidden = {"openai", "anthropic", "http", "requests", "socket",
                      "urllib", "embedding", "llm"}

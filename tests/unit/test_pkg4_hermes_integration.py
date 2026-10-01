@@ -404,7 +404,7 @@ def test_configure_and_remove_are_reversible_and_zero_mem_owned(monkeypatch, tmp
     assert code == 0
     path = hi.integration_config_path()
     assert path.is_file()
-    assert json.loads(path.read_text())["owner"] == "zero-mem"
+    assert json.loads(path.read_text(encoding="utf-8"))["owner"] == "zero-mem"
     code, result = hi.command(project_id=None, profile_id=None, remove=True)
     assert code == 0
     assert not path.exists()

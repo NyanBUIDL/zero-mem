@@ -65,7 +65,7 @@ class TestDef034CaptureEnvelope:
         root = tmp_path / "canon"
         store = JsonlCaptureStore(CaptureStoreConfig(root))
         store.append(env)
-        line = json.loads((root / "events-v1.jsonl").read_text().splitlines()[0])
+        line = json.loads((root / "events-v1.jsonl").read_text(encoding="utf-8").splitlines()[0])
         assert line.get("knowledge_space_id") == "ks-manual"
         db = SQLiteStore(SQLiteStoreConfig(path=tmp_path / "m.sqlite"))
         db.ensure_schema()

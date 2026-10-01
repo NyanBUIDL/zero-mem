@@ -197,6 +197,22 @@ def _read_regular(path: Union[str, Path], *, max_bytes: int, follow_symlinks: bo
     return data
 
 
+def _dir_identity(path: Path) -> tuple:
+    """Stable identity of a directory for loop detection.
+
+    ``DirEntry.stat()`` on Windows leaves ``st_dev``/``st_ino`` at 0, so every sub-directory would look like
+    its own ancestor (a false ``symlink_loop``). Ask the filesystem directly (``os.stat``) and, on a
+    filesystem that reports no inode, fall back to the normalized real path.
+    """
+    try:
+        info = os.stat(path)
+        if info.st_ino:
+            return (info.st_dev, info.st_ino)
+    except OSError:
+        pass
+    return ("path", os.path.normcase(os.path.realpath(path)))
+
+
 @dataclass(frozen=True)
 class SkipRecord:
     relative_name: str
@@ -294,7 +310,7 @@ class IngestWalk:
         else:
             st = lst
         if stat.S_ISDIR(st.st_mode):
-            yield from self._walk(root, "", {(st.st_dev, st.st_ino)}, 0)
+            yield from self._walk(root, "", {_dir_identity(root)}, 0)
         elif stat.S_ISREG(st.st_mode):
             yield from self._file(root.name, root, st)
         else:
@@ -341,7 +357,7 @@ class IngestWalk:
                 if name in EXCLUDED_DIRS:
                     self._skip(rel, "excluded_dir")
                     continue
-                key = (st.st_dev, st.st_ino)
+                key = _dir_identity(target)
                 if key in ancestors:
                     self._skip(rel, "symlink_loop")
                     continue

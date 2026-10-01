@@ -116,7 +116,7 @@ def test_raw_blobs_of_earlier_versions_are_kept(env):
     gone = env.add("mem://fact/gone", "beta forgotten unit")
     tombstone(env, gone)
     assert env.blobs.exists(gone.blob_ref) and env.blobs.get(gone.blob_ref) == b"beta forgotten unit"
-    lines = [json.loads(x) for x in (env.root / "corpus_sources.jsonl").read_text().splitlines()]
+    lines = [json.loads(x) for x in (env.root / "corpus_sources.jsonl").read_text(encoding="utf-8").splitlines()]
     assert [r["lifecycle_status"] for r in lines] == ["observed", "deleted"]
     assert lines[1]["supersedes"] == lines[0]["source_version_id"]
 
@@ -125,7 +125,7 @@ def test_re_adding_the_original_bytes_after_a_tombstone_is_a_new_version_and_res
     gone = env.add("mem://fact/gone", "beta forgotten unit")
     tombstone(env, gone)
     again = env.add("mem://fact/gone", "beta forgotten unit")
-    tomb_line = json.loads((env.root / "corpus_sources.jsonl").read_text().splitlines()[1])
+    tomb_line = json.loads((env.root / "corpus_sources.jsonl").read_text(encoding="utf-8").splitlines()[1])
     # identity is content-addressed, so the resurrected version reuses v1's version id; the chain order
     # (``supersedes`` = the tombstone) is what distinguishes it
     assert again.lifecycle_status == "observed" and again.supersedes == tomb_line["source_version_id"]

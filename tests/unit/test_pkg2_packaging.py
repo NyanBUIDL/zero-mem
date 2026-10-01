@@ -259,8 +259,8 @@ def _install(bundle: Path, root: Path, *, extra_env: dict[str, str] | None = Non
 
 
 def test_bundle_manifest_and_checksums_cover_release_payload(bundle: Path) -> None:
-    manifest = json.loads((bundle / "manifest.json").read_text())
-    checksums = (bundle / "checksums.sha256").read_text()
+    manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
+    checksums = (bundle / "checksums.sha256").read_text(encoding="utf-8")
     assert manifest["bundle_status"] == "PKG-2 INSTALLER ACCEPTANCE BUNDLE"
     assert manifest["version"] == VERSION
     assert set(manifest["payload_files"]) == {line.split("  ", 1)[1] for line in checksums.splitlines()}
@@ -322,7 +322,7 @@ def test_same_version_reinstall_is_non_destructive(bundle: Path, pkg2_root: Path
     before = (runtime / "current").resolve()
     assert _install(bundle, pkg2_root).returncode == 0
     assert (runtime / "current").resolve() == before
-    assert sentinel.read_text() == "preserve"
+    assert sentinel.read_text(encoding="utf-8") == "preserve"
 
 
 def test_default_uninstall_preserves_user_data(bundle: Path, pkg2_root: Path) -> None:
@@ -337,7 +337,7 @@ def test_default_uninstall_preserves_user_data(bundle: Path, pkg2_root: Path) ->
     assert result.returncode == 0
     assert not (runtime / "current").exists()
     assert not _cli(home / "bin root with spaces").exists()
-    assert sentinel.read_text() == "synthetic canonical data"
+    assert sentinel.read_text(encoding="utf-8") == "synthetic canonical data"
 
 
 def test_uninstall_refuses_unsafe_active_symlink(bundle: Path, pkg2_root: Path) -> None:
@@ -365,7 +365,7 @@ def test_compatible_python_detection_and_rejection() -> None:
 
 
 def test_no_network_fallback_is_encoded_in_installer_source() -> None:
-    text = INSTALLER.read_text()
+    text = INSTALLER.read_text(encoding="utf-8")
     assert "--no-index" in text
     assert "--find-links" in text
     assert "pip install" not in text or "--no-index" in text
