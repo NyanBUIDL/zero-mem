@@ -35,6 +35,7 @@ Security:
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import sqlite3
 from dataclasses import dataclass, field
@@ -43,10 +44,10 @@ from typing import Final, Iterable, List, Mapping, Optional
 
 from src.storage.migrations import migrate_10 as _migrate_10
 
-from .contracts import CORPUS_SOURCE_RESOURCE_TYPE, CorpusSourceRecord
+from .contracts import CORPUS_SOURCE_RESOURCE_TYPE, CorpusSourceRecord, SourceSensitivity
 from .dedup import UnitDedupIndex, unit_content_hash, unit_logical_id
 from .normalize import normalize_extraction
-from .redact import CorpusRedactionError, require_safe
+from .redact import CorpusRedactionError, require_safe, scan_extracted_text
 from .registry import CORPUS_ROOT_ENV_VAR, REGISTRY_FILENAME, CorpusSourceRegistry
 from .versioning import build_version_chain
 
@@ -187,22 +188,67 @@ def _insert_unit(
         )
 
 
+#: Closed per-source status vocabulary (DEF-060). The first nine are the M10.2
+#: extraction outcomes; the rest are projection-level outcomes.
+SOURCE_STATUS_COMPLETE: Final[str] = "complete"
+SOURCE_STATUS_PARTIAL: Final[str] = "partial"
+SOURCE_STATUS_UNSUPPORTED_FORMAT: Final[str] = "unsupported_format"
+SOURCE_STATUS_CORRUPT_SOURCE: Final[str] = "corrupt_source"
+SOURCE_STATUS_PARSER_UNAVAILABLE: Final[str] = "parser_unavailable"
+SOURCE_STATUS_EMPTY_SOURCE: Final[str] = "empty_source"
+SOURCE_STATUS_MISSING_SOURCE: Final[str] = "missing_source"
+SOURCE_STATUS_PERMISSION_DENIED: Final[str] = "permission_denied"
+SOURCE_STATUS_ADAPTER_FAILED: Final[str] = "adapter_failed"
+#: Extraction succeeded but every unit was rejected by the secret backstop.
+SOURCE_STATUS_REJECTED_SECRET: Final[str] = "rejected_secret"
+#: ``sensitivity="secret"`` source: never extracted, never projected into units.
+SOURCE_STATUS_WITHHELD_SENSITIVITY: Final[str] = "withheld_sensitivity"
+#: No blob store / blob reference: nothing could be re-extracted.
+SOURCE_STATUS_BLOB_UNAVAILABLE: Final[str] = "blob_unavailable"
+#: ``source_status`` answer for a source the derived store has never seen.
+SOURCE_STATUS_NOT_PROJECTED: Final[str] = "not_projected"
+
+SOURCE_STATUSES: Final[frozenset] = frozenset({
+    SOURCE_STATUS_COMPLETE, SOURCE_STATUS_PARTIAL, SOURCE_STATUS_UNSUPPORTED_FORMAT,
+    SOURCE_STATUS_CORRUPT_SOURCE, SOURCE_STATUS_PARSER_UNAVAILABLE,
+    SOURCE_STATUS_EMPTY_SOURCE, SOURCE_STATUS_MISSING_SOURCE,
+    SOURCE_STATUS_PERMISSION_DENIED, SOURCE_STATUS_ADAPTER_FAILED,
+    SOURCE_STATUS_REJECTED_SECRET, SOURCE_STATUS_WITHHELD_SENSITIVITY,
+    SOURCE_STATUS_BLOB_UNAVAILABLE, SOURCE_STATUS_NOT_PROJECTED,
+})
+
+#: Key under which the per-source status is persisted in the derived
+#: ``zm_corpus_sources.provenance`` JSON (no schema change; rebuild-deterministic).
+_STATUS_PROVENANCE_KEY: Final[str] = "zm_projection"
+
+_REASON_MAX_CHARS: Final[int] = 200
+
+
 @dataclass
 class CorpusProjectionReport:
-    """Sanitized projection outcome (never carries raw text)."""
+    """Sanitized projection outcome (never carries raw text).
+
+    ``source_statuses`` has one ``{source_id, status, reason, units,
+    units_rejected_secret, contained_secret}`` entry per projected source
+    (DEF-060), so a source that yields no units is never silent.
+    """
 
     sources_projected: int = 0
     units_projected: int = 0
     units_rejected_secret: int = 0
     extractions_failed: int = 0
+    source_statuses: List[dict] = field(default_factory=list)
 
-    def as_dict(self) -> dict:
-        return {
+    def as_dict(self, include_sources: bool = False) -> dict:
+        out = {
             "sources_projected": self.sources_projected,
             "units_projected": self.units_projected,
             "units_rejected_secret": self.units_rejected_secret,
             "extractions_failed": self.extractions_failed,
         }
+        if include_sources:
+            out["source_statuses"] = [dict(entry) for entry in self.source_statuses]
+        return out
 
     def merge(self, other: "CorpusProjectionReport") -> None:
         """Fold ``other`` (e.g. one source's report) into this aggregate."""
@@ -210,6 +256,33 @@ class CorpusProjectionReport:
         self.units_projected += other.units_projected
         self.units_rejected_secret += other.units_rejected_secret
         self.extractions_failed += other.extractions_failed
+        self.source_statuses.extend(other.source_statuses)
+
+
+@dataclass
+class _Outcome:
+    """What projecting one source's current version produced (internal)."""
+
+    status: str
+    reason: Optional[str] = None
+    kept: set = field(default_factory=set)
+    rejected_secret: int = 0
+    contained_secret: bool = False
+    #: False when nothing was attempted, so existing units must be left alone.
+    touched_units: bool = True
+
+
+def _flag_contained_secret(result):
+    """Return ``result`` marked ``contained_secret=True`` (the dataclass is frozen)."""
+    return dataclasses.replace(result, contained_secret=True)
+
+
+def _clean_reason(reason: Optional[str]) -> str:
+    """Bounded, secret-scanned, single-line reason string for persistence."""
+    text = " ".join((reason or "unspecified").split())[:_REASON_MAX_CHARS] or "unspecified"
+    if not scan_extracted_text(text).safe:
+        return "redacted"
+    return text
 
 
 #: Max bound parameters per DELETE ... IN (...) (stay far below SQLite's limit).
@@ -244,36 +317,62 @@ def _project_record(
     report: "CorpusProjectionReport",
 ) -> None:
     """Project ONE source record (the shared core of project_source/project_corpus)."""
-    from .adapters.registry import select_adapter
-    from .extract import ExtractionStatus
-
     _insert_source(cur, record)
     report.sources_projected += 1
 
-    if store is None or not store.available or record.blob_ref is None:
+    if record.sensitivity == SourceSensitivity.SECRET.value:
+        # DEF-057: a secret source is withheld -- never read, extracted or
+        # indexed -- and any units of an earlier version are removed.
+        outcome = _Outcome(SOURCE_STATUS_WITHHELD_SENSITIVITY, "sensitivity_secret")
+    elif store is None or not store.available or record.blob_ref is None:
         # No blob available to re-extract (e.g. blob store unconfigured).
         # Source projection still stands; units simply cannot be rebuilt, so
         # whatever units exist are left untouched.
-        return
+        outcome = _Outcome(
+            SOURCE_STATUS_BLOB_UNAVAILABLE,
+            "no_blob_store" if store is None or not store.available else "no_blob_ref",
+            touched_units=False,
+        )
+    else:
+        outcome = _extract_source(cur, record, store, report)
 
-    kept: set = set()
-    _extract_into(cur, record, store, report, kept, select_adapter, ExtractionStatus)
-    # DEF-050: the units of this source are exactly what the current version
-    # yielded; anything else belongs to an earlier version and must go.
-    _prune_stale_units(cur, record.source_id, kept)
+    if outcome.touched_units:
+        # DEF-050: the units of this source are exactly what the current version
+        # yielded; anything else belongs to an earlier version and must go.
+        _prune_stale_units(cur, record.source_id, outcome.kept)
+        units = len(outcome.kept)
+    else:
+        units = cur.execute(
+            "SELECT COUNT(*) FROM zm_corpus_units WHERE source_ref=?", (record.source_id,)
+        ).fetchone()[0]
+    _record_status(cur, record, outcome, units, report)
 
 
-def _extract_into(cur, record, store, report, kept, select_adapter, ExtractionStatus) -> None:
+def _extract_source(cur, record, store, report) -> _Outcome:
+    """Extract, normalize, dedup and insert one source's units (DEF-060 outcome)."""
+    from .adapters.registry import select_adapter
+    from .extract import ExtractionStatus
+
     try:
         content = store.get(record.blob_ref)
-    except Exception:
+    except Exception as exc:
         report.extractions_failed += 1
-        return
+        reason = str(exc) if isinstance(exc, ValueError) else type(exc).__name__
+        return _Outcome(SOURCE_STATUS_MISSING_SOURCE, f"blob_read_failed:{_clean_reason(reason)}")
 
     adapter = select_adapter(record.kind)
-    if adapter is None or not adapter.is_available():
+    if adapter is None:
         report.extractions_failed += 1
-        return
+        return _Outcome(
+            SOURCE_STATUS_UNSUPPORTED_FORMAT,
+            f"no_adapter_for_kind:{_clean_reason(record.kind)}",
+        )
+    if not adapter.is_available():
+        report.extractions_failed += 1
+        return _Outcome(
+            SOURCE_STATUS_PARSER_UNAVAILABLE,
+            f"parser_unavailable:{_clean_reason(getattr(adapter, 'parser_name', None))}",
+        )
 
     try:
         result = adapter.extract(
@@ -281,18 +380,21 @@ def _extract_into(cur, record, store, report, kept, select_adapter, ExtractionSt
             content=content,
             kind_hint=record.kind,
         )
-    except Exception:
+        extraction_status = ExtractionStatus.validate(result.status)
+    except Exception as exc:
         report.extractions_failed += 1
-        return
+        return _Outcome(SOURCE_STATUS_ADAPTER_FAILED, f"adapter_error:{type(exc).__name__}")
 
-    if not ExtractionStatus.validate(result.status).is_success:
+    if not extraction_status.is_success:
         report.extractions_failed += 1
-        return
+        return _Outcome(extraction_status.value, _clean_reason(result.error_reason))
 
     norm = normalize_extraction(result)
     if not norm.ok:
-        return
+        return _Outcome(SOURCE_STATUS_EMPTY_SOURCE, "no_normalized_units")
 
+    kept: set = set()
+    rejected = 0
     # Class C dedup within this source scope only (never across sources).
     dedup = UnitDedupIndex()
     for unit in norm.units:
@@ -311,7 +413,82 @@ def _extract_into(cur, record, store, report, kept, select_adapter, ExtractionSt
             kept.add(_unit_id(unit, record))
             report.units_projected += 1
         except CorpusRedactionError:
+            rejected += 1
             report.units_rejected_secret += 1
+
+    contained = False
+    if rejected:
+        result = _flag_contained_secret(result)
+        contained = result.contained_secret
+
+    if not kept:
+        status = SOURCE_STATUS_REJECTED_SECRET if rejected else SOURCE_STATUS_ADAPTER_FAILED
+        reason = f"units_rejected_secret:{rejected}" if rejected else "no_unit_persisted"
+        return _Outcome(status, reason, kept, rejected, contained)
+    reason = f"units_rejected_secret:{rejected}" if rejected else None
+    return _Outcome(extraction_status.value, reason, kept, rejected, contained)
+
+
+def _record_status(cur, record, outcome: _Outcome, units: int, report) -> None:
+    """Persist + report the per-source status (same transaction as the units)."""
+    entry = {
+        "status": outcome.status,
+        "reason": outcome.reason,
+        "units": units,
+        "units_rejected_secret": outcome.rejected_secret,
+        "contained_secret": outcome.contained_secret,
+    }
+    provenance = dict(record.provenance)
+    provenance[_STATUS_PROVENANCE_KEY] = entry
+    cur.execute(
+        "UPDATE zm_corpus_sources SET provenance=? WHERE source_id=?",
+        (json.dumps(provenance, sort_keys=True, ensure_ascii=False), record.source_id),
+    )
+    report.source_statuses.append({"source_id": record.source_id, **entry})
+
+
+def source_status(conn: sqlite3.Connection, source_id: str) -> dict:
+    """Per-source projection status (DEF-060), read from the derived store.
+
+    Returns ``{source_id, status, reason, units, units_rejected_secret,
+    contained_secret}`` where ``status`` is in :data:`SOURCE_STATUSES`. A source
+    the derived store has never seen is ``not_projected``; a row projected before
+    status tracking existed is derived from its unit count. Read-only: works on a
+    ``mode=ro`` connection.
+    """
+    row = conn.execute(
+        "SELECT provenance FROM zm_corpus_sources WHERE source_id=?", (source_id,)
+    ).fetchone()
+    if row is None:
+        return {
+            "source_id": source_id, "status": SOURCE_STATUS_NOT_PROJECTED,
+            "reason": "no_such_source", "units": 0,
+            "units_rejected_secret": 0, "contained_secret": False,
+        }
+    try:
+        stored = (json.loads(row[0]) if row[0] else {}).get(_STATUS_PROVENANCE_KEY)
+    except (TypeError, ValueError):
+        stored = None
+    if isinstance(stored, dict) and stored.get("status") in SOURCE_STATUSES:
+        return {
+            "source_id": source_id,
+            "status": stored["status"],
+            "reason": stored.get("reason"),
+            "units": int(stored.get("units", 0)),
+            "units_rejected_secret": int(stored.get("units_rejected_secret", 0)),
+            "contained_secret": bool(stored.get("contained_secret", False)),
+        }
+    units = conn.execute(
+        "SELECT COUNT(*) FROM zm_corpus_units WHERE source_ref=?", (source_id,)
+    ).fetchone()[0]
+    return {
+        "source_id": source_id,
+        "status": SOURCE_STATUS_COMPLETE if units else SOURCE_STATUS_EMPTY_SOURCE,
+        "reason": "projected_before_status_tracking",
+        "units": int(units),
+        "units_rejected_secret": 0,
+        "contained_secret": False,
+    }
 
 
 def _latest_records(registry: CorpusSourceRegistry) -> List[CorpusSourceRecord]:
@@ -439,7 +616,9 @@ __all__ = [
     "CORPUS_IDENTITY_VERSION",
     "CorpusProjectionError",
     "CorpusProjectionReport",
+    "SOURCE_STATUSES",
     "project_corpus",
     "project_source",
     "rebuild_from_corpus",
+    "source_status",
 ]

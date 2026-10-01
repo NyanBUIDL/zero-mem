@@ -406,3 +406,241 @@ class TestDef058ProjectSource:
         assert (report.sources_projected, report.units_projected) == (1, 1)
         assert env.conn.execute("SELECT COUNT(*) FROM zm_corpus_sources").fetchone()[0] == 1001
         assert any("brand new" in t for t in env.search("brand"))
+
+
+# ---------------------------------------------------------------------------
+# DEF-060 - per-source extraction status (never silent)
+# ---------------------------------------------------------------------------
+
+class StatusAdapter(FormatAdapter):
+    """Returns a scripted outcome per kind hint 't2status:<outcome>'."""
+
+    format = FormatKind.TXT
+    parser_name = "fake:status"
+    available = True
+
+    def is_available(self) -> bool:
+        return self.available
+
+    def supports(self, kind_hint: str) -> bool:
+        return kind_hint.startswith("t2status:")
+
+    def extract(self, *, source_ref, content, kind_hint):
+        outcome = kind_hint.split(":", 1)[1]
+        if outcome == "raise":
+            raise RuntimeError("boom with details that must not be persisted verbatim")
+        if outcome == "badstatus":
+            return ExtractionResult.__new__(ExtractionResult)  # no attributes -> invalid
+        if outcome == "partial":
+            unit = ExtractionUnit(unit_id=f"{source_ref}#p1", kind="text", text="partial text unit",
+                                  source_ref=source_ref, order=1)
+            return ExtractionResult(source_ref=source_ref, status="partial", units=(unit,),
+                                    parser_name=self.parser_name)
+        return ExtractionResult(source_ref=source_ref, status=outcome, error_reason=f"scripted {outcome}",
+                                parser_name=self.parser_name, byte_length=len(content))
+
+
+@pytest.fixture()
+def status_adapter(monkeypatch):
+    import src.corpus.adapters.registry as areg
+
+    adapter = StatusAdapter()
+    real_select = areg.select_adapter
+    monkeypatch.setattr(
+        areg, "select_adapter",
+        lambda kind: adapter if kind.startswith("t2status:") else real_select(kind))
+    return adapter
+
+
+class TestDef060SourceStatus:
+    def test_unsupported_kind_is_reported_not_silent(self, env):
+        from src.corpus.derived_store import source_status
+
+        good = env.register(b"plain note\n", ref="mem://note/a")
+        docx = env.register(b"PK\x03\x04 not really a docx", ref="file://report.xyzzy", kind="xyzzy")
+        report = env.project()
+        by_id = {e["source_id"]: e for e in report.source_statuses}
+        assert by_id[docx.source_id]["status"] == "unsupported_format"
+        assert by_id[docx.source_id]["units"] == 0
+        assert "xyzzy" in by_id[docx.source_id]["reason"]
+        assert by_id[good.source_id]["status"] == "complete"
+        assert by_id[good.source_id]["units"] == 1
+        assert report.extractions_failed == 1
+        # queryable afterwards, from the persisted derived state
+        assert source_status(env.conn, docx.source_id)["status"] == "unsupported_format"
+        assert source_status(env.conn, good.source_id)["status"] == "complete"
+
+    def test_status_is_visible_from_a_fresh_readonly_connection(self, env):
+        from src.corpus.derived_store import source_status
+
+        docx = env.register(b"x", ref="file://a.xyzzy", kind="xyzzy")
+        env.project()
+        ro = open_readonly(env.db_path)
+        try:
+            entry = source_status(ro.conn, docx.source_id)
+        finally:
+            ro.close()
+        assert entry["source_id"] == docx.source_id
+        assert entry["status"] == "unsupported_format"
+
+    @pytest.mark.parametrize("outcome", [
+        "corrupt_source", "empty_source", "missing_source", "permission_denied",
+        "parser_unavailable", "unsupported_format", "adapter_failed"])
+    def test_every_adapter_failure_status_is_recorded(self, env, status_adapter, outcome):
+        from src.corpus.derived_store import source_status
+
+        rec = env.register(b"bytes", ref=f"mem://s/{outcome}", kind=f"t2status:{outcome}")
+        report = env.project()
+        entry = source_status(env.conn, rec.source_id)
+        assert entry["status"] == outcome
+        assert entry["units"] == 0
+        assert outcome in entry["reason"]
+        assert report.extractions_failed == 1
+        assert report.source_statuses[0]["status"] == outcome
+
+    def test_adapter_exception_and_invalid_status_are_adapter_failed(self, env, status_adapter):
+        from src.corpus.derived_store import source_status
+
+        a = env.register(b"bytes", ref="mem://s/raise", kind="t2status:raise")
+        b = env.register(b"bytes", ref="mem://s/bad", kind="t2status:badstatus")
+        report = env.project()
+        for rec in (a, b):
+            assert source_status(env.conn, rec.source_id)["status"] == "adapter_failed"
+        assert "details that must not be persisted" not in json.dumps(report.source_statuses)
+        assert report.extractions_failed == 2
+
+    def test_parser_unavailable_when_adapter_reports_unavailable(self, env, status_adapter):
+        from src.corpus.derived_store import source_status
+
+        rec = env.register(b"bytes", ref="mem://s/x", kind="t2status:partial")
+        status_adapter.available = False
+        env.project()
+        assert source_status(env.conn, rec.source_id)["status"] == "parser_unavailable"
+
+    def test_partial_extraction_is_reported_as_partial(self, env, status_adapter):
+        from src.corpus.derived_store import source_status
+
+        rec = env.register(b"bytes", ref="mem://s/p", kind="t2status:partial")
+        env.project()
+        entry = source_status(env.conn, rec.source_id)
+        assert (entry["status"], entry["units"]) == ("partial", 1)
+
+    def test_empty_txt_source_is_empty_source(self, env):
+        from src.corpus.derived_store import source_status
+
+        rec = env.register(b"   \n\n", ref="mem://note/blank")
+        env.project()
+        assert source_status(env.conn, rec.source_id)["status"] == "empty_source"
+
+    def test_source_without_blob_is_blob_unavailable(self, env):
+        from src.corpus.derived_store import source_status
+
+        rec = env.registry.register_source(content=b"no blob stored", external_ref="mem://x/noblob", kind="txt")
+        assert rec.blob_ref is None
+        env.project()
+        assert source_status(env.conn, rec.source_id)["status"] == "blob_unavailable"
+
+    def test_unknown_source_is_not_projected(self, env):
+        from src.corpus.derived_store import source_status
+
+        entry = source_status(env.conn, "does-not-exist")
+        assert entry["status"] == "not_projected" and entry["units"] == 0
+
+    def test_failed_v2_extraction_removes_stale_v1_units(self, env):
+        from src.corpus.derived_store import source_status
+
+        rec = env.register(b"v1 line one\nv1 line two\n", ref="mem://note/gone")
+        env.project()
+        assert len(env.unit_rows()) == 2
+        env.register(b"  \n", ref="mem://note/gone")  # v2: nothing extractable
+        env.project()
+        assert env.unit_rows() == [] and env.fts_ids() == set()
+        assert source_status(env.conn, rec.source_id)["status"] == "empty_source"
+
+    def test_secret_rejection_sets_contained_secret_and_status(self, env):
+        from src.corpus.derived_store import source_status
+
+        only = env.register(b"password=hunter2 and more words\n", ref="mem://note/onlysecret")
+        mixed = env.register(b"safe line here\napi_key = sk_live_abcdef0123456789abcd\n", ref="mem://note/mixed")
+        report = env.project()
+        e_only = source_status(env.conn, only.source_id)
+        e_mixed = source_status(env.conn, mixed.source_id)
+        assert (e_only["status"], e_only["units"], e_only["contained_secret"]) == ("rejected_secret", 0, True)
+        assert (e_mixed["status"], e_mixed["units"], e_mixed["contained_secret"]) == ("complete", 1, True)
+        assert e_mixed["units_rejected_secret"] == 1 and "units_rejected_secret:1" in e_mixed["reason"]
+        assert report.units_rejected_secret == 2
+
+    def test_clean_source_has_contained_secret_false(self, env):
+        from src.corpus.derived_store import source_status
+
+        rec = env.register(b"nothing sensitive\n", ref="mem://note/clean")
+        env.project()
+        assert source_status(env.conn, rec.source_id)["contained_secret"] is False
+
+    def test_flag_contained_secret_returns_marked_copy(self):
+        from src.corpus.derived_store import _flag_contained_secret
+
+        original = ExtractionResult(source_ref="s", status="complete")
+        flagged = _flag_contained_secret(original)
+        assert flagged.contained_secret is True and original.contained_secret is False
+
+    def test_rebuild_reproduces_statuses(self, env):
+        from src.corpus.derived_store import source_status
+
+        env.register(b"plain note\n", ref="mem://note/a")
+        docx = env.register(b"x", ref="file://a.xyzzy", kind="xyzzy")
+        env.project()
+        before = source_status(env.conn, docx.source_id)
+        rebuild_from_corpus(env.conn, env.registry, blob_store=env.blobs)
+        env.conn.commit()
+        assert source_status(env.conn, docx.source_id) == before
+
+    def test_report_as_dict_is_backward_compatible(self, env):
+        env.register(b"plain note\n", ref="mem://note/a")
+        report = env.project()
+        assert set(report.as_dict()) == {
+            "sources_projected", "units_projected", "units_rejected_secret", "extractions_failed"}
+        assert "source_statuses" in report.as_dict(include_sources=True)
+
+
+# ---------------------------------------------------------------------------
+# DEF-057 (storage part) - sensitivity=secret sources are withheld
+# ---------------------------------------------------------------------------
+
+class TestDef057SecretSensitivityWithheld:
+    def test_secret_source_yields_no_units_and_is_not_searchable(self, env, fake_adapter):
+        from src.corpus.derived_store import source_status
+
+        rec = env.register(b"classified harmless looking words\n", ref="mem://s/classified",
+                           kind="t2fake", sensitivity="secret")
+        report = env.project()
+        assert env.unit_rows() == [] and env.fts_ids() == set()
+        assert env.search("classified") == []
+        assert fake_adapter.__dict__.get("calls", 0) == 0, "withheld source must not even be extracted"
+        entry = source_status(env.conn, rec.source_id)
+        assert (entry["status"], entry["units"], entry["reason"]) == (
+            "withheld_sensitivity", 0, "sensitivity_secret")
+        assert report.units_projected == 0 and report.extractions_failed == 0
+
+    def test_new_secret_version_removes_units_of_the_earlier_version(self, env):
+        env.register(b"visible while internal\n", ref="mem://s/flip")
+        env.project()
+        assert len(env.unit_rows()) == 1
+        env.register(b"now classified content\n", ref="mem://s/flip", sensitivity="secret")
+        env.project()
+        assert env.unit_rows() == [] and env.fts_ids() == set()
+
+    @pytest.mark.parametrize("level", ["public", "internal", "private"])
+    def test_other_sensitivities_are_still_projected(self, env, level):
+        env.register(f"{level} words\n".encode(), ref=f"mem://s/{level}", sensitivity=level)
+        report = env.project()
+        assert report.units_projected == 1
+        assert len(env.unit_rows()) == 1
+
+    def test_project_source_also_withholds(self, env):
+        from src.corpus.derived_store import project_source
+
+        rec = env.register(b"secret doc\n", ref="mem://s/one", sensitivity="secret")
+        report = project_source(env.conn, env.registry, rec, blob_store=env.blobs)
+        assert report.units_projected == 0
+        assert report.source_statuses[0]["status"] == "withheld_sensitivity"
