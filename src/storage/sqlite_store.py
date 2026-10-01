@@ -122,6 +122,12 @@ class SQLiteStore:
             self._conn = sqlite3.connect(str(self.path), check_same_thread=False)
             self._conn.row_factory = sqlite3.Row
             self._apply_pragmas()
+            # DEF-065: the derived DB holds memory/corpus text; never leave it
+            # world-readable inside its 0700 directory.  SQLite creates the
+            # -wal/-shm sidecars with the main file's mode, so tightening it
+            # here covers them too (secure_permissions also chmods any present).
+            if os.name != "nt" and self.path.is_file():
+                self.secure_permissions()
         except StoreError:
             raise
         except Exception:

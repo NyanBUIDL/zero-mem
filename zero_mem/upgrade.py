@@ -29,7 +29,16 @@ from src.storage.migrations import CURRENT_SCHEMA_VERSION
 from src.storage.sqlite_store import SQLiteStore, SQLiteStoreConfig
 
 from .commands_doctor import collect as collect_doctor
-from .paths import ConfigurationError, data_root, derived_db, derived_root, load_config, memory_stream
+from .paths import (
+    ConfigurationError,
+    corpus_root,
+    corpus_root_is_explicit,
+    data_root,
+    derived_db,
+    derived_root,
+    load_config,
+    memory_stream,
+)
 from .version import __version__
 
 
@@ -124,9 +133,56 @@ def _schema_version(path: Path) -> int | None:
         raise _fail("DERIVED_STATE_INVALID") from None
 
 
-def _corpus_root_from_environment() -> Path | None:
-    value = os.environ.get("ZERO_MEM_CORPUS_ROOT")
-    return Path(value).expanduser() if value else None
+def _corpus_root_for_upgrade() -> Path | None:
+    """Resolve the canonical corpus root (DEF-054).
+
+    ``ZERO_MEM_CORPUS_ROOT`` is an explicit operator choice and must validate.
+    Otherwise the default ``<data root>/data/corpus`` is used when it exists;
+    installs created before the default existed have no corpus directory and
+    simply have no corpus (never an error).
+    """
+    try:
+        root = corpus_root()
+    except ConfigurationError:
+        raise _fail("CORPUS_UNSAFE") from None
+    if corpus_root_is_explicit():
+        return root
+    return root if root.exists() or root.is_symlink() else None
+
+
+def _corpus_counts(path: Path, *, immutable: bool) -> tuple[int, int] | None:
+    """(sources, units) in a derived DB, or None when it cannot be read."""
+    if path.is_symlink() or not path.is_file():
+        return None
+    suffix = "mode=ro&immutable=1" if immutable else "mode=ro"
+    try:
+        conn = sqlite3.connect(f"file:{path.as_posix()}?{suffix}", uri=True)
+        try:
+            sources = conn.execute("SELECT COUNT(*) FROM zm_corpus_sources").fetchone()[0]
+            units = conn.execute("SELECT COUNT(*) FROM zm_corpus_units").fetchone()[0]
+            return int(sources), int(units)
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return None
+
+
+def _guard_corpus_projection(active: Path, staged: Path) -> dict[str, int]:
+    """Refuse to activate a rebuild that silently lost or never produced corpus units."""
+    rebuilt = _corpus_counts(staged, immutable=True)
+    if rebuilt is None:
+        raise _fail("REBUILD_FAILED")
+    sources, units = rebuilt
+    if sources > 0 and units == 0:
+        # Registry has sources but nothing was extracted (missing adapter,
+        # unreadable blobs, every unit rejected): fail instead of SUCCESS/READY.
+        raise _fail("CORPUS_PROJECTION_EMPTY")
+    previous = _corpus_counts(active, immutable=False)
+    if previous is not None and previous[1] > 0 and units == 0:
+        # The active DB serves corpus units but the rebuild found none: the
+        # corpus root most likely did not resolve (DEF-054).
+        raise _fail("CORPUS_ROOT_UNRESOLVED")
+    return {"sources": sources, "units": units}
 
 
 def check() -> dict[str, Any]:
@@ -140,7 +196,7 @@ def check() -> dict[str, Any]:
     try:
         _safe_root(data_root(), code="DATA_ROOT_UNSAFE")
         _validate_memory(memory_stream())
-        _validate_corpus(_corpus_root_from_environment())
+        _validate_corpus(_corpus_root_for_upgrade())
         version = _schema_version(derived_db())
         if version is not None and version > CURRENT_SCHEMA_VERSION:
             return _report(FUTURE_VERSION_UNSUPPORTED, schema_version=version, doctor_readiness="NOT_READY")
@@ -223,14 +279,15 @@ def upgrade() -> dict[str, Any]:
     parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     if parent.is_symlink() or not parent.is_dir():
         raise _fail("DERIVED_STATE_INVALID")
-    corpus_root = _corpus_root_from_environment()
+    corpus_path = _corpus_root_for_upgrade()
     staging_dir = Path(tempfile.mkdtemp(prefix=".zero-mem-upgrade-", suffix=".partial", dir=str(parent)))
     staged = staging_dir / active.name
     rollback = active.with_name(f".{active.name}.rollback-{uuid.uuid4().hex[:8]}")
     activated = False
     try:
-        _rebuild_derived(staged, corpus_root=corpus_root)
+        _rebuild_derived(staged, corpus_root=corpus_path)
         _validate_staged_derived(staged)
+        corpus_counts = _guard_corpus_projection(active, staged)
         if active.exists():
             os.replace(active, rollback)
         os.replace(staged, active)
@@ -240,7 +297,7 @@ def upgrade() -> dict[str, Any]:
             raise _fail("DOCTOR_FAILED")
         if rollback.exists():
             rollback.unlink()
-        return {**report, "status": "SUCCESS", "doctor_readiness": doctor["overall"]}
+        return {**report, "status": "SUCCESS", "doctor_readiness": doctor["overall"], "corpus": corpus_counts}
     except UpgradeError:
         if activated:
             try:

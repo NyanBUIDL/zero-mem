@@ -10,6 +10,7 @@ from .paths import (
     data_root,
     derived_db,
     derived_root,
+    ensure_corpus_root,
     ensure_empty_memory_stream,
     ensure_private_dir,
     load_config,
@@ -35,6 +36,7 @@ def run() -> int:
         ensure_private_dir(path, label)
     write_config()
     ensure_empty_memory_stream()
+    ensure_corpus_root()
 
     try:
         from src.storage.sqlite_store import SQLiteStore, SQLiteStoreConfig
