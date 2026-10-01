@@ -48,11 +48,14 @@ def test_default_plan_returns_at_most_twenty_hits(tmp_path):
 # --- ranking --------------------------------------------------------------------
 
 def test_short_unit_outranks_long_unit_despite_lower_term_frequency(tmp_path):
+    # T7: the BM25 parameters were re-tuned for short units (k1=0.6, b=0.3, docs/benchmarks/RESULTS.md).  With that
+    # weaker length normalization a unit holding the term twice can legitimately beat a 30x shorter one, so the
+    # length-normalization invariant is pinned at EQUAL term frequency.
     short = "pytest rules"
-    long_text = "pytest " + " ".join(f"filler{i}" for i in range(58)) + " pytest"
+    long_text = "pytest " + " ".join(f"filler{i}" for i in range(58)) + " again"
     ro = build_store(tmp_path, [doc(long_text), doc(short)])
     result = search(ro, "pytest")
-    assert texts(result) == [short, long_text]  # raw TF sum would put the long unit first
+    assert texts(result) == [short, long_text]  # same TF: the shorter unit scores higher
     assert result.items[0].lexical_score > result.items[1].lexical_score > 0
     ro.close()
 

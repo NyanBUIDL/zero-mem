@@ -33,7 +33,9 @@ def _corpus(seed: int, n: int = 90):
         space = rng.choice([None, None, "ks-shared"])
         if owner is None:
             project = space = None
-        rows.append((owner, project, space, _sentence(rng)))
+        # one to four paragraphs: multi-unit sources exercise neighbor propagation too
+        text = "\n\n".join(_sentence(rng) for _ in range(rng.randint(1, 4)))
+        rows.append((owner, project, space, text))
     return rows
 
 
@@ -153,10 +155,10 @@ def test_no_hit_outside_the_authorized_scope_is_ever_returned(tmp_path):
     try:
         for query in ("quokka", "caroline adoption", "beach", "support group marathon", "violin paint"):
             result = search(store, query, profile="alice", limit=500)
-            allowed_texts = {text for owner, project, space, text in rows
-                             if _authorized_for_alice((owner, project, space, text))}
+            allowed_units = {unit for owner, project, space, text in rows
+                             if _authorized_for_alice((owner, project, space, text)) for unit in text.split("\n\n")}
             for hit in result.items:
-                assert hit.normalized_text in allowed_texts
+                assert hit.normalized_text in allowed_units
                 assert hit.profile_id in ("alice", None)
     finally:
         store.close()

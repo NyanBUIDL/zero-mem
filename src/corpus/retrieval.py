@@ -50,6 +50,7 @@ from .query_planner import (
     CorpusQueryPlan,
     _match_metadata,
 )
+from .stemming import stem
 from src.storage.migrations import migrate_10 as _migrate_10
 
 
@@ -278,22 +279,74 @@ def _fts_term_count(text: str) -> int:
     return sum(len(group) for group in _query_groups(text))
 
 
+# T7: English stemming.  A plain ASCII word of at least ``_STEM_MIN_LENGTH`` letters is compared by its Porter stem
+# ("adopted" ~ "adopting" ~ "adoption"); everything else (short words, digits, accented or non-Latin text) keeps the
+# prefix semantics above.  FTS5's tokenizer cannot stem, so discovery matches the ROOT every inflected form shares as a
+# prefix ("adopt*", "stud*" for "studies"), and the stem comparison in the scorer rejects the false friends ("student").
+_STEM_MIN_LENGTH = 4
+_STEM_MIN_ROOT = 3
+
+
+def _stemmable(term: str) -> bool:
+    return len(term) >= _STEM_MIN_LENGTH and term.isascii() and term.isalpha()
+
+
+def _discovery_root(term: str) -> str:
+    """Longest prefix a word shares with its stem (``y`` -> ``i`` stems give up their last letter)."""
+    word = term.lower()
+    stemmed = stem(word)
+    length = 0
+    while length < min(len(word), len(stemmed)) and word[length] == stemmed[length]:
+        length += 1
+    root = word[:length]
+    if root == stemmed and root.endswith("i") and len(root) - 1 >= _STEM_MIN_ROOT:
+        root = root[:-1]  # studi -> stud (matches study, studies, studying)
+    return root
+
+
+def _fts_discovery_term(term: str) -> str:
+    if _stemmable(term):
+        root = _discovery_root(term)
+        if len(root) >= _STEM_MIN_ROOT:
+            return f'"{root}"*'
+    return _fts_term(term)
+
+
+def _fts_discovery_query(text: str) -> str:
+    """OR-joined FTS MATCH expression the corpus search discovers candidates with (distinct terms, quoted, never
+    caller-controlled operators; passed as a bound parameter)."""
+    terms: List[str] = []
+    for group in _query_groups(text):
+        for term in group:
+            expr = _fts_discovery_term(term)
+            if expr not in terms:
+                terms.append(expr)
+    return " OR ".join(terms)
+
+
 # ---------------------------------------------------------------------------
 # Deterministic lexical scoring (computed over the AUTHORIZED subset only)
 # ---------------------------------------------------------------------------
 #
-# DEF-061: BM25 (k1=1.2, b=0.75) with unit-length normalization, computed in
-# Python over the authorized candidate set.  SQLite's FTS5 ``bm25()`` is NOT
-# used on purpose: it derives IDF and average length from the WHOLE FTS table,
-# so unauthorized rows would shift authorized scores and order, breaking the
+# DEF-061: BM25 with unit-length normalization, computed in Python over the
+# authorized candidate set.  SQLite's FTS5 ``bm25()`` is NOT used on purpose: it
+# derives IDF and average length from the WHOLE FTS table, so unauthorized rows
+# would shift authorized scores and order, breaking the
 # authorization-before-influence invariant (see module docstring).  Here the
 # document frequency, N and average length come only from authorized candidates.
+#
+# T7 (measured in docs/benchmarks/RESULTS.md): short-text parameters (units are
+# chat turns, paragraphs and notes, where long units are not noisier), a mild
+# coordination factor and the neighbor propagation below.
 
-_BM25_K1 = 1.2
-_BM25_B = 0.75
+_BM25_K1 = 0.6
+_BM25_B = 0.3
 # Added once per punctuated query token (e.g. ``blue-green``) whose words occur
 # adjacently in a unit; on the scale of one rare-term contribution.
 _PHRASE_BONUS = 1.0
+# The BM25 sum is multiplied by (distinct query terms found / distinct query terms) ** exponent for queries with at
+# least two terms, so a unit covering the whole question beats one that matches a single rare word.
+_COORD_EXPONENT = 0.3
 
 
 @lru_cache(maxsize=65536)
@@ -308,26 +361,34 @@ def _fold(word: str) -> str:
 
 @lru_cache(maxsize=32768)
 def _doc_terms(text: str) -> tuple:
-    """``(folded tokens, Counter)`` of one unit text.  Pure function of the text, so caching it across queries is
-    safe (it never depends on which rows are authorized)."""
+    """``(folded tokens, Counter, Counter of stems)`` of one unit text.  Pure function of the text, so caching it
+    across queries is safe (it never depends on which rows are authorized)."""
     tokens = tuple(_fold(word) for word in _split_words(text))
-    return tokens, Counter(tokens)
+    return tokens, Counter(tokens), Counter(stem(token) for token in tokens)
 
 
 def _score_tokens(text: str) -> List[str]:
     return list(_doc_terms(text)[0])
 
 
+@dataclass(frozen=True)
+class _QueryTerm:
+    key: str    # identity: the stem of a stemmable word, else the folded word
+    word: str   # folded word (prefix semantics when ``stem`` is empty)
+    stem: str   # Porter stem for stemmable words, "" otherwise
+
+
 def _scoring_terms(text: str) -> tuple:
-    """Unique folded query terms (in order) and the folded multi-word phrases."""
-    terms: List[str] = []
+    """Unique query terms (in order) and the folded multi-word phrases."""
+    terms: List[_QueryTerm] = []
     seen = set()
     phrases: List[tuple] = []
     for group in _query_groups(text):
         folded = tuple(_fold(word) for word in group)
-        for term in folded:
-            if term not in seen:
-                seen.add(term)
+        for raw, word in zip(group, folded):
+            term = _QueryTerm(stem(word), word, stem(word)) if _stemmable(raw) else _QueryTerm(word, word, "")
+            if term.key not in seen:
+                seen.add(term.key)
                 terms.append(term)
         if len(folded) > 1 and folded not in phrases:
             phrases.append(folded)
@@ -339,10 +400,13 @@ def _token_matches(token: str, term: str) -> bool:
     return token.startswith(term) if len(term) > 1 else token == term
 
 
-def _term_frequency(counts: Counter, term: str) -> int:
-    if len(term) > 1:
-        return sum(count for token, count in counts.items() if token.startswith(term))
-    return counts.get(term, 0)
+def _term_frequency(doc: tuple, term: _QueryTerm) -> int:
+    _tokens, counts, stem_counts = doc
+    if term.stem:
+        return stem_counts.get(term.stem, 0)
+    if len(term.word) > 1:
+        return sum(count for token, count in counts.items() if token.startswith(term.word))
+    return counts.get(term.word, 0)
 
 
 def _has_phrase(tokens: List[str], phrase: tuple) -> bool:
@@ -359,22 +423,23 @@ def _bm25_scores(hits: List[CorpusHit], query_text: str) -> List[float]:
     if not terms or not hits:
         return [0.0] * len(hits)
     docs = [_doc_terms(hit.normalized_text) for hit in hits]
-    token_lists = [tokens for tokens, _counts in docs]
-    counters = [counts for _tokens, counts in docs]
     n_docs = len(hits)
-    avg_len = (sum(len(tokens) for tokens in token_lists) / n_docs) or 1.0
-    freqs = [[_term_frequency(counts, term) for term in terms] for counts in counters]
+    avg_len = (sum(len(doc[0]) for doc in docs) / n_docs) or 1.0
+    freqs = [[_term_frequency(doc, term) for term in terms] for doc in docs]
     idf = []
     for index in range(len(terms)):
         df = sum(1 for row in freqs if row[index] > 0)
         idf.append(math.log(1.0 + (n_docs - df + 0.5) / (df + 0.5)))
     scores: List[float] = []
-    for tokens, row in zip(token_lists, freqs):
+    for doc, row in zip(docs, freqs):
+        tokens = doc[0]
         length_norm = _BM25_K1 * (1.0 - _BM25_B + _BM25_B * len(tokens) / avg_len)
         score = 0.0
         for index, tf in enumerate(row):
             if tf > 0:
                 score += idf[index] * tf * (_BM25_K1 + 1.0) / (tf + length_norm)
+        if len(terms) > 1 and _COORD_EXPONENT:
+            score *= (sum(1 for tf in row if tf > 0) / len(terms)) ** _COORD_EXPONENT
         score += _PHRASE_BONUS * sum(1 for phrase in phrases if _has_phrase(tokens, phrase))
         scores.append(round(min(score, _MAX_LEXICAL_SCORE), 6))
     return scores
@@ -553,6 +618,49 @@ def _metadata_predicate(meta: CorpusMetadataFilter) -> tuple:
     return (" AND ".join(clauses) or "1"), params
 
 
+# T7: neighbor propagation.  Units of one source are ordered (a chat session, the paragraphs of a note); the unit
+# that ANSWERS a matching unit often shares none of its words ("What do you love about camping?" / "A chance to be
+# present and together").  Each unit therefore also scores ``alpha`` times the best score of the units within
+# ``_NEIGHBOR_RANGE`` positions of it in the same source, and the neighbors of the strongest hits that did not match
+# at all enter the ranking with that fraction of the hit's score.  Neighbors are read with the same authorized-scope and
+# metadata filter as every other candidate (a unit shares the scope of its source, so nothing outside the scope is
+# reachable) and compete for the same result slots as every other unit.
+_NEIGHBOR_ALPHA = 0.5
+_NEIGHBOR_RANGE = 2
+_NEIGHBOR_TOP = 10
+_NEIGHBOR_OFFSETS = tuple(d for d in range(-_NEIGHBOR_RANGE, _NEIGHBOR_RANGE + 1) if d != 0)
+_NEIGHBOR_BATCH = 100
+
+
+def _propagate_neighbors(cur, scope: AuthorizedCorpusScope, meta: CorpusMetadataFilter,
+                         hits: List[CorpusHit]) -> List[CorpusHit]:
+    top = sorted((h for h in hits if h.lexical_score > 0.0),
+                 key=lambda h: (-h.lexical_score, h.source_id, h.unit_order))[:_NEIGHBOR_TOP]
+    if not top:
+        return hits
+    known = {(h.source_id, h.unit_order) for h in hits}
+    wanted = sorted({(h.source_id, h.unit_order + d) for h in top for d in _NEIGHBOR_OFFSETS
+                     if h.unit_order + d >= 0} - known)
+    fetched: List[CorpusHit] = []
+    for start in range(0, len(wanted), _NEIGHBOR_BATCH):
+        chunk = wanted[start:start + _NEIGHBOR_BATCH]
+        clause = " OR ".join("(u.source_ref = ? AND u.unit_order = ?)" for _ in chunk)
+        rows = cur.execute(
+            f"SELECT {_UNIT_COLUMNS} FROM zm_corpus_units u {_SOURCE_JOIN} "
+            f"WHERE u.duplicate_of IS NULL AND ({clause})",
+            [value for key in chunk for value in key],
+        ).fetchall()
+        fetched.extend(_authorize_and_filter(rows, scope, meta))
+    pool = list(hits) + fetched
+    base = {(h.source_id, h.unit_order): h.lexical_score for h in pool}
+    boosted: List[CorpusHit] = []
+    for hit in pool:
+        near = [base[key] for key in ((hit.source_id, hit.unit_order + d) for d in _NEIGHBOR_OFFSETS) if key in base]
+        bonus = _NEIGHBOR_ALPHA * max(near) if near else 0.0
+        boosted.append(replace(hit, lexical_score=round(hit.lexical_score + bonus, 6)) if bonus > 0.0 else hit)
+    return boosted
+
+
 def _read_all_units(cur, cap: int, scope: Optional[AuthorizedCorpusScope] = None,
                     meta: Optional[CorpusMetadataFilter] = None) -> list:
     """Read derived units (bounded candidate discovery) for the explicit
@@ -593,12 +701,16 @@ def retrieve_corpus(
     """Authorization-safe deterministic corpus retrieval.
 
     Flow:
-      1. Discover lexical candidates via FTS MATCH (discovery only; within-source
-         duplicate units are excluded in SQL).
+      1. Discover lexical candidates via one FTS OR MATCH (discovery only;
+         within-source duplicate units are excluded in SQL; the authorized scope
+         and the closed metadata filter are part of the SELECT, so the discovery
+         cap only ever counts authorized rows).
       2. Scope-filter to the AUTHORIZED set (drop unauthorized before ranking).
       3. Apply closed metadata filter (incl. source memory_type / external_ref
          prefix, ADR-V170-01) - strictly after the scope check.
-      4. Compute deterministic BM25 over the authorized subset (DEF-061).
+      4. Compute deterministic BM25 (stemmed terms, coordination factor) over the
+         authorized subset (DEF-061), then propagate score to the ordered
+         neighbors of the best units (same source, authorized rows only; T7).
       5. Optionally fuse a local semantic adapter (authorized set only).
       6. Return ranked ``CorpusHit[]`` (bounded by ``plan.limit``).
 
@@ -607,9 +719,9 @@ def retrieve_corpus(
     """
     semantic = semantic or NO_SEMANTIC_ADAPTER
     cur = conn.cursor()
-    # True only when discovery had no FTS to filter on a text query: the fallback
-    # then returns every unit, so non-matching units are dropped after scoring.
-    unfiltered_lexical_discovery = False
+    # True when the query has lexical terms: units that score 0 are not matches (the no-FTS fallback returns every
+    # unit, and a shared stem root can discover units the stem comparison then rejects) and are dropped after scoring.
+    lexical_query = False
 
     # Step 1: lexical discovery. If no lexical text, every unit is a candidate
     # (metadata-only retrieval). Without FTS5, the derived unit relation is the
@@ -632,28 +744,24 @@ def retrieve_corpus(
             except Exception as exc:  # pragma: no cover - defensive
                 raise CorpusQueryError(f"corpus_query_failed: {type(exc).__name__}") from None
         elif not _migrate_10.FTS5_AVAILABLE:
-            unfiltered_lexical_discovery = True
+            lexical_query = True
             try:
                 rows = _read_all_units(cur, cap, scope, plan.metadata)
             except Exception as exc:  # pragma: no cover - defensive
                 raise CorpusQueryError(f"corpus_query_failed: {type(exc).__name__}") from None
         else:
             # FTS discovery: match unit_ids, then join units (bounded by cap).
+            lexical_query = True
+            # T7: ONE OR query over the (stem-rooted) terms replaces the AND-first pass with OR fallback.  Candidates
+            # are every authorized unit sharing a term; BM25 + the coordination factor rank full matches first.
+            # Measured (docs/benchmarks/RESULTS.md): AND-first returned only the few units containing EVERY word of
+            # a natural-language question and hid the answer unit.
             try:
                 scope_sql, scope_params = _scope_predicate(scope)
                 meta_sql, meta_params = _metadata_predicate(plan.metadata)
                 discovery_sql = _FTS_DISCOVERY_SQL.format(scope=scope_sql, meta=meta_sql)
-                discovery_tail = [*scope_params, *meta_params, cap]
-                rows = cur.execute(discovery_sql, [fts_expr, *discovery_tail]).fetchall()
-                # DEF-031 (DEF-C2): precision-guarded OR fallback — only when
-                # the implicit-AND pass returned zero rows AND the query has
-                # >= 2 terms (single-term queries have nothing to fall back to).
-                # Mirror of the M3 event FTS path (search.py V130-01). The OR
-                # expression is FTS5-quoted and stays a bound parameter.
-                if not rows and _fts_term_count(plan.text) >= 2:
-                    or_expr = _fts_or_query(plan.text)
-                    if or_expr:
-                        rows = cur.execute(discovery_sql, [or_expr, *discovery_tail]).fetchall()
+                rows = cur.execute(
+                    discovery_sql, [_fts_discovery_query(plan.text), *scope_params, *meta_params, cap]).fetchall()
             except Exception as exc:
                 # Malformed FTS expression or missing FTS table => fail closed to
                 # a typed error (never silently return everything).
@@ -667,10 +775,13 @@ def retrieve_corpus(
     # Step 4: deterministic BM25 over the AUTHORIZED subset only (DEF-061).
     scores = _bm25_scores(hits, plan.text)
     hits = [_scored(h, score) for h, score in zip(hits, scores)]
-    if unfiltered_lexical_discovery:
+    if lexical_query:
         hits = [h for h in hits if h.lexical_score > 0.0]
         if not hits:
             return []
+    if not plan.is_metadata_only:
+        # Neighbor propagation (T7), over the authorized scope only.
+        hits = _propagate_neighbors(cur, scope, plan.metadata, hits)
 
     # Step 5: optional semantic fusion over the authorized set ONLY.
     semantic_active = False
