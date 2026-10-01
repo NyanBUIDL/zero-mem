@@ -1,4 +1,4 @@
-"""T12 - cross-platform portability regressions (DEF-082..), simulated on Linux.
+"""T12 - cross-platform portability regressions (DEF-085..), simulated on Linux.
 
 Each test reproduces on POSIX the exact condition that failed on Windows / macOS CI.
 """

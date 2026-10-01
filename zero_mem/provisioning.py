@@ -90,7 +90,7 @@ def append_canonical_event(stream: Path, event: Mapping[str, Any]) -> None:
             fd = os.open(stream, flags, 0o600)
             try:
                 size = os.fstat(fd).st_size
-                # DEF-082: os.pread does not exist on Windows; lseek+read is portable (O_APPEND writes still
+                # DEF-085: os.pread does not exist on Windows; lseek+read is portable (O_APPEND writes still
                 # land at EOF regardless of the file offset).
                 if size:
                     os.lseek(fd, size - 1, os.SEEK_SET)

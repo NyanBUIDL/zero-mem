@@ -253,7 +253,7 @@ def _open_haystack(chunks, ingest: str, engine_factory: Callable, cache_dir: Opt
     """Returns ``(haystack, cleanup)``; the temp root (or, with a cache, nothing) is removed by ``cleanup``."""
     if cache_dir is None:
         tmp = tempfile.TemporaryDirectory(prefix="zm-bench-", ignore_cleanup_errors=True)
-        # DEF-082: the layout safety check rejects symlinked ancestors, and macOS temp dirs live under the
+        # DEF-085: the layout safety check rejects symlinked ancestors, and macOS temp dirs live under the
         # /var -> /private/var alias, so hand the engine the resolved real path.
         engine = engine_factory(Path(tmp.name).resolve())
         ref_tag, text_tag, adds, rejected, seconds = _fill(engine, chunks, ingest)

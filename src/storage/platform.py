@@ -880,7 +880,7 @@ def atomic_promote(source: Path, destination: Path, *, expected_source: FileIden
 
 
 def use_utf8_stdio(*, lf_newlines: bool = False) -> None:
-    """Make the process's text streams UTF-8 (DEF-083).
+    """Make the process's text streams UTF-8 (DEF-086).
 
     On Windows a redirected stream uses the ANSI code page (``cp1252``), so printing or reading any
     non-Latin text raised ``UnicodeEncodeError``/``UnicodeDecodeError: 'charmap'``. ``lf_newlines`` also stops
