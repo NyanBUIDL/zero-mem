@@ -644,3 +644,92 @@ class TestDef057SecretSensitivityWithheld:
         report = project_source(env.conn, env.registry, rec, blob_store=env.blobs)
         assert report.units_projected == 0
         assert report.source_statuses[0]["status"] == "withheld_sensitivity"
+
+
+# ---------------------------------------------------------------------------
+# DEF-059 - rebuild_from_corpus must be reader-safe
+# ---------------------------------------------------------------------------
+
+class TestDef059RebuildReaderSafe:
+    N_SOURCES = 400
+
+    def _seed_live_db(self, tmp_path):
+        root = tmp_path / "corpus"
+        db_path = tmp_path / "live.sqlite"
+        store = SQLiteStore(SQLiteStoreConfig(path=db_path))  # production pragmas: WAL
+        store.ensure_schema()
+        registry = CorpusSourceRegistry(root=root)
+        blobs = CorpusBlobStore(root=root)
+        for i in range(self.N_SOURCES):
+            registry.register_source_with_blob(
+                content=f"doc {i} first line\nsecond line {i}\n".encode(),
+                external_ref=f"mem://d/{i}", kind="txt", profile_id="p", blob_store=blobs)
+        project_corpus(store._conn, registry, blob_store=blobs)
+        store._conn.commit()
+        assert store._conn.execute("PRAGMA journal_mode").fetchone()[0].lower() == "wal"
+        store.close()
+        return root, db_path
+
+    def test_concurrent_reader_never_sees_empty_partial_or_errors(self, tmp_path):
+        root, db_path = self._seed_live_db(tmp_path)
+        ctx = multiprocessing.get_context("spawn")
+        reader_q, writer_q, stop = ctx.Queue(), ctx.Queue(), ctx.Event()
+        reader = ctx.Process(target=W.read_loop, args=(
+            str(db_path), self.N_SOURCES, 2 * self.N_SOURCES, stop, reader_q))
+        writer = ctx.Process(target=W.rebuild_loop, args=(str(db_path), str(root), 4, writer_q))
+        reader.start()
+        assert reader_q.get(timeout=60)[0] == "ready"
+        writer.start()
+        outcome = None
+        while outcome is None:
+            kind, payload = writer_q.get(timeout=300)
+            if kind in ("done", "error"):
+                outcome = (kind, payload)
+        stop.set()
+        kind, result = reader_q.get(timeout=60)
+        reader.join(60)
+        writer.join(60)
+        assert outcome[0] == "done", outcome
+        assert kind == "result", result
+        assert result["reads"] >= 5, f"reader did not overlap the rebuilds: {result}"
+        assert result["empty"] == 0, result
+        assert result["partial"] == 0, result
+        assert result["errors"] == 0, result
+
+    def test_rebuild_commits_when_it_owns_the_transaction(self, env):
+        env.register(V1)
+        env.project()
+        rebuild_from_corpus(env.conn, env.registry, blob_store=env.blobs)  # no explicit commit
+        other = sqlite3.connect(str(env.db_path))
+        try:
+            assert other.execute("SELECT COUNT(*) FROM zm_corpus_units").fetchone()[0] == 3
+            assert other.execute("SELECT COUNT(*) FROM zm_corpus_fts").fetchone()[0] == 3
+        finally:
+            other.close()
+
+    def test_failure_while_building_leaves_live_tables_untouched(self, env, monkeypatch):
+        import src.corpus.derived_store as ds
+
+        env.register(V1)
+        env.project()
+
+        def boom(*a, **kw):
+            raise RuntimeError("extraction exploded")
+
+        monkeypatch.setattr(ds, "project_corpus", boom)
+        with pytest.raises(RuntimeError):
+            rebuild_from_corpus(env.conn, env.registry, blob_store=env.blobs)
+        assert len(env.unit_rows()) == 3 and len(env.fts_ids()) == 3
+
+    def test_rebuild_inside_callers_transaction_rolls_back_with_it(self, env):
+        env.register(V1)
+        env.project()
+        env.conn.execute("BEGIN")
+        rebuild_from_corpus(env.conn, env.registry, blob_store=env.blobs)
+        env.conn.rollback()
+        assert len(env.unit_rows()) == 3 and len(env.fts_ids()) == 3
+
+    def test_rebuild_with_no_registry_sources_yields_empty_valid_tables(self, env):
+        report = rebuild_from_corpus(env.conn, env.registry, blob_store=env.blobs)
+        assert report.sources_projected == 0
+        assert env.unit_rows() == [] and env.fts_ids() == set()

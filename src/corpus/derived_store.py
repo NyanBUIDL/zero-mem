@@ -38,6 +38,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import sqlite3
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Final, Iterable, List, Mapping, Optional
@@ -579,35 +580,101 @@ def project_corpus(
 # Rebuild
 # ---------------------------------------------------------------------------
 
+#: Drop order of the v10 derived corpus tables (children before parents).
+_DERIVED_DROP_ORDER: Final[tuple] = (
+    "zm_corpus_fts",
+    "zm_corpus_units",
+    "zm_corpus_entities",
+    "zm_corpus_relations",
+    "zm_corpus_sources",
+)
+
+#: Tables the projection populates (copied from the staged build; parents first).
+_PROJECTED_TABLES: Final[tuple] = ("zm_corpus_sources", "zm_corpus_units", "zm_corpus_fts")
+
+_COPY_BATCH: Final[int] = 1000
+
+
+def _copy_table(src: sqlite3.Connection, dst: sqlite3.Connection, table: str) -> None:
+    cursor = src.execute(f"SELECT * FROM {table}")
+    marks = ",".join("?" * len(cursor.description))
+    while True:
+        rows = cursor.fetchmany(_COPY_BATCH)
+        if not rows:
+            return
+        dst.executemany(f"INSERT INTO {table} VALUES ({marks})", rows)
+
+
+def _swap_in_staged(conn: sqlite3.Connection, stage: sqlite3.Connection) -> None:
+    """Replace the live derived corpus tables with the staged build, atomically.
+
+    One write transaction does DROP + CREATE + bulk copy, so a concurrent reader
+    (WAL snapshot) sees either the complete old state or the complete new state --
+    never missing tables or partial rows. If the caller already has a transaction
+    open the swap joins it (and is undone by the caller's rollback); otherwise the
+    swap owns a transaction and commits it.
+    """
+    owns_txn = not conn.in_transaction
+    if owns_txn:
+        conn.execute("BEGIN IMMEDIATE")
+    conn.execute("SAVEPOINT zm_corpus_swap")
+    try:
+        for tbl in _DERIVED_DROP_ORDER:  # derived corpus tables only; never memory tables
+            conn.execute(f"DROP TABLE IF EXISTS {tbl}")
+        # Recreate via the migration framework (idempotent; only v10 tables touch
+        # corpus state). We re-run migrate_10.up directly so we do not disturb the
+        # v1-v9 schema or the zm_migrations ledger ordering.
+        _migrate_10.up(conn, note="m10.4_rebuild")
+        for tbl in _PROJECTED_TABLES:
+            if tbl == "zm_corpus_fts" and not _migrate_10.FTS5_AVAILABLE:
+                continue
+            _copy_table(stage, conn, tbl)
+        conn.execute("RELEASE SAVEPOINT zm_corpus_swap")
+    except BaseException:
+        try:
+            conn.execute("ROLLBACK TO SAVEPOINT zm_corpus_swap")
+            conn.execute("RELEASE SAVEPOINT zm_corpus_swap")
+            if owns_txn:
+                conn.rollback()
+        except sqlite3.Error:
+            pass
+        raise
+    if owns_txn:
+        conn.commit()
+
+
 def rebuild_from_corpus(
     conn: sqlite3.Connection,
     registry: CorpusSourceRegistry,
     blob_store=None,
 ) -> CorpusProjectionReport:
-    """Deterministic rebuild of the M10.4 derived corpus state.
+    """Deterministic, reader-safe rebuild of the M10.4 derived corpus state.
 
-    Drops only the v10 derived corpus tables, recreates them via the migration
-    framework, then re-projects from canonical registry + blobs. Canonical JSONL
-    and blobs are never touched. On failure the derived tables are left as the
-    partially-recreated (still rebuildable) state but the exception propagates
-    so callers can decide; the canonical corpus is unaffected.
+    The projection (the slow part: blob reads, extraction, normalization) is
+    built first into a private staging database, holding no lock on ``conn``.
+    Only then does one short write transaction drop the v10 derived corpus
+    tables, recreate them via the migration framework and bulk-copy the staged
+    rows in (DEF-059), so concurrent readers never observe an empty or partial
+    corpus and other writers are not blocked for the extraction time. Canonical
+    JSONL and blobs are never touched. If staging or the swap fails the live
+    tables are left exactly as they were and the exception propagates.
+
+    When ``conn`` has no open transaction the swap is committed before this
+    returns; when the caller already holds one it is part of that transaction.
     """
-    cur = conn.cursor()
-    # Drop derived corpus tables (NOT memory tables, NOT canonical data).
-    for tbl in (
-        "zm_corpus_fts",
-        "zm_corpus_units",
-        "zm_corpus_entities",
-        "zm_corpus_relations",
-        "zm_corpus_sources",
-    ):
-        cur.execute(f"DROP TABLE IF EXISTS {tbl}")
-    conn.commit()
-    # Recreate via the migration framework (idempotent; only v10 tables touch
-    # corpus state). We re-run migrate_10.up directly so we do not disturb the
-    # v1-v9 schema or the zm_migrations ledger ordering.
-    _migrate_10.up(conn, note="m10.4_rebuild")
-    return project_corpus(conn, registry, blob_store=blob_store)
+    with tempfile.TemporaryDirectory(prefix="zm-corpus-stage-") as stage_dir:
+        stage = sqlite3.connect(str(Path(stage_dir) / "stage.sqlite"))
+        try:
+            # Disposable scratch database: durability is irrelevant.
+            stage.execute("PRAGMA journal_mode=MEMORY")
+            stage.execute("PRAGMA synchronous=OFF")
+            _migrate_10.up(stage, note="m10.4_rebuild_stage")
+            report = project_corpus(stage, registry, blob_store=blob_store)
+            stage.commit()
+            _swap_in_staged(conn, stage)
+        finally:
+            stage.close()
+    return report
 
 
 __all__ = [

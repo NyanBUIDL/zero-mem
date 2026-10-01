@@ -71,7 +71,7 @@ def rebuild_loop(db_path: str, corpus_root: str, rounds: int, out) -> None:
         out.put(("error", f"{type(exc).__name__}: {exc}"))
 
 
-def read_loop(db_path: str, expected_units: int, stop, out) -> None:
+def read_loop(db_path: str, expected_sources: int, expected_units: int, stop, out) -> None:
     """Reader: count empty / partial / erroring snapshots until ``stop`` is set."""
     from src.retrieval.db import open_readonly
 
@@ -84,16 +84,19 @@ def read_loop(db_path: str, expected_units: int, stop, out) -> None:
             try:
                 ro = open_readonly(Path(db_path))
                 conn = ro.conn
-                with conn:  # one read transaction == one consistent snapshot
+                conn.execute("BEGIN")  # one explicit read transaction == one consistent snapshot
+                try:
                     n_units = conn.execute("SELECT COUNT(*) FROM zm_corpus_units").fetchone()[0]
                     n_fts = conn.execute("SELECT COUNT(*) FROM zm_corpus_fts").fetchone()[0]
                     n_src = conn.execute("SELECT COUNT(*) FROM zm_corpus_sources").fetchone()[0]
+                finally:
+                    conn.rollback()
                 reads += 1
                 if n_units == 0 and n_src == 0:
                     empty += 1
-                elif n_units != expected_units or n_fts != expected_units:
+                elif (n_src, n_units, n_fts) != (expected_sources, expected_units, expected_units):
                     partial += 1
-            except (sqlite3.Error, OSError, RuntimeError, ValueError) as exc:
+            except Exception as exc:  # noqa: BLE001 - every reader failure counts
                 errors += 1
                 first_error = first_error or f"{type(exc).__name__}: {exc}"
             finally:
