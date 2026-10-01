@@ -473,18 +473,76 @@ _FTS_DISCOVERY_SQL = (
 )
 
 
-def _read_all_units(cur, cap: int) -> list:
+def _scope_predicate(scope: AuthorizedCorpusScope) -> tuple:
+    """SQL form of :meth:`AuthorizedCorpusScope.allows` (exact: ``None`` means "any" per dimension; the
+    all-``None`` sentinel means the unowned scope, i.e. every dimension NULL).  Returns ``(sql, params)``."""
+    clauses: list = []
+    params: list = []
+    for ap, aj, ak in scope.allowed_scopes:
+        if ap is None and aj is None and ak is None:
+            clauses.append("(u.profile_id IS NULL AND u.project_id IS NULL AND u.knowledge_space_id IS NULL)")
+            continue
+        parts = []
+        for column, value in (("profile_id", ap), ("project_id", aj), ("knowledge_space_id", ak)):
+            if value is not None:
+                parts.append(f"u.{column} = ?")
+                params.append(value)
+        clauses.append("(" + " AND ".join(parts) + ")")
+    if not clauses:
+        return "0", []
+    return "(" + " OR ".join(clauses) + ")", params
+
+
+def _metadata_predicate(meta: CorpusMetadataFilter) -> tuple:
+    """SQL prefilter for the closed metadata filter.  Every clause is a SUPERSET of (or exactly) the Python
+    predicate in ``_match_metadata``; the Python filter still runs afterwards as the final check."""
+    clauses: list = []
+    params: list = []
+    for column, value in (
+        ("profile_id", meta.profile_id), ("project_id", meta.project_id),
+        ("knowledge_space_id", meta.knowledge_space_id), ("source_ref", meta.source_id),
+        ("kind", meta.unit_kind), ("lifecycle_status", meta.lifecycle_status),
+    ):
+        if value is not None:
+            clauses.append(f"u.{column} = ?")
+            params.append(value)
+    if meta.memory_type is not None:
+        # the exact value must appear somewhere in the JSON text (a superset of "custom_meta.memory_type == value")
+        clauses.append("instr(s.custom_meta, ?) > 0")
+        params.append(meta.memory_type)
+    if meta.external_ref_prefix is not None:
+        clauses.append("substr(s.external_ref, 1, ?) = ?")
+        params.extend([len(meta.external_ref_prefix), meta.external_ref_prefix])
+    return (" AND ".join(clauses) or "1"), params
+
+
+def _read_all_units(cur, cap: int, scope: Optional[AuthorizedCorpusScope] = None,
+                    meta: Optional[CorpusMetadataFilter] = None) -> list:
     """Read derived units (bounded candidate discovery) for the explicit
     non-FTS capability path.
 
     Bounded by ``cap`` (DEF-030) so a metadata-only query never materializes the
-    whole table. Callers must pass the rows through ``_authorize_and_filter``
-    before lexical scoring or limiting.
+    whole table. The authorized scope and the closed metadata filter are applied
+    in SQL BEFORE the cap (T5: otherwise other profiles' rows, or rows of other
+    source types, that were registered earlier crowd the caller's rows out of the
+    window); both predicates are exact, and callers still pass the rows through
+    ``_authorize_and_filter`` before lexical scoring or limiting.
     """
+    where = ["u.duplicate_of IS NULL"]
+    params: list = []
+    if scope is not None:
+        sql, extra = _scope_predicate(scope)
+        where.append(sql)
+        params.extend(extra)
+    if meta is not None:
+        sql, extra = _metadata_predicate(meta)
+        where.append(sql)
+        params.extend(extra)
+    params.append(cap)
     return cur.execute(
         f"SELECT {_UNIT_COLUMNS} FROM zm_corpus_units u {_SOURCE_JOIN} "
-        "WHERE u.duplicate_of IS NULL LIMIT ?",
-        (cap,),
+        f"WHERE {' AND '.join(where)} ORDER BY u.rowid LIMIT ?",
+        params,
     ).fetchall()
 
 
@@ -525,7 +583,7 @@ def retrieve_corpus(
     cap = _discovery_cap(plan.limit)
     if plan.is_metadata_only:
         try:
-            rows = _read_all_units(cur, cap)
+            rows = _read_all_units(cur, cap, scope, plan.metadata)
         except Exception as exc:  # pragma: no cover - defensive
             raise CorpusQueryError(f"corpus_query_failed: {type(exc).__name__}") from None
     else:
@@ -533,13 +591,13 @@ def retrieve_corpus(
         if not fts_expr:
             # Nothing lexical to match: fall back to metadata-only discovery.
             try:
-                rows = _read_all_units(cur, cap)
+                rows = _read_all_units(cur, cap, scope, plan.metadata)
             except Exception as exc:  # pragma: no cover - defensive
                 raise CorpusQueryError(f"corpus_query_failed: {type(exc).__name__}") from None
         elif not _migrate_10.FTS5_AVAILABLE:
             unfiltered_lexical_discovery = True
             try:
-                rows = _read_all_units(cur, cap)
+                rows = _read_all_units(cur, cap, scope, plan.metadata)
             except Exception as exc:  # pragma: no cover - defensive
                 raise CorpusQueryError(f"corpus_query_failed: {type(exc).__name__}") from None
         else:

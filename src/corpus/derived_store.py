@@ -46,6 +46,7 @@ from typing import Final, Iterable, List, Mapping, Optional
 from src.storage.migrations import migrate_10 as _migrate_10
 
 from .contracts import CORPUS_SOURCE_RESOURCE_TYPE, CorpusSourceRecord, SourceSensitivity
+from .identity import SourceLifecycle
 from .dedup import UnitDedupIndex, unit_content_hash, unit_logical_id
 from .normalize import normalize_extraction
 from .redact import CorpusRedactionError, require_safe, scan_extracted_text
@@ -204,6 +205,9 @@ SOURCE_STATUS_ADAPTER_FAILED: Final[str] = "adapter_failed"
 SOURCE_STATUS_REJECTED_SECRET: Final[str] = "rejected_secret"
 #: ``sensitivity="secret"`` source: never extracted, never projected into units.
 SOURCE_STATUS_WITHHELD_SENSITIVITY: Final[str] = "withheld_sensitivity"
+#: The latest registered version is a lifecycle ``deleted`` tombstone (DEF-057, "forget"): the
+#: source is never read or extracted and its earlier units are removed; the raw blobs stay.
+SOURCE_STATUS_DELETED: Final[str] = "deleted"
 #: No blob store / blob reference: nothing could be re-extracted.
 SOURCE_STATUS_BLOB_UNAVAILABLE: Final[str] = "blob_unavailable"
 #: ``source_status`` answer for a source the derived store has never seen.
@@ -215,7 +219,7 @@ SOURCE_STATUSES: Final[frozenset] = frozenset({
     SOURCE_STATUS_EMPTY_SOURCE, SOURCE_STATUS_MISSING_SOURCE,
     SOURCE_STATUS_PERMISSION_DENIED, SOURCE_STATUS_ADAPTER_FAILED,
     SOURCE_STATUS_REJECTED_SECRET, SOURCE_STATUS_WITHHELD_SENSITIVITY,
-    SOURCE_STATUS_BLOB_UNAVAILABLE, SOURCE_STATUS_NOT_PROJECTED,
+    SOURCE_STATUS_DELETED, SOURCE_STATUS_BLOB_UNAVAILABLE, SOURCE_STATUS_NOT_PROJECTED,
 })
 
 #: Key under which the per-source status is persisted in the derived
@@ -321,7 +325,12 @@ def _project_record(
     _insert_source(cur, record)
     report.sources_projected += 1
 
-    if record.sensitivity == SourceSensitivity.SECRET.value:
+    if record.lifecycle_status == SourceLifecycle.DELETED.value:
+        # DEF-057 (forget): the latest version is a tombstone. Nothing is read or
+        # extracted (the tombstone blob is a marker, not content) and every unit of the
+        # earlier versions is removed below. The earlier raw blobs stay canonical.
+        outcome = _Outcome(SOURCE_STATUS_DELETED, "lifecycle_deleted")
+    elif record.sensitivity == SourceSensitivity.SECRET.value:
         # DEF-057: a secret source is withheld -- never read, extracted or
         # indexed -- and any units of an earlier version are removed.
         outcome = _Outcome(SOURCE_STATUS_WITHHELD_SENSITIVITY, "sensitivity_secret")
