@@ -35,8 +35,11 @@ tables. It never mutates canonical state, derived tables, blobs, or JSONL.
 
 from __future__ import annotations
 
-import re
-from dataclasses import dataclass, field
+import json
+import math
+import unicodedata
+from collections import Counter
+from dataclasses import dataclass, field, replace
 from typing import Any, List, Optional, Protocol, runtime_checkable
 
 from .query_planner import (
@@ -116,6 +119,10 @@ class CorpusHit:
     retrieval_mode: str = "lexical"
     # Stable reason string for diagnostics (never leaks content).
     reason: str = "authorized_corpus_match"
+    # ADR-V170-01: source provenance read from zm_corpus_sources at query time.
+    # Informational only; never an authorization input.
+    external_ref: Optional[str] = None
+    memory_type: Optional[str] = None
 
     @property
     def resource_type(self) -> str:
@@ -142,6 +149,8 @@ class CorpusHit:
             "semantic_score": self.semantic_score,
             "combined_score": self.combined_score,
             "retrieval_mode": self.retrieval_mode,
+            "external_ref": self.external_ref,
+            "memory_type": self.memory_type,
         }
 
 
@@ -179,75 +188,163 @@ class _NoSemanticAdapter:
 NO_SEMANTIC_ADAPTER: SemanticAdapter = _NoSemanticAdapter()
 
 
-# FTS5 MATCH special-characters that must be quoted to avoid a query error.
-_FTS_SPECIAL = re.compile(r'[\"\[\]\{\}\(\)\*^\:\-\+]+')
+# DEF-055: queries are split into FTS terms on every non-word character.  FTS5's
+# default tokenizer (unicode61) indexes ``blue-green`` as the tokens ``blue`` and
+# ``green``, so the query side must do the same; deleting the hyphen produced
+# ``bluegreen`` (0 hits) and ``C++`` degraded to the prefix ``c*``.  Every term is
+# emitted as a quoted string, so caller text can never inject FTS operators.
+
+def _is_word_char(ch: str) -> bool:
+    # Letters/digits plus combining marks (a decomposed accent must stay inside
+    # its word).  '_' is a separator, exactly like the FTS5 tokenizer.
+    return ch.isalnum() or unicodedata.category(ch)[0] == "M"
+
+
+def _split_words(text: str) -> List[str]:
+    words: List[str] = []
+    current: List[str] = []
+    for ch in unicodedata.normalize("NFC", text):
+        if _is_word_char(ch):
+            current.append(ch)
+        elif current:
+            words.append("".join(current))
+            current = []
+    if current:
+        words.append("".join(current))
+    return words
+
+
+def _query_groups(text: str) -> List[List[str]]:
+    """Whitespace-delimited query tokens -> their word terms.
+
+    A group with more than one term came from one punctuated token such as
+    ``blue-green``; it is also scored as a phrase bonus.
+    """
+    groups: List[List[str]] = []
+    for token in text.split():
+        words = [w.lower() for w in _split_words(token)]
+        if words:
+            groups.append(words)
+    return groups
+
+
+def _fts_term(term: str) -> str:
+    # Prefix match for partial words, but a single character stays exact:
+    # ``C++`` must match the token ``c``, not every word starting with c.
+    return f'"{term}"*' if len(term) > 1 else f'"{term}"'
 
 
 def _fts_safe_query(text: str) -> str:
     """Build a safe FTS5 MATCH expression from normalized text.
 
-    Tokenizes on whitespace, quotes each token, and joins with AND so the query
-    is well-formed and deterministic. Empty input yields a sentinel that matches
-    nothing (caller handles metadata-only separately).
+    Splits on non-word characters, quotes every term and joins with implicit
+    AND so the query is well-formed and deterministic.  Text with no word
+    characters yields "" (caller treats it as no lexical constraint).
     """
-    tokens = [t for t in text.split() if t]
-    if not tokens:
-        return ""  # signal: no lexical constraint
-    safe = []
-    for tok in tokens:
-        cleaned = _FTS_SPECIAL.sub("", tok)
-        if not cleaned:
-            continue
-        # Quote to avoid FTS operators; prefix match for partial words.
-        safe.append(f'"{cleaned}"*')
-    return " ".join(safe)
+    return " ".join(_fts_term(term) for group in _query_groups(text) for term in group)
 
 
 def _fts_or_query(text: str) -> str:
     """DEF-031: OR-joined FTS MATCH expression for the precision-guarded
     fallback (parity with the M3 event FTS path, src/retrieval/search.py
-    V130-01). Each term is quoted + prefix-starred exactly like the AND pass,
-    so caller text can never inject FTS operators; the expression is always
-    passed as a bound parameter."""
-    tokens = [t for t in text.split() if t]
-    safe = []
-    for tok in tokens:
-        cleaned = _FTS_SPECIAL.sub("", tok)
-        if not cleaned:
-            continue
-        safe.append(f'"{cleaned}"*')
-    return " OR ".join(safe)
+    V130-01). Terms are split/quoted exactly like the AND pass, so caller text
+    can never inject FTS operators; the expression is always passed as a bound
+    parameter."""
+    return " OR ".join(_fts_term(term) for group in _query_groups(text) for term in group)
 
 
 def _fts_term_count(text: str) -> int:
-    return len([t for t in text.split() if _FTS_SPECIAL.sub("", t)])
+    return sum(len(group) for group in _query_groups(text))
 
 
 # ---------------------------------------------------------------------------
 # Deterministic lexical scoring (computed over the AUTHORIZED subset only)
 # ---------------------------------------------------------------------------
+#
+# DEF-061: BM25 (k1=1.2, b=0.75) with unit-length normalization, computed in
+# Python over the authorized candidate set.  SQLite's FTS5 ``bm25()`` is NOT
+# used on purpose: it derives IDF and average length from the WHOLE FTS table,
+# so unauthorized rows would shift authorized scores and order, breaking the
+# authorization-before-influence invariant (see module docstring).  Here the
+# document frequency, N and average length come only from authorized candidates.
 
-def _term_frequency(text: str, token: str) -> int:
-    if not token:
-        return 0
-    return text.split().count(token) if " " not in token else text.count(token)
+_BM25_K1 = 1.2
+_BM25_B = 0.75
+# Added once per punctuated query token (e.g. ``blue-green``) whose words occur
+# adjacently in a unit; on the scale of one rare-term contribution.
+_PHRASE_BONUS = 1.0
 
 
-def _lexical_score(normalized_text: str, query_tokens: List[str]) -> float:
-    """Bounded, deterministic lexical score over authorized text.
+def _fold(word: str) -> str:
+    """Case + diacritic folding for scoring (NFD, drop combining marks, đ -> d)."""
+    decomposed = unicodedata.normalize("NFD", word.lower())
+    stripped = "".join(ch for ch in decomposed if unicodedata.category(ch) != "Mn")
+    return stripped.replace("\u0111", "d")
 
-    Sum of per-token term-frequency, capped so scores stay stable and bounded.
-    No dependence on corpus-wide document frequency (which would be influenced
-    by unauthorized rows) — only on the authorized unit's own content.
-    """
-    if not query_tokens or not normalized_text:
-        return 0.0
-    score = 0
-    norm = normalized_text.lower()
-    for tok in query_tokens:
-        tf = _term_frequency(norm, tok.lower())
-        score += tf
-    return float(min(score, _MAX_LEXICAL_SCORE))
+
+def _score_tokens(text: str) -> List[str]:
+    return [_fold(word) for word in _split_words(text)]
+
+
+def _scoring_terms(text: str) -> tuple:
+    """Unique folded query terms (in order) and the folded multi-word phrases."""
+    terms: List[str] = []
+    seen = set()
+    phrases: List[tuple] = []
+    for group in _query_groups(text):
+        folded = tuple(_fold(word) for word in group)
+        for term in folded:
+            if term not in seen:
+                seen.add(term)
+                terms.append(term)
+        if len(folded) > 1 and folded not in phrases:
+            phrases.append(folded)
+    return terms, phrases
+
+
+def _token_matches(token: str, term: str) -> bool:
+    # Mirrors the FTS query: prefix for multi-character terms, exact for one.
+    return token.startswith(term) if len(term) > 1 else token == term
+
+
+def _term_frequency(counts: Counter, term: str) -> int:
+    if len(term) > 1:
+        return sum(count for token, count in counts.items() if token.startswith(term))
+    return counts.get(term, 0)
+
+
+def _has_phrase(tokens: List[str], phrase: tuple) -> bool:
+    width = len(phrase)
+    for start in range(len(tokens) - width + 1):
+        if all(_token_matches(tokens[start + i], phrase[i]) for i in range(width)):
+            return True
+    return False
+
+
+def _bm25_scores(hits: List[CorpusHit], query_text: str) -> List[float]:
+    """BM25 score per hit, using statistics of ``hits`` (the authorized set) only."""
+    terms, phrases = _scoring_terms(query_text)
+    if not terms or not hits:
+        return [0.0] * len(hits)
+    token_lists = [_score_tokens(hit.normalized_text) for hit in hits]
+    counters = [Counter(tokens) for tokens in token_lists]
+    n_docs = len(hits)
+    avg_len = (sum(len(tokens) for tokens in token_lists) / n_docs) or 1.0
+    freqs = [[_term_frequency(counts, term) for term in terms] for counts in counters]
+    idf = []
+    for index in range(len(terms)):
+        df = sum(1 for row in freqs if row[index] > 0)
+        idf.append(math.log(1.0 + (n_docs - df + 0.5) / (df + 0.5)))
+    scores: List[float] = []
+    for tokens, row in zip(token_lists, freqs):
+        length_norm = _BM25_K1 * (1.0 - _BM25_B + _BM25_B * len(tokens) / avg_len)
+        score = 0.0
+        for index, tf in enumerate(row):
+            if tf > 0:
+                score += idf[index] * tf * (_BM25_K1 + 1.0) / (tf + length_norm)
+        score += _PHRASE_BONUS * sum(1 for phrase in phrases if _has_phrase(tokens, phrase))
+        scores.append(round(min(score, _MAX_LEXICAL_SCORE), 6))
+    return scores
 
 
 # Stable deterministic tie-break key: higher score, then stable identity.
@@ -266,7 +363,21 @@ def _rank_key(hit: CorpusHit) -> tuple:
 # Core retrieval
 # ---------------------------------------------------------------------------
 
-def _row_to_hit(row) -> CorpusHit:
+def _memory_type_from_custom_meta(raw: Any) -> Optional[str]:
+    """``memory_type`` from a source's JSON ``custom_meta`` (None when absent/invalid)."""
+    if not raw or not isinstance(raw, str):
+        return None
+    try:
+        meta = json.loads(raw)
+    except ValueError:
+        return None
+    if not isinstance(meta, dict):
+        return None
+    value = meta.get("memory_type")
+    return value if isinstance(value, str) and value else None
+
+
+def _row_to_hit(row, memory_type: Optional[str] = None) -> CorpusHit:
     return CorpusHit(
         unit_id=row["unit_id"],
         source_id=row["source_ref"],
@@ -282,6 +393,8 @@ def _row_to_hit(row) -> CorpusHit:
         sensitivity=row["sensitivity"],
         page=row["page"],
         unit_order=row["unit_order"],
+        external_ref=row["source_external_ref"],
+        memory_type=memory_type,
     )
 
 
@@ -293,13 +406,16 @@ def _authorize_and_filter(
     """Keep ONLY authorized rows that also satisfy the closed metadata filter.
 
     This is the authorization-before-influence enforcement point: unauthorized
-    rows are removed here and never reach ranking/scoring/fusion.
+    rows are removed here and never reach ranking/scoring/fusion.  The source
+    provenance filters (memory_type / external_ref_prefix) run strictly AFTER
+    the scope check, on rows that are already authorized (ADR-V170-01).
     """
     hits: List[CorpusHit] = []
     for row in rows:
         # Authorization (M5 scope) — fail closed on any unmatched row.
         if not scope.allows(row["profile_id"], row["project_id"], row["knowledge_space_id"]):
             continue
+        memory_type = _memory_type_from_custom_meta(row["source_custom_meta"])
         # Closed metadata filter (no authorization of its own).
         if not _match_metadata(
             meta,
@@ -309,20 +425,26 @@ def _authorize_and_filter(
             source_id=row["source_ref"],
             unit_kind=row["kind"],
             lifecycle_status=row["lifecycle_status"],
+            memory_type=memory_type,
+            external_ref=row["source_external_ref"],
         ):
             continue
         # deleted lifecycle is never eligible corpus evidence.
         if (row["lifecycle_status"] or "").lower() == "deleted":
             continue
-        hits.append(_row_to_hit(row))
+        hits.append(_row_to_hit(row, memory_type))
     return hits
 
 
+# ADR-V170-01: provenance is read at query time from the source table (a LEFT
+# JOIN on columns that already exist in schema v10+; no migration needed).
 _UNIT_COLUMNS = (
-    "unit_id, source_ref, source_location_id, content_hash, normalized_text, "
-    "kind, profile_id, project_id, knowledge_space_id, lifecycle_status, "
-    "sensitivity, page, unit_order"
+    "u.unit_id, u.source_ref, u.source_location_id, u.content_hash, u.normalized_text, "
+    "u.kind, u.profile_id, u.project_id, u.knowledge_space_id, u.lifecycle_status, "
+    "u.sensitivity, u.page, u.unit_order, "
+    "s.external_ref AS source_external_ref, s.custom_meta AS source_custom_meta"
 )
+_SOURCE_JOIN = "LEFT JOIN zm_corpus_sources s ON s.source_id = u.source_ref"
 
 
 # DEF-030 (DEF-C1): candidate-discovery cap. Ranking happens over the
@@ -330,10 +452,25 @@ _UNIT_COLUMNS = (
 # top-k of a reasonable query inside the cap while bounding memory on broad
 # queries ("risk", "the"). Ranking is over the capped set (documented).
 _DISCOVERY_FACTOR = 50
+# DEF-061: lowering the default result limit must not shrink the candidate
+# window (ranking runs over the authorized subset of the discovered set), so the
+# window never drops below this floor.  Both constants are module-level knobs.
+_DISCOVERY_CAP_FLOOR = 5000
 
 
 def _discovery_cap(plan_limit: int) -> int:
-    return max(plan_limit * _DISCOVERY_FACTOR, plan_limit)
+    return max(plan_limit * _DISCOVERY_FACTOR, _DISCOVERY_CAP_FLOOR, plan_limit)
+
+
+# DEF-061: ``duplicate_of`` marks an exact within-source repeat of an earlier unit
+# (same source => same scope, so collapsing never touches authorization identity);
+# excluding it in SQL also keeps repeats from consuming the discovery cap.
+_FTS_DISCOVERY_SQL = (
+    f"SELECT {_UNIT_COLUMNS} "
+    f"FROM zm_corpus_fts JOIN zm_corpus_units u ON u.unit_id = zm_corpus_fts.unit_id "
+    f"{_SOURCE_JOIN} "
+    "WHERE zm_corpus_fts MATCH ? AND u.duplicate_of IS NULL LIMIT ?"
+)
 
 
 def _read_all_units(cur, cap: int) -> list:
@@ -345,7 +482,9 @@ def _read_all_units(cur, cap: int) -> list:
     before lexical scoring or limiting.
     """
     return cur.execute(
-        f"SELECT {_UNIT_COLUMNS} FROM zm_corpus_units LIMIT ?", (cap,)
+        f"SELECT {_UNIT_COLUMNS} FROM zm_corpus_units u {_SOURCE_JOIN} "
+        "WHERE u.duplicate_of IS NULL LIMIT ?",
+        (cap,),
     ).fetchall()
 
 
@@ -359,10 +498,12 @@ def retrieve_corpus(
     """Authorization-safe deterministic corpus retrieval.
 
     Flow:
-      1. Discover lexical candidates via FTS MATCH (discovery only).
+      1. Discover lexical candidates via FTS MATCH (discovery only; within-source
+         duplicate units are excluded in SQL).
       2. Scope-filter to the AUTHORIZED set (drop unauthorized before ranking).
-      3. Apply closed metadata filter.
-      4. Compute deterministic lexical score over the authorized subset.
+      3. Apply closed metadata filter (incl. source memory_type / external_ref
+         prefix, ADR-V170-01) - strictly after the scope check.
+      4. Compute deterministic BM25 over the authorized subset (DEF-061).
       5. Optionally fuse a local semantic adapter (authorized set only).
       6. Return ranked ``CorpusHit[]`` (bounded by ``plan.limit``).
 
@@ -371,7 +512,9 @@ def retrieve_corpus(
     """
     semantic = semantic or NO_SEMANTIC_ADAPTER
     cur = conn.cursor()
-    query_tokens = plan.text.split()
+    # True only when discovery had no FTS to filter on a text query: the fallback
+    # then returns every unit, so non-matching units are dropped after scoring.
+    unfiltered_lexical_discovery = False
 
     # Step 1: lexical discovery. If no lexical text, every unit is a candidate
     # (metadata-only retrieval). Without FTS5, the derived unit relation is the
@@ -394,6 +537,7 @@ def retrieve_corpus(
             except Exception as exc:  # pragma: no cover - defensive
                 raise CorpusQueryError(f"corpus_query_failed: {type(exc).__name__}") from None
         elif not _migrate_10.FTS5_AVAILABLE:
+            unfiltered_lexical_discovery = True
             try:
                 rows = _read_all_units(cur, cap)
             except Exception as exc:  # pragma: no cover - defensive
@@ -401,14 +545,7 @@ def retrieve_corpus(
         else:
             # FTS discovery: match unit_ids, then join units (bounded by cap).
             try:
-                rows = cur.execute(
-                    "SELECT u.unit_id, u.source_ref, u.source_location_id, u.content_hash, "
-                    "u.normalized_text, u.kind, u.profile_id, u.project_id, "
-                    "u.knowledge_space_id, u.lifecycle_status, u.sensitivity, u.page, u.unit_order "
-                    "FROM zm_corpus_fts JOIN zm_corpus_units u ON u.unit_id = zm_corpus_fts.unit_id "
-                    "WHERE zm_corpus_fts MATCH ? LIMIT ?",
-                    (fts_expr, cap),
-                ).fetchall()
+                rows = cur.execute(_FTS_DISCOVERY_SQL, (fts_expr, cap)).fetchall()
                 # DEF-031 (DEF-C2): precision-guarded OR fallback — only when
                 # the implicit-AND pass returned zero rows AND the query has
                 # >= 2 terms (single-term queries have nothing to fall back to).
@@ -417,14 +554,7 @@ def retrieve_corpus(
                 if not rows and _fts_term_count(plan.text) >= 2:
                     or_expr = _fts_or_query(plan.text)
                     if or_expr:
-                        rows = cur.execute(
-                            "SELECT u.unit_id, u.source_ref, u.source_location_id, u.content_hash, "
-                            "u.normalized_text, u.kind, u.profile_id, u.project_id, "
-                            "u.knowledge_space_id, u.lifecycle_status, u.sensitivity, u.page, u.unit_order "
-                            "FROM zm_corpus_fts JOIN zm_corpus_units u ON u.unit_id = zm_corpus_fts.unit_id "
-                            "WHERE zm_corpus_fts MATCH ? LIMIT ?",
-                            (or_expr, cap),
-                        ).fetchall()
+                        rows = cur.execute(_FTS_DISCOVERY_SQL, (or_expr, cap)).fetchall()
             except Exception as exc:
                 # Malformed FTS expression or missing FTS table => fail closed to
                 # a typed error (never silently return everything).
@@ -435,8 +565,13 @@ def retrieve_corpus(
     if not hits:
         return []
 
-    # Step 4: deterministic lexical score over the AUTHORIZED subset only.
-    hits = [_scored(h, _lexical_score(h.normalized_text, query_tokens)) for h in hits]
+    # Step 4: deterministic BM25 over the AUTHORIZED subset only (DEF-061).
+    scores = _bm25_scores(hits, plan.text)
+    hits = [_scored(h, score) for h, score in zip(hits, scores)]
+    if unfiltered_lexical_discovery:
+        hits = [h for h in hits if h.lexical_score > 0.0]
+        if not hits:
+            return []
 
     # Step 5: optional semantic fusion over the authorized set ONLY.
     semantic_active = False
@@ -457,58 +592,23 @@ def retrieve_corpus(
 
 
 # Helpers to rebuild frozen CorpusHit with computed fields (frozen dataclass).
+# ``replace`` keeps every other field (incl. provenance) untouched.
 def _scored(h: CorpusHit, lexical_score: float) -> CorpusHit:
-    return CorpusHit(
-        unit_id=h.unit_id, source_id=h.source_id, source_ref=h.source_ref,
-        source_location_id=h.source_location_id, content_hash=h.content_hash,
-        normalized_text=h.normalized_text, kind=h.kind, profile_id=h.profile_id,
-        project_id=h.project_id, knowledge_space_id=h.knowledge_space_id,
-        lifecycle_status=h.lifecycle_status, sensitivity=h.sensitivity,
-        page=h.page, unit_order=h.unit_order, lexical_score=lexical_score,
-        semantic_score=h.semantic_score, combined_score=h.combined_score,
-        retrieval_mode=h.retrieval_mode, reason=h.reason,
-    )
+    return replace(h, lexical_score=lexical_score)
 
 
 def _fused(h: CorpusHit) -> CorpusHit:
-    return CorpusHit(
-        unit_id=h.unit_id, source_id=h.source_id, source_ref=h.source_ref,
-        source_location_id=h.source_location_id, content_hash=h.content_hash,
-        normalized_text=h.normalized_text, kind=h.kind, profile_id=h.profile_id,
-        project_id=h.project_id, knowledge_space_id=h.knowledge_space_id,
-        lifecycle_status=h.lifecycle_status, sensitivity=h.sensitivity,
-        page=h.page, unit_order=h.unit_order, lexical_score=h.lexical_score,
-        semantic_score=h.semantic_score, combined_score=h.combined_score,
-        retrieval_mode="semantic", reason=h.reason,
-    )
+    return replace(h, retrieval_mode="semantic")
 
 
 def _lexical_only(h: CorpusHit) -> CorpusHit:
-    return CorpusHit(
-        unit_id=h.unit_id, source_id=h.source_id, source_ref=h.source_ref,
-        source_location_id=h.source_location_id, content_hash=h.content_hash,
-        normalized_text=h.normalized_text, kind=h.kind, profile_id=h.profile_id,
-        project_id=h.project_id, knowledge_space_id=h.knowledge_space_id,
-        lifecycle_status=h.lifecycle_status, sensitivity=h.sensitivity,
-        page=h.page, unit_order=h.unit_order, lexical_score=h.lexical_score,
-        semantic_score=0.0, combined_score=h.combined_score,
-        retrieval_mode="lexical", reason=h.reason,
-    )
+    return replace(h, semantic_score=0.0, retrieval_mode="lexical")
 
 
 def _with_combined(h: CorpusHit, semantic_active: bool) -> CorpusHit:
     combined = h.lexical_score + (h.semantic_score if semantic_active else 0.0)
     mode = h.retrieval_mode if semantic_active else "lexical"
-    return CorpusHit(
-        unit_id=h.unit_id, source_id=h.source_id, source_ref=h.source_ref,
-        source_location_id=h.source_location_id, content_hash=h.content_hash,
-        normalized_text=h.normalized_text, kind=h.kind, profile_id=h.profile_id,
-        project_id=h.project_id, knowledge_space_id=h.knowledge_space_id,
-        lifecycle_status=h.lifecycle_status, sensitivity=h.sensitivity,
-        page=h.page, unit_order=h.unit_order, lexical_score=h.lexical_score,
-        semantic_score=h.semantic_score, combined_score=combined,
-        retrieval_mode=mode, reason=h.reason,
-    )
+    return replace(h, combined_score=combined, retrieval_mode=mode)
 
 
 __all__ = [

@@ -12,8 +12,10 @@ from typing import Any
 
 from .config import EffectiveConfigurationError, load_effective_config
 from .paths import (
+    CORPUS_REGISTRY_FILENAME,
     ConfigurationError,
     config_path,
+    corpus_root,
     derived_db,
     load_config,
     memory_stream,
@@ -87,6 +89,114 @@ def _fts5_check() -> tuple[str, str]:
     return "PASS", "FTS5 capability available"
 
 
+_CORPUS_AUTHORIZATION_BASE = (
+    "event-path knowledge-space grants authorize per-row via "
+    "zm_meta.knowledge_space_id (canonical-first); corpus search reads the "
+    "main derived store"
+)
+
+
+def _corpus_authorization_check() -> dict[str, str]:
+    from zero_mem import userconfig
+
+    env_val = os.environ.get("ZM_M6_CORPUS_STORE_PATH")
+    effective = env_val or userconfig.get_corpus_store_path()
+    if not effective:
+        return _check("corpus_authorization", "PASS", _CORPUS_AUTHORIZATION_BASE)
+    source = "env" if env_val else "config"
+    legacy_error: Exception | None = None
+    try:
+        from pathlib import Path as _P
+
+        from src.integration.m6.runtime import (
+            CorpusStoreConfigError as _CorpusStoreConfigError,
+            _validate_corpus_store_path,
+        )
+
+        try:
+            _validate_corpus_store_path(_P(effective))
+        except _CorpusStoreConfigError as exc:
+            legacy_error = exc
+    except Exception as exc:  # defensive: never crash doctor
+        legacy_error = exc
+    if legacy_error is None:
+        return _check(
+            "corpus_authorization", "PASS",
+            f"legacy corpus-store-path ({source}) is set but unused by corpus "
+            f"search; {_CORPUS_AUTHORIZATION_BASE}")
+    return _check(
+        "corpus_authorization", "WARN",
+        f"legacy corpus-store-path ({source}) is unusable and ignored; "
+        f"{_CORPUS_AUTHORIZATION_BASE}; remove it with: "
+        "zero-mem config unset corpus-store-path")
+
+
+def _registry_sources(registry: Path) -> int:
+    """Distinct source ids in the canonical corpus registry (read-only).
+
+    Raises ValueError on a truncated or malformed registry.
+    """
+    data = registry.read_bytes()
+    if data and not data.endswith(b"\n"):
+        raise ValueError("partial final line")
+    ids: set[str] = set()
+    for raw in data.splitlines():
+        if not raw.strip():
+            continue
+        record = json.loads(raw.decode("utf-8"))
+        if not isinstance(record, dict) or not isinstance(record.get("source_id"), str):
+            raise ValueError("malformed record")
+        ids.add(record["source_id"])
+    return len(ids)
+
+
+def _derived_corpus_units() -> int | None:
+    """Corpus unit count in the derived store without mutating it (None = unknown)."""
+    path = derived_db()
+    if not path.is_file() or path.is_symlink():
+        return None
+    wal = Path(str(path) + "-wal")
+    try:
+        mode = "mode=ro" if wal.exists() and wal.stat().st_size > 0 else "mode=ro&immutable=1"
+        conn = sqlite3.connect(f"file:{path.as_posix()}?{mode}", uri=True)
+        try:
+            return int(conn.execute("SELECT COUNT(*) FROM zm_corpus_units").fetchone()[0])
+        finally:
+            conn.close()
+    except (sqlite3.Error, OSError):
+        return None
+
+
+def _corpus_check() -> tuple[str, str]:
+    """DEF-054: report the canonical corpus root, registry and projection state."""
+    try:
+        root = corpus_root()
+    except ConfigurationError:
+        return "FAIL", "corpus root path is invalid"
+    registry = root / CORPUS_REGISTRY_FILENAME
+    if root.is_symlink() or registry.is_symlink():
+        return "FAIL", "corpus root is unsafe"
+    if not root.is_dir():
+        return "WARN", "Corpus root not initialised (run zero-mem setup)"
+    if not registry.is_file():
+        return "WARN", "Corpus registry missing (run zero-mem setup)"
+    try:
+        sources = _registry_sources(registry)
+    except (OSError, UnicodeError, ValueError):
+        return "FAIL", "corpus registry is malformed"
+    if sources == 0:
+        return "WARN", "Corpus is empty (no sources registered)"
+    units = _derived_corpus_units()
+    if units is None:
+        return "WARN", f"corpus registry has {sources} source(s); derived corpus state is unavailable (run zero-mem upgrade)"
+    if units == 0:
+        return "WARN", (
+            f"corpus registry has {sources} source(s) but the derived store has "
+            "0 corpus units (run zero-mem upgrade to rebuild)"
+        )
+    return "PASS", f"corpus registry has {sources} source(s); derived store has {units} unit(s)"
+
+
 def collect() -> dict[str, Any]:
     checks: list[dict[str, str]] = []
     implementation = getattr(sys, "implementation", None)
@@ -123,58 +233,14 @@ def collect() -> dict[str, Any]:
         checks.append(_check("configuration", "FAIL", str(exc)))
 
     # V150-R1 (DEF-019): the event path authorizes per-row via
-    # zm_meta.knowledge_space_id — a corpus store is NOT required for
-    # knowledge-space grants anymore. This check now reports the corpus
-    # store's own usability for the CORPUS read path (corpus_unit_search)
-    # and describes the actual per-row mechanism.
+    # zm_meta.knowledge_space_id, and corpus search reads the main derived store.
+    # DEF-066: the legacy ``corpus-store-path`` setting is vestigial - it never
+    # affects either path, so a missing/invalid value is a WARN (never FAIL, so
+    # it cannot block upgrade/restore) and no longer prescribes setting it.
     try:
-        from zero_mem import userconfig
-
-        corpus_val = userconfig.get_corpus_store_path()
-        env_val = os.environ.get("ZM_M6_CORPUS_STORE_PATH")
-        effective = env_val or corpus_val
-        if not effective:
-            checks.append(_check(
-                "corpus_authorization", "PASS",
-                "event-path knowledge-space grants authorize per-row via "
-                "zm_meta.knowledge_space_id (canonical-first); no corpus "
-                "store configured — only corpus_unit_search needs one "
-                "(zero-mem config set corpus-store-path <path>)"))
-        else:
-            source = "env" if env_val else "config"
-            corpus_error: Exception | None = None
-            try:
-                from src.integration.m6.runtime import (
-                    CorpusStoreConfigError as _CorpusStoreConfigError,
-                    _validate_corpus_store_path,
-                )
-                from pathlib import Path as _P
-
-                try:
-                    _validate_corpus_store_path(_P(effective))
-                except _CorpusStoreConfigError as exc:
-                    corpus_error = exc
-            except ImportError:
-                corpus_error = RuntimeError(
-                    "corpus validation layer unavailable (src tree missing?)")
-            except Exception as exc:  # defensive: never crash doctor
-                corpus_error = exc
-            if corpus_error is not None:
-                checks.append(_check(
-                    "corpus_authorization", "FAIL",
-                    f"corpus store configured for corpus_unit_search via "
-                    f"{source} but unusable ({corpus_error}): {effective} — "
-                    "fix with: zero-mem config set corpus-store-path <path> "
-                    "(event-path grants are unaffected: they authorize "
-                    "per-row via zm_meta)"))
-            else:
-                checks.append(_check(
-                    "corpus_authorization", "PASS",
-                    f"corpus store usable for corpus_unit_search ({source}: "
-                    f"{effective}); event-path grants authorize per-row via "
-                    "zm_meta.knowledge_space_id"))
+        checks.append(_corpus_authorization_check())
     except Exception as exc:  # pragma: no cover - defensive
-        checks.append(_check("corpus_authorization", "FAIL", str(exc)))
+        checks.append(_check("corpus_authorization", "WARN", f"corpus authorization status unavailable ({type(exc).__name__})"))
 
 
     memory_status, memory_message = _memory_check()
@@ -197,7 +263,8 @@ def collect() -> dict[str, Any]:
             checks.append(_check("hermes", "WARN", "Hermes integration not configured"))
     except Exception:
         checks.append(_check("hermes", "WARN", "Hermes integration status unavailable"))
-    checks.append(_check("corpus", "WARN", "Corpus root not configured"))
+    corpus_status, corpus_message = _corpus_check()
+    checks.append(_check("corpus", corpus_status, corpus_message))
     checks.append(_check("obsidian", "WARN", "Obsidian projection not configured"))
     checks.append(_check("pypdf", "OPTIONAL", "optional PDF parser available" if importlib.util.find_spec("pypdf") else "optional PDF parser absent"))
     checks.append(_check("ai_api", "OPTIONAL", "AI API is not required"))

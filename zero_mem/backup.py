@@ -39,6 +39,8 @@ from .paths import (
     cache_root,
     config_path,
     config_root,
+    corpus_root,
+    corpus_root_is_explicit,
     data_root,
     derived_db,
     expected_config,
@@ -455,13 +457,18 @@ def create_backup(output: Path | None = None) -> Path:
                 raise _fail("INVALID_MANIFEST") from None
             files.append(_copy_payload(integration, staging, "configuration/hermes-integration.json", "configuration"))
 
-        corpus_root_value = os.environ.get("ZERO_MEM_CORPUS_ROOT")
-        if corpus_root_value:
-            corpus_root = _safe_target(Path(corpus_root_value), "UNSAFE_PATH")
-            if not corpus_root.is_dir() or corpus_root.is_symlink():
+        # DEF-054: the corpus lives under the data root by default and is always
+        # part of the backup when present.  An explicit ZERO_MEM_CORPUS_ROOT must
+        # exist; the default location may be absent on pre-DEF-054 installs.
+        try:
+            corpus_source = corpus_root()
+        except ConfigurationError:
+            raise _fail("UNSAFE_PATH") from None
+        corpus_source = _safe_target(corpus_source, "UNSAFE_PATH")
+        if corpus_root_is_explicit() or corpus_source.exists():
+            if not corpus_source.is_dir() or corpus_source.is_symlink():
                 raise _fail("MISSING_PAYLOAD")
-            corpus_destination = staging / "canonical/corpus"
-            for source, relative in _iter_regular_files(corpus_root):
+            for source, relative in _iter_regular_files(corpus_source):
                 if relative.endswith(".part") or relative.endswith(".tmp"):
                     continue
                 files.append(_copy_entry(source, staging, "canonical/corpus/" + relative, "canonical"))
@@ -599,12 +606,19 @@ def restore_backup(
     manifest = _load_json_bytes((root / MANIFEST_NAME).read_bytes(), "INVALID_MANIFEST")
     manifest = _validate_manifest(manifest)
     corpus_target: Path | None = None
+    # DEF-054: by default the corpus is part of the data root (data/corpus) and is
+    # restored atomically with it; a separate corpus root is only used when the
+    # operator names one (flag) or runs with an explicit ZERO_MEM_CORPUS_ROOT.
+    corpus_in_data = False
     if manifest["_has_corpus"]:
-        if target_corpus_root is None:
+        if target_corpus_root is not None:
+            corpus_target = _safe_target(Path(target_corpus_root), "UNSAFE_PATH")
+            if _contained(target, corpus_target) or _contained(corpus_target, target):
+                raise _fail("UNSAFE_PATH")
+        elif corpus_root_is_explicit():
             raise _fail("CORPUS_TARGET_REQUIRED")
-        corpus_target = _safe_target(Path(target_corpus_root), "UNSAFE_PATH")
-        if _contained(target, corpus_target) or _contained(corpus_target, target):
-            raise _fail("UNSAFE_PATH")
+        else:
+            corpus_in_data = True
 
     target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     if target.exists() and (target.is_symlink() or not target.is_dir()):
@@ -632,7 +646,11 @@ def restore_backup(
                     os.chmod(destination, 0o600)
             elif relative.startswith("canonical/corpus/"):
                 if corpus_staging is None:
-                    corpus_staging = Path(tempfile.mkdtemp(prefix=".zero-mem-corpus-", suffix=".partial", dir=str(target.parent)))
+                    if corpus_in_data:
+                        corpus_staging = staging / "data/corpus"
+                        corpus_staging.mkdir(parents=True, exist_ok=True, mode=0o700)
+                    else:
+                        corpus_staging = Path(tempfile.mkdtemp(prefix=".zero-mem-corpus-", suffix=".partial", dir=str(target.parent)))
                 destination = corpus_staging / relative[len("canonical/corpus/") :]
                 destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
                 shutil.copyfile(source, destination)
@@ -646,7 +664,7 @@ def restore_backup(
         with _temporary_environment({
             "ZERO_MEM_DATA_ROOT": str(staging),
             "XDG_CONFIG_HOME": str(config_home),
-            "ZERO_MEM_CORPUS_ROOT": str(corpus_staging) if corpus_staging is not None else None,
+            "ZERO_MEM_CORPUS_ROOT": str(corpus_staging) if corpus_staging is not None and not corpus_in_data else None,
         }):
             write_config()
             from .commands_doctor import collect
@@ -667,6 +685,12 @@ def restore_backup(
             os.replace(corpus_staging, corpus_target)
         _restore_configuration(target, manifest)
         if rollback is not None:
+            # Last failure-prone step is behind us: a live default corpus that the
+            # backup did not replace must survive the data-root swap (DEF-054).
+            live_corpus = rollback / "data/corpus"
+            kept_corpus = target / "data/corpus"
+            if live_corpus.is_dir() and not live_corpus.is_symlink() and not kept_corpus.exists():
+                os.replace(live_corpus, kept_corpus)
             shutil.rmtree(rollback, ignore_errors=True)
         if corpus_rollback is not None:
             shutil.rmtree(corpus_rollback, ignore_errors=True)
