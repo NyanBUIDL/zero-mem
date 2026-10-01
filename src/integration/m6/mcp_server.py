@@ -437,6 +437,8 @@ def main(argv: Optional[list] = None) -> int:
         tool_sets.append(memory_tools)
         sys.stderr.write(f"zero-mem-mcp: memory tools mounted (write {'on' if want_write else 'off'}, "
                          f"{len(allow_roots)} allowed folder(s))\n")
+        for note in memory_tools.startup_notes():
+            sys.stderr.write(f"zero-mem-mcp: {note}\n")
         sys.stderr.flush()
     elif allow_roots:
         sys.stderr.write("zero-mem-mcp: WARNING allow-root ignored: the memory tools are not enabled "

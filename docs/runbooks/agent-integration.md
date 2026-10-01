@@ -166,6 +166,7 @@ memory tools 6.2 KB (2.3 KB for the two read tools). A leaner server that lists 
 | `DENIED` `DENY_PATH_OUTSIDE_ALLOWLIST` / `DENY_NO_ALLOWED_ROOTS` | the folder is not under an `--allow-root`; re-register with the folder (the agent cannot widen it) |
 | `REJECTED_SECRET` | the text or file contains a credential-like value; remove it. Nothing was stored |
 | `memory_recall` is `EMPTY` for something another agent saved | it was saved `private`, or `forgotten`, or the reader was never registered (`zero-mem agents add`), or the writer's call was `DENIED` |
+| the server's stderr says `profile 'X' cannot read the shared space` | the profile was never registered (or `--profile-id` has a typo): run `zero-mem agents add X`; until then the agent only sees its own private memory |
 | server exits at once with `ERROR: --store-path is not the database of the zero-mem data root` | `ZERO_MEM_DATA_ROOT` differs between `serve` and the registered `--store-path`; use `serve` or drop `--store-path` |
 | `ERROR` `INTERNAL_ERROR` | no detail is returned by design: read the server's stderr and run `zero-mem doctor` |
 | the client says the server "Connection closed" / fails to start | the interpreter in the registration cannot import `zero_mem` (not installed there, or the client ignores `PYTHONPATH`, as OpenClaw does): `pip install` zero-mem into that interpreter or re-run `zero-mem mcp-config` from the right one |

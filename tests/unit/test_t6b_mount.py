@@ -253,6 +253,19 @@ def test_direct_script_start_with_memory_tools_works_from_a_foreign_cwd(home, tm
         assert "Traceback" not in srv.close()
 
 
+def test_an_unregistered_profile_gets_a_startup_warning_naming_the_fix(home):
+    """A typo in --profile-id silently leaves an agent unable to read the shared space: say so on stderr."""
+    with server(home, "--profile-id", "claude_code", "--enable-memory") as srv:
+        srv.initialize()
+        assert srv.env("memory_recall", {"query": "anything"})["status"] == "EMPTY"
+        err = srv.close()
+    assert "WARNING" in err and "agents add claude_code" in err and "Traceback" not in err
+    with server(home, "--profile-id", "claude-code", "--enable-memory") as srv:  # registered by the fixture
+        srv.initialize()
+        err = srv.close()
+    assert "WARNING" not in err
+
+
 @pytest.mark.parametrize("name,value", [("ZM_M6_INGEST_MAX_FILES", "many"), ("ZM_M6_INGEST_MAX_FILES", "0"),
                                         ("ZM_M6_INGEST_MAX_BYTES", "-5")])
 def test_a_bad_ingest_cap_in_the_environment_is_refused_at_start(home, name, value):

@@ -178,6 +178,22 @@ class MemoryToolSet:
         """Short usage guide for the ``initialize`` result (clients such as Claude Code show it to the model)."""
         return c.SERVER_INSTRUCTIONS + (c.SERVER_INSTRUCTIONS_WRITE if self._write else "")
 
+    def startup_notes(self) -> List[str]:
+        """Operator-facing warnings for the server's stderr (never sent to a client)."""
+        notes: List[str] = []
+        try:
+            memory = self._memory()
+            try:
+                status = memory.status()
+            finally:
+                memory.close()
+            if not status.get("can_read_shared"):
+                notes.append(f"WARNING profile '{self._profile}' cannot read the shared space {self._space()} "
+                             f"(a typo in --profile-id?): run `zero-mem agents add {self._profile}`")
+        except Exception:  # noqa: BLE001 - a warning must never stop the server
+            pass
+        return notes
+
     def schemas(self) -> List[Dict[str, Any]]:
         return c.tool_definitions(write=self._write)
 
