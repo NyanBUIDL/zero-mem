@@ -241,6 +241,10 @@ Learning harness (owner-controlled): agents *propose* rules / decisions / gotcha
 (`zero-mem review list|approve|reject|revoke`) and controls modes, limits, injection (off by default) and a kill switch with `zero-mem settings`. Nothing
 proposed is recalled until approved. See [docs/runbooks/learning-harness.md](docs/runbooks/learning-harness.md).
 
+Peer sharing over the LAN (off by default, optional extra `pip install "zero-mem[share]"`): the owner publishes selected knowledge, a paired machine on the same
+Wi-Fi pulls a read-only quarantined copy over pinned TLS 1.3 (`zero-mem share invite|join|serve|grant|revoke|pull|audit`). See
+[docs/runbooks/peer-sharing.md](docs/runbooks/peer-sharing.md) and [ADR-V170-05](docs/v1.6.1/decisions/ADR-V170-05-PEER-SHARING.md).
+
 Every memory is a corpus source read and written through the access policy, so several agents can share one store: register them with
 `zero-mem agents add`, and approve shared writes explicitly with `zero-mem agents grant-write`. See
 [docs/runbooks/shared-memory-quickstart.md](docs/runbooks/shared-memory-quickstart.md). Agents (Claude Code, Codex, Hermes, OpenClaw) connect over MCP with
