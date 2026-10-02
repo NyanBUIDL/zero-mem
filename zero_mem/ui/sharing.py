@@ -10,6 +10,8 @@ exactly that stored object.
 from __future__ import annotations
 
 import hashlib
+import hmac
+import json
 import secrets
 import threading
 import time
@@ -56,6 +58,7 @@ class Sharing:
         self.panel = panel
         self._store: "OrderedDict[str, dict]" = OrderedDict()
         self._lock = threading.Lock()
+        self._secret = secrets.token_bytes(32)  # per-session key that binds a confirmation to the exact plan the person reviewed
         self._busy = threading.Lock()  # one network operation (join / plan / pull) at a time
 
     # ------------------------------------------------------------------------------------------ plumbing
@@ -226,7 +229,8 @@ class Sharing:
                 preview = node.preview_spec(peer["peer_id"], spec, limit=PREVIEW_REFS)
         except Exception as exc:  # noqa: BLE001
             return self._fail("Cannot preview the grant", exc)
-        key = self._put("grant", {"peer": peer["peer_id"], "label": peer["label"], "spec": spec, "preview": preview})
+        key = self._put("grant", {"peer": peer["peer_id"], "label": peer["label"], "spec": spec, "preview": preview,
+                                  "sig": _grant_signature(self._secret, peer["peer_id"], spec, preview)})
         return redirect(url("/sharing/grant-preview", id=key))
 
     def get_grant_preview(self, ctx) -> Response:
@@ -244,6 +248,12 @@ class Sharing:
             return self.panel.go("/sharing", _flash_error("Not confirmed", "Tick the confirmation box to grant access. Nothing was granted."))
         try:
             with self._node() as node:
+                again = node.preview_spec(item["peer"], item["spec"], limit=PREVIEW_REFS)
+                if not hmac.compare_digest(_grant_signature(self._secret, item["peer"], item["spec"], again), item["sig"]):
+                    self._drop(f["id"])
+                    return self.panel.go("/sharing", _flash_error(
+                        "What the grant would share changed since you previewed it",
+                        "The sources the peer could read are no longer the ones you reviewed. Nothing was granted. Preview again."))
                 grant = node.grant(item["peer"], item["spec"])
                 now = node.preview(item["peer"])
         except Exception as exc:  # noqa: BLE001
@@ -292,7 +302,7 @@ class Sharing:
         finally:
             self._busy.release()
         key = self._put("pull", {"owner": report.owner["peer_id"], "label": report.owner["label"], "plan": report.plan,
-                                 "sig": _plan_signature(report.plan)})
+                                 "sig": _plan_signature(self._secret, report.owner["peer_id"], report.plan)})
         return redirect(url("/sharing/pull-plan", id=key))
 
     def get_pull_plan(self, ctx) -> Response:
@@ -314,7 +324,8 @@ class Sharing:
             return self.panel.go("/sharing", _flash_error("Busy", "another sharing operation is running; try again in a moment"))
         try:
             with self._node() as node:
-                report = client.pull(node, item["owner"], confirm=lambda plan: _plan_signature(plan) == item["sig"])
+                report = client.pull(node, item["owner"], confirm=lambda plan: hmac.compare_digest(
+                    _plan_signature(self._secret, item["owner"], plan), item["sig"]))
         except Exception as exc:  # noqa: BLE001
             return self._fail("Pull failed", exc)
         finally:
@@ -322,7 +333,9 @@ class Sharing:
         self._drop(f["id"])
         if report.aborted:
             return self.panel.go("/sharing", _flash_error(
-                "The owner's offering changed", "It differs from the plan you reviewed, so nothing was imported. Plan again."))
+                "The owner changed the plan since you reviewed it",
+                "An item's reference, type, kind, size, digest or action (or the totals) differs from what you reviewed, so "
+                "nothing was imported. Plan again and review the new plan."))
         lines = [f"rejected {r['ref']}: {r['reason']}" for r in report.rejected[:20]]
         lines += [f"you approved {r['ref']} but the owner forgot it: review it in the Inbox (approved) and revoke it if you agree"
                   for r in report.revoke_proposed]
@@ -372,9 +385,26 @@ def _grant_spec_from_form(f) -> dict:
             "ref_prefixes": prefixes, "expires_in": expires_arg(f.get("grant_expires") or None)}
 
 
-def _plan_signature(plan: dict) -> str:
-    rows = [(r["source_id"], r["digest"], r["action"]) for r in plan["rows"]]
-    return hashlib.sha256(repr(rows).encode("utf-8")).hexdigest()
+_PLAN_ROW_KEYS = ("source_id", "ref", "memory_type", "kind", "size", "digest", "action", "reason")
+
+
+def _plan_signature(secret: bytes, owner_id: str, plan: dict) -> str:
+    """HMAC-SHA256 (per-session secret) over a canonical serialization of the COMPLETE plan: the owner id, every row with all of
+    its fields, and the plan-level totals. A confirmation is valid only for exactly the plan that was reviewed."""
+    doc = {"owner": owner_id, "rows": [[r.get(k) for k in _PLAN_ROW_KEYS] for r in plan["rows"]],
+           "totals": {"sources": plan.get("sources"), "bytes": plan.get("bytes"), "invalid": plan.get("invalid_entries"),
+                      "summary": sorted((plan.get("summary") or {}).items())}}
+    return hmac.new(secret, json.dumps(doc, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("ascii"),
+                    hashlib.sha256).hexdigest()
+
+
+def _grant_signature(secret: bytes, peer_id: str, spec: dict, preview: dict) -> str:
+    """Same idea for a grant: the peer, the grant parameters and everything the preview showed (counts, types, references)."""
+    doc = {"peer": peer_id, "spec": spec, "sources": preview["sources"], "bytes": preview["bytes"],
+           "by_type": sorted(preview["by_type"].items()),
+           "refs": [[r["ref"], r["memory_type"], r["size"]] for r in preview["refs"]]}
+    return hmac.new(secret, json.dumps(doc, sort_keys=True, separators=(",", ":"), ensure_ascii=True, default=str).encode("ascii"),
+                    hashlib.sha256).hexdigest()
 
 
 def _peer_imports(memory, limit: int = 100) -> list:

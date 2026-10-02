@@ -73,7 +73,10 @@ Every mutation reuses the CLI's code (Reviewer, Provisioner, Memory owner entry 
   expiry, state) with revoke buttons. **Adding a grant is two steps**: a preview lists how many sources the peer would read (by type), the first
   20 references and what is never served; only the confirm POST (checkbox) creates exactly that grant.
 - **Join / Pull** (receiving side): paste an invite and a label; for an owner, "Plan a pull" fetches the manifest and shows the plan
-  (new/changed/unchanged/skipped); confirming imports exactly that plan, and aborts if the owner's offering changed meanwhile.
+  (new/changed/unchanged/skipped); confirming imports exactly that plan. The confirmation is an HMAC (per-session secret) over the complete plan: owner id, every
+  row (source id, reference, type, kind, size, digest, action, reason) and the totals. The panel re-fetches the manifest on confirm and, if
+  anything differs, shows "The owner changed the plan since you reviewed it" and imports nothing. A grant confirmation is bound the same way
+  (peer, grant parameters and the previewed counts/types/references) and is refused if what it would share changed.
 - **Imported sources** with provenance (peer, original ref, digest, fetched), labelled **untrusted reference**; **proposals from peers**
   (approve them in the [Inbox](#pages)); owner-forgotten items you had approved; the **sharing audit log**.
 Every new POST has the panel's CSRF token, Origin/Host checks and escaping (`tests/unit/test_t21_ui_sharing.py`).

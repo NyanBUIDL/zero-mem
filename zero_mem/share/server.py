@@ -279,7 +279,8 @@ class ShareServer:
             else:
                 query = parse_qs(req.query, keep_blank_values=True, max_num_fields=4)
                 since = (query.get("since") or ["1970-01-01T00:00:00Z"])[0]
-                doc = service.tombstones(peer["peer_id"], since)
+                after = (query.get("after") or [""])[0] or None
+                doc = service.tombstones(peer["peer_id"], since, after)
             return 200, protocol.dump_json(doc), None
         except ShareError as exc:
             return self._err(400, exc.code)

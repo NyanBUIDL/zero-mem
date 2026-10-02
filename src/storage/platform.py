@@ -6,6 +6,7 @@ Domain/storage callers receive stable, sanitized ``PlatformStorageError`` codes.
 from __future__ import annotations
 
 import contextlib
+import errno
 import ctypes
 import hashlib
 import math
@@ -42,9 +43,45 @@ class PlatformErrorCode(str, Enum):
 class PlatformStorageError(OSError):
     """Sanitized, domain-facing platform storage failure."""
 
-    def __init__(self, code: PlatformErrorCode) -> None:
+    def __init__(self, code: PlatformErrorCode, *, transient: bool = False) -> None:
         self.code = code
+        self.transient = transient  # T23: the underlying OS error was a retryable one (EINTR/EAGAIN/EACCES/sharing)
         super().__init__(code.value)
+
+
+# T23 (DEF-170): errnos / WinErrors that mean "try again", never "this is broken".
+_TRANSIENT_ERRNOS = frozenset(
+    getattr(errno, name) for name in ("EINTR", "EAGAIN", "EWOULDBLOCK", "EACCES", "EBUSY", "ETIMEDOUT", "ENOLCK", "EDEADLK")
+    if hasattr(errno, name)
+)
+_TRANSIENT_WINERRORS = frozenset({5, 32, 33})
+_RETRY_DELAYS = (0.002, 0.005, 0.01, 0.02, 0.04, 0.08, 0.08, 0.08, 0.08, 0.08)  # ~0.5 s total, bounded
+
+
+def is_transient_oserror(exc: BaseException) -> bool:
+    if isinstance(exc, PlatformStorageError):
+        return exc.transient
+    if isinstance(exc, (InterruptedError, BlockingIOError, PermissionError)):
+        return True
+    return isinstance(exc, OSError) and (
+        exc.errno in _TRANSIENT_ERRNOS or getattr(exc, "winerror", None) in _TRANSIENT_WINERRORS
+    )
+
+
+def _retry_sleep(seconds: float) -> None:  # module level so tests can patch it
+    time.sleep(seconds)
+
+
+def retry_transient_io(op, *, delays: tuple[float, ...] = _RETRY_DELAYS):
+    """Run ``op()``; retry transient OSErrors with bounded backoff, then re-raise the last one. Others never retried."""
+    for delay in delays:
+        try:
+            return op()
+        except OSError as exc:
+            if not is_transient_oserror(exc):
+                raise
+        _retry_sleep(delay)
+    return op()
 
 
 @dataclass(frozen=True)
@@ -367,8 +404,8 @@ def open_regular(path: Path, flags: int, *, create: bool = False, exclusive: boo
             raise
         except FileNotFoundError:
             raise PlatformStorageError(PlatformErrorCode.NOT_FOUND) from None
-        except OSError:
-            raise PlatformStorageError(PlatformErrorCode.UNAVAILABLE) from None
+        except OSError as exc:
+            raise PlatformStorageError(PlatformErrorCode.UNAVAILABLE, transient=is_transient_oserror(exc)) from None
     parent = _posix_parent(path)
     try:
         safe_flags = flags | getattr(os, "O_NOFOLLOW", 0)
@@ -393,8 +430,8 @@ def open_regular(path: Path, flags: int, *, create: bool = False, exclusive: boo
         return fd
     except PlatformStorageError:
         raise
-    except OSError:
-        raise PlatformStorageError(PlatformErrorCode.UNSAFE_PATH) from None
+    except OSError as exc:
+        raise PlatformStorageError(PlatformErrorCode.UNSAFE_PATH, transient=is_transient_oserror(exc)) from None
     finally:
         os.close(parent)
 
@@ -454,6 +491,19 @@ def file_identity(path: Path) -> FileIdentity:
         close_handle(fd)
 
 
+def _open_lock_file(path: Path, end: float) -> int:
+    """Open/create the lock file, retrying transient errors (create races, sharing denials) until ``end``."""
+    delays = iter(_RETRY_DELAYS)
+    while True:
+        try:
+            return open_regular(path, os.O_CREAT | os.O_RDWR, create=True)
+        except PlatformStorageError as exc:
+            delay = next(delays, None)  # bounded (~0.5 s): a genuinely unreadable lock file must fail fast
+            if not exc.transient or delay is None or time.monotonic() >= end:
+                raise
+            _retry_sleep(delay)
+
+
 @contextlib.contextmanager
 def locked(path: Path, *, mode: LockMode = "exclusive", timeout: float | None = None, deadline: float | None = None) -> Iterator[None]:
     if mode not in {"shared", "exclusive"}:
@@ -480,7 +530,7 @@ def locked(path: Path, *, mode: LockMode = "exclusive", timeout: float | None = 
         unlock_file = kernel32.UnlockFileEx
         unlock_file.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32, ctypes.POINTER(_OVERLAPPED)]
         unlock_file.restype = ctypes.c_int
-        fd = open_regular(path, os.O_CREAT | os.O_RDWR, create=True)
+        fd = _open_lock_file(path, end)
         handle = msvcrt.get_osfhandle(fd)
         overlapped = _OVERLAPPED()
         flags = 0x00000001 | (0x00000002 if mode == "exclusive" else 0)
@@ -515,7 +565,7 @@ def locked(path: Path, *, mode: LockMode = "exclusive", timeout: float | None = 
         import fcntl
     except ImportError:
         raise PlatformStorageError(PlatformErrorCode.UNAVAILABLE) from None
-    fd = open_regular(path, os.O_CREAT | os.O_RDWR, create=True)
+    fd = _open_lock_file(path, end)
     operation = fcntl.LOCK_SH if mode == "shared" else fcntl.LOCK_EX
     try:
         while True:
@@ -526,8 +576,13 @@ def locked(path: Path, *, mode: LockMode = "exclusive", timeout: float | None = 
                 if time.monotonic() >= end:
                     raise PlatformStorageError(PlatformErrorCode.LOCK_TIMEOUT) from None
                 time.sleep(0.001)
-            except OSError:
-                raise PlatformStorageError(PlatformErrorCode.UNAVAILABLE) from None
+            except OSError as exc:
+                # T23: EINTR/EACCES/ENOLCK... are "try again", only a real failure is UNAVAILABLE.
+                if not is_transient_oserror(exc):
+                    raise PlatformStorageError(PlatformErrorCode.UNAVAILABLE) from None
+                if time.monotonic() >= end:
+                    raise PlatformStorageError(PlatformErrorCode.LOCK_TIMEOUT) from None
+                _retry_sleep(0.002)
         yield
     except PlatformStorageError:
         raise

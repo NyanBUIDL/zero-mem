@@ -255,7 +255,9 @@ def append_history(data_root: Path, row: dict) -> None:
     paths.ensure_private_dir(path.parent, "data directory")
     payload = (json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
     with locked(path.with_name(path.name + ".lock"), mode="exclusive", timeout=_LOCK_TIMEOUT):
-        fd = os.open(str(path), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+        from src.storage.platform import retry_transient_io
+
+        fd = retry_transient_io(lambda: os.open(str(path), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600))  # T23
         try:
             os.write(fd, payload)
         finally:

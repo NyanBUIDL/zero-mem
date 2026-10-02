@@ -200,14 +200,20 @@ def parse_fetch_response(data: bytes, *, max_bytes: int) -> dict:
 # tombstones
 # ---------------------------------------------------------------------------------------------
 def parse_tombstones(data: bytes, *, max_bytes: int = 1 << 20) -> dict:
-    doc = _closed(load_json(data, max_bytes=max_bytes, what="the tombstone list"),
-                  {"v", "tombstones", "until", "more"}, "the tombstone list")
+    raw_doc = load_json(data, max_bytes=max_bytes, what="the tombstone list")
+    if isinstance(raw_doc, dict) and "next" not in raw_doc:  # an older owner has no composite cursor
+        raw_doc = {**raw_doc, "next": ""}
+    doc = _closed(raw_doc, {"v", "tombstones", "until", "more", "next"}, "the tombstone list")
     if doc["v"] != PROTOCOL_VERSION or not isinstance(doc["more"], bool):
         raise ShareError("invalid_message", "unsupported protocol version")
     if not isinstance(doc["until"], str) or not TS_RE.fullmatch(doc["until"]):
         raise ShareError("invalid_message", "until is invalid")
     if not isinstance(doc["tombstones"], list) or len(doc["tombstones"]) > MAX_TOMBSTONES:
         raise ShareError("invalid_message", "too many tombstones")
+    nxt = doc["next"]
+    if not isinstance(nxt, str) or len(nxt) > 200 or (nxt and ("|" not in nxt or not TS_RE.fullmatch(nxt.partition("|")[0])
+                                                                or not SOURCE_ID_RE.fullmatch(nxt.partition("|")[2]))):
+        raise ShareError("invalid_message", "next is invalid")
     out, rejected = [], 0
     for raw in doc["tombstones"]:
         try:
@@ -220,7 +226,7 @@ def parse_tombstones(data: bytes, *, max_bytes: int = 1 << 20) -> dict:
             out.append(dict(raw))
         except ShareError:
             rejected += 1
-    return {"tombstones": out, "rejected": rejected, "until": doc["until"], "more": doc["more"]}
+    return {"tombstones": out, "rejected": rejected, "until": doc["until"], "next": nxt, "more": doc["more"]}
 
 
 # ---------------------------------------------------------------------------------------------
