@@ -42,6 +42,10 @@ EVIDENCE_QUOTE_CHARS = 200
 DEFAULT_MAX_PER_RUN = 10
 HARD_MAX_PER_RUN = 100
 MAX_MESSAGE_CHARS = 20_000
+#: A user message longer than this is a pasted document / briefing, not a correction: skipped. At most MAX_PER_MESSAGE
+#: candidates come out of one message.
+MAX_PROCESS_CHARS = 4_000
+MAX_PER_MESSAGE = 5
 MAX_LINE_BYTES = 4 * 1024 * 1024
 MAX_STATE_KEYS = 50_000
 MAX_GIT_COMMITS = 200
@@ -101,7 +105,7 @@ _GOTCHA_FAILURE = re.compile(
 _FIRST_PERSON_EN = re.compile(r"(?<!\w)(?:i|i'll|i’ll|i'm|i’m|i've|i’ve|i'd|i’d|ill)(?!\w)")
 _FIRST_PERSON_VI = re.compile(r"(?<!\w)(?:mình|tôi|em|tui)(?!\w)")
 _QUESTION_START = re.compile(
-    r"^(?:can|could|would|will|should|shall|do|does|did|is|are|was|were|why|what|how|when|where|who|which|any chance|"
+    r"^(?:(?:can|could|would|will|should|shall|do|does|did|is|are|was|were)(?! not\b)|why|what|how|when|where|who|which|any chance|"
     r"bạn có|có nên|tại sao|làm sao|sao|liệu|có phải)\b")
 _HYPOTHETICAL_START = re.compile(r"^(?:if|imagine|suppose|what if|assuming|unless|nếu|giả sử|giả dụ|tưởng tượng)\b")
 _ASSISTANT_START = re.compile(r"^(?:sure|certainly|of course|absolutely|i'll|i’ll|i will|i can|let me|here's|here’s|here is|"
@@ -140,6 +144,7 @@ class Message:
     text: str
     session: str
     line: int
+    strict: bool = False  # commit messages: only sentences that START with the cue
 
 
 @dataclass(frozen=True)
@@ -213,8 +218,9 @@ def _sentences(text: str) -> Iterator[str]:
                 yield part
 
 
-def _classify_sentence(sentence: str) -> Optional[tuple]:
-    """``(memory_type, cue)`` for an instruction-like sentence, else ``None``."""
+def _classify_sentence(sentence: str, strict: bool = False) -> Optional[tuple]:
+    """``(memory_type, cue)`` for an instruction-like sentence, else ``None``. ``strict`` (commit messages, which are mostly
+    indicative prose such as "days are always written whole") needs the cue in the first two words and no weak cues."""
     s = _norm(sentence)
     # leading filler: "Also, don't ..." / "One more thing: you must ..."
     for _ in range(3):
@@ -239,17 +245,19 @@ def _classify_sentence(sentence: str) -> Optional[tuple]:
     if m:
         return "gotcha", "attention"
     durable = bool(_DURABLE.search(low))
-    if _GOTCHA_FAILURE.search(low) and durable:
+    if _GOTCHA_FAILURE.search(low) and durable and not strict:
         return "gotcha", "failure"
     for cue, pattern in _STRONG_RULE:
         m = pattern.search(low)
         if m is None:
             continue
         before = low[max(0, m.start() - 24):m.start()].split()[-4:]
+        if strict and len(low[:m.start()].split()) > 1:
+            continue
         if _FIRST_PERSON_EN.search(" ".join(before)) or _FIRST_PERSON_VI.search(" ".join(before)):
             continue  # "I never said", "I'll make sure", "mình không dùng": the user talking about themselves
         return "rule", cue
-    if durable:
+    if durable and not strict:
         for cue, pattern in _WEAK_RULE:
             m = pattern.search(low)
             if m is None:
@@ -287,15 +295,15 @@ def _secret_free(text: str) -> bool:
         return False
 
 
-def extract_text(text: str, *, deny: Iterable = (), session: str = "", line: int = 0) -> list:
+def extract_text(text: str, *, deny: Iterable = (), session: str = "", line: int = 0, strict: bool = False) -> list:
     """Candidates (in order, de-duplicated within the text) found in one USER-authored text."""
     out: list = []
     seen: set = set()
     patterns = list(deny)
-    if not isinstance(text, str):
+    if not isinstance(text, str) or len(text) > MAX_PROCESS_CHARS:
         return out
     for sentence in _sentences(text[:MAX_MESSAGE_CHARS]):
-        verdict = _classify_sentence(sentence)
+        verdict = _classify_sentence(sentence, strict)
         if verdict is None:
             continue
         memory_type, cue = verdict
@@ -312,6 +320,8 @@ def extract_text(text: str, *, deny: Iterable = (), session: str = "", line: int
             continue
         seen.add(name)
         quote = prepared if len(prepared) <= EVIDENCE_QUOTE_CHARS else prepared[: EVIDENCE_QUOTE_CHARS - 1].rstrip() + "…"
+        if len(out) >= MAX_PER_MESSAGE:
+            break
         out.append(Candidate(text=canon, memory_type=memory_type, scope=_scope(prepared), name=name, cue=cue,
                              quote=quote, session=session, line=line))
     return out
@@ -401,8 +411,8 @@ def parse_chat_jsonl(path: Path, *, session: Optional[str] = None) -> list:
             continue
         role = record.get("role")
         content = record.get("content")
-        if role is None and isinstance(record.get("message"), dict):
-            role, content = record["message"].get("role"), record["message"].get("content")
+        if record.get("isSidechain") or record.get("isMeta") or "type" in record:
+            continue  # Claude Code records belong to iter_transcript (sub-agent prompts are written by an agent, not the user)
         if role not in ("user", "human"):
             continue
         text = _text_of(content).strip()
@@ -455,6 +465,26 @@ _AGENT_COMMIT = re.compile(r"co-authored-by:\s*(?:claude|codex|copilot|gemini|cu
                            r"\[bot\]|🤖", re.IGNORECASE)
 
 
+def _unwrap(body: str) -> str:
+    """Undo hard wrapping in a commit body: lines of one paragraph are joined; bullets stay separate."""
+    lines: list = []
+    for raw in body.replace("\r\n", "\n").split("\n"):
+        line = raw.strip()
+        if not line:
+            lines.append("")
+        elif lines and lines[-1] and not re.match(r"^(?:[-*•]|\d+[.)])\s", line) and not lines[-1].endswith((":",)):
+            lines[-1] += " " + line
+        else:
+            lines.append(line)
+    return "\n".join(lines).strip()
+
+
+class MessageList(list):
+    """A list of messages that also counts what was skipped (``skipped_agent``: commits written by an agent)."""
+
+    skipped_agent = 0
+
+
 def git_messages(repo: Path, *, since: Optional[str] = None, limit: int = MAX_GIT_COMMITS) -> list:
     """Commit messages as user statements. Commits that an agent wrote or co-authored are skipped."""
     from . import devlog_git as dg
@@ -470,15 +500,18 @@ def git_messages(repo: Path, *, since: Optional[str] = None, limit: int = MAX_GI
     args = ["log", "--no-merges", f"--max-count={int(limit)}", "--format=%x1e%h%x1f%B"]
     if since is not None:
         args.append(f"{since}..HEAD")
-    out = []
+    out = MessageList()
     for record in dg._git(repo, *args).split("\x1e"):
         if not record.strip():
             continue
         sha, _sep, body = record.partition("\x1f")
         sha = sha.strip()
-        if not sha or _AGENT_COMMIT.search(body):
+        if not sha:
             continue
-        out.append(Message(body.strip(), _session_id(sha, "commit"), 1))
+        if _AGENT_COMMIT.search(body):
+            out.skipped_agent += 1
+            continue
+        out.append(Message(_unwrap(body), _session_id(sha, "commit"), 1, strict=True))
     return out
 
 
@@ -537,7 +570,7 @@ def learn(memory, messages: Iterable, *, project: Optional[str] = None, max_new:
     refusals; a refused run says why in ``disabled`` / ``stopped``)."""
     max_new = max(1, min(int(max_new), HARD_MAX_PER_RUN))
     cfg = ls.load_settings(settings_path) if settings_path else ls.load_settings()
-    report: dict = {"source": source_label, "dry_run": bool(dry_run), "created": 0, "merged": 0, "rejected": {},
+    report: dict = {"source": source_label, "skipped_agent_commits": getattr(messages, "skipped_agent", 0), "dry_run": bool(dry_run), "created": 0, "merged": 0, "rejected": {},
                     "skipped_processed": 0, "messages": 0, "candidates": [], "project": project,
                     "profile": memory.profile_id, "disabled": None, "stopped": None}
     why = _disabled_reason(cfg)
@@ -556,7 +589,8 @@ def learn(memory, messages: Iterable, *, project: Optional[str] = None, max_new:
                 report["stopped"] = "deadline"
                 break
             report["messages"] += 1
-            for cand in extract_text(message.text, deny=deny, session=message.session, line=message.line):
+            for cand in extract_text(message.text, deny=deny, session=message.session, line=message.line,
+                                    strict=message.strict):
                 key = cand.key()
                 if key in processed:
                     report["skipped_processed"] += 1

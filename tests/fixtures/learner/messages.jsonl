@@ -68,3 +68,5 @@
 {"id": "h068", "split": "heldout", "label": "none", "text": "Đúng rồi, phải thế."}
 {"id": "h069", "split": "heldout", "label": "none", "text": "What time is the standup tomorrow?"}
 {"id": "h070", "split": "heldout", "label": "none", "text": "Always be kind to others."}
+{"id": "d071", "split": "dev", "label": "rule", "text": "Do not use eval anywhere in this codebase."}
+{"id": "d072", "split": "dev", "label": "none", "text": "Do you want me to rerun the suite?"}

@@ -158,6 +158,23 @@ def test_generic_chat_and_plain_text(tmp_path):
     assert "never skip it" in msgs[1].text
 
 
+def test_sidechain_only_transcript_yields_nothing_even_through_autodetect(tmp_path):
+    p = tmp_path / "agent-1.jsonl"
+    _write(p, [_cc("user", "Always do the thing before committing.", isSidechain=True, agentId="a1")])
+    assert learner.load_messages(p) == []
+
+
+def test_pasted_briefings_and_message_cap():
+    assert learner.extract_text("Always run the tests before committing. " + "filler words here. " * 300) == []
+    many = " ".join(f"Never use tool{n} in this repo." for n in range(9))
+    assert len(learner.extract_text(many)) == learner.MAX_PER_MESSAGE
+
+
+def test_git_strict_mode_ignores_descriptive_commit_prose():
+    assert learner.extract_text("Days are always written whole.", strict=True) == []
+    assert learner.extract_text("Never import requests directly.", strict=True)
+
+
 def test_autodetect_format(tmp_path):
     p = tmp_path / "t.jsonl"
     _write(p, [_cc("user", "Never push to main.")])
