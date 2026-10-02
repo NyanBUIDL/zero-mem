@@ -165,7 +165,7 @@ def _sample(prop):
     raise AssertionError(prop)
 
 
-@pytest.mark.parametrize("tool", list(c.READ_TOOLS + c.WRITE_TOOLS))
+@pytest.mark.parametrize("tool", list(c.READ_TOOLS + c.WRITE_TOOLS + c.PROPOSE_TOOLS))  # T15: + memory_brief / memory_propose
 def test_the_validator_enforces_exactly_what_the_schema_advertises(tool):
     schema = c.input_schema(tool)
     props = schema["properties"]
@@ -196,10 +196,15 @@ def test_the_validator_enforces_exactly_what_the_schema_advertises(tool):
             assert c.validate_arguments(tool, {**base, name: 5})[0] == c.SCHEMA_VIOLATION
             assert c.validate_arguments(tool, {**base, name: None})[0] == c.SCHEMA_VIOLATION
         elif prop["type"] == "array":
-            assert c.validate_arguments(tool, {**base, name: []})[0] == c.SCHEMA_VIOLATION
-            assert c.validate_arguments(tool, {**base, name: ["nope"]})[0] == c.SCHEMA_VIOLATION
+            if prop.get("minItems", 0) > 0:  # T15: memory_propose.evidence may be an empty list
+                assert c.validate_arguments(tool, {**base, name: []})[0] == c.SCHEMA_VIOLATION
+            if "enum" in prop["items"]:  # T15: memory_propose.evidence has free-text items (bounded by maxLength)
+                assert c.validate_arguments(tool, {**base, name: ["nope"]})[0] == c.SCHEMA_VIOLATION
+            else:
+                too_long = ["x" * (prop["items"]["maxLength"] + 1)]
+                assert c.validate_arguments(tool, {**base, name: too_long})[0] == c.SCHEMA_VIOLATION
             assert c.validate_arguments(tool, {**base, name: "persona"})[0] == c.SCHEMA_VIOLATION
-            full = [prop["items"]["enum"][0]] * prop["maxItems"]
+            full = [_sample(prop["items"])] * prop["maxItems"]
             assert c.validate_arguments(tool, {**base, name: full}) is None
             assert c.validate_arguments(tool, {**base, name: full + full[:1]})[0] == c.SCHEMA_VIOLATION
 
