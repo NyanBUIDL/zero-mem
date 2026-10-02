@@ -40,6 +40,7 @@ def import_notes(
     memory_type: str = "fact",
     scope: Optional[str] = None,
     project_id: Optional[str] = None,
+    adder=None,
 ) -> IngestReport:
     """Replay the old notes file as ``memory_type`` sources of ``memory``'s profile. Idempotent."""
     source = Path(path) if path is not None else default_notes_path(memory)
@@ -78,7 +79,7 @@ def import_notes(
             ts = record.get("ts")
             if isinstance(ts, int) and not isinstance(ts, bool):
                 provenance["notes_ts"] = ts
-            result = memory.add(text, memory_type, scope=scope, project_id=project_id, provenance=provenance)
+            result = (adder or memory.add)(text, memory_type, scope=scope, project_id=project_id, provenance=provenance)
             if result.status == "denied":
                 # one authorization decision covers the whole import: stop instead of auditing every note
                 return build_ingest_report("denied", result.reason, [], skipped)

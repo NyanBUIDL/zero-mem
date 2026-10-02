@@ -531,17 +531,31 @@ def _load_state(path: Path) -> list:
         return []
 
 
+STATE_LOCK_TIMEOUT = 10.0
+
+
 def _save_state(path: Path, keys: list) -> None:
-    merged = _load_state(path)
-    known = set(merged)
-    for key in keys:
-        if key not in known:
-            merged.append(key)
-            known.add(key)
-    merged = merged[-MAX_STATE_KEYS:]
-    tmp = path.with_name(path.name + f".{os.getpid()}.tmp")
-    tmp.write_bytes(json.dumps({"version": 1, "processed": merged}, separators=(",", ":")).encode("utf-8"))
-    os.replace(tmp, path)
+    """Merge ``keys`` into the state file: the whole load-merge-replace runs under a cross-process lock (bounded wait;
+    ``OSError`` when it cannot be taken, which ``learn`` reports as ``state_error``)."""
+    from src.corpus._fsretry import retry_transient
+    from src.storage.coordination import locked
+
+    try:
+        with locked(path.with_name(path.name + ".lock"), mode="exclusive", timeout=STATE_LOCK_TIMEOUT):
+            merged = _load_state(path)
+            known = set(merged)
+            for key in keys:
+                if key not in known:
+                    merged.append(key)
+                    known.add(key)
+            merged = merged[-MAX_STATE_KEYS:]
+            tmp = path.with_name(path.name + f".{os.getpid()}.tmp")
+            tmp.write_bytes(json.dumps({"version": 1, "processed": merged}, separators=(",", ":")).encode("utf-8"))
+            retry_transient(lambda: os.replace(tmp, path))
+    except OSError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - lock timeout types derive from the coordination layer
+        raise OSError(f"learner state lock: {type(exc).__name__}") from None
 
 
 # ---------------------------------------------------------------------------------------------

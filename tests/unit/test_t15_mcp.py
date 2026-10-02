@@ -21,7 +21,7 @@ from zero_mem.learning import Reviewer
 from zero_mem.memory_layout import Layout
 
 BASE_READ_CHARS = 1577      # compact(tool_definitions(write=False)) before T15 (T8 pin was <= 1650)
-BASE_WRITE_CHARS = 4543     # compact(tool_definitions(write=True)) before T15 (T8 pin was <= 4600)
+BASE_WRITE_CHARS = 4489     # pre-T15 4543, minus 54 from T17 (memory_add / memory_ingest enums no longer list rule / decision / gotcha)
 
 
 def compact(obj) -> str:
@@ -97,7 +97,8 @@ def test_propose_is_not_mounted_unless_enabled(env, settings):
 def test_brief_is_empty_with_a_reason_until_the_owner_enables_injection(env, settings):
     ts = toolset(env, enable_write=True)
     env.prov.grant_write("codex", space="ks-shared")
-    call(ts, "memory_add", text="Never force push to main.", memory_type="rule", name="nofp", scope="shared")
+    owner = env.agent("codex", settings_path=settings)  # T17: learned types are written by the owner path only
+    assert owner._owner_add("Never force push to main.", "rule", name="nofp", scope="shared").ok
     out, text, err = call(ts, "memory_brief", task="push my change")
     assert err is False and out["status"] == "EMPTY" and out["reason_code"] == "injection_disabled" and "text" not in out
     assert "injection_disabled" in text

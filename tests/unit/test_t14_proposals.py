@@ -61,20 +61,20 @@ def test_rule_decision_gotcha_are_memory_types_after_the_existing_ones():
 @pytest.mark.parametrize("mtype", ["rule", "decision", "gotcha"])
 def test_new_types_version_by_name_in_every_scope(h, mtype):
     m = h.agent("codex", write_shared=True, write_projects=["p1"])
-    a = m.add("First wording.", mtype, name="n")
-    b = m.add("Second wording.", mtype, name="n")
+    a = m._owner_add("First wording.", mtype, name="n")
+    b = m._owner_add("Second wording.", mtype, name="n")
     assert (a.status, b.status) == ("created", "updated") and a.source_id == b.source_id
     assert a.external_ref == f"mem://{mtype}/n"
-    assert m.add("Shared.", mtype, name="s", scope="shared").status == "created"
-    assert m.add("Project.", mtype, name="pr", scope="project", project_id="p1").status == "created"
+    assert m._owner_add("Shared.", mtype, name="s", scope="shared").status == "created"
+    assert m._owner_add("Project.", mtype, name="pr", scope="project", project_id="p1").status == "created"
     assert {x.memory_type for x in m.recall("wording", memory_types=[mtype]).hits} == {mtype}
 
 
 def test_new_types_need_the_same_grants_as_workflow_for_shared_writes(h):
     m = h.agent("codex")  # READ only on ks-shared
     for mtype in ("rule", "decision", "gotcha"):
-        assert m.add("x y z", mtype, scope="shared").status == "denied"
-    assert m.add("x y z", "rule", scope="project", project_id="pz").status == "denied"
+        assert m._owner_add("x y z", mtype, scope="shared").status == "denied"
+    assert m._owner_add("x y z", "rule", scope="project", project_id="pz").status == "denied"
 
 
 def test_context_lists_the_learned_sections_in_order_and_keeps_the_legacy_layout_without_them(h):
@@ -83,9 +83,9 @@ def test_context_lists_the_learned_sections_in_order_and_keeps_the_legacy_layout
     m.add("Workflow step.", "workflow", name="w")
     legacy = m.context(max_chars=1000)
     assert [t.removeprefix("## ") for t in legacy.text.split("\n") if t.startswith("## ")] == ["Persona", "Workflow"]
-    m.add("Rule one.", "rule", name="r")
-    m.add("Decision one.", "decision", name="d")
-    m.add("Gotcha one.", "gotcha", name="g")
+    m._owner_add("Rule one.", "rule", name="r")
+    m._owner_add("Decision one.", "decision", name="d")
+    m._owner_add("Gotcha one.", "gotcha", name="g")
     ctx = m.context(max_chars=2000)
     heads = [t.removeprefix("## ") for t in ctx.text.split("\n") if t.startswith("## ")]
     assert heads == ["Persona", "Rules", "Workflow", "Decisions", "Gotchas"]
@@ -95,8 +95,11 @@ def test_context_lists_the_learned_sections_in_order_and_keeps_the_legacy_layout
 
 def test_mcp_schemas_and_cli_choices_accept_the_new_types(h):
     ts = build_tool_set(profile_id="codex", layout=h.env.layout, enable_write=True, allow_roots=[])
-    props = {t["name"]: t for t in ts.schemas()}["memory_add"]["inputSchema"]["properties"]["memory_type"]["enum"]
-    assert {"rule", "decision", "gotcha"} <= set(props)
+    schemas = {t["name"]: t for t in ts.schemas()}
+    # T17: the direct-write tools no longer offer the learned types (they go through memory_propose / the owner CLI)
+    for tool in ("memory_add", "memory_ingest"):
+        enum = schemas[tool]["inputSchema"]["properties"]["memory_type"]["enum"]
+        assert not {"rule", "decision", "gotcha"} & set(enum)
     from zero_mem.cli import build_parser
 
     args = build_parser().parse_args(["add", "x", "--type", "gotcha"])
@@ -285,7 +288,7 @@ def test_a_resolved_duplicate_can_be_proposed_again(h):
 # ================================================================ approve
 def test_approval_creates_exactly_one_source_with_scope_and_provenance_without_a_write_grant(h):
     m = h.agent("codex")  # READ on ks-shared only: cannot write shared by itself
-    assert m.add("direct write", "rule", name="x", scope="shared").status == "denied"
+    assert m._owner_add("direct write", "rule", name="x", scope="shared").status == "denied"
     p = m.propose("Run `pytest -q` before every commit.", "rule", name="tests", scope="shared", evidence=["pr#9"])
     assert h.sources("mem://rule/tests") == []
     res = h.review().approve(p.proposal_id)
@@ -314,7 +317,7 @@ def test_approval_creates_exactly_one_source_with_scope_and_provenance_without_a
     assert h.review().approve(p.proposal_id).status == "not_pending"
     assert len(h.sources("mem://rule/tests")) == 1
     # the grant is NOT standing: the agent still cannot write shared on its own
-    assert m.add("direct write", "rule", name="x2", scope="shared").status == "denied"
+    assert m._owner_add("direct write", "rule", name="x2", scope="shared").status == "denied"
 
 
 def test_approval_works_for_project_and_private_scopes(h):
@@ -410,7 +413,7 @@ def test_pending_proposals_expire_after_proposal_ttl_days(h):
 def test_active_ttl_hides_approved_items_without_deleting_them(h):
     h.set("learning.active_ttl_days", "30")
     m = h.agent("codex")
-    owner_added = m.add("Owner written rule about narwhals.", "rule", name="owner")
+    owner_added = m._owner_add("Owner written rule about narwhals.", "rule", name="owner")
     p = m.propose("Learned rule about narwhals.", "rule", name="learned", scope="private")
     h.review().approve(p.proposal_id)
     assert {x.external_ref for x in m.recall("narwhals").hits} == {"mem://rule/owner", "mem://rule/learned"}
@@ -454,7 +457,7 @@ def test_revoke_tombstones_the_source_and_marks_the_proposal(h):
 
 def test_revoke_can_target_an_owner_written_source_by_id_prefix_and_refuses_ambiguity(h):
     m = h.agent("codex")
-    w = m.add("Owner rule about lemurs.", "rule", name="lem")
+    w = m._owner_add("Owner rule about lemurs.", "rule", name="lem")
     assert h.review().revoke(w.source_id[:10]).status == "revoked"
     assert not m.recall("lemurs").hits
 

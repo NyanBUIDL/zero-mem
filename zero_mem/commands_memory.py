@@ -263,7 +263,7 @@ def _cmd_add(args, *, devlog: bool = False) -> int:
         if devlog:
             result = memory.add(text, "devlog", scope="project", project_id=args.project_id)
         else:
-            result = memory.add(text, args.memory_type or "fact", name=args.name, scope=args.scope,
+            result = memory._owner_add(text, args.memory_type or "fact", name=args.name, scope=args.scope,
                                 project_id=args.project_id)
     finally:
         memory.close()
@@ -392,8 +392,8 @@ def _cmd_ingest(args) -> int:
         return EXIT_ERROR
     memory = _open(args)
     try:
-        report = memory.ingest(Path(args.path), memory_type=args.memory_type or "fact", scope=args.scope,
-                               project_id=args.project_id, name=args.name)
+        report = memory._owner_ingest(Path(args.path), memory_type=args.memory_type or "fact", scope=args.scope,
+                                      project_id=args.project_id, name=args.name)
     finally:
         memory.close()
     if report.status == "invalid" and report.reason == "path_not_found" and not _wants_json(args):
@@ -508,7 +508,7 @@ def _cmd_import_notes(args) -> int:
         try:
             report = import_notes(memory, Path(args.path) if args.path is not None else None,
                                   memory_type=args.memory_type or "fact", scope=args.scope,
-                                  project_id=args.project_id)
+                                  project_id=args.project_id, adder=memory._owner_add)
         except NotesImportError as exc:
             _err(f"{exc} (expected {Path('data/notes/notes-v1.jsonl')} under the data root; pass --path to point elsewhere)")
             return EXIT_ERROR

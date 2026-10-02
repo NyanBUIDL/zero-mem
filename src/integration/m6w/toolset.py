@@ -293,6 +293,10 @@ class MemoryToolSet:
         return make_result(tool, c.ERROR, reason_code=c.INTERNAL_ERROR, message="The memory operation failed.")
 
     def _denied(self, tool: str, reason: Optional[str], scope: Optional[str], project_id: Optional[str]) -> Dict[str, Any]:
+        if reason == "learned_type_requires_proposal":
+            return make_result(tool, c.DENIED, reason_code=reason,
+                               message="rule, decision and gotcha are not written directly. Use memory_propose; the "
+                                       "owner reviews it before it becomes memory.")
         hint = _hint(self._profile, scope, project_id, self._space())
         forgetting = tool == c.TOOL_FORGET
         verb = "Forgetting" if forgetting else "Writing to"

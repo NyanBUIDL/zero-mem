@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from zero_mem.memory import MEMORY_TYPES, SCOPES
+from zero_mem.memory import LEARNED_TYPES, MEMORY_TYPES, SCOPES
 
 #: Advertised order (least privilege first); a test pins that it is the library's closed set.
 SCOPE_ORDER: Tuple[str, ...] = ("private", "shared", "project")
@@ -140,10 +140,14 @@ def _str(description: str, **extra: Any) -> Dict[str, Any]:
     return {"type": "string", "description": description, **extra}
 
 
+#: Types an agent may write directly; the learned ones (rule / decision / gotcha) go through memory_propose.
+DIRECT_TYPES = tuple(t for t in MEMORY_TYPES if t not in LEARNED_TYPES)
+
+
 def _definitions() -> Dict[str, Dict[str, Any]]:
     memory_type = _str("persona (who the user is), workflow (how to do a job), skill (reusable how-to), devlog "
-                       "(project progress, scope=project), fact, file (document text).", enum=list(MEMORY_TYPES))
-    ingest_type = _str("Kind of memory; file for documents.", enum=list(MEMORY_TYPES))
+                       "(project progress, scope=project), fact, file (document text).", enum=list(DIRECT_TYPES))
+    ingest_type = _str("Kind of memory; file for documents.", enum=list(DIRECT_TYPES))
     scope = _str("private = only you; shared = every agent, needs the operator's approval; project = a project's "
                  "dev log (needs project_id).", enum=list(SCOPE_ORDER))
     project = _str("Project id; required for scope=project, otherwise omit.", pattern=PROJECT_ID_PATTERN, maxLength=64)
