@@ -162,7 +162,7 @@ def test_full_flow_through_the_panels(world):
     _s, _h, body = w.cb.post("/sharing/pull-confirm", {"id": pull_id, "confirm": "1"})
     assert "Pull finished" in body and "Proposals to review" in body
     page = w.cb.page("/sharing")
-    assert "Never deploy on Fridays" in page and 'href="/inbox"' in page  # proposal from a peer
+    assert "Never deploy on Fridays" in page and f'href="{w.cb.server.prefix}/inbox"' in page  # proposal from a peer
     assert "Nothing has been imported from a peer yet" in page  # the rule is a proposal, not an import
 
     # a file arrives only once it is granted
