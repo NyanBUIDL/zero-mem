@@ -208,7 +208,7 @@ def test_pull_confirm_aborts_when_the_offer_changed(world):
     pull_id = re.search(r'name="id" value="([^"]+)"', plan).group(1)
     w.alice.add("a late addition the peer never reviewed", "fact", name="two")
     _s, _h, body = w.cb.post("/sharing/pull-confirm", {"id": pull_id, "confirm": "1"})
-    assert "offering changed" in body
+    assert "changed the plan since you reviewed" in body
     assert "Nothing has been imported" in w.cb.page("/sharing")
 
 
