@@ -112,7 +112,7 @@ def add_learning_parsers(subparsers) -> None:
 def _flat(settings: ls.Settings) -> list:
     doc = settings.as_dict()
     rows = []
-    for section in ("learning", "injection", "safety"):
+    for section in ("learning", "injection", "safety", "sharing"):
         for key, value in doc[section].items():
             if key in ("profiles", "projects"):
                 for name, body in value.items():
