@@ -17,7 +17,7 @@ from .. import learning_settings as ls
 from ..memory import MEMORY_TYPES, PEER_IMPORT_PROFILE, PEER_REF_PREFIX, PEER_SPACE_PREFIX
 from . import PROTOCOL_VERSION, ShareError
 from . import events as ev
-from .protocol import KIND_RE, MAX_FETCH_IDS, MAX_MANIFEST_ENTRIES, MAX_TOMBSTONES, TS_RE, check_ref
+from .protocol import SOURCE_ID_RE, KIND_RE, MAX_FETCH_IDS, MAX_MANIFEST_ENTRIES, MAX_TOMBSTONES, TS_RE, check_ref
 
 FETCH_RESPONSE_BYTES = 8 * 1024 * 1024
 _SCAN_CACHE_MAX = 4096
@@ -248,8 +248,21 @@ class OwnerService:
         self.audit("fetch", peer_id=peer_id, count=len(sources), bytes=total, missing=len(missing), deferred=len(deferred))
         return {"v": PROTOCOL_VERSION, "sources": sources, "missing": missing, "deferred": deferred}
 
-    def tombstones(self, peer_id: str, since: str) -> dict:
+    def tombstones(self, peer_id: str, since: str, after: Optional[str] = None, limit: Optional[int] = None) -> dict:
+        """Forgotten items visible to ``peer_id`` in the total order ``(forgotten_at, source_id)``.
+
+        ``since`` is an INCLUSIVE lower bound on the timestamp (a receiver re-reads the second it stopped at and dedupes, so a
+        deletion made later in that same second is never missed); ``after`` is an opaque ``"<timestamp>|<source_id>"`` cursor from
+        a previous page (strictly after, so paging through many same-second rows returns each exactly once). The reply carries
+        ``until`` (timestamp of the last row), ``next`` (the composite cursor for the following page) and ``more``."""
         since_dt = parse_ts(since)
+        after_key = None
+        if after:
+            ts_text, sep, sid = after.partition("|")
+            if not sep or not SOURCE_ID_RE.fullmatch(sid):
+                raise ShareError("invalid_message", "invalid cursor")
+            after_key = (parse_ts(ts_text), sid)
+        page = MAX_TOMBSTONES if limit is None else max(1, min(int(limit), MAX_TOMBSTONES))
         candidates, _omitted = self._candidates(peer_id, deleted=True)
         rows = []
         for rec, mtype, _grant_id in candidates:
@@ -259,14 +272,16 @@ class OwnerService:
                 continue
             if not self._safe(rec.external_ref.encode("utf-8"), "ref:" + rec.external_ref):
                 continue  # same outgoing scan the manifest applies to a ref
-            if when > since_dt:
-                rows.append((when, rec, mtype))
+            if when < since_dt or (after_key is not None and (when, rec.source_id) <= after_key):
+                continue
+            rows.append((when, rec, mtype))
         rows.sort(key=lambda r: (r[0], r[1].source_id))
-        more = len(rows) > MAX_TOMBSTONES
-        rows = rows[:MAX_TOMBSTONES]
+        more = len(rows) > page
+        rows = rows[:page]
         until = rows[-1][1].created_at if rows else since
+        nxt = f"{rows[-1][1].created_at}|{rows[-1][1].source_id}" if rows else (after or "")
         self.audit("tombstones", peer_id=peer_id, count=len(rows))
-        return {"v": PROTOCOL_VERSION, "until": until, "more": more,
+        return {"v": PROTOCOL_VERSION, "until": until, "next": nxt, "more": more,
                 "tombstones": [{"source_id": r.source_id, "ref": r.external_ref, "memory_type": mt, "forgotten_at": r.created_at}
                                for _when, r, mt in rows]}
 

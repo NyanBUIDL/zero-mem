@@ -99,7 +99,8 @@ def import_source(node, owner: dict, row: dict, content: bytes, *, proposer) -> 
                       f"digest {row['digest'][:16]}"],
             source="peer")
         if result.status in ("proposed", "merged"):
-            return "proposed", {"proposal_id": result.proposal_id}
+            return "proposed", {"proposal_id": result.proposal_id,
+                                "superseded": _supersede(node, owner, row, result.proposal_id, proposer)}
         raise ShareError(result.reason or result.status, "the proposal was refused: " + str(result.reason or result.status))
     provenance = {"peer": owner["peer_id"], "peer_label": owner["label"], "original_ref": row["ref"],
                   "digest": row["digest"], "fetched_at": fetched_at, "tool": "peer_pull"}
@@ -109,3 +110,20 @@ def import_source(node, owner: dict, row: dict, content: bytes, *, proposer) -> 
     if result.status in ("created", "updated", "unchanged"):
         return "stored", {"status": result.status, "ref": ref}
     raise ShareError(result.reason or result.status, "the source was rejected: " + str(result.reason or result.status))
+
+
+def _supersede(node, owner: dict, row: dict, new_pid: Optional[str], proposer) -> list:
+    """The owner changed a rule / decision / gotcha: withdraw every EARLIER still-pending proposal of the same remote source so
+    only the newest version stays reviewable. An approved earlier version is never touched (a tombstone later proposes its revoke)."""
+    from ..learning import _log_for
+
+    prior = node.log.imported_digest(owner["peer_id"], row["source_id"]) or {}
+    old = [p for p in (prior.get("proposal_ids") or ([prior["proposal_id"]] if prior.get("proposal_id") else [])) if p != new_pid]
+    if not old:
+        return []
+    log, done = _log_for(node.memory).refresh(), []
+    for pid in old:
+        proposal = log.get(pid)
+        if proposal is not None and proposal.status == "pending" and proposer.withdraw(pid).status == "withdrawn":
+            done.append(pid)
+    return done
