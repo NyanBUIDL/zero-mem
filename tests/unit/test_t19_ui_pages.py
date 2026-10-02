@@ -46,7 +46,7 @@ def test_overview_shows_the_facts_an_owner_needs(ppanel):
     for needle in ("Data root", "codex", "Live sources", "shared", "private", "rule", "Learning mode", "suggest",
                    "Pending proposals", "Injection", "Kill switch", "Last writes", "Doctor", "Agents", "write"):
         assert needle in body, needle
-    assert re.search(r"Pending proposals</dt><dd><a href=\"/inbox\">2</a>", body)
+    assert re.search(r"Pending proposals</dt><dd><a href=\"/s/[^/]+/inbox\">2</a>", body)
     assert "mem://rule/nofp" in body
 
 

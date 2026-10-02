@@ -137,7 +137,7 @@ def page(title: str, body: Markup, *, nonce: str, active: str = "/", flash: Opti
         '<header><div class="bar"><span class="brand">Zero-Mem control panel</span>'
         f'<nav aria-label="Main"><ul>{"".join(items)}</ul></nav></div></header>'
         f'<main id="main"><h1>{e(title)}</h1>{flash or ""}{body}</main>'
-        '<footer>Local owner console on 127.0.0.1. Agents must never be given this URL, its cookie or a shell on this machine.'
+        '<footer>Local owner console on 127.0.0.1. Agents must never be given this URL or a shell on this machine.'
         "</footer></body></html>"
     )
     return doc.encode("utf-8")
@@ -146,6 +146,14 @@ def page(title: str, body: Markup, *, nonce: str, active: str = "/", flash: Opti
 def error_page(title: str, message: str, *, nonce: str) -> bytes:
     body = h('<div class="card"><p>{}</p><p><a href="/">Back to the overview</a></p></div>', message)
     return page(title, body, nonce=nonce, active="")
+
+
+def bare_error_page(message: str, *, nonce: str) -> bytes:
+    """An error page for an unauthenticated request: no navigation, no panel name, nothing to learn from it."""
+    doc = ('<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Error</title>'
+           f'<style nonce="{e(nonce)}">body{{font-family:sans-serif;margin:2rem}}</style></head><body>'
+           f"<p>{e(message)}</p></body></html>")
+    return doc.encode("utf-8")
 
 
 def table(headers: list, rows: list, *, empty: str = "Nothing to show.", wrap_cols: tuple = ()) -> Markup:

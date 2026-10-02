@@ -7,13 +7,19 @@ Python 3.11-3.13. Plan: [CONTROL-PANEL-SHARING-PLAN.md](../plans/CONTROL-PANEL-S
 ## Start
 
 ```bash
-zero-mem ui                                   # random port on 127.0.0.1; prints a one-time URL
+zero-mem ui                                   # random port on 127.0.0.1; prints a secret URL
 zero-mem --profile claude-code ui --port 8765 --allow-root ~/notes --allow-root ~/work/docs
-zero-mem ui --open --idle-timeout 30          # open the browser yourself-for-you; stop after 30 idle minutes (default 60)
+zero-mem ui --idle-timeout 30                 # stop after 30 idle minutes (default 60)
 ```
 
-Open the printed `http://127.0.0.1:PORT/?t=TOKEN`. The token is exchanged once for an `HttpOnly; SameSite=Strict` cookie and you are
-redirected to a token-free URL. The link works once; restart the command for a new one. Nothing is written to disk. Stop with Ctrl+C.
+Open the printed `http://127.0.0.1:PORT/s/SECRET/`. The 256-bit session secret is the first part of the URL **path**; there is **no
+cookie**. A cookie is scoped to the host, not the port, so the browser would send it to every other service on 127.0.0.1 / localhost
+(an agent's dev server, say) which could then drive the panel; a path secret is visible only to the panel's own origin. Any request
+without the exact prefix (including `/`) gets a generic 404. `Referrer-Policy: same-origin` keeps the URL out of cross-origin
+requests, and the panel never logs the path. The link is reusable (reload, back button) until you stop the panel. Your **browser
+history and bookmarks keep the URL**: close the panel (Ctrl+C) when you are done and do not bookmark or share the link; a new
+start prints a new secret. `--open` is accepted but ignored: handing the secret URL to a browser process would expose it in the
+process list, so copy it from the terminal. Nothing is written to disk.
 The data root comes from the normal resolution (`ZERO_MEM_DATA_ROOT` / `--memory`); the acting profile from `--profile`.
 `--no-open` is the default. `--host` accepts only `127.0.0.1` or `::1`.
 
@@ -22,7 +28,7 @@ The data root comes from the normal resolution (`ZERO_MEM_DATA_ROOT` / `--memory
 This is a privileged owner console: it can approve rules, grant write access and ingest files.
 
 - Loopback bind only; non-loopback hosts are refused before a socket exists; non-loopback peers are dropped.
-- 256-bit one-time URL token, separate 256-bit session cookie (named per port) and per-session CSRF token; constant-time comparisons.
+- 256-bit session secret in the URL path prefix (no cookie), separate per-session CSRF token; constant-time comparisons; every link, form action and redirect is generated with the prefix.
 - Strict `Host` allow-list (DNS rebinding), `Origin`/`Referer` check and CSRF token on every POST; all mutations are POST, GET never changes state.
 - No CORS headers. CSP `default-src 'none'` (no scripts; one inline stylesheet by per-response nonce), `nosniff`, `no-store`,
   `X-Frame-Options: DENY`. `Referrer-Policy: same-origin` (not `no-referrer`: Chromium then sends `Origin: null` on form posts and the Origin
@@ -33,7 +39,7 @@ This is a privileged owner console: it can approve rules, grant write access and
   itself); the panel never lists the file system. Uploads reject names with path components and go through the Memory bytes API.
 - Preview is a dry run (the pre-write secret scan); the write happens only on a confirm POST, which re-checks the path.
 
-**Agents must never have access to this panel.** Do not give an agent a shell on the machine, the URL, the cookie or the token: whoever
+**Agents must never have access to this panel.** Do not give an agent a shell on the machine, the secret URL: whoever
 reaches it acts as you (approve rules, grant write access, forget memory, change the kill switch). Confirmation checkboxes are friction,
 not authentication.
 

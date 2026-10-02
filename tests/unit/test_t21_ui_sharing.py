@@ -246,7 +246,7 @@ GETS = ["/sharing", "/sharing/grant-preview", "/sharing/pull-plan"]
 
 
 @pytest.mark.parametrize("path", POSTS)
-def test_post_endpoints_enforce_csrf_origin_host_cookie(world, path):
+def test_post_endpoints_enforce_csrf_origin_host_prefix(world, path):
     c = world.ca
     fields = {"owner": "x", "peer": "x"}
     before = len(world.alice.node.audit(500))
@@ -256,11 +256,10 @@ def test_post_endpoints_enforce_csrf_origin_host_cookie(world, path):
     assert c.post(path, fields, origin=None, follow=False)[0] == 403
     assert c.post(path, fields, origin=f"http://localhost:{c.port}.evil.example", follow=False)[0] == 403
     status, *_ = c.raw("POST", path, b"csrf=" + c.server.csrf_token.encode(),
-                       {"Content-Type": "application/x-www-form-urlencoded", "Origin": f"http://127.0.0.1:{c.port}",
-                        "Cookie": c.cookie}, host_header="evil.example")
+                       {"Content-Type": "application/x-www-form-urlencoded", "Origin": f"http://127.0.0.1:{c.port}"}, host_header="evil.example")
     assert status == 403
     anon = Client(world.sa, cookie=False)
-    assert anon.post(path, fields, follow=False)[0] == 401
+    assert anon.post(path, fields, follow=False)[0] == 404
     assert c.get(path)[0] in (200, 303, 405) and c.raw("PUT", path, b"", c._auth())[0] == 405
     assert len(world.alice.node.audit(500)) == before  # nothing was written by any refused request
 
@@ -273,9 +272,9 @@ def test_post_only_mutations_reject_get(world, path):
 
 
 @pytest.mark.parametrize("path", GETS)
-def test_get_pages_enforce_host_and_cookie(world, path):
+def test_get_pages_enforce_host_and_prefix(world, path):
     c = world.ca
-    assert Client(world.sa, cookie=False).get(path)[0] == 401
+    assert Client(world.sa, cookie=False).get(path)[0] == 404
     assert c.get(path, host_header="evil.example")[0] == 403
     status, headers, _b = c.get(path)
     assert status in (200, 303)

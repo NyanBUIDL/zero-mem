@@ -1,4 +1,4 @@
-"""T19 - control panel security: loopback bind, one-time token, cookie, Host / Origin / CSRF, headers, caps, errors."""
+"""T19 - control panel security: loopback bind, path-secret session (no cookie), Host / Origin / CSRF, headers, caps, errors."""
 from __future__ import annotations
 
 import socket
@@ -27,7 +27,8 @@ def test_loopback_bind_works_and_reports_the_bound_address(env, host):
     server = create_server(host=host)
     try:
         assert server.server_address[0] == "127.0.0.1"
-        assert server.entry_url().startswith(f"http://127.0.0.1:{server.port}/?t=")
+        assert server.entry_url().startswith(f"http://127.0.0.1:{server.port}/s/")
+        assert server.entry_url().endswith(f"/s/{server.token}/")
     finally:
         server.server_close()
 
@@ -43,10 +44,10 @@ def test_ipv6_loopback_bind_when_available(env):
     try:
         assert server.entry_url().startswith("http://[::1]:")
         conn = __import__("http.client").client.HTTPConnection("::1", server.port, timeout=10)
-        conn.putrequest("GET", f"/?t={server.token}", skip_host=True)
+        conn.putrequest("GET", f"{server.prefix}/", skip_host=True)
         conn.putheader("Host", f"[::1]:{server.port}")
         conn.endheaders()
-        assert conn.getresponse().status == 303
+        assert conn.getresponse().status == 200
     finally:
         stop(server, thread)
 
@@ -83,34 +84,60 @@ def test_a_non_loopback_peer_would_be_dropped(env):
         server.server_close()
 
 
-# ----------------------------------------------------------------------------------------------- token and cookie
-def test_token_exchange_sets_an_httponly_samesite_cookie_and_redirects_to_a_token_free_url(env):
+# ----------------------------------------------------------------------------------------------- path secret (no cookie)
+def test_there_is_no_cookie_at_all_so_nothing_can_leak_to_another_port(env):
     server, thread = start()
     try:
-        client = Client(server, cookie=False)
-        status, headers, _ = client.raw("GET", f"/?t={server.token}")
-        assert status == 303 and headers["location"] == "/" and "t=" not in headers["location"]
-        cookie = headers["set-cookie"]
-        assert "HttpOnly" in cookie and "SameSite=Strict" in cookie and "Path=/" in cookie
-        assert cookie.startswith(f"zm_session_{server.port}=")
-        assert server.token not in cookie  # the cookie is a different secret than the URL token
-        client.cookie = cookie.split(";", 1)[0]
-        assert client.get("/")[0] == 200
-    finally:
-        stop(server, thread)
-
-
-def test_the_url_token_is_single_use_and_256_bit(env):
-    server, thread = start()
-    try:
+        client = Client(server)
+        for route in ("/", "/add", "/inbox"):
+            status, headers, _ = client.get(route)
+            assert status == 200 and "set-cookie" not in headers
+        status, headers, _ = Client(server, cookie=False).raw("GET", f"/?t={server.token}")
+        assert status == 404 and "set-cookie" not in headers
         assert len(server.token) >= 43 and server.token != server.csrf_token
-        client = Client(server, cookie=False)
-        assert client.raw("GET", f"/?t={server.token}")[0] == 303
-        status, _h, body = client.raw("GET", f"/?t={server.token}")
-        assert status == 403 and "only once" in body
-        assert client.raw("GET", "/?t=wrong")[0] == 403
     finally:
         stop(server, thread)
+
+
+def test_the_cookie_alone_is_not_authority_other_port_simulation(panel):
+    """A service on another port of 127.0.0.1 would receive any host-scoped cookie. There is none to receive, and replaying
+    the secret as a cookie (or as a query parameter) from a non-browser client with a forged Origin/Referer and Host gives
+    nothing: only the path prefix authenticates."""
+    server = panel.server
+    anon = Client(server, cookie=False)
+    for cookie in (f"zm_session_{server.port}={server.token}", f"zm_session={server.token}", f"session={server.token}"):
+        for route in ("/", "/add", "/sharing", "/agents"):
+            status, _h, body = anon.raw("GET", route, headers={"Cookie": cookie, "Referer": f"http://127.0.0.1:{server.port}/"})
+            assert status == 404, (cookie, route)
+            assert server.token not in body
+        body = b"csrf=" + server.csrf_token.encode() + b"&text=owned&memory_type=fact"
+        status, _h, _b = anon.raw("POST", "/add", body, {
+            "Cookie": cookie, "Origin": f"http://127.0.0.1:{server.port}", "Referer": f"http://127.0.0.1:{server.port}/add",
+            "Content-Type": "application/x-www-form-urlencoded"})
+        assert status == 404
+    assert anon.raw("GET", f"/?t={server.token}")[0] == 404
+    assert anon.raw("GET", f"/?session={server.token}")[0] == 404
+
+
+def test_the_secret_in_the_path_is_the_only_credential_and_is_reusable_and_constant_time(env):
+    server, thread = start()
+    try:
+        client = Client(server)
+        assert client.get("/")[0] == 200 and client.get("/")[0] == 200  # not single use: reloads and bookmarks work
+        anon = Client(server, cookie=False)
+        assert anon.raw("GET", f"{server.prefix}/inbox")[0] == 200
+        assert anon.raw("GET", server.prefix)[0] == 200  # prefix without a trailing slash is the overview
+    finally:
+        stop(server, thread)
+
+
+def test_constant_time_compare_is_used_for_the_prefix():
+    import inspect
+
+    from zero_mem.ui import server as srv
+
+    assert "hmac.compare_digest" in inspect.getsource(srv._same)
+    assert "_same(head, self.prefix)" in inspect.getsource(srv.PanelServer.split_prefix)
 
 
 def test_tokens_differ_between_servers(env):
@@ -123,24 +150,24 @@ def test_tokens_differ_between_servers(env):
 
 
 @pytest.mark.parametrize("route", ROUTES + ["/source?id=" + "a" * 64, "/ingest/preview?id=x"])
-def test_every_route_needs_the_session_cookie(panel, route):
+def test_every_route_needs_the_path_secret_and_otherwise_is_a_generic_404(panel, route):
     anon = Client(panel.server, cookie=False)
     status, _h, body = anon.raw("GET", route)
-    assert status == 401 and "one-time URL" in body
-    bad = Client(panel.server, cookie=False)
-    bad.cookie = f"zm_session_{panel.server.port}=not-the-secret"
-    assert bad.get(route)[0] == 401
-    other = Client(panel.server, cookie=False)
-    other.cookie = panel.cookie.replace(f"_{panel.server.port}=", "_1=")  # right secret, wrong cookie name
-    assert other.get(route)[0] == 401
+    assert status == 404 and "Not found" in body
+    server = panel.server
+    wrong = ("/s/" + "A" * len(server.token), "/s/not-the-secret", "/s/" + server.token[:-1], "/s/" + server.token + "x",
+             "/S/" + server.token, "/s//" + server.token, "/" + server.token, server.prefix + "%2f")
+    for prefix in wrong:
+        status, _h, body = anon.raw("GET", prefix + (route if route != "/" else "/"))
+        assert status == 404, prefix
+        assert "Overview" not in body and server.csrf_token not in body
 
 
-def test_posts_without_a_cookie_are_refused_and_change_nothing(panel, layout):
+def test_posts_without_the_prefix_are_refused_and_change_nothing(panel, layout):
     before = state_fingerprint(layout)
     anon = Client(panel.server, cookie=False)
-    anon.csrf = None
     status, _h, _b = anon.post("/add", {"text": "hello", "memory_type": "fact"}, follow=False)
-    assert status == 401
+    assert status == 404
     assert state_fingerprint(layout) == before
 
 
@@ -157,12 +184,12 @@ def test_missing_host_header_is_forbidden(panel):
     assert panel.get("/", host_header=None)[0] == 403
 
 
-def test_host_is_checked_before_the_token_is_consumed(env):
+def test_host_is_checked_even_with_the_right_prefix(env):
     server, thread = start()
     try:
-        client = Client(server, cookie=False)
-        assert client.raw("GET", f"/?t={server.token}", host_header="rebind.evil.com")[0] == 403
-        assert client.raw("GET", f"/?t={server.token}")[0] == 303  # still valid for the real owner
+        client = Client(server)
+        assert client.raw("GET", "/", host_header="rebind.evil.com")[0] == 403
+        assert client.raw("GET", "/")[0] == 200
     finally:
         stop(server, thread)
 
@@ -200,10 +227,9 @@ def test_missing_or_wrong_csrf_is_forbidden_and_changes_nothing(panel, layout):
     assert panel.post("/add", {"text": "x", "memory_type": "fact"}, follow=False)[0] == 303
 
 
-def test_csrf_token_is_in_every_form_and_is_not_the_url_token_or_cookie(panel):
+def test_csrf_token_is_in_every_form_and_is_not_the_url_secret(panel):
     token = panel.token("/add")
     assert token == panel.server.csrf_token and token != panel.server.token
-    assert token not in panel.cookie
     for route in ("/inbox", "/ingest", "/agents", "/settings", "/eval"):
         assert f'name="csrf" value="{token}"' in panel.page(route)
 
@@ -357,8 +383,7 @@ def test_concurrent_requests_all_succeed(ppanel):
 
     def work(index):
         try:
-            client = Client(ppanel.server, cookie=False)
-            client.cookie = ppanel.cookie
+            client = Client(ppanel.server)
             route = ROUTES[index % len(ROUTES)]
             results.append(client.get(route)[0])
         except Exception as exc:  # noqa: BLE001
@@ -374,8 +399,7 @@ def test_concurrent_requests_all_succeed(ppanel):
 
 def test_concurrent_writes_do_not_corrupt_the_store(panel, layout):
     def work(index):
-        client = Client(panel.server, cookie=False)
-        client.cookie = panel.cookie
+        client = Client(panel.server)
         client.post("/add", {"text": f"concurrent fact number {index}", "memory_type": "fact"}, follow=False)
 
     threads = [threading.Thread(target=work, args=(i,)) for i in range(12)]
@@ -432,7 +456,7 @@ def test_handler_errors_never_leak_a_traceback_or_secrets(env, monkeypatch):
             assert needle not in body
         log = "\n".join(lines)
         assert "RuntimeError" in log and "/audit" in log
-        for needle in ("SECRET", "abc123", "SECRETQUERY", server.token, server.csrf_token, client.cookie.split("=", 1)[1]):
+        for needle in ("SECRET", "abc123", "SECRETQUERY", server.token, server.csrf_token):
             assert needle not in log
         assert client.get("/")[0] == 200  # still serving
     finally:

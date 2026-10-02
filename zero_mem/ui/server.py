@@ -1,12 +1,14 @@
-"""The control panel's HTTP server: loopback-only binding, session cookie, Host / Origin / CSRF checks, security headers.
+"""The control panel's HTTP server: loopback-only binding, path-secret session, Host / Origin / CSRF checks, security headers.
 
 This is a privileged local service (it can approve rules, grant write access and ingest files), so every request is
 treated as hostile until proven otherwise:
 
 * bind ONLY to a loopback literal (``127.0.0.1`` / ``::1``); anything else is refused before a socket exists, and a
   connection from a non-loopback peer is dropped;
-* a random 256-bit one-time URL token is exchanged for an ``HttpOnly; SameSite=Strict`` session cookie (itself a separate
-  256-bit secret, named per port so another local service cannot clobber it); all comparisons are constant time;
+* the session secret (256 bits) lives ONLY in the URL path prefix (``/s/<secret>/...``). There is deliberately NO cookie:
+  a cookie is host-scoped, not port-scoped, so the browser would hand it to every other service on 127.0.0.1/localhost
+  (for example an agent's dev server) and that service could then drive the panel. A path is origin-scoped: a page on
+  another port never sees it. Requests without the right prefix get a generic 404; comparison is constant time;
 * strict ``Host`` allow-list (DNS rebinding), ``Origin`` / ``Referer`` check and a per-session CSRF token on every POST;
 * POST for every mutation; no CORS headers; CSP ``default-src 'none'`` with a per-response nonce for the one inline style;
 * bounded request line / headers (stdlib), body (1 MiB forms, 25 MiB uploads), socket timeout, total read deadline,
@@ -18,6 +20,7 @@ from __future__ import annotations
 
 import hmac
 import ipaddress
+import re
 import secrets
 import socket
 import socketserver
@@ -30,7 +33,7 @@ from typing import Callable, Optional
 from urllib.parse import parse_qsl, urlsplit
 
 from .forms import FormData, FormError, parse_multipart, parse_urlencoded
-from .render import error_page
+from .render import bare_error_page, error_page
 
 MAX_FORM_BYTES = 1024 * 1024
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
@@ -40,7 +43,9 @@ DEFAULT_MAX_CONNECTIONS = 32
 DEFAULT_REQUEST_TIMEOUT = 15.0
 FORM_DEADLINE = 30.0
 UPLOAD_DEADLINE = 120.0
-COOKIE_BASE = "zm_session"
+PREFIX_ROOT = "/s/"
+# every generated link and form action is root-relative; the session prefix is added here, in one place
+_LINK_RE = re.compile(r'\b(href|action)="/(?!/)')
 LOOPBACK_NAMES = {"127.0.0.1": socket.AF_INET, "::1": socket.AF_INET6}
 
 
@@ -111,11 +116,9 @@ class PanelServer(ThreadingHTTPServer):
         self.route = route
         self.idle_timeout = float(idle_timeout)
         self.request_timeout = float(request_timeout)
-        self.token = secrets.token_urlsafe(32)               # 256-bit, single use, printed once
-        self._cookie_secret = secrets.token_urlsafe(32)      # 256-bit session secret (never printed)
+        self.token = secrets.token_urlsafe(32)               # 256-bit session secret: the URL path prefix, printed once
+        self.prefix = f"{PREFIX_ROOT}{self.token}"
         self.csrf_token = secrets.token_urlsafe(32)
-        self._token_used = False
-        self._token_lock = threading.Lock()
         self._slots = threading.BoundedSemaphore(max_connections)
         self._activity = time.monotonic()
         self._stopped_for_idle = False
@@ -127,7 +130,6 @@ class PanelServer(ThreadingHTTPServer):
         authority = f"[{bound}]" if ":" in bound else bound
         self.allowed_hosts = frozenset({f"127.0.0.1:{self.port}", f"localhost:{self.port}", f"[::1]:{self.port}"})
         self.allowed_origins = frozenset({f"http://{h}" for h in self.allowed_hosts})
-        self.cookie_name = f"{COOKIE_BASE}_{self.port}"
         self.base_url = f"http://{authority}:{self.port}/"
 
     # -- plumbing -------------------------------------------------------------------------------------
@@ -138,8 +140,17 @@ class PanelServer(ThreadingHTTPServer):
         self.server_port = self.server_address[1]
 
     def entry_url(self) -> str:
-        """The one-time URL to open (printed once by ``zero-mem ui``)."""
-        return f"{self.base_url}?t={self.token}"
+        """The URL to open (printed once by ``zero-mem ui``); the path carries the session secret."""
+        return f"{self.base_url.rstrip('/')}{self.prefix}/"
+
+    def split_prefix(self, path: str):
+        """``(True, inner_path)`` when ``path`` starts with the session prefix, else ``(False, '')`` (constant-time compare)."""
+        head = path[:len(PREFIX_ROOT) + len(self.token)]
+        ok = _same(head, self.prefix)
+        rest = path[len(head):]
+        if not ok or (rest and not rest.startswith("/")):
+            return False, ""
+        return True, rest or "/"
 
     def touch(self) -> None:
         self._activity = time.monotonic()
@@ -173,23 +184,6 @@ class PanelServer(ThreadingHTTPServer):
         self.log("zero-mem ui: connection error (" + type(sys.exc_info()[1]).__name__ + ")")
 
     # -- credentials ----------------------------------------------------------------------------------
-    def exchange_token(self, candidate: str) -> Optional[str]:
-        """The session cookie value when ``candidate`` is the (unused) URL token, else ``None``."""
-        with self._token_lock:
-            if self._token_used or not _same(candidate, self.token):
-                return None
-            self._token_used = True
-        return self._cookie_secret
-
-    def cookie_ok(self, header: Optional[str]) -> bool:
-        if not header:
-            return False
-        for part in header.split(";"):
-            name, _sep, value = part.strip().partition("=")
-            if name == self.cookie_name and _same(value.strip(), self._cookie_secret):
-                return True
-        return False
-
     def csrf_ok(self, candidate: Optional[str]) -> bool:
         return bool(candidate) and _same(candidate, self.csrf_token)
 
@@ -220,6 +214,7 @@ class PanelServer(ThreadingHTTPServer):
 class PanelHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.0"  # one request per connection: no keep-alive state to abuse
     server: PanelServer
+    _inner = "(unauthenticated)"
 
     def setup(self) -> None:
         self.timeout = self.server.request_timeout
@@ -227,7 +222,7 @@ class PanelHandler(BaseHTTPRequestHandler):
 
     # -- quiet, secret-free logging ------------------------------------------------------------------
     def log_message(self, format: str, *args) -> None:  # noqa: A002
-        return  # request lines can carry the one-time token; per-request logging happens in _finish without the query
+        return  # the request line carries the path secret, so nothing is logged per request
 
     def version_string(self) -> str:
         return "zero-mem-ui"
@@ -252,13 +247,15 @@ class PanelHandler(BaseHTTPRequestHandler):
 
     # -- core ----------------------------------------------------------------------------------------
     def _plain(self, code: int, message: Optional[str] = None) -> Response:
-        texts = {400: "Bad request.", 401: "Not signed in. Open the one-time URL printed by zero-mem ui in the terminal.",
+        texts = {400: "Bad request.", 401: "Not signed in. Open the URL printed by zero-mem ui in the terminal.",
                  403: "Forbidden.", 404: "Not found.", 405: "Method not allowed.", 408: "Request timed out.",
                  411: "Length required.", 413: "That request is too large.", 415: "Unsupported content type.",
                  431: "Request headers too large.", 500: "Something went wrong. Nothing was shown to protect your data; "
                  "see the terminal running zero-mem ui.", 501: "Not supported.", 503: "Busy."}
         text = message or texts.get(code, "Request refused.")
         nonce = secrets.token_urlsafe(16)
+        if self._inner == "(unauthenticated)":
+            return Response(status=code, body=bare_error_page(text, nonce=nonce), headers=[("X-Nonce", nonce)])
         return Response(status=code, body=error_page("Error" if code != 401 else "Sign in required", text, nonce=nonce),
                         headers=[("X-Nonce", nonce)])
 
@@ -275,7 +272,7 @@ class PanelHandler(BaseHTTPRequestHandler):
                 tb = tb.tb_next
             if tb is not None:
                 where = f" at {tb.tb_frame.f_code.co_filename.rsplit('/', 1)[-1].rsplit(chr(92), 1)[-1]}:{tb.tb_lineno}"
-            self.server.log(f"zero-mem ui: {method} {urlsplit(self.path).path} failed ({type(exc).__name__}{where})")
+            self.server.log(f"zero-mem ui: {method} {getattr(self, '_inner', '(unauthenticated)')} failed ({type(exc).__name__}{where})")
             response = self._plain(500)
         self._send(response, nonce=nonce)
 
@@ -294,18 +291,10 @@ class PanelHandler(BaseHTTPRequestHandler):
         query = {}
         for key, value in pairs:
             query.setdefault(key, value)
-        path = parts.path or "/"
-        # one-time URL token -> session cookie, then a token-free URL
-        if method == "GET" and path == "/" and "t" in query:
-            secret = server.exchange_token(query["t"])
-            if secret is None:
-                raise _Refuse(403, "This link is not valid (it can be used only once). Restart zero-mem ui for a new one.")
-            server.touch()
-            return Response(status=303, headers=[
-                ("Location", "/"),
-                ("Set-Cookie", f"{server.cookie_name}={secret}; Path=/; HttpOnly; SameSite=Strict")])
-        if not server.cookie_ok(self.headers.get("Cookie")):
-            raise _Refuse(401)
+        ok, path = server.split_prefix(parts.path or "/")
+        if not ok:  # no ambient authority: no valid path secret means a generic 404 (never reveals the panel)
+            raise _Refuse(404)
+        self._inner = path
         server.touch()
         request = Request(method=method, path=path, query=query)
         if method == "POST":
@@ -373,6 +362,13 @@ class PanelHandler(BaseHTTPRequestHandler):
     # -- output ---------------------------------------------------------------------------------------
     def _send(self, response: Response, *, nonce: str, extra: Optional[list] = None) -> None:
         headers = list(response.headers)
+        prefix = self.server.prefix if self._inner != "(unauthenticated)" else ""
+        body = response.body
+        if prefix:
+            headers = [(n, prefix + v if n.lower() == "location" and v.startswith("/") and not v.startswith("//") else v)
+                       for n, v in headers]
+            if response.content_type.startswith("text/html"):
+                body = _LINK_RE.sub(lambda m: f'{m.group(1)}="{prefix}/', body.decode("utf-8")).encode("utf-8")
         for name, value in list(headers):
             if name == "X-Nonce":  # an error page built before the nonce was known carries its own
                 nonce = value
@@ -389,12 +385,12 @@ class PanelHandler(BaseHTTPRequestHandler):
         try:
             self.send_response(response.status)
             self.send_header("Content-Type", response.content_type)
-            self.send_header("Content-Length", str(len(response.body)))
+            self.send_header("Content-Length", str(len(body)))
             for name, value in security + headers + (extra or []):
                 self.send_header(name, value)
             self.send_header("Connection", "close")
             self.end_headers()
-            self.wfile.write(response.body)
+            self.wfile.write(body)
         except (OSError, ValueError):
             pass
 

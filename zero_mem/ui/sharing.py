@@ -1,6 +1,6 @@
 """Control-panel pages for peer sharing (``/sharing``), docs/runbooks/control-panel.md and peer-sharing.md.
 
-Same security model as the rest of the panel (loopback, cookie, Host / Origin / CSRF, POST-only mutation, escaping, CSP).
+Same security model as the rest of the panel (loopback, path-secret session, Host / Origin / CSRF, POST-only mutation, escaping, CSP).
 There is NO new sharing logic here: every action calls :class:`zero_mem.share.node.ShareNode` / ``share.client`` exactly like
 ``zero-mem share ...``. The panel never opens a network listener (``share serve`` stays a CLI action) and never stores,
 logs or puts an invite code in a URL: the ``zm1:`` string exists only in the body of the one POST response that created it.
