@@ -583,7 +583,7 @@ def _invite_view(code: str, host: str, left: int, offered: int, nonce: str) -> M
                  '<span class="hint">Without JavaScript: click the box, select all and copy.</span></p>',
                  max(1, left // 60), code)
     steps = h('<p>It points at <code>{}</code> and offers {}.</p><p>Next: keep <code>zero-mem share serve</code> running in a terminal on this machine; '
-              'on the other machine run <code>zero-mem share join &lt;code&gt;</code> or paste it into its control panel.</p>'
+              'on the other machine run <code>zero-mem share join --code-file FILE</code> or paste it into its control panel.</p>'
               '<p><a href="/sharing">Back to Sharing</a></p>',
               host, "NO access (grant it later with a preview)" if not offered else f"{offered} grant(s)")
     script = Markup(f'<script nonce="{e(nonce)}">{COPY_SCRIPT}</script>')

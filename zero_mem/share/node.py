@@ -83,6 +83,28 @@ class ShareNode:
             self._identity = ident.ensure_identity(self.layout, self.own_label())
         return self._identity
 
+    def rotate_identity(self) -> dict:
+        """New identity; every pairing that depended on the old one is ended first (peers must re-pair with a new invite; this
+        machine must re-join each owner). Already pulled copies stay. Audited as ``identity_rotate``."""
+        old = ident.load_identity(self.layout)
+        if old is None:
+            raise ShareError("no_identity", "there is no sharing identity yet (it is created on the first invite or join)")
+        ident.crypto()  # fail before anything is revoked
+        peers = [p for p in self.peers() if p["status"] == "active"]
+        for peer in peers:
+            self.revoke_peer(peer["peer_id"])
+        owners = self.owners()
+        for owner in owners:
+            self.audit_event("owner_remove", peer_id=owner["peer_id"])
+        burned = self.invites().burn_open()
+        _old, new = ident.rotate_identity(self.layout, self.own_label())
+        self._identity = None
+        self._owner_service = None
+        self.audit_event("identity_rotate", old_peer_id=old.peer_id, new_peer_id=new.peer_id, peers_revoked=len(peers),
+                         owners_removed=len(owners), invites_burned=burned)
+        return {"status": "rotated", "old_peer_id": old.peer_id, "new_peer_id": new.peer_id, "fingerprint": new.fingerprint,
+                "peers_revoked": len(peers), "owners_removed": len(owners), "invites_burned": burned}
+
     def invites(self) -> InviteStore:
         return InviteStore(ident.share_dir(self.layout))
 

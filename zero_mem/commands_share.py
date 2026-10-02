@@ -45,9 +45,18 @@ def add_share_parser(subparsers) -> None:
     p.set_defaults(_share_cmd="invite")
 
     p = sub.add_parser("join", parents=[owner], help="JOINER: pair with an owner using their invite code")
-    p.add_argument("code", help="the zm1:... invite code")
+    p.add_argument("code", nargs="?", default=None,
+                   help="the zm1:... invite code; '-' reads it from stdin. Prefer --code-file or '-': a code given on the command "
+                        "line is visible to other users in the process list")
+    p.add_argument("--code-file", default=None, metavar="PATH", help="read the invite code from this file (safest; delete it after)")
     p.add_argument("--name", default=None, help="the name the owner will show for this machine")
     p.set_defaults(_share_cmd="join")
+
+    p = sub.add_parser("identity", parents=[owner], help="this machine's sharing identity (a secret key; see peer-sharing runbook)")
+    isub = p.add_subparsers(dest="identity_command", required=True)
+    r = isub.add_parser("rotate", parents=[owner], help="make a new identity; ends every pairing (peers and owners must re-pair)")
+    r.add_argument("--yes", action="store_true", help="confirm without prompting")
+    r.set_defaults(_share_cmd="identity_rotate")
 
     p = sub.add_parser("serve", parents=[owner], help="OWNER: serve to paired peers (foreground, time-boxed, LAN only)")
     p.add_argument("--bind", default=None, help="address to listen on (default: detected LAN address)")
@@ -195,23 +204,71 @@ def _cmd_invite(args) -> int:
         print(code)
         left = max(0, invite.expires - int(time.time()))
         print(f"\nThis invite is a one-time secret (valid {left // 60} min). Hand it to the other person through a channel you trust.", file=sys.stderr)
-        print(f"On the other machine: zero-mem share join <code> --name <label>   (needs: zero-mem share serve running here)",
+        print(f"On the other machine: put the code in a file and run: zero-mem share join --code-file <file> --name <label>   (needs: zero-mem share serve running here)",
               file=sys.stderr)
         print("It offers " + (f"{len(args.grant)} grant(s)." if args.grant else "NO access: add one later with 'zero-mem share grant'."),
               file=sys.stderr)
     return EXIT_OK
 
 
+def _read_join_code(args) -> Optional[str]:
+    """The invite code from ``--code-file``, stdin (``-``) or (discouraged, warned) the command line; ``None`` after an error."""
+    path, positional = args.code_file, args.code
+    if path is not None and positional is not None:
+        _err("give the invite code once: either --code-file PATH or the argument, not both")
+        return None
+    if path is None and positional is None:
+        _err("no invite code: use --code-file PATH, or '-' to read it from stdin")
+        return None
+    try:
+        if path is not None:
+            with open(path, encoding="utf-8") as handle:
+                text = handle.read(4096)
+        elif positional == "-":
+            text = sys.stdin.read(4096)
+        else:
+            print("warning: an invite code on the command line is visible to other users on this machine (process list, shell "
+                  "history). Safer: zero-mem share join --code-file PATH   or   ... share join - < PATH", file=sys.stderr)
+            return positional
+    except (OSError, UnicodeError):
+        _err("cannot read the invite code from there")
+        return None
+    code = text.strip()
+    if not code:
+        _err("the invite code is empty")
+        return None
+    return code
+
+
 def _cmd_join(args) -> int:
     from .share import client
 
+    code = _read_join_code(args)
+    if code is None:
+        return EXIT_ERROR
     with _node(args) as node:
-        result = client.join(node, args.code, args.name)
+        result = client.join(node, code, args.name)
     if _wants_json(args):
         _emit(result)
     else:
         print(f"Paired with '{result['owner_label']}' (peer id {result['owner_peer_id']}).")
         print(f"Next: zero-mem share pull {result['owner_label']} --dry-run   (the owner must grant you access first)")
+    return EXIT_OK
+
+
+def _cmd_identity_rotate(args) -> int:
+    with _node(args) as node:
+        if not _ask(args, "Replace this machine's sharing identity? Every paired peer is revoked, every owner you joined is "
+                          "forgotten (copies already pulled stay) and open invites are burned; you must re-pair everything.",
+                    "not confirmed; the identity was not changed"):
+            return EXIT_ERROR
+        result = node.rotate_identity()
+    if _wants_json(args):
+        _emit(result)
+    else:
+        print(f"Identity rotated: {result['old_peer_id']} -> {result['new_peer_id']}. Revoked {result['peers_revoked']} peer(s), "
+              f"forgot {result['owners_removed']} owner(s), burned {result['invites_burned']} open invite(s).")
+        print("Next: make new invites for the peers that should keep access (zero-mem share invite), and join each owner again.")
     return EXIT_OK
 
 
@@ -400,7 +457,7 @@ def _cmd_unpair(args) -> int:
     return EXIT_OK
 
 
-_HANDLERS = {"status": _cmd_status, "invite": _cmd_invite, "join": _cmd_join, "serve": _cmd_serve, "discover": _cmd_discover,
+_HANDLERS = {"status": _cmd_status, "invite": _cmd_invite, "join": _cmd_join, "identity_rotate": _cmd_identity_rotate, "serve": _cmd_serve, "discover": _cmd_discover,
              "grant": _cmd_grant, "revoke": _cmd_revoke, "peers": _cmd_peers, "grants": _cmd_grants, "audit": _cmd_audit,
              "pull": _cmd_pull, "unpair": _cmd_unpair}
 
