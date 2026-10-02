@@ -122,6 +122,7 @@ class ProposalResult:
     project_id: Optional[str] = None
     name: Optional[str] = None
     rule_ids: tuple = ()
+    detail: Optional[str] = None  # sanitized explanation for status=error (e.g. which lock failed and why)
 
     @property
     def ok(self) -> bool:
@@ -627,7 +628,7 @@ def submit_proposal(memory: Memory, text: Any, memory_type: Any, name: Any, scop
             _log_for(memory)
         return ProposalResult(status="proposed", proposal_id=proposal_id, seen=1, **echo)
     except ProvisioningError as exc:
-        return ProposalResult(status="error", reason=exc.code, **echo)
+        return ProposalResult(status="error", reason=exc.code, detail=str(exc)[:200], **echo)
     except Exception as exc:  # noqa: BLE001
         return ProposalResult(status="error", reason=f"internal_error:{type(exc).__name__}", **echo)
 

@@ -14,10 +14,10 @@ def propose_many(root: str, settings: str, profile: str, worker: int, count: int
         results = []
         for i in range(count):
             res = mem.propose(f"worker {worker} proposal {i} about topic {i % 3}", "rule", scope="shared")
-            results.append((res.status, res.reason, res.proposal_id))
+            results.append((res.status, res.reason if not res.detail else f"{res.reason}: {res.detail}", res.proposal_id))
         if same_text:
             res = mem.propose(same_text, "gotcha", scope="shared", evidence=[f"worker-{worker}"])
-            results.append((res.status, res.reason, res.proposal_id))
+            results.append((res.status, res.reason if not res.detail else f"{res.reason}: {res.detail}", res.proposal_id))
         mem.close()
         out.put(("ok", worker, results))
     except BaseException as exc:  # noqa: BLE001 - report every failure to the parent
