@@ -7,15 +7,15 @@ permissions:
   contents: read
 jobs:
   diag:
-    name: flake ${{ matrix.os }} ${{ matrix.py }}
+    name: flake ${{ matrix.os }} r${{ matrix.rep }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
         py: ['3.12']
-        rep: [1]
+        rep: [1, 2]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
