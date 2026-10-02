@@ -51,8 +51,26 @@ not authentication.
 | Settings | validated edit of `settings.toml` (inline errors, nothing written on error), overrides, deny patterns, kill switch |
 | Eval and health | safety suite, pasted cases, history, doctor |
 | Audit | recent canonical events and writes/forgets, newest first, paged |
+| Sharing | peer sharing, see below |
 
 Every mutation reuses the CLI's code (Reviewer, Provisioner, Memory owner entry points, settings API): no new write path.
+
+## Sharing
+`/sharing` (needs `pip install "zero-mem[share]"` and `sharing.enabled`; the page says exactly why it is off). It calls the same code as
+`zero-mem share ...` for the memory the panel is serving (`zero-mem ui --memory NAME`); the panel never opens a network listener, so
+**`share serve` stays a terminal command** (the page shows it).
+- **Status**: on/off with the reason (extra missing, kill switch, unusable settings, `sharing.enabled`), this memory's peer id and fingerprint.
+- **Invite**: expiry and optional offered grant; the `zm1:` code is a secret and appears **once**, in the response of that POST (no redirect,
+  never in a URL, a log, the audit trail or on disk; the store keeps a hash). It has a copy button that needs JavaScript and appears only when
+  the browser can copy (that one response alone carries a nonce-tagged inline script in its CSP); without JS select the text box and copy.
+- **Peers and grants**: label, peer id, short fingerprint, paired, last pull, revoked; each peer's grants (space/project, types, prefixes,
+  expiry, state) with revoke buttons. **Adding a grant is two steps**: a preview lists how many sources the peer would read (by type), the first
+  20 references and what is never served; only the confirm POST (checkbox) creates exactly that grant.
+- **Join / Pull** (receiving side): paste an invite and a label; for an owner, "Plan a pull" fetches the manifest and shows the plan
+  (new/changed/unchanged/skipped); confirming imports exactly that plan, and aborts if the owner's offering changed meanwhile.
+- **Imported sources** with provenance (peer, original ref, digest, fetched), labelled **untrusted reference**; **proposals from peers**
+  (approve them in the [Inbox](#pages)); owner-forgotten items you had approved; the **sharing audit log**.
+Every new POST has the panel's CSRF token, Origin/Host checks and escaping (`tests/unit/test_t21_ui_sharing.py`).
 
 ## Limits
 

@@ -23,7 +23,8 @@ _DENIED = {"public_bind_refused", "pairing_locked", "pairing_refused", "access_r
 def add_share_parser(subparsers) -> None:
     owner = argparse.ArgumentParser(add_help=False)
     owner.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help="machine-readable output")
-    owner.add_argument("--memory", default=argparse.SUPPRESS, metavar="NAME", help="named memory (needs named-memory support)")
+    owner.add_argument("--memory", dest="memory_name", default=argparse.SUPPRESS, metavar="NAME",
+                       help="act on this named memory (identity, peers, grants and imports all live in it; see `zero-mem memory list`)")
 
     share = subparsers.add_parser(
         "share", help="share selected knowledge with another machine on your LAN (read-only, pinned TLS 1.3; "
@@ -102,16 +103,10 @@ def add_share_parser(subparsers) -> None:
 
 # ---------------------------------------------------------------------------------------------
 def _data_root(args):
-    name = getattr(args, "memory", None)
-    if not name:
-        return None
-    try:
-        from . import memories  # named memories (T18)
-        return memories.resolve_data_root(name)
-    except (ImportError, AttributeError):
-        from .share import ShareError
-
-        raise ShareError("named_memories_unavailable", "named memories are not available in this build") from None
+    """The data root is chosen by ``cli.main`` (``workspaces.memory_scope`` overlays ZERO_MEM_DATA_ROOT for ``--memory NAME``,
+    ``$ZERO_MEM_MEMORY`` or ``memory use``), so every share command - identity, keys, peers, grants, imports - lives in the
+    selected memory. ``None`` = resolve from the environment."""
+    return None
 
 
 def _node(args):
@@ -377,6 +372,10 @@ def _cmd_pull(args) -> int:
                   f"{len(report.rejected)} rejected.")
             for item in report.rejected[:20]:
                 print(f"  rejected {item['ref']}: {item['reason']}")
+            if report.withdrawn:
+                print(f"{report.withdrawn} pending proposal(s) withdrawn because the owner forgot them.")
+            for item in report.revoke_proposed:
+                print(f"  the owner forgot an item you approved: {item['ref']} - review it, then run: zero-mem review revoke {item['ref']}")
     if report.aborted:
         return EXIT_ERROR
     return EXIT_PARTIAL if report.rejected else EXIT_OK

@@ -96,8 +96,10 @@ class OwnerService:
             pass
 
     # ---------------------------------------------------------------- authorization
-    def _targets(self, peer_id: str) -> list:
-        """``[(grant, AuthorizedCorpusScope)]`` - one per active grant target the policy authorizes."""
+    def _targets(self, peer_id: str, grants: Optional[list] = None) -> list:
+        """``[(grant, AuthorizedCorpusScope)]`` - one per active grant target the policy authorizes.
+
+        ``grants`` replaces the peer's logged grants (used only to PREVIEW a grant that does not exist yet)."""
         from src.access import AccessRequest, AuthorizedReadService
         from src.access.grants import AuthorizedReadGrant
 
@@ -108,7 +110,7 @@ class OwnerService:
         service = AuthorizedReadService(None, profile)
         now = _iso(self._now())
         out = []
-        for grant in self._log.grants_of(peer_id, now=now):
+        for grant in (grants if grants is not None else self._log.grants_of(peer_id, now=now)):
             targets = ([("knowledge_space", grant["space"])] if grant["space"] else []) + \
                       [("project", p) for p in grant["projects"]]
             for target_type, target_id in targets:
@@ -142,11 +144,11 @@ class OwnerService:
             return False
         return True
 
-    def _candidates(self, peer_id: str, *, deleted: bool, only_ids=None) -> tuple:
+    def _candidates(self, peer_id: str, *, deleted: bool, only_ids=None, grants: Optional[list] = None) -> tuple:
         """``([(record, mtype, grant_id)], omitted)`` after scope + grant filters + cheap record checks (no blob reads)."""
         from src.corpus.contracts import is_withheld_sensitivity
 
-        targets = self._targets(peer_id)
+        targets = self._targets(peer_id, grants)
         omitted: dict = {}
         if not targets:
             return [], omitted
@@ -188,10 +190,10 @@ class OwnerService:
         out.sort(key=lambda item: (item[0].external_ref, item[0].source_id))
         return out, omitted
 
-    def _servable(self, peer_id: str, only_ids=None) -> tuple:
+    def _servable(self, peer_id: str, only_ids=None, grants: Optional[list] = None) -> tuple:
         """``([(entry dict, content bytes)], omitted)``: candidates whose blob is intact, small enough and scan-clean."""
         cfg = self.settings()
-        candidates, omitted = self._candidates(peer_id, deleted=False, only_ids=only_ids)
+        candidates, omitted = self._candidates(peer_id, deleted=False, only_ids=only_ids, grants=grants)
         out = []
         with self._memory._lock:
             _registry, blobs = self._memory._corpus()
@@ -271,3 +273,17 @@ class OwnerService:
         """What this peer could read right now: ``{"sources": n, "bytes": b}`` (no content, for ``share grants``)."""
         servable, omitted = self._servable(peer_id)
         return {"sources": len(servable), "bytes": sum(len(c) for _e, c in servable), "omitted": omitted}
+
+    def preview_spec(self, peer_id: str, spec: dict, *, limit: int = 20) -> dict:
+        """Exactly what a grant that does NOT exist yet would let the peer read (same code path as serving; nothing is
+        written and no skip is audited): counts by type, the first ``limit`` references, the omitted counters."""
+        pseudo = {"grant_id": "sg-preview", "peer_id": peer_id, "space": spec["space"], "projects": list(spec["projects"]),
+                  "types": list(spec["types"]), "ref_prefixes": list(spec["ref_prefixes"]), "revoked_at": None,
+                  "expires_at": None}
+        servable, omitted = self._servable(peer_id, grants=[pseudo])
+        by_type: dict = {}
+        for entry, _content in servable:
+            by_type[entry["memory_type"]] = by_type.get(entry["memory_type"], 0) + 1
+        return {"sources": len(servable), "bytes": sum(len(c) for _e, c in servable), "by_type": by_type,
+                "refs": [{"ref": e["ref"], "memory_type": e["memory_type"], "size": e["size"]} for e, _c in servable[:limit]],
+                "omitted": omitted}

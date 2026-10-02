@@ -2,8 +2,8 @@
 
 Every value interpolated into markup goes through :func:`e` (``html.escape`` with quotes) unless it is already a
 :class:`Markup`. Page code builds fragments with :func:`h` / :func:`join`, so a user-controlled string (memory text,
-names, refs, evidence, file names, error text) can never become markup. No JavaScript, no external resource: one inline
-stylesheet carries the per-response CSP nonce.
+names, refs, evidence, file names, error text) can never become markup. No external resource: one inline
+stylesheet carries the per-response CSP nonce (the one-time invite view adds a single nonce-tagged copy-button script).
 """
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ def url(path: str, **params) -> str:
 NAV = (
     ("/", "Overview"), ("/inbox", "Inbox"), ("/add", "Add"), ("/ingest", "Ingest"), ("/search", "Browse"),
     ("/brief", "Brief"), ("/agents", "Agents"), ("/settings", "Settings"), ("/eval", "Eval &amp; health"),
-    ("/audit", "Audit"),
+    ("/audit", "Audit"), ("/sharing", "Sharing"),
 )
 
 CSS = """

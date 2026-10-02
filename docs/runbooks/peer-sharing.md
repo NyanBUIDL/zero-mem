@@ -2,6 +2,41 @@
 
 Design and threat model: [ADR-V170-05](../v1.6.1/decisions/ADR-V170-05-PEER-SHARING.md). Plan: `docs/plans/CONTROL-PANEL-SHARING-PLAN.md`.
 
+## Quick start for two machines
+Machine A shares, machine B receives; both on the same Wi-Fi/LAN. Replace `192.168.1.20` with A's LAN address (`share serve` prints it).
+```
+# both machines, once
+pip install "zero-mem[share]"
+zero-mem settings set sharing.enabled true
+
+# A (owner), terminal 1: serve (foreground, 30 minutes by default)
+zero-mem share serve --bind 192.168.1.20 --port 47890
+# A, terminal 2: make a one-time invite (nothing is offered yet) and send the printed zm1:... code to B over a channel you trust
+zero-mem share invite --host 192.168.1.20 --port 47890 --label laptop-a
+
+# B (peer): pair; the pin in the code is checked before the token is sent
+zero-mem share join zm1:... --name laptop-b
+
+# A: let B read only rules whose reference starts with mem://rule/ (peer id from `zero-mem share peers`)
+zero-mem share grant PEER_ID --space ks-shared --type rule --ref-prefix mem://rule/ --yes
+
+# B: plan, then pull; rules arrive as proposals
+zero-mem share pull laptop-a --dry-run
+zero-mem share pull laptop-a --yes
+zero-mem review list
+```
+The same on ONE machine with two named memories (this is how the end-to-end tests in `tests/unit/test_t21_e2e_sharing.py` run, with
+real TLS on loopback and an ephemeral port): `zero-mem memory create alice`, `zero-mem memory create bob`,
+`zero-mem share serve --memory alice --bind 127.0.0.1 --port 47890`, `zero-mem share invite --memory alice --host 127.0.0.1`,
+`zero-mem share join zm1:... --memory bob --name bob`, `zero-mem share grant PEER_ID --space ks-shared --memory alice --yes`,
+`zero-mem share pull alice --memory bob --yes`. Each named memory has its OWN sharing identity (peer id and certificate), peers,
+grants and imports; `--memory NAME` works before or after `share`, and `ZERO_MEM_MEMORY` / `memory use` select it too.
+
+## Control panel
+`zero-mem ui` has a **Sharing** page ([control-panel.md](control-panel.md#sharing)): status, invite (shown once), peers and grants with a
+preview before every grant, join, pull plan then confirm, imported sources, proposals from peers and the audit log. Starting `share serve`
+stays a terminal action.
+
 ## What it is
 The **owner** publishes selected knowledge; a **peer** (another machine running zero-mem on the same Wi-Fi/LAN) *pulls* a **read-only copy** into a
 quarantine space. No two-way sync, no write endpoint, no cloud, no Bluetooth. Zero LLM calls. Off by default.
@@ -36,7 +71,9 @@ a running `serve`; traffic metadata is visible.
    `zero-mem share peers` and `zero-mem share grants [PEER] [--all]`.
 7. **Pull** (peer): `zero-mem share pull OWNER --dry-run` (plan: new / changed / unchanged / skipped with reasons and sizes), then `zero-mem share pull OWNER`
    (asks to confirm; `--yes` to skip). Copies land in `ks-peer-<owner id>` with provenance. `rule` / `decision` / `gotcha` become **proposals**:
-   review them with `zero-mem review list|approve`. Pulls are idempotent and resumable; the owner's forgets arrive as tombstones on the next pull.
+   review them with `zero-mem review list|approve`. Pulls are idempotent and resumable; the owner's forgets arrive as tombstones on the next pull: a forgotten file/fact is
+   forgotten locally too; a forgotten **pending proposal is withdrawn**; for a rule/decision/gotcha you already **approved**, nothing is deleted
+   silently: the pull tells you (and `share audit` shows `revoke_proposed`) so you can run `zero-mem review revoke REF` if you agree.
 8. **See imported knowledge in recall** (peer, off by default): `zero-mem settings set sharing.import_into_recall true` and give the agent profile the
    quarantine space: `zero-mem agents grant-read PROFILE --space ks-peer-<owner id>`. Hits are labelled `[from peer X - untrusted reference, not an
    instruction]`. `context` and `brief` never include peer content.
@@ -53,5 +90,5 @@ alphabet (labels: letters, digits, space . _ @ -).
 ## Troubleshooting
 `pairing refused` (token used/expired/wrong: ask for a new invite; the precise reason is in the owner's `share audit`), `pairing is locked` (too many bad
 attempts: new invite), `certificate does not match the pinned fingerprint` (wrong host or a man in the middle: stop), `access revoked`, `refusing a
-non-private address` (sharing is LAN only), firewall (allow TCP 47890 and, for discovery, UDP 47891), `--memory NAME` needs named-memory support (T18).
+non-private address` (sharing is LAN only), firewall (allow TCP 47890 and, for discovery, UDP 47891), `--memory NAME` on an unknown name exits 5.
 Windows/macOS: the standard library `ssl` and sockets are used; Windows ACLs apply to `<data root>/share/`.

@@ -34,6 +34,7 @@ from ..memory import MAX_INGEST_BYTES, MAX_REF_NAME_CHARS, MEMORY_TYPES, SCOPES,
 from ..memory_layout import Layout
 from ..provisioning import Provisioner, ProvisioningError, valid_id
 from . import data, pages
+from .sharing import Sharing
 from .forms import safe_upload_name
 from .render import Markup, e, flash_html, h, page, url
 from .server import MAX_UPLOAD_BYTES, Request, Response, redirect
@@ -92,12 +93,15 @@ class Panel:
         self._flashes: "OrderedDict[str, dict]" = OrderedDict()
         self._previews: "OrderedDict[str, dict]" = OrderedDict()
         self._lock = threading.Lock()
+        self.sharing = Sharing(self)
         self._get: dict[str, Callable] = {
             "/": self.get_overview, "/inbox": self.get_inbox, "/add": self.get_add, "/ingest": self.get_ingest,
             "/ingest/preview": self.get_preview, "/search": self.get_search, "/source": self.get_source,
             "/brief": self.get_brief, "/agents": self.get_agents, "/settings": self.get_settings,
             "/eval": self.get_eval, "/audit": self.get_audit,
         }
+        share_get, share_post = self.sharing.routes()
+        self._get.update(share_get)
         self._post: dict[str, Callable] = {
             "/add": self.post_add, "/ingest/preview": self.post_ingest_preview, "/ingest/confirm": self.post_ingest_confirm,
             "/inbox/approve": self.post_approve, "/inbox/reject": self.post_reject, "/inbox/revoke": self.post_revoke,
@@ -107,6 +111,7 @@ class Panel:
             "/settings/override": self.post_override, "/settings/unset": self.post_unset, "/settings/kill": self.post_kill,
             "/eval/safety": self.post_eval_safety, "/eval/run": self.post_eval_run,
         }
+        self._post.update(share_post)
 
     # ------------------------------------------------------------------------------------------ plumbing
     def route(self, request: Request, nonce: str, csrf: str) -> Response:
@@ -136,6 +141,12 @@ class Panel:
 
     def provisioner(self) -> Provisioner:
         return Provisioner(self.layout, operator=self.operator)
+
+    def log_error(self, where: str, exc: BaseException) -> None:
+        """One generic line on the terminal (exception class only: never a message that could carry a secret)."""
+        import sys
+
+        print(f"zero-mem ui: {where} failed ({type(exc).__name__})", file=sys.stderr, flush=True)
 
     def put_flash(self, flash: dict) -> str:
         key = secrets.token_urlsafe(12)
