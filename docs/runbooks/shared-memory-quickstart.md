@@ -52,8 +52,12 @@ zero-mem --profile claude-code devlog --from-git --repo ~/code/zero-mem --projec
 
 `devlog --from-git` is meant for agent hooks (Stop / SessionEnd): see [agent-integration.md](agent-integration.md#7-capture-dev-history-without-an-llm-zero-mem-devlog---from-git).
 
-Types: `persona`, `workflow`, `skill`, `devlog`, `fact` (default), `file`. Adding again under the same `--name` creates a new version
+Types: `persona`, `workflow`, `skill`, `devlog`, `fact` (default), `file`, and the learning-harness types `rule`, `decision`, `gotcha` (versioned by name like `workflow`). Adding again under the same `--name` creates a new version
 (the old text is no longer returned); without `--name` the id is the text hash, so repeating a text is a no-op. `add -` reads stdin.
+
+Agents that learn a rule or gotcha should *propose* it instead of writing it: `zero-mem --profile claude-code propose "..." --type rule`; the owner decides with
+`zero-mem review list|approve|reject|revoke`, and `zero-mem settings` controls modes, limits, injection (off by default) and the kill switch. Nothing proposed is
+recalled until approved: see [learning-harness.md](learning-harness.md).
 
 ## 5. Ingest a folder or file
 

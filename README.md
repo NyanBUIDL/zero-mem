@@ -237,6 +237,10 @@ zero-mem context                                        # compact session-start 
 zero-mem forget mem://fact/<id>                         # tombstone; raw bytes stay in the canonical corpus
 ```
 
+Learning harness (owner-controlled): agents *propose* rules / decisions / gotchas (`zero-mem propose "..." --type rule`), the owner reviews them
+(`zero-mem review list|approve|reject|revoke`) and controls modes, limits, injection (off by default) and a kill switch with `zero-mem settings`. Nothing
+proposed is recalled until approved. See [docs/runbooks/learning-harness.md](docs/runbooks/learning-harness.md).
+
 Every memory is a corpus source read and written through the access policy, so several agents can share one store: register them with
 `zero-mem agents add`, and approve shared writes explicitly with `zero-mem agents grant-write`. See
 [docs/runbooks/shared-memory-quickstart.md](docs/runbooks/shared-memory-quickstart.md). Agents (Claude Code, Codex, Hermes, OpenClaw) connect over MCP with
