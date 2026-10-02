@@ -14,8 +14,9 @@ zero-mem share serve --bind 192.168.1.20 --port 47890
 # A, terminal 2: make a one-time invite (nothing is offered yet) and send the printed zm1:... code to B over a channel you trust
 zero-mem share invite --host 192.168.1.20 --port 47890 --label laptop-a
 
-# B (peer): pair; the pin in the code is checked before the token is sent
-zero-mem share join zm1:... --name laptop-b
+# B (peer): pair; the pin in the code is checked before the token is sent. Put the code in a file (or pipe it to `-`)
+# so it never appears in the process list; delete the file afterwards
+zero-mem share join --code-file invite.txt --name laptop-b
 
 # A: let B read only rules whose reference starts with mem://rule/ (peer id from `zero-mem share peers`)
 zero-mem share grant PEER_ID --space ks-shared --type rule --ref-prefix mem://rule/ --yes
@@ -28,7 +29,7 @@ zero-mem review list
 The same on ONE machine with two named memories (this is how the end-to-end tests in `tests/unit/test_t21_e2e_sharing.py` run, with
 real TLS on loopback and an ephemeral port): `zero-mem memory create alice`, `zero-mem memory create bob`,
 `zero-mem share serve --memory alice --bind 127.0.0.1 --port 47890`, `zero-mem share invite --memory alice --host 127.0.0.1`,
-`zero-mem share join zm1:... --memory bob --name bob`, `zero-mem share grant PEER_ID --space ks-shared --memory alice --yes`,
+`zero-mem share join --code-file invite.txt --memory bob --name bob`, `zero-mem share grant PEER_ID --space ks-shared --memory alice --yes`,
 `zero-mem share pull alice --memory bob --yes`. Each named memory has its OWN sharing identity (peer id and certificate), peers,
 grants and imports; `--memory NAME` works before or after `share`, and `ZERO_MEM_MEMORY` / `memory use` select it too.
 
@@ -65,7 +66,9 @@ a running `serve`; traffic metadata is visible.
    `zm1:...`: a **one-time secret** carrying the host, the certificate pin and a token. Give it over a trusted channel. Without `--grant` the peer can
    read nothing yet. If the host is unknown to the joiner, `zero-mem share serve --announce` + `zero-mem share discover` shows where owners are (discovery
    grants nothing and announces only service name, peer id and port).
-5. **Join** (peer): `zero-mem share join zm1:... --name laptop`. The pin is checked before the token is sent; a mismatch aborts.
+5. **Join** (peer): `zero-mem share join --code-file PATH --name laptop` (or `zero-mem share join - --name laptop < PATH`). The pin is checked
+   before the token is sent; a mismatch aborts. The positional form `share join zm1:...` still works but prints a warning: other users of the
+   machine can read a command line (process list, `/proc/<pid>/cmdline`, shell history), and the code is a one-time secret until redeemed.
 6. **Grant** (owner): `zero-mem share grant PEER [--space S] [--project P]... [--type T]... [--ref-prefix mem://...]... [--expires 30d|never] [--yes]`.
    At least a space or a project; private memory can never be shared; `ks-peer-*` copies are never re-shared. See who can read what with
    `zero-mem share peers` and `zero-mem share grants [PEER] [--all]`.
@@ -81,6 +84,20 @@ a running `serve`; traffic metadata is visible.
    paired). Copies already pulled stay on the peer. `zero-mem share unpair OWNER` forgets an owner on the peer side.
 10. **Audit** (both): `zero-mem share audit [--limit N]` (pairing attempts, grants, manifests/fetches served, pulls, imports, rejections, lockouts; never tokens
     or content).
+
+## The identity key is a secret
+`<data root>/share/identity.key` (with `identity.crt`) is this memory's sharing identity: an ECDSA P-256 private key, stored **unencrypted** (file
+mode 0600 and a 0700 directory where the OS enforces mode bits; the user-profile ACL on Windows). Anything that can read your data directory can read it.
+With a copy an attacker can: (1) **impersonate this machine to every owner it joined** (the owner pinned this certificate, so the attacker's client
+passes mutual TLS and can pull whatever that owner granted you, until the owner revokes you); (2) **impersonate this owner to every joiner that
+pinned it**, serving them forged content (still quarantined and labelled untrusted, and rules arrive only as proposals), and see what peers request.
+The key is not encrypted because zero-mem has no dependencies beyond the standard library and `cryptography`, hence no OS secret store, and a
+passphrase would have to be typed every time an unattended `share serve` starts. Protect the directory instead: do not back it up to shared places,
+do not put the data root in a synced folder, and treat a leak like a stolen password.
+**Rotate** after a suspected leak or when moving the data: `zero-mem share identity rotate [--yes]` generates a new identity, revokes every paired
+peer (and their grants), forgets every owner you joined (already pulled copies stay in quarantine), burns open invites and records `identity_rotate`
+in `share audit`. Then peers must be re-invited (`share invite`) and you must `share join` each owner again with a fresh invite. Stop `share serve`
+before rotating; a running server keeps the old certificate until restarted.
 
 ## Limits
 At most 50 peers and 50 grants per peer; 20 open invites; invite <= 24 h; serve <= 24 h; manifest <= 1000 sources; fetch <= 50 ids / 8 MiB per request;

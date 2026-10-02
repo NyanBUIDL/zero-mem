@@ -1,7 +1,7 @@
 """``zero-mem ui``: start the owner's local control panel (see ``zero_mem.ui`` and docs/runbooks/control-panel.md).
 
 A thin shell: the data root comes from ``Layout.resolve`` (so ``--memory`` / ``ZERO_MEM_DATA_ROOT`` just work), the acting
-profile from the global ``--profile``. The panel binds to loopback only and prints its one-time URL once.
+profile from the global ``--profile``. The panel binds to loopback only and prints its secret URL once, to the terminal only (never in a process argument list).
 """
 from __future__ import annotations
 
@@ -17,7 +17,8 @@ Zero-Mem control panel (owner console)
   acting as   {profile}
   allow-roots {roots}
   open        {url}
-  The link works ONCE and is not saved anywhere; stop with Ctrl+C (idle timeout: {idle:g} min).
+  The secret is in the link's path, so anyone holding the link is you: do not paste it anywhere. Your browser history and
+  bookmarks will keep it, so close the panel (Ctrl+C) when you are done. (idle timeout: {idle:g} min).
 
   WARNING: this panel can approve rules, grant write access to agents and ingest files. Do NOT give agents a shell on
   this machine, this URL or the browser session; anything that can reach it acts as you."""
@@ -29,8 +30,10 @@ def add_ui_parser(subparsers) -> None:
     p.add_argument("--host", default="127.0.0.1", help="loopback address to bind: 127.0.0.1 (default) or ::1; anything else is refused")
     p.add_argument("--allow-root", action="append", default=[], metavar="DIR",
                    help="folder the panel may ingest by path (repeatable; default none: uploads only)")
-    p.add_argument("--open", dest="open_browser", action="store_true", help="open the one-time URL in your browser")
-    p.add_argument("--no-open", dest="open_browser", action="store_false", help="do not open a browser (default)")
+    p.add_argument("--open", dest="open_browser", action="store_true",
+                   help="deprecated and ignored: the secret URL is never passed to a browser process (it would show in the process "
+                        "list); copy it from the terminal")
+    p.add_argument("--no-open", dest="open_browser", action="store_false", help="do not open a browser (the default)")
     p.add_argument("--idle-timeout", type=float, default=60.0, metavar="MINUTES",
                    help="stop after this many idle minutes (default 60)")
     p.set_defaults(_ui_cmd=True, open_browser=False)
@@ -65,12 +68,8 @@ def run(args) -> int:
     print(BANNER.format(root=panel.layout.data_root, profile=panel.profile, idle=args.idle_timeout,
                         roots=", ".join(panel.roots) or "none (uploads only)", url=server.entry_url()), flush=True)
     if args.open_browser:
-        import webbrowser
-
-        try:
-            webbrowser.open(server.entry_url())
-        except Exception:  # noqa: BLE001
-            _err("could not open a browser; open the link above yourself")
+        _err("--open is ignored: the secret URL is not handed to another process (it would be visible in the process list); "
+             "copy the link above into your browser")
     try:
         server.serve()
     except KeyboardInterrupt:

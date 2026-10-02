@@ -127,6 +127,25 @@ def ensure_identity(layout, label: str = "zero-mem") -> Identity:
     return created
 
 
+def rotate_identity(layout, label: str = "zero-mem") -> tuple:
+    """Replace the identity with a fresh key pair; ``(old Identity | None, new Identity)``. The caller (``ShareNode``) first
+    ends every pairing that depended on the old one. The private key is NOT encrypted: there is no secret store without
+    adding a dependency, and a key the program must read unattended cannot be protected by a passphrase it would need to ask for."""
+    from src.storage.coordination import locked
+
+    crypto()
+    directory = share_dir(layout)
+    with locked(directory / ".identity.lock", mode="exclusive", timeout=30.0):
+        old = load_identity(layout)
+        key_pem, cert_pem = _generate(label)
+        _write_private(directory / KEY_NAME, key_pem)
+        _write_private(directory / CERT_NAME, cert_pem)
+    new = load_identity(layout)
+    if new is None:  # pragma: no cover - defensive
+        raise ShareError("identity_unreadable", "the sharing identity could not be created")
+    return old, new
+
+
 def validate_peer_certificate(der: bytes) -> None:
     """A joiner's certificate must be a small, valid, currently valid, self-signed ECDSA P-256 certificate."""
     x509, hashes, _serialization, ec, _name = crypto()
