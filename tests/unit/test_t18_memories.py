@@ -231,9 +231,10 @@ def test_use_stores_default_in_the_registry_and_reminds_about_running_agents(env
 def test_path_command(env):
     data = run_json("memory", "create", "a")
     code, out, _e = run("memory", "path", "a", expect=0)
-    assert out.strip() == data["path"]
+    assert Path(out.strip()) == Path(data["path"])
     code, out, _e = run("memory", "path", "default", expect=0)
-    assert out.strip() == str(env / "xdg-data" / "zero-mem")
+    # the registry normalizes separators to '/', so compare as paths (Windows prints D:/...)
+    assert Path(out.strip()) == env / "xdg-data" / "zero-mem"
     run("memory", "path", "nope", expect=5)
 
 

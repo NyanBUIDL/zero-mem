@@ -1,6 +1,6 @@
 """Control-panel pages for peer sharing (``/sharing``), docs/runbooks/control-panel.md and peer-sharing.md.
 
-Same security model as the rest of the panel (loopback, cookie, Host / Origin / CSRF, POST-only mutation, escaping, CSP).
+Same security model as the rest of the panel (loopback, path-secret session, Host / Origin / CSRF, POST-only mutation, escaping, CSP).
 There is NO new sharing logic here: every action calls :class:`zero_mem.share.node.ShareNode` / ``share.client`` exactly like
 ``zero-mem share ...``. The panel never opens a network listener (``share serve`` stays a CLI action) and never stores,
 logs or puts an invite code in a URL: the ``zm1:`` string exists only in the body of the one POST response that created it.
@@ -583,7 +583,7 @@ def _invite_view(code: str, host: str, left: int, offered: int, nonce: str) -> M
                  '<span class="hint">Without JavaScript: click the box, select all and copy.</span></p>',
                  max(1, left // 60), code)
     steps = h('<p>It points at <code>{}</code> and offers {}.</p><p>Next: keep <code>zero-mem share serve</code> running in a terminal on this machine; '
-              'on the other machine run <code>zero-mem share join &lt;code&gt;</code> or paste it into its control panel.</p>'
+              'on the other machine run <code>zero-mem share join --code-file FILE</code> or paste it into its control panel.</p>'
               '<p><a href="/sharing">Back to Sharing</a></p>',
               host, "NO access (grant it later with a preview)" if not offered else f"{offered} grant(s)")
     script = Markup(f'<script nonce="{e(nonce)}">{COPY_SCRIPT}</script>')

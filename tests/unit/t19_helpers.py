@@ -13,20 +13,22 @@ XSS = '"><script>alert(1)</script><img src=x onerror=alert(2)>&amp;\'`'
 
 
 class Client:
+    """``cookie=False`` means an anonymous client: it has no path secret, so every request is sent unprefixed."""
+
     def __init__(self, server, *, cookie: bool = True) -> None:
         self.server = server
         self.host = "127.0.0.1"
         self.port = server.port
-        self.cookie: Optional[str] = None
+        self.prefix: str = server.prefix if cookie else ""
         self.csrf: Optional[str] = None
-        if cookie:
-            self.login()
 
     # -- raw ---------------------------------------------------------------------------------------
     def raw(self, method: str, path: str, body: Optional[bytes] = None, headers: Optional[dict] = None,
             *, host_header: Optional[str] = ..., timeout: float = 30.0):
         conn = http.client.HTTPConnection(self.host, self.port, timeout=timeout)
         hdrs = dict(headers or {})
+        if self.prefix and path.startswith("/") and not path.startswith(self.prefix + "/") and path != self.prefix:
+            path = self.prefix + path
         conn.putrequest(method, path, skip_host=True, skip_accept_encoding=True)
         if host_header is ...:
             host_header = f"127.0.0.1:{self.port}"
@@ -43,16 +45,8 @@ class Client:
         conn.close()
         return out
 
-    def login(self) -> None:
-        status, headers, _ = self.raw("GET", f"/?t={self.server.token}")
-        assert status == 303, status
-        self.cookie = headers["set-cookie"].split(";", 1)[0]
-
     def _auth(self, extra: Optional[dict] = None) -> dict:
-        headers = dict(extra or {})
-        if self.cookie:
-            headers["Cookie"] = self.cookie
-        return headers
+        return dict(extra or {})  # no cookie exists: authority is the path prefix only
 
     # -- convenience ---------------------------------------------------------------------------------
     def get(self, path: str, **kw):
