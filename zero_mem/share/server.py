@@ -67,6 +67,7 @@ class ShareServer:
         self._sock: Optional[socket.socket] = None
         self._threads: list = []
         self._stop = threading.Event()
+        self._closed = False
         self._active = 0
         self._active_lock = threading.Lock()
         self._rates: dict = collections.defaultdict(collections.deque)
@@ -119,8 +120,10 @@ class ShareServer:
         self.stop()
 
     def stop(self) -> None:
-        if self._stop.is_set():
-            return
+        with self._ctx_lock:
+            if self._closed:
+                return
+            self._closed = True
         self._stop.set()
         if self._discovery is not None:
             self._discovery.stop()
@@ -131,7 +134,8 @@ class ShareServer:
             except OSError:
                 pass
         for thread in self._threads:
-            thread.join(timeout=2.0)
+            if thread is not threading.current_thread():
+                thread.join(timeout=2.0)
         self._flush_refusals(force=True)
         try:
             self._node.audit_event("serve_stop", peer_id=self._identity.peer_id)
@@ -151,7 +155,7 @@ class ShareServer:
             if sock is None:
                 return
             if time.monotonic() >= self.started_at + self._duration:
-                self._stop.set()
+                threading.Thread(target=self.stop, name="zm-share-expire", daemon=True).start()
                 return
             try:
                 conn, addr = sock.accept()
