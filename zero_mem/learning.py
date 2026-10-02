@@ -456,8 +456,11 @@ class ProposalLog:
                 out.append(p)
             return out
 
-    def expired_active_sources(self, active_ttl_days: int, now: datetime) -> frozenset:
-        """Source ids whose latest approval is older than ``active_ttl_days`` (0 disables expiry)."""
+    def expired_active_sources(self, active_ttl_days: int, now: datetime,
+                               is_approved_version: Optional[Callable[[str], bool]] = None) -> frozenset:
+        """Source ids whose latest approval is older than ``active_ttl_days`` (0 disables expiry). With
+        ``is_approved_version`` only a source whose CURRENT version came from an approval counts: a newer owner-written
+        version of the same ref is exempt (owner-written memories never expire)."""
         if active_ttl_days <= 0:
             return frozenset()
         limit = timedelta(days=active_ttl_days)
@@ -468,7 +471,9 @@ class ProposalLog:
                     decided = _parse_ts(p.decided_at)
                     if decided is not None and now - decided > limit:
                         out.add(p.source_id)
-            return frozenset(out)
+        if is_approved_version is not None:
+            out = {sid for sid in out if is_approved_version(sid)}
+        return frozenset(out)
 
 
 def _log_for(memory: Memory) -> ProposalLog:
@@ -502,13 +507,29 @@ def settings_for(memory: Memory) -> ls.Settings:
     return ls.load_settings(getattr(memory, "_settings_path", None))
 
 
+def current_version_is_approved(memory: Memory, source_id: str) -> bool:
+    """Whether the LATEST version of ``source_id`` was written by an owner approval (provenance ``tool = approve``).
+    Unknown / unreadable -> ``True`` (keep the approval-based expiry; never widen visibility on an error)."""
+    try:
+        with memory._lock:
+            registry, _blobs = memory._corpus()
+            registry.refresh()
+            record = registry.get_by_source_id(source_id)
+        if record is None:
+            return True
+        return (record.provenance or {}).get("tool") == "approve"
+    except Exception:  # noqa: BLE001
+        return True
+
+
 def expired_source_ids(memory: Memory) -> frozenset:
     """Sources a recall/context must hide because their approval outlived ``active_ttl_days`` (read time, never raises)."""
     try:
         cfg = settings_for(memory)
         if not cfg.valid or cfg.active_ttl_days <= 0:
             return frozenset()
-        return _log_for(memory).expired_active_sources(cfg.active_ttl_days, memory._now())
+        return _log_for(memory).expired_active_sources(
+            cfg.active_ttl_days, memory._now(), lambda sid: current_version_is_approved(memory, sid))
     except Exception:  # noqa: BLE001 - a read must never fail because of the learning log
         return frozenset()
 
@@ -693,7 +714,16 @@ class Reviewer:
         ttl = self._ttl()
         rows = self._log.refresh().select(status=status, proposer=profile, ttl_days=ttl, now=now)
         active = cfg.active_ttl_days if cfg.valid else 0
-        return [p.as_dict(ttl_days=ttl, now=now, active_ttl_days=active) for p in rows]
+        out = [p.as_dict(ttl_days=ttl, now=now, active_ttl_days=active) for p in rows]
+        if any(row.get("active_expired") for row in out):
+            mem = self._memory("operator")
+            try:
+                for row in out:
+                    if row.get("active_expired") and not current_version_is_approved(mem, row.get("source_id", "")):
+                        row.pop("active_expired")  # replaced by an owner-written version: it does not expire
+            finally:
+                mem.close()
+        return out
 
     def show(self, proposal_id: str) -> Optional[dict]:
         p = self._log.refresh().get(proposal_id)
@@ -729,26 +759,42 @@ class Reviewer:
                     return ReviewResult(status="invalid", reason=exc.reason, proposal_id=p.proposal_id)
                 if ls.matches_deny_pattern(cfg, final_text, final_name or ""):
                     return ReviewResult(status="blocked", reason="deny_pattern", proposal_id=p.proposal_id)
+                approval = ApprovedWrite(p.proposal_id, p.proposer, self._operator)
                 try:
+                    snapshot = mem._approval_snapshot(final_text, p.memory_type, final_name, p.scope, p.project_id)
                     written = mem._apply_approved_write(
-                        ApprovedWrite(p.proposal_id, p.proposer, self._operator), final_text, p.memory_type,
-                        final_name, p.scope, p.project_id,
+                        approval, final_text, p.memory_type, final_name, p.scope, p.project_id,
                         {"proposal": p.proposal_id, "proposer": p.proposer, "approver": self._operator[:64],
                          "proposed_by": p.source})
+                    if not written.ok:
+                        status = written.status if written.status in ("rejected_secret", "rejected_content", "invalid") \
+                            else "error"
+                        return ReviewResult(status=status, reason=written.reason, proposal_id=p.proposal_id,
+                                            write_status=written.status)
+                    superseded = written.status == "updated"
+                    try:
+                        self._append(
+                            "approve", proposal_id=p.proposal_id, proposer=p.proposer,
+                            approved_by=self._operator[:64], source_id=written.source_id,
+                            external_ref=written.external_ref, version=written.version, scope=written.scope,
+                            memory_type=written.memory_type, write_status=written.status,
+                            final_text=final_text if final_text != p.text else None, final_name=final_name,
+                            basis=APPROVAL_BASIS)
+                    except Exception as exc:  # noqa: BLE001
+                        # the source is committed but the canonical approval is not: undo it so that no active source
+                        # exists without an approval record. A retry of approve is idempotent either way (an
+                        # unchanged write commits nothing new).
+                        undone = False
+                        try:
+                            undone = mem._undo_approved_write(approval, written, snapshot, final_name)
+                        except Exception:  # noqa: BLE001
+                            undone = False
+                        code = exc.code if isinstance(exc, ProvisioningError) else f"internal_error:{type(exc).__name__}"
+                        return ReviewResult(status="error", reason=code if undone else "approval_not_recorded",
+                                            proposal_id=p.proposal_id,
+                                            detail=None if undone else {"source_id": written.source_id})
                 finally:
                     mem.close()
-                if not written.ok:
-                    status = written.status if written.status in ("rejected_secret", "rejected_content", "invalid") \
-                        else "error"
-                    return ReviewResult(status=status, reason=written.reason, proposal_id=p.proposal_id,
-                                        write_status=written.status)
-                superseded = written.status == "updated"
-                self._append(
-                    "approve", proposal_id=p.proposal_id, proposer=p.proposer, approved_by=self._operator[:64],
-                    source_id=written.source_id, external_ref=written.external_ref, version=written.version,
-                    scope=written.scope, memory_type=written.memory_type, write_status=written.status,
-                    final_text=final_text if final_text != p.text else None, final_name=final_name,
-                    basis=APPROVAL_BASIS)
                 self._log.refresh()
             return ReviewResult(status="approved", proposal_id=p.proposal_id, source_id=written.source_id,
                                 external_ref=written.external_ref, version=written.version,
@@ -820,7 +866,12 @@ class Reviewer:
                     self._append("expire", proposal_id=pid, by="system", reason="proposal_ttl")
                 active = []
                 if cfg.valid and cfg.active_ttl_days > 0:
-                    hidden = log.expired_active_sources(cfg.active_ttl_days, now)
+                    mem = self._memory("operator")
+                    try:
+                        hidden = log.expired_active_sources(
+                            cfg.active_ttl_days, now, lambda sid: current_version_is_approved(mem, sid))
+                    finally:
+                        mem.close()
                     active = [{"proposal_id": p.proposal_id, "source_id": p.source_id, "external_ref": p.external_ref}
                               for p in log.proposals.values() if p.status == "approved" and p.source_id in hidden]
                 self._log.refresh()
