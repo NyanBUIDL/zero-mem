@@ -68,6 +68,7 @@ class ShareServer:
         self._threads: list = []
         self._stop = threading.Event()
         self._closed = False
+        self._stopped = threading.Event()  # set only after serve_stop is audited (T25 / DEF-192)
         self._active = 0
         self._active_lock = threading.Lock()
         self._rates: dict = collections.defaultdict(collections.deque)
@@ -121,9 +122,20 @@ class ShareServer:
 
     def stop(self) -> None:
         with self._ctx_lock:
-            if self._closed:
-                return
+            first = not self._closed
             self._closed = True
+        if not first:
+            # T25 / DEF-192: the accept loop's expiry thread and serve_forever both call stop(); the loser used to
+            # return at once, so serve_forever() could return (and a caller read the audit) before serve_stop existed.
+            if threading.current_thread() not in self._threads:
+                self._stopped.wait(15.0)
+            return
+        try:
+            self._shutdown()
+        finally:
+            self._stopped.set()
+
+    def _shutdown(self) -> None:
         self._stop.set()
         if self._discovery is not None:
             self._discovery.stop()
