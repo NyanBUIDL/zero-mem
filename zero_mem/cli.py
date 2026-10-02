@@ -70,6 +70,9 @@ def build_parser() -> argparse.ArgumentParser:
     upgrade_parser.add_argument("--json", action="store_true", help="emit machine-readable output")
     upgrade_parser.set_defaults(_upgrade=True)
     add_memory_parsers(subparsers)  # add / ingest / search / context / forget / devlog / status / agents / import-notes
+    from .commands_learning import add_learning_parsers
+
+    add_learning_parsers(subparsers)  # settings / propose / review (learning harness)
     from .commands_mcp import add_mcp_parsers
 
     add_mcp_parsers(subparsers)  # serve / mcp-config
@@ -89,6 +92,11 @@ def main(argv: list[str] | None = None) -> int:
     memory_code = dispatch_memory(args)
     if memory_code is not None:
         return memory_code
+    from .commands_learning import dispatch as dispatch_learning
+
+    learning_code = dispatch_learning(args)
+    if learning_code is not None:
+        return learning_code
     from .commands_mcp import dispatch as dispatch_mcp
 
     mcp_code = dispatch_mcp(args)
