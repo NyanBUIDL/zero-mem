@@ -65,7 +65,7 @@ def test_the_same_profile_in_four_processes_collapses_duplicates_exactly(env, at
     results = _spawn([(W.propose_many, (root, settings, "claude-code", w, 0, same)) for w in range(4)])
     assert all(r[0] == "ok" for r in results), results
     statuses = sorted(r[2][-1][0] for r in results)
-    assert statuses == ["merged", "merged", "merged", "proposed"]
+    assert statuses == ["merged", "merged", "merged", "proposed"], [r[2][-1][:2] for r in results]
     (p,) = ProposalLog(env.layout.memory_stream).refresh().proposals.values()
     assert p.seen == 4 and sorted(p.evidence) == [f"worker-{w}" for w in range(4)]
     _stream_is_intact(env)
