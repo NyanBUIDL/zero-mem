@@ -71,6 +71,11 @@ def _check_id(value: Any, code: str, label: str) -> str:
 # ---------------------------------------------------------------------------------------------
 # Canonical stream append
 # ---------------------------------------------------------------------------------------------
+class _NoRetry(Exception):
+    def __init__(self, cause: OSError) -> None:
+        self.cause = cause
+
+
 def append_canonical_event(stream: Path, event: Mapping[str, Any]) -> None:
     """Append one canonical JSON line (single ``write`` under the stream's process lock, fsync'd).
 
@@ -80,32 +85,49 @@ def append_canonical_event(stream: Path, event: Mapping[str, Any]) -> None:
     if not isinstance(event, Mapping) or not isinstance(event.get("event_id"), str) or not event["event_id"]:
         raise ProvisioningError("invalid_event", "canonical events need a string event_id")
     from src.storage.coordination import locked
-    from src.storage.platform import O_BINARY
+    from src.storage.platform import O_BINARY, retry_transient_io
 
     data = (json.dumps(dict(event), ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
     stream = Path(stream)
     flags = os.O_RDWR | os.O_APPEND | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0) | O_BINARY
+
+    def _append_once() -> None:
+        fd = os.open(stream, flags, 0o600)
+        wrote = False
+        try:
+            size = os.fstat(fd).st_size
+            # DEF-085: os.pread does not exist on Windows; lseek+read is portable (O_APPEND writes still
+            # land at EOF regardless of the file offset).
+            if size:
+                os.lseek(fd, size - 1, os.SEEK_SET)
+            if size and os.read(fd, 1) != b"\n":
+                raise ProvisioningError("stream_not_terminated", "canonical stream ends mid-record; run zero-mem doctor")
+            view = memoryview(data)
+            while view:
+                written = os.write(fd, view)
+                wrote = True
+                view = view[written:]
+            os.fsync(fd)
+        except OSError as exc:
+            if wrote:  # never re-send after bytes may have landed: that could duplicate/tear the record
+                raise _NoRetry(exc) from None
+            raise
+        finally:
+            os.close(fd)
+
     try:
         with locked(stream.with_name(stream.name + ".lock"), mode="exclusive", timeout=_LOCK_TIMEOUT):
-            fd = os.open(stream, flags, 0o600)
             try:
-                size = os.fstat(fd).st_size
-                # DEF-085: os.pread does not exist on Windows; lseek+read is portable (O_APPEND writes still
-                # land at EOF regardless of the file offset).
-                if size:
-                    os.lseek(fd, size - 1, os.SEEK_SET)
-                if size and os.read(fd, 1) != b"\n":
-                    raise ProvisioningError("stream_not_terminated", "canonical stream ends mid-record; run zero-mem doctor")
-                view = memoryview(data)
-                while view:
-                    written = os.write(fd, view)
-                    view = view[written:]
-                os.fsync(fd)
-            finally:
-                os.close(fd)
+                retry_transient_io(_append_once)  # T23 / DEF-170: EINTR, EAGAIN, EACCES, sharing denials
+            except _NoRetry as exc:
+                raise exc.cause from None
     except ProvisioningError:
         raise
-    except OSError:
+    except OSError as exc:
+        from src.storage.platform import PlatformErrorCode, PlatformStorageError
+
+        if isinstance(exc, PlatformStorageError) and exc.code is PlatformErrorCode.LOCK_TIMEOUT:
+            raise ProvisioningError("stream_busy", "timed out waiting for the canonical memory stream lock") from None
         raise ProvisioningError("stream_unwritable", "cannot append to the canonical memory stream") from None
     except Exception as exc:  # lock timeout and friends
         raise ProvisioningError("stream_busy", f"cannot lock the canonical memory stream ({type(exc).__name__})") from None
