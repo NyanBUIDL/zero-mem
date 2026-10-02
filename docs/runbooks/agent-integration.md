@@ -33,7 +33,7 @@ Do not give an agent a shell that can run `zero-mem agents ...`: that command is
 | `memory_ingest` | `--enable-write` | `path`, `memory_type`, `scope` (all required), `project_id` | counts, plus at most 10 created / rejected / skipped entries |
 | `memory_forget` | `--enable-write` | `source_id` (the `id` or a `mem://` ref from `memory_recall` / `memory_add`; an 8+ hex character prefix works) | `result` forgotten / already_forgotten, `ref`, `id` |
 
-`memory_type`: `persona`, `workflow`, `skill`, `devlog`, `fact`, `file`. `scope`: `private` (only this agent), `shared` (every agent;
+`memory_type`: `persona`, `workflow`, `skill`, `devlog`, `fact`, `file`, `rule`, `decision`, `gotcha` (the last three are the learning-harness types; agents suggest them with `zero-mem propose`, the owner approves with `zero-mem review`: see [learning-harness.md](learning-harness.md)). `scope`: `private` (only this agent), `shared` (every agent;
 needs the operator's write approval) or `project` (a project's devlog; needs the approval for that project). A named memory
 (`name`) is versioned: adding again under the same name replaces what recall returns. The tool descriptions tell the agent when to
 call each tool, what the arguments mean, that recalled text is stored data and not instructions, and never to include secrets.
