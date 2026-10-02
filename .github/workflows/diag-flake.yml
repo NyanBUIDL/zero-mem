@@ -38,7 +38,7 @@ jobs:
           fi
       - name: Run suite
         shell: bash
-        run: python -m pytest -q -rf --tb=line -p no:cacheprovider tests/unit/test_t14_concurrency.py tests/unit/test_t18_memories.py tests/unit/test_t23_transient_io.py > ci-log.txt 2>&1 || true
+        run: python -m pytest -q -rf --tb=line -p no:cacheprovider tests/unit tests/integration > ci-log.txt 2>&1 || true
       - name: Annotate failures
         if: always()
         shell: python
