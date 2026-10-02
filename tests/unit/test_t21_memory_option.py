@@ -89,4 +89,4 @@ def test_env_memory_selects_too(two, monkeypatch):
 
 def test_invite_for_a_public_address_is_refused(two):
     code, _out, err = run("share", "invite", "--host", "8.8.8.8", "--memory", "alice")
-    assert code == 2 and "LAN only" in err
+    assert code == 3 and "LAN only" in err
