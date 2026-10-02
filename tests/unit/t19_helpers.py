@@ -204,4 +204,4 @@ def state_fingerprint(layout) -> tuple:
     return tuple(out)
 
 
-ROUTES = ["/", "/inbox", "/add", "/ingest", "/search", "/brief", "/agents", "/settings", "/eval", "/audit"]
+ROUTES = ["/", "/inbox", "/add", "/ingest", "/search", "/brief", "/agents", "/settings", "/eval", "/audit", "/sharing"]

@@ -63,6 +63,7 @@ class Response:
     body: bytes = b""
     content_type: str = "text/html; charset=utf-8"
     headers: list = field(default_factory=list)
+    script: bool = False  # True: the CSP also allows the page's own nonce-tagged inline script (never any other script)
 
 
 def redirect(location: str, status: int = 303) -> Response:
@@ -378,6 +379,8 @@ class PanelHandler(BaseHTTPRequestHandler):
                 headers.remove((name, value))
         csp = ("default-src 'none'; style-src 'nonce-%s'; img-src 'self'; form-action 'self'; "
                "base-uri 'none'; frame-ancestors 'none'" % nonce)
+        if response.script:
+            csp += "; script-src 'nonce-%s'" % nonce
         security = [
             ("Content-Security-Policy", csp), ("X-Content-Type-Options", "nosniff"), ("Referrer-Policy", "same-origin"),
             ("Cache-Control", "no-store"), ("Pragma", "no-cache"), ("X-Frame-Options", "DENY"),

@@ -172,6 +172,13 @@ class ShareNode:
         peer = self.resolve_peer(peer_ref)
         return self.owner_service().preview_counts(peer["peer_id"])
 
+    def preview_spec(self, peer_ref: str, spec: dict, *, limit: int = 20) -> dict:
+        """What a (not yet created) grant would let this peer read: counts by type and the first refs."""
+        peer = self.resolve_peer(peer_ref)
+        if peer["revoked_at"]:
+            raise ShareError("peer_revoked", "this peer is revoked; pair again with a new invite")
+        return self.owner_service().preview_spec(peer["peer_id"], validate_grant_spec(spec), limit=limit)
+
     def revoke_peer(self, peer_ref: str) -> dict:
         peer = self.resolve_peer(peer_ref)
         if peer["revoked_at"]:
