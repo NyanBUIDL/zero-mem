@@ -47,7 +47,8 @@ DOMAIN = "learning_proposal"
 APPROVAL_BASIS = "owner review; see docs/v1.6.1/decisions/ADR-V170-03-LEARNING-HARNESS-GATES.md"
 
 PROPOSAL_ID_RE = re.compile(r"^p-[0-9a-f]{12}$")
-PROPOSAL_SOURCES = ("agent", "user", "learner")
+#: ``peer``: imported from a paired LAN peer (ADR-V170-05); never auto-approved, subject to ``allow_agent_proposals``.
+PROPOSAL_SOURCES = ("agent", "user", "learner", "peer")
 #: ``file`` is excluded: documents are ingested by the owner, not proposed.
 PROPOSABLE_TYPES = tuple(t for t in MEMORY_TYPES if t != "file")
 STATUSES = ("pending", "approved", "rejected", "expired", "withdrawn", "revoked", "superseded")
@@ -586,7 +587,7 @@ def submit_proposal(memory: Memory, text: Any, memory_type: Any, name: Any, scop
             return ProposalResult(status="rejected", reason="kill_switch", **echo)
         if cfg.effective_mode == "off":
             return ProposalResult(status="rejected", reason="learning_off", **echo)
-        if source in ("agent", "learner") and not cfg.allow_agent_proposals:
+        if source in ("agent", "learner", "peer") and not cfg.allow_agent_proposals:
             return ProposalResult(status="rejected", reason="agent_proposals_disallowed", **echo)
         scanned = [clean] + ([name] if name else []) + evid
         for item in scanned:

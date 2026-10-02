@@ -23,6 +23,8 @@ ocr = ["rapidocr-onnxruntime"]
 # NOT a runtime dependency. Do not move into core/pdf extras.
 pdf-advanced = ["pymupdf"]
 test = ["pytest", "PyYAML"]
+# Peer sharing over the LAN (zero-mem share ...): self-signed certificate generation. Lazy import; the core never needs it.
+share = ["cryptography>=42"]
 ci = ["build"]
 
 [project.scripts]
