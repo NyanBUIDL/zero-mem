@@ -73,6 +73,9 @@ def build_parser() -> argparse.ArgumentParser:
     from .commands_learning import add_learning_parsers
 
     add_learning_parsers(subparsers)  # settings / propose / review (learning harness)
+    from .commands_learn import add_learn_parser
+
+    add_learn_parser(subparsers)  # learn (T16: deterministic learner)
     from .commands_mcp import add_mcp_parsers
 
     add_mcp_parsers(subparsers)  # serve / mcp-config
@@ -97,6 +100,11 @@ def main(argv: list[str] | None = None) -> int:
     learning_code = dispatch_learning(args)
     if learning_code is not None:
         return learning_code
+    from .commands_learn import dispatch as dispatch_learn
+
+    learn_code = dispatch_learn(args)
+    if learn_code is not None:
+        return learn_code
     from .commands_mcp import dispatch as dispatch_mcp
 
     mcp_code = dispatch_mcp(args)

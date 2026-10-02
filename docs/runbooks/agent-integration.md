@@ -333,6 +333,53 @@ PARTLY VERIFIED with OpenClaw 2026.6.35: `openclaw hooks list` / `info` found th
 and `check` accepted it, and the handler, run by `node` with a synthetic `command:new` event, spawned `zero-mem` and wrote the devlog. NOT verified: a running Gateway delivering a real
 `/new` (needs a gateway and a model provider).
 
+### 7a. Turn what the user says into proposals: `zero-mem learn` (hooks create PROPOSALS only)
+
+```bash
+zero-mem --profile claude-code learn --from-transcript ~/.claude/projects/<proj>/<session>.jsonl [--project P] [--dry-run] [--max 10] [--json]
+zero-mem --profile claude-code learn --from-git [--repo DIR] [--since REF]          # commit messages (agent-written commits are skipped)
+zero-mem --profile claude-code learn --from-text session.log                       # plain "User: ..." / "Assistant: ..." log, or '-' for stdin
+zero-mem --profile claude-code learn --from-hook                                   # stdin = the hook JSON; silent, ALWAYS exits 0
+zero-mem review list        # the owner decides: nothing below is active until `zero-mem review approve`
+```
+
+It extracts instruction / correction / decision / gotcha sentences (English and Vietnamese cues such as *always, never, don't, from now on, remember to, instead of, luon, dung, khong duoc, tu gio, chot, quyet dinh*)
+from USER-authored text only, with no LLM, and files them with `Memory.propose(..., source="learner")`. Assistant text, tool results, sub-agent prompts (`isSidechain`), meta lines and injected `<system-reminder>` blocks are never a source. Questions,
+hypotheticals, first-person self-talk, quoted code / logs, very short or long sentences, messages over 4000 characters (pasted briefings), sentences with a secret and sentences matching `safety.deny_patterns` are dropped.
+Repeats raise the proposal's `seen` counter; evidence is `[<project>:<session>#L<line>, quote]`. Settings apply (`learning.mode = off` or the kill switch: nothing is done and the command says why; the per-day limit stops the run; `--max`,
+default 10, caps one run). Re-running over the same transcript is idempotent: processed `(session, line, sentence)` keys are kept in `learner-state-<profile>.json` in the data root, so neither duplicates nor an inflated `seen` appear.
+Precision is favoured over recall: expect to miss rules phrased without a cue.
+
+**Warning: a learn hook only creates proposals. Nothing it finds is recalled or injected until the owner reviews it (`zero-mem review list` / `approve`).** Do not auto-approve. Review the list now and then: the learner can still propose a
+wrong or one-off sentence (see `docs/defects/closures/T16.md` for measured precision).
+
+**Claude Code** - add next to (or instead of) the devlog hook; `Stop` fires after every turn, `SessionEnd` when the session ends, both are idempotent. The hook command receives the hook JSON on stdin
+(`session_id`, `transcript_path`, `cwd`, `hook_event_name`, ...), which `--from-hook` reads; the project name defaults to the `cwd` directory name:
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      { "hooks": [ { "type": "command", "timeout": 30,
+          "command": "zero-mem --profile claude-code learn --from-hook >/dev/null 2>&1 || true" } ] }
+    ],
+    "SessionEnd": [
+      { "hooks": [ { "type": "command", "timeout": 30,
+          "command": "zero-mem --profile claude-code learn --from-hook >/dev/null 2>&1 || true" } ] }
+    ]
+  }
+}
+```
+
+VERIFIED with Claude Code 2.1.287 (2026-10-02, isolated data root): `claude -p "<prompt with two rules>" --setting-sources project --settings <file with these hooks>` fired the `Stop` hook and then the `SessionEnd` hook; the payload
+carried `session_id`, `transcript_path`, `cwd` (Stop and SessionEnd) and `hook_event_name`; the two rules appeared as pending `source: learner` proposals of profile `claude-code` (`seen` 1 after both hooks ran, i.e. no double counting), a
+Vietnamese rule was extracted too, and a later manual `learn --from-transcript` over the same file created nothing. NOT verified: an interactive session, a hook that times out, Windows / macOS.
+
+**Codex, Hermes, OpenClaw** - NOT verified for `learn` (none of these CLIs exists in the verification sandbox for this task). Their devlog hooks above were verified earlier; the only parts that change are the command and, for transcripts, a path.
+`learn --from-git` needs no payload and is safe to put in the same hook entries (`zero-mem --profile codex learn --from-git --project myproject`, Hermes with an explicit `--repo`, the OpenClaw handler with `["learn", "--from-git", "--repo", repo]`).
+For transcript learning, pipe the agent's hook payload into `learn --from-hook` only if that payload carries a Claude Code-format `transcript_path`; whether Codex / Hermes / OpenClaw do (and what their transcript format is) is undocumented here:
+an unknown payload or file makes `--from-hook` do nothing silently, and `learn --from-text FILE` reads a plain `User:` / `Assistant:` log. Treat these as documentation, not as tested integration.
+
 ## 8. Health: `zero-mem doctor` and `zero-mem memory-status`
 
 `zero-mem doctor` has four read-only memory checks (PASS or WARN, never FAIL; no paths, no content): `memory_data_root` (data and corpus roots writable), `memory_schema`

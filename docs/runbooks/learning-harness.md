@@ -136,6 +136,6 @@ settings method.
 
 * Nothing is approved automatically (`auto_low_risk` is reserved and behaves as `suggest`).
 * Nothing is injected into any agent's context: no hook, no `context` change driven by `injection.*` (T15 adds the briefing that reads those settings).
-* No MCP proposal tool yet (T15), no learner extracting candidates from transcripts / corrections / git (T16), no eval harness (T15).
+* No MCP proposal tool yet (T15), no eval harness (T15). The deterministic learner (`zero-mem learn`, T16) only FILES proposals from user statements in transcripts / git / text; see [agent-integration section 7a](agent-integration.md).
 * Proposals are not merged across profiles, not ranked, not de-conflicted against existing rules, and a same-name approval simply versions the source.
 * Expiry never deletes: pending proposals stay in the stream, expired approved items stay as sources.
