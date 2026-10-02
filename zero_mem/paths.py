@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -136,6 +137,26 @@ def ensure_private_dir(path: Path, label: str) -> None:
         raise
     except OSError:
         raise SetupError(f"inaccessible {label}") from None
+
+
+def ensure_lock_parent(lock_path: Path, label: str) -> None:
+    """T26: make sure the directory that will hold ``lock_path`` exists BEFORE the lock is taken (first-run races).
+
+    An existing real directory is left untouched (no chmod of a directory this call did not create); a missing one is
+    created private via ``ensure_private_dir`` (symlinks rejected), retrying a few times when a concurrent creator or
+    remover makes the attempt fail transiently. A parent that cannot exist (e.g. a regular file) fails at once."""
+    parent = lock_path.parent
+    for attempt in range(5):
+        try:
+            if parent.is_dir() and not parent.is_symlink():
+                return
+            ensure_private_dir(parent, label)
+            return
+        except SetupError as exc:
+            if str(exc).startswith("inaccessible") and attempt < 4 and not parent.is_file():
+                time.sleep(0.005 * (attempt + 1))
+                continue
+            raise
 
 
 def _validate_config(value: object) -> dict[str, Any]:

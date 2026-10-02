@@ -115,7 +115,10 @@ def append_canonical_event(stream: Path, event: Mapping[str, Any]) -> None:
         finally:
             os.close(fd)
 
+    from . import paths
+
     try:
+        paths.ensure_lock_parent(stream.with_name(stream.name + ".lock"), "canonical memory directory")
         with locked(stream.with_name(stream.name + ".lock"), mode="exclusive", timeout=lock_wait_seconds(_LOCK_TIMEOUT)):
             try:
                 retry_transient_io(_append_once)  # T23 / DEF-170: EINTR, EAGAIN, EACCES, sharing denials
@@ -123,6 +126,8 @@ def append_canonical_event(stream: Path, event: Mapping[str, Any]) -> None:
                 raise exc.cause from None
     except ProvisioningError:
         raise
+    except paths.SetupError as exc:
+        raise ProvisioningError("stream_unwritable", f"cannot append to the canonical memory stream ({exc})") from None
     except OSError as exc:
         from src.storage.platform import PlatformErrorCode, PlatformStorageError
 
@@ -325,6 +330,9 @@ class Provisioner:
 
         lock = self._layout.memory_stream.with_name("provisioning.lock")
         try:
+            from . import paths
+
+            paths.ensure_lock_parent(lock, "canonical memory directory")
             with locked(lock, mode="exclusive", timeout=lock_wait_seconds(_LOCK_TIMEOUT)):
                 store = SQLiteStore(SQLiteStoreConfig(path=self._layout.derived_db))
                 try:

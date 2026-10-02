@@ -96,6 +96,12 @@ class InviteStore:
         from src.storage.coordination import locked
         from src.storage.platform import lock_wait_seconds
 
+        from .. import paths
+
+        try:
+            paths.ensure_lock_parent(self._dir / ".invites.lock", "share directory")
+        except paths.SetupError:
+            raise ShareError("invite_store_unusable", "the share directory is unusable") from None
         with _LOCK, locked(self._dir / ".invites.lock", mode="exclusive", timeout=lock_wait_seconds(30.0)):
             yield
 
