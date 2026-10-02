@@ -25,6 +25,7 @@ LINE_CHARS = 300
 DEVLOG_ENTRIES = 5
 TASK_SEARCH_LIMIT = 60
 MIN_CLIP_CHARS = 60
+RULES_SHARE = 0.6
 
 #: (title, memory type) in priority order.
 _RULES = ("Rules", "rule")
@@ -169,38 +170,59 @@ def _matched_lines(memory: Any, mtype: str, hits: list, terms: list) -> list:
     return out
 
 
+def _take(entries: list, room: int) -> list:
+    """The leading entries that fit ``room`` characters (each costs its length + 1); a first line that would otherwise
+    hide the whole section is clipped when at least ``MIN_CLIP_CHARS`` remain."""
+    kept: list = []
+    for ref, line, why in entries:
+        need = len(line) + 1
+        if need <= room:
+            kept.append((ref, line, why))
+            room -= need
+            continue
+        if not kept and room - 1 >= MIN_CLIP_CHARS:
+            kept.append((ref, _clip(line, room - 1), why))
+        break
+    return kept
+
+
+def _blocks(live: list, chosen: dict) -> list:
+    return [f"## {title}\n" + "\n".join(k[1] for k in chosen[mtype]) for title, mtype, _e in live if chosen.get(mtype)]
+
+
 def _fill_sections(plan: list, budget: int, preview: bool, reason: Optional[str]) -> BriefBundle:
+    """Fill the sections in priority order. Rules come first and are always included, but while anything else could be
+    shown they take at most ``RULES_SHARE`` of the budget; whatever the later sections leave unused is handed back to
+    the rules, so a large rule set never hides every task-matched line and a small one never wastes space."""
+    live = [(title, mtype, entries) for title, mtype, entries in plan if entries]
+    others = any(mtype != "rule" for _t, mtype, _e in live)
+    chosen: dict = {}
+    for title, mtype, entries in live:
+        so_far = _blocks(live, chosen)
+        room = budget - len("\n".join(so_far)) - (1 if so_far else 0) - len(f"## {title}")
+        if mtype == "rule" and others:
+            room = min(room, int(budget * RULES_SHARE) - len(f"## {title}"))
+        chosen[mtype] = _take(entries, room)
+    for title, mtype, entries in live:  # hand the unused remainder back to the rules
+        if mtype != "rule" or len(chosen[mtype]) == len(entries):
+            continue
+        rest = _blocks([row for row in live if row[1] != "rule"], chosen)
+        room = budget - len("\n".join(rest)) - (1 if rest else 0) - len(f"## {title}")
+        chosen[mtype] = _take(entries, room)
     blocks: list = []
     sections: dict = {}
     omitted: dict = {}
     sources: list = []
     items: list = []
-    used = 0  # characters of the final text so far (blocks are joined by "\n")
     truncated = False
-    for title, mtype, entries in plan:
-        if not entries:
-            continue
-        header = f"## {title}"
-        join = 1 if blocks else 0
-        room = budget - used - join - len(header) - 1
-        kept: list = []
-        for index, (ref, line, why) in enumerate(entries):
-            need = len(line) + 1
-            if need <= room:
-                kept.append((ref, line, why))
-                room -= need
-                continue
-            if not kept and room - 1 >= MIN_CLIP_CHARS:  # a first line that would otherwise hide the whole section
-                kept.append((ref, _clip(line, room - 1), why))
-            break
+    for title, mtype, entries in live:
+        kept = chosen.get(mtype, [])
         if len(kept) < len(entries):
             truncated = True
             omitted[title] = len(entries) - len(kept)
         if not kept:
             continue
-        block = header + "\n" + "\n".join(k[1] for k in kept)
-        blocks.append(block)
-        used += join + len(block)
+        blocks.append(f"## {title}\n" + "\n".join(k[1] for k in kept))
         sections[title] = len(kept)
         for ref, _line_text, why in kept:
             sources.append(ref)
@@ -209,7 +231,8 @@ def _fill_sections(plan: list, budget: int, preview: bool, reason: Optional[str]
                 item["why"] = why
             items.append(item)
     text = "\n".join(blocks)
-    assert len(text) <= budget
+    if len(text) > budget:  # defensive: never exceed the bound
+        raise AssertionError("brief exceeded its budget")
     return BriefBundle(status="ok" if text else "empty", text=text, reason=reason, enabled=reason is None,
                        preview=preview, sections=sections, omitted=omitted, sources=sources, items=items,
                        truncated=truncated, max_chars=budget)
