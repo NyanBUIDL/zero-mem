@@ -310,3 +310,19 @@ def test_context_is_unchanged_by_brief(h):
     m.brief("database")
     assert m.context(max_chars=2000).as_dict() == before
     json.dumps(m.brief("database").as_dict())  # JSON-safe
+
+
+def test_a_large_rule_set_never_hides_the_task_matched_lines_and_a_small_one_wastes_nothing(h):
+    m = h.agent("codex", write_shared=True)
+    for i in range(40):
+        assert m.add(f"Rule {i}: " + "keep every change small and reviewable. " * 3, "rule", name=f"r{i:02d}",
+                     scope="shared").ok
+    assert m.add("The derived database locks under concurrent writers.", "gotcha", name="db-busy", scope="shared").ok
+    h.enable()
+    b = m.brief("database locks", max_chars=2000)
+    assert "mem://gotcha/db-busy" in b.sources and b.sections["Gotchas"] == 1
+    assert b.sections["Rules"] >= 5 and len(b.text) <= 2000 and b.omitted["Rules"] > 0
+    only = m.brief(max_chars=2000)  # nothing else to show: the rules may use the whole budget
+    assert only.sections["Rules"] >= b.sections["Rules"] and len(only.text) > 1700
+    unused = m.brief("database locks", max_chars=8000)  # plenty of room: every rule and the gotcha
+    assert unused.sections["Rules"] == 40 and unused.sections["Gotchas"] == 1 and unused.truncated is False

@@ -113,14 +113,15 @@ def test_brief_is_empty_with_a_reason_until_the_owner_enables_injection(env, set
 def test_brief_validates_and_rejects_identity(env, settings):
     ts = toolset(env)
     ls.set_value("injection.enabled", "true", settings)
-    for bad in ({"max_chars": 0}, {"max_chars": 8001}, {"max_chars": "5"}, {"task": 5}, {"nope": 1}):
+    for bad in ({"max_chars": 0}, {"max_chars": 8001}, {"max_chars": "5"}, {"task": 5}, {"task": "x" * 1001},
+                {"nope": 1}):
         out, _t, err = call(ts, "memory_brief", **bad)
         assert err and out["status"] == "INVALID", bad
     for spoof in ({"profile_id": "codex"}, {"agent": "x"}, {"requesting_profile_id": "other"}):
         out, _t, err = call(ts, "memory_brief", **spoof)
         assert err and out["status"] == "DENIED" and out["reason_code"] == "DENY_IDENTITY_PINNED"
     assert call(ts, "memory_brief", max_chars=200)[0]["status"] in ("SUCCESS", "EMPTY")
-    assert call(ts, "memory_brief", task="x " * 3000)[0]["status"] in ("SUCCESS", "EMPTY")  # a long task is clipped
+    assert call(ts, "memory_brief", task="x " * 500)[0]["status"] in ("SUCCESS", "EMPTY")  # the longest task
 
 
 def test_propose_returns_an_inert_pending_result_and_nothing_is_recallable(env, settings):
