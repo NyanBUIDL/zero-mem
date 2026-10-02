@@ -410,11 +410,14 @@ def main(argv: Optional[list] = None) -> int:
     ap.add_argument("--transport", type=str, default="stdio",
                     help="Transport (only 'stdio' supported in V140-03).")
     ap.add_argument("--enable-memory", action="store_true", default=False,
-                    help="Also mount the memory_recall and memory_context tools (env ZM_M6_ENABLE_MEMORY=1). "
+                    help="Also mount the memory_recall, memory_context and memory_brief tools (env ZM_M6_ENABLE_MEMORY=1). "
                          "Needs --profile-id; the store must be the zero-mem data root's database.")
     ap.add_argument("--enable-write", action="store_true", default=False,
                     help="Also mount memory_add, memory_ingest and memory_forget (env ZM_M6_ENABLE_WRITE=1); "
                          "implies --enable-memory. Off by default: the server is read-only unless asked.")
+    ap.add_argument("--enable-propose", action="store_true", default=False,
+                    help="Also mount memory_propose (env ZM_M6_ENABLE_PROPOSE=1); implies --enable-memory. An agent may "
+                         "SUGGEST a rule / decision / gotcha; it stays inert until the owner approves it.")
     ap.add_argument("--allow-root", action="append", default=None, metavar="DIR",
                     help="Folder memory_ingest may read (repeatable; env ZM_M6_ALLOW_ROOTS, path-separator "
                          "separated). Without any, memory_ingest is disabled.")
@@ -431,7 +434,8 @@ def main(argv: Optional[list] = None) -> int:
         sys.stderr.write("ERROR: --tools must be 'all' or 'memory'\n")
         return 2
     want_write = bool(args.enable_write) or _env_flag("ZM_M6_ENABLE_WRITE")
-    want_memory = want_write or bool(args.enable_memory) or _env_flag("ZM_M6_ENABLE_MEMORY")
+    want_propose = bool(args.enable_propose) or _env_flag("ZM_M6_ENABLE_PROPOSE")
+    want_memory = want_write or want_propose or bool(args.enable_memory) or _env_flag("ZM_M6_ENABLE_MEMORY")
     if tools_mode == TOOLS_MEMORY and not want_memory:
         sys.stderr.write("ERROR: --tools memory needs --enable-memory (or --enable-write)\n")
         return 2
@@ -464,7 +468,8 @@ def main(argv: Optional[list] = None) -> int:
             return 2
         try:
             from src.integration.m6w import ToolSetConfigError, build_tool_set
-            memory_tools = build_tool_set(profile_id=profile_id, enable_write=want_write, allow_roots=allow_roots)
+            memory_tools = build_tool_set(profile_id=profile_id, enable_write=want_write, allow_roots=allow_roots,
+                                           enable_propose=want_propose)
         except ToolSetConfigError as exc:
             sys.stderr.write(f"ERROR: {exc}\n")
             return 2
@@ -475,13 +480,14 @@ def main(argv: Optional[list] = None) -> int:
         store_path = store_path or str(memory_tools.store_path)
         tool_sets.append(memory_tools)
         sys.stderr.write(f"zero-mem-mcp: memory tools mounted (write {'on' if want_write else 'off'}, "
+                         f"propose {'on' if want_propose else 'off'}, "
                          f"{len(allow_roots)} allowed folder(s), tools {tools_mode})\n")
         for note in memory_tools.startup_notes():
             sys.stderr.write(f"zero-mem-mcp: {note}\n")
         sys.stderr.flush()
     elif allow_roots:
         sys.stderr.write("zero-mem-mcp: WARNING allow-root ignored: the memory tools are not enabled "
-                         "(--enable-memory / --enable-write)\n")
+                         "(--enable-memory / --enable-write / --enable-propose)\n")
         sys.stderr.flush()
     serve(Path(store_path), profile_id=profile_id, default_ks=default_ks, tool_sets=tool_sets,
           legacy_tools=tools_mode == TOOLS_ALL)

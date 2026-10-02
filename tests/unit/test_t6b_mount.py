@@ -20,7 +20,7 @@ from src.integration.m6w import build_tool_set
 from tests.unit.t6b_helpers import REPO_ROOT, McpProc, isolated_env
 
 M6_TOOLS = sorted(t["name"] for t in tool_schemas())
-MEMORY_READ = ["memory_recall", "memory_context"]
+MEMORY_READ = ["memory_recall", "memory_context", "memory_brief"]  # T15: + memory_brief
 MEMORY_WRITE = ["memory_add", "memory_forget", "memory_ingest"]
 
 

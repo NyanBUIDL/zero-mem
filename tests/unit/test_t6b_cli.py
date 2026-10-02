@@ -96,7 +96,7 @@ def test_serve_really_starts_a_pinned_stdio_server(home):
         info = srv.initialize()
         assert info["serverInfo"]["identity"] == "pinned"
         names = srv.tool_names()
-        assert names == ["memory_recall", "memory_context"]  # T8: the 11 legacy M6 tools need `--tools all`
+        assert names == ["memory_recall", "memory_context", "memory_brief"]  # T15 added memory_brief; T8: the 11 legacy M6 tools need `--tools all`
         assert not any(n in names for n in ("memory_add", "memory_ingest", "memory_forget", "corpus_search"))
         assert srv.env("memory_recall", {"query": "nothing yet"})["status"] == "EMPTY"
         assert srv.env("memory_recall", {"query": "x", "requesting_profile_id": "claude-code"})["status"] == "DENIED"

@@ -55,9 +55,9 @@ def call(ts, tool, **arguments):
 # ----------------------------------------------------------------------------------------------- schemas and prose
 def test_the_memory_tool_schemas_fit_the_token_budget():
     write, read = c.tool_definitions(write=True), c.tool_definitions(write=False)
-    assert [t["name"] for t in read] == ["memory_recall", "memory_context"]
-    assert len(compact(write)) <= 4600, len(compact(write))  # was 6008 characters before T8
-    assert len(compact(read)) <= 1650, len(compact(read))   # was 2182
+    assert [t["name"] for t in read] == ["memory_recall", "memory_context", "memory_brief"]
+    assert len(compact(write)) <= 5050, len(compact(write))  # was 6008 before T8; 4600 before T15 (+450 memory_brief)
+    assert len(compact(read)) <= 2030, len(compact(read))   # was 2182 before T8; 1650 before T15 (+450 memory_brief)
     for tool in write:
         assert len(tool["description"]) <= 420, (tool["name"], len(tool["description"]))
         for name, prop in tool["inputSchema"]["properties"].items():
@@ -243,7 +243,7 @@ def test_serve_lists_only_the_memory_tools_by_default(home):
     with McpProc(sys.executable, ["-m", "zero_mem.cli", "serve", "--profile", "codex"],
                  isolated_env(home), cwd=home) as srv:
         srv.initialize()
-        assert srv.tool_names() == ["memory_recall", "memory_context"]
+        assert srv.tool_names() == ["memory_recall", "memory_context", "memory_brief"]
         result = srv.call("corpus_search", {"query": "x"})  # a legacy tool is not exposed at all
         assert result["isError"] is True and result["structuredContent"]["status"] == "UNSUPPORTED_TOOL"
         assert srv.env("memory_recall", {"query": "nothing yet"})["status"] == "EMPTY"
@@ -256,14 +256,14 @@ def test_serve_with_writes_lists_five_tools_within_the_budget_and_all_lists_sixt
         srv.initialize()
         reply = srv.rpc("tools/list", {})["result"]
         names = [t["name"] for t in reply["tools"]]
-        assert names == ["memory_recall", "memory_context", "memory_add", "memory_ingest", "memory_forget"]
+        assert names == ["memory_recall", "memory_context", "memory_brief", "memory_add", "memory_ingest", "memory_forget"]
         assert not LEGACY & set(names)
-        assert len(compact(reply)) <= 4700, len(compact(reply))  # was 22565 characters (16 tools) before T8
+        assert len(compact(reply)) <= 5150, len(compact(reply))  # was 22565 (16 tools) before T8; 4700 before T15
     with McpProc(sys.executable, ["-m", "zero_mem.cli", "serve", "--profile", "codex", "--enable-write",
                                   "--tools", "all"], env, cwd=home) as srv:
         srv.initialize()
         names = srv.tool_names()
-        assert len(names) == 16 and LEGACY <= set(names)
+        assert len(names) == 17 and LEGACY <= set(names)
         assert srv.call("corpus_search", {"query": "x"})["structuredContent"]["status"] != "UNSUPPORTED_TOOL"
 
 
@@ -271,7 +271,7 @@ def test_the_printed_tools_all_registration_starts_a_server_with_the_legacy_tool
     reg = registration("hermes", "--tools", "all")
     with McpProc(reg["command"], reg["args"], {**reg["env"], **isolated_env(home)}, cwd=home) as srv:
         srv.initialize()
-        assert len(srv.tool_names()) == 13
+        assert len(srv.tool_names()) == 14
 
 
 def test_the_plain_server_module_keeps_its_legacy_default_and_validates_the_switch(home):
@@ -281,11 +281,11 @@ def test_the_plain_server_module_keeps_its_legacy_default_and_validates_the_swit
     with McpProc(sys.executable, ["-m", "src.integration.m6.mcp_server", "--profile-id", "codex", "--enable-memory"],
                  env, cwd=home) as srv:
         srv.initialize()
-        assert len(srv.tool_names()) == 13  # unchanged: T6a / T6b pin it
+        assert len(srv.tool_names()) == 14  # 11 legacy + recall, context, brief (T15)
     with McpProc(sys.executable, ["-m", "src.integration.m6.mcp_server", "--profile-id", "codex", "--enable-memory",
                                   "--tools", "memory"], env, cwd=home) as srv:
         srv.initialize()
-        assert srv.tool_names() == ["memory_recall", "memory_context"]
+        assert srv.tool_names() == ["memory_recall", "memory_context", "memory_brief"]
     import subprocess
 
     import os
