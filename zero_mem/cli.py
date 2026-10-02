@@ -19,6 +19,9 @@ def build_parser() -> argparse.ArgumentParser:
     from .commands_memory import add_global_options, add_memory_parsers
 
     add_global_options(parser)
+    from .commands_workspace import add_memory_option, add_workspace_parsers
+
+    add_memory_option(parser)
     subparsers = parser.add_subparsers(dest="command")
     version_parser = subparsers.add_parser("version", help="show the installed Zero-Mem version")
     version_parser.set_defaults(_show_version=True)
@@ -70,12 +73,32 @@ def build_parser() -> argparse.ArgumentParser:
     upgrade_parser.add_argument("--json", action="store_true", help="emit machine-readable output")
     upgrade_parser.set_defaults(_upgrade=True)
     add_memory_parsers(subparsers)  # add / ingest / search / context / forget / devlog / status / agents / import-notes
+    from .commands_learning import add_learning_parsers
+
+    add_learning_parsers(subparsers)  # settings / propose / review (learning harness)
+    from .commands_learn import add_learn_parser
+
+    add_learn_parser(subparsers)  # learn (T16: deterministic learner)
+
+    from .commands_brief import add_brief_parsers
+
+    add_brief_parsers(subparsers)  # brief / eval (task briefing and its measurement)
+
     from .commands_mcp import add_mcp_parsers
 
     add_mcp_parsers(subparsers)  # serve / mcp-config
     from .commands_config_grant import add_config_parsers
 
     add_config_parsers(subparsers)
+    add_workspace_parsers(subparsers)  # memory / link (T18: named memories)
+
+    from .commands_ui import add_ui_parser
+
+    add_ui_parser(subparsers)  # ui (T19: local owner control panel)
+
+    from .commands_share import add_share_parser
+
+    add_share_parser(subparsers)  # share (T20: peer sharing over the LAN)
     return parser
 
 
@@ -84,16 +107,57 @@ def main(argv: list[str] | None = None) -> int:
 
     use_utf8_stdio()  # DEF-086: never depend on the Windows ANSI code page for CLI input/output
     args = build_parser().parse_args(argv)
+    from .workspaces import memory_scope
+
+    with memory_scope(args) as refused:  # T18: apply --memory / $ZERO_MEM_MEMORY / `memory use` for this command only
+        if refused is not None:
+            return refused
+        return _run(args)
+
+
+def _run(args) -> int:
+    from .commands_workspace import dispatch as dispatch_workspace
+
+    workspace_code = dispatch_workspace(args)
+    if workspace_code is not None:
+        return workspace_code
     from .commands_memory import dispatch as dispatch_memory
 
     memory_code = dispatch_memory(args)
     if memory_code is not None:
         return memory_code
+    from .commands_learning import dispatch as dispatch_learning
+
+    learning_code = dispatch_learning(args)
+    if learning_code is not None:
+        return learning_code
+    from .commands_learn import dispatch as dispatch_learn
+
+    learn_code = dispatch_learn(args)
+    if learn_code is not None:
+        return learn_code
+
+    from .commands_brief import dispatch as dispatch_brief
+
+    brief_code = dispatch_brief(args)
+    if brief_code is not None:
+        return brief_code
+
     from .commands_mcp import dispatch as dispatch_mcp
 
     mcp_code = dispatch_mcp(args)
     if mcp_code is not None:
         return mcp_code
+    from .commands_ui import dispatch as dispatch_ui
+
+    ui_code = dispatch_ui(args)
+    if ui_code is not None:
+        return ui_code
+    from .commands_share import dispatch as dispatch_share
+
+    share_code = dispatch_share(args)
+    if share_code is not None:
+        return share_code
     if getattr(args, "_show_version", False):
         print(__version__)
     elif getattr(args, "_setup", False):

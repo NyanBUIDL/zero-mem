@@ -252,6 +252,43 @@ def _memory_runtime_checks() -> list[dict[str, str]]:
     return checks
 
 
+def _learning_settings_check() -> dict[str, str]:
+    """Learning-harness settings: never FAIL (a bad file fails SAFE: learning and injection off)."""
+    try:
+        from .learning_settings import load_settings, settings_path
+
+        cfg = load_settings()
+        if not cfg.valid:
+            return _check("learning_settings", "WARN",
+                          f"settings file unusable ({cfg.error}); fail-safe active: learning off, injection off "
+                          "(zero-mem settings validate; fix or delete the file, see zero-mem settings path)")
+        if not settings_path().exists():
+            return _check("learning_settings", "PASS", "no settings file: defaults (suggest mode, injection off)")
+        state = "kill switch ON" if cfg.kill_switch else f"mode {cfg.mode}"
+        return _check("learning_settings", "PASS",
+                      f"settings valid ({state}, injection {'on' if cfg.injection_enabled else 'off'} by default)")
+    except Exception as exc:  # noqa: BLE001 - doctor never crashes
+        return _check("learning_settings", "WARN", f"learning settings status unavailable ({type(exc).__name__})")
+
+
+def _memory_registry_check() -> dict[str, str]:
+    """T18: the active named memory and the registry's health. Never FAIL (a damaged registry is fixable by hand)."""
+    try:
+        from .workspaces import active_summary
+
+        info = active_summary()
+        if info["registry"] == "damaged":
+            return _check("memory_registry", "WARN",
+                          f"memories.toml is damaged ({info['registry_error']}); named memories are unavailable until it "
+                          "is fixed; the active memory falls back as if no registry existed only for doctor")
+        name = info["memory"] or "unresolved"
+        return _check("memory_registry", "PASS",
+                      f"active memory '{name}' (from {info['source']}); {info['named']} named memor"
+                      f"{'y' if info['named'] == 1 else 'ies'} registered")
+    except Exception as exc:  # noqa: BLE001 - doctor never crashes
+        return _check("memory_registry", "WARN", f"memory registry status unavailable ({type(exc).__name__})")
+
+
 def collect() -> dict[str, Any]:
     checks: list[dict[str, str]] = []
     implementation = getattr(sys, "implementation", None)
@@ -321,6 +358,8 @@ def collect() -> dict[str, Any]:
     corpus_status, corpus_message = _corpus_check()
     checks.append(_check("corpus", corpus_status, corpus_message))
     checks.extend(_memory_runtime_checks())
+    checks.append(_learning_settings_check())
+    checks.append(_memory_registry_check())
     checks.append(_check("obsidian", "WARN", "Obsidian projection not configured"))
     checks.append(_check("pypdf", "OPTIONAL", "optional PDF parser available" if importlib.util.find_spec("pypdf") else "optional PDF parser absent"))
     checks.append(_check("ai_api", "OPTIONAL", "AI API is not required"))

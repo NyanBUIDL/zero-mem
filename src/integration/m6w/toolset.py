@@ -1,6 +1,7 @@
 """T6b - the MCP memory tool set: five agent-oriented tools that delegate to :class:`zero_mem.memory.Memory`.
 
-``memory_recall`` / ``memory_context`` (read) and ``memory_add`` / ``memory_ingest`` / ``memory_forget`` (write, only
+``memory_recall`` / ``memory_context`` / ``memory_brief`` (read; the brief is gated by the owner's injection settings),
+``memory_propose`` (only with ``--enable-propose``: an inert proposal for the owner's review) and ``memory_add`` / ``memory_ingest`` / ``memory_forget`` (write, only
 when the server was started with ``--enable-write``). Every call:
 
 * runs as the ONE profile the server is pinned to (the tool set has no way to act as another profile and rejects
@@ -165,6 +166,19 @@ _INVALID_MESSAGES = {
     "invalid_scope": "Unknown scope.",
     "empty_query": "The query has no searchable words.",
     "name_too_long": "The name is too long.",
+    "invalid_task": "The task must be text.",
+    "invalid_max_chars": "max_chars must be between 1 and 8000.",
+    "invalid_evidence": "evidence must be up to 5 short strings.",
+    "text_too_large": "The text is too large.",
+}
+_REJECT_MESSAGES = {
+    "learning_off": "The owner has switched learning off. Tell the user if it matters; do not retry.",
+    "kill_switch": "The owner's kill switch is on. Do not retry.",
+    "agent_proposals_disallowed": "The owner does not accept agent proposals. Tell the user instead.",
+    "daily_limit": "The daily proposal limit is reached. Do not retry today.",
+    "deny_pattern": "The owner's policy refuses this text. Do not retry it.",
+    "settings_invalid": "Learning is off: the owner's settings file is unusable. Tell the user.",
+    "proposal_log_too_large": "The proposal queue is full. Tell the user.",
 }
 
 
@@ -175,18 +189,22 @@ class MemoryToolSet:
     """Mountable extension of the pinned M6 server (see ``mcp_server.mount_tool_set``)."""
 
     def __init__(self, profile_id: str, layout: Layout, *, enable_write: bool, guard: PathGuard,
-                 config: ToolSetConfig) -> None:
+                 config: ToolSetConfig, enable_propose: bool = False) -> None:
         self._profile = profile_id
         self._layout = layout
         self._write = bool(enable_write)
+        self._propose = bool(enable_propose)
         self._guard = guard
         self._config = config
         self._handlers: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
             c.TOOL_RECALL: self._recall,
             c.TOOL_CONTEXT: self._context,
+            c.TOOL_BRIEF: self._brief,
         }
         if self._write:
             self._handlers.update({c.TOOL_ADD: self._add, c.TOOL_INGEST: self._ingest, c.TOOL_FORGET: self._forget})
+        if self._propose:
+            self._handlers[c.TOOL_PROPOSE] = self._propose_memory
 
     # -- the mount protocol ---------------------------------------------------------------------------------
     @property
@@ -202,13 +220,18 @@ class MemoryToolSet:
         return self._write
 
     @property
+    def propose_enabled(self) -> bool:
+        return self._propose
+
+    @property
     def names(self) -> tuple:
-        return c.READ_TOOLS + (c.WRITE_TOOLS if self._write else ())
+        return c.READ_TOOLS + (c.WRITE_TOOLS if self._write else ()) + (c.PROPOSE_TOOLS if self._propose else ())
 
     @property
     def instructions(self) -> str:
         """Short usage guide for the ``initialize`` result (clients such as Claude Code show it to the model)."""
-        return c.SERVER_INSTRUCTIONS + (c.SERVER_INSTRUCTIONS_WRITE if self._write else "")
+        return (c.SERVER_INSTRUCTIONS + (c.SERVER_INSTRUCTIONS_WRITE if self._write else "")
+                + (c.SERVER_INSTRUCTIONS_PROPOSE if self._propose else ""))
 
     def startup_notes(self) -> List[str]:
         """Operator-facing warnings for the server's stderr (never sent to a client)."""
@@ -227,7 +250,7 @@ class MemoryToolSet:
         return notes
 
     def schemas(self) -> List[Dict[str, Any]]:
-        return c.tool_definitions(write=self._write)
+        return c.tool_definitions(write=self._write, propose=self._propose)
 
     def handles(self, name: Any) -> bool:
         return isinstance(name, str) and name in self._handlers
@@ -270,6 +293,10 @@ class MemoryToolSet:
         return make_result(tool, c.ERROR, reason_code=c.INTERNAL_ERROR, message="The memory operation failed.")
 
     def _denied(self, tool: str, reason: Optional[str], scope: Optional[str], project_id: Optional[str]) -> Dict[str, Any]:
+        if reason == "learned_type_requires_proposal":
+            return make_result(tool, c.DENIED, reason_code=reason,
+                               message="rule, decision and gotcha are not written directly. Use memory_propose; the "
+                                       "owner reviews it before it becomes memory.")
         hint = _hint(self._profile, scope, project_id, self._space())
         forgetting = tool == c.TOOL_FORGET
         verb = "Forgetting" if forgetting else "Writing to"
@@ -348,6 +375,50 @@ class MemoryToolSet:
             return make_result(tool, c.EMPTY, message="Nothing saved yet.")
         return make_result(tool, c.SUCCESS, data={"text": text, "truncated": True if bundle.truncated else None},
                            text=text)
+
+    # -- memory_brief ----------------------------------------------------------------------------------------
+    def _brief(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        tool = c.TOOL_BRIEF
+        memory = self._memory()
+        try:
+            bundle = memory.brief(args.get("task"), max_chars=args.get("max_chars"))
+        finally:
+            memory.close()
+        if bundle.status == "disabled":
+            return make_result(tool, c.EMPTY, reason_code=bundle.reason,
+                               message="Injection is off; the owner enables it in settings (injection.enabled).")
+        if bundle.status not in ("ok", "empty"):
+            return self._failure(tool, bundle.status, bundle.reason)
+        if not bundle.text:
+            return make_result(tool, c.EMPTY, message="No rules or matching memory yet.")
+        # like memory_context: only the text (refs are inside it) and a cut flag
+        return make_result(tool, c.SUCCESS, data={"text": bundle.text, "truncated": True if bundle.truncated else None},
+                           text=bundle.text)
+
+    # -- memory_propose --------------------------------------------------------------------------------------
+    def _propose_memory(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        tool = c.TOOL_PROPOSE
+        memory = self._memory()
+        try:
+            result = memory.propose(args["text"], args["memory_type"], name=args.get("name"), scope=args["scope"],
+                                    project_id=args.get("project_id"), evidence=args.get("evidence"), source="agent")
+        finally:
+            memory.close()
+        if result.ok:
+            return make_result(
+                tool, c.PROPOSED,
+                message="Recorded for the owner's review. It is not memory until the owner approves it.",
+                data={"proposal_id": result.proposal_id},
+                text=f"{tool}: PROPOSED {result.proposal_id} - pending the owner's review; not saved or recalled yet")
+        if result.status == "rejected_secret":
+            return make_result(
+                tool, c.REJECTED_SECRET, reason_code=result.reason or "secret_detected",
+                message="A credential-like value was detected. Nothing was stored. Remove the secret and retry.",
+                data={"rule_ids": list(result.rule_ids or ())})
+        if result.status == "rejected":
+            message = _REJECT_MESSAGES.get(result.reason or "", "The owner's settings do not allow this proposal.")
+            return make_result(tool, c.REJECTED, reason_code=result.reason or "rejected", message=message)
+        return self._failure(tool, result.status, result.reason)
 
     # -- memory_add ------------------------------------------------------------------------------------------
     def _add(self, args: Dict[str, Any]) -> Dict[str, Any]:
@@ -520,7 +591,8 @@ class MemoryToolSet:
 # construction
 # ----------------------------------------------------------------------------------------------------------------
 def build_tool_set(*, profile_id: Any, layout: Optional[Layout] = None, enable_write: bool = False,
-                   allow_roots: Sequence[Any] = (), config: Optional[ToolSetConfig] = None) -> MemoryToolSet:
+                   allow_roots: Sequence[Any] = (), config: Optional[ToolSetConfig] = None,
+                   enable_propose: bool = False) -> MemoryToolSet:
     """Validate the pin and the roots, ensure the storage layout, and return the mountable tool set.
 
     ``layout=None`` uses the standard data root (``ZERO_MEM_DATA_ROOT`` / XDG), exactly what ``zero-mem setup`` and
@@ -539,7 +611,8 @@ def build_tool_set(*, profile_id: Any, layout: Optional[Layout] = None, enable_w
         raise ToolSetConfigError("the zero-mem data root cannot be set up (run zero-mem doctor)") from None
     reserved = [resolved.data_root, resolved.corpus_root, resolved.memory_stream.parent, resolved.derived_db.parent]
     return MemoryToolSet(profile_id, resolved, enable_write=enable_write, guard=PathGuard(roots, reserved),
-                         config=config if config is not None else _config_from_env())
+                         config=config if config is not None else _config_from_env(),
+                         enable_propose=enable_propose)
 
 
 __all__ = ["MemoryToolSet", "ToolSetConfig", "ToolSetConfigError", "build_tool_set", "make_result"]

@@ -66,6 +66,8 @@ _MODEL_CALLS_VERIFIED = frozenset({"claude-code"})
 def _json_parent() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help="machine-readable output")
+    common.add_argument("--memory", dest="memory_name", default=argparse.SUPPRESS, metavar="NAME",
+                        help="use the named memory (zero-mem memory list)")
     return common
 
 
@@ -83,6 +85,9 @@ def _server_options(p: argparse.ArgumentParser) -> None:
     p.add_argument("--enable-write", action="store_true", default=False,
                    help="also expose memory_add, memory_ingest and memory_forget (shared and project writes still "
                         "need an operator-approved grant)")
+    p.add_argument("--enable-propose", action="store_true", default=False,
+                   help="also expose memory_propose: the agent may SUGGEST a rule / decision / gotcha; nothing becomes "
+                        "memory until the owner approves it with `zero-mem review` (no grant needed)")
     p.add_argument("--allow-root", action="append", default=None, metavar="DIR",
                    help="folder memory_ingest may read (repeatable, needs --enable-write; without one memory_ingest "
                         "is disabled)")
@@ -134,13 +139,16 @@ def _absolute_roots(values: Optional[List[str]], enable_write: bool) -> List[str
     return roots
 
 
-def _server_argv(profile: str, enable_write: bool, roots: List[str], tools: str = "memory") -> List[str]:
+def _server_argv(profile: str, enable_write: bool, roots: List[str], tools: str = "memory",
+                 enable_propose: bool = False) -> List[str]:
     """The ``serve`` arguments a client registers. The memory-only default is implicit (shortest registration)."""
     argv = ["serve", "--profile", profile]
     if enable_write:
         argv.append("--enable-write")
     for root in roots:
         argv += ["--allow-root", root]
+    if enable_propose:
+        argv.append("--enable-propose")
     if tools != "memory":
         argv += ["--tools", tools]
     return argv
@@ -169,6 +177,8 @@ def run_serve(args, exec_fn: Optional[Callable] = None) -> int:
         argv.append("--enable-write")
     for root in roots:
         argv += ["--allow-root", root]
+    if getattr(args, "enable_propose", False):
+        argv.append("--enable-propose")
     (exec_fn or os.execv)(sys.executable, argv)
     return EXIT_OK  # only reached when exec is stubbed
 
@@ -181,6 +191,8 @@ def _pinned_env() -> Dict[str, str]:
     env = {"ZERO_MEM_DATA_ROOT": str(paths.data_root())}
     if paths.corpus_root_is_explicit():
         env["ZERO_MEM_CORPUS_ROOT"] = str(paths.corpus_root())
+    if (os.environ.get(paths.CONFIG_PATH_ENV) or "").strip():  # T18: a named memory's own config.json
+        env[paths.CONFIG_PATH_ENV] = os.environ[paths.CONFIG_PATH_ENV].strip()
     for name in _PINNED_XDG:
         value = os.environ.get(name)
         if value:
@@ -273,16 +285,22 @@ def _snippets(agent: str, name: str, command: str, args: List[str], env: Dict[st
 
 
 def build_registration(agent: str, profile: str, *, name: str = DEFAULT_SERVER_NAME, enable_write: bool = False,
-                       allow_roots: Optional[List[str]] = None, tools: str = "memory") -> Dict[str, Any]:
-    """The registration of one agent client: pure data (the CLI prints it)."""
+                       allow_roots: Optional[List[str]] = None, tools: str = "memory",
+                       enable_propose: bool = False, env: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+    """The registration of one agent client: pure data (the CLI prints it). ``env`` overrides the pinned environment."""
     roots = list(allow_roots or [])
     command = os.path.abspath(sys.executable)  # NOT realpath: a venv interpreter is a symlink that must stay one
-    args = ["-m", "zero_mem.cli", *_server_argv(profile, enable_write, roots, tools)]
-    env = _pinned_env()
+    args = ["-m", "zero_mem.cli", *_server_argv(profile, enable_write, roots, tools, enable_propose)]
+    env = dict(env) if env is not None else _pinned_env()
     steps = [f"zero-mem agents add {profile}"]
     if enable_write:
         steps.append(f"zero-mem agents grant-write {profile} --space {SHARED_SPACE}"
                      "   # only if this agent may write shared memory (asks you to confirm)")
+    if enable_propose:
+        steps.append("zero-mem review list   # the owner reviews what this agent proposed (approve / reject); "
+                     "no grant is needed to propose")
+        steps.append("zero-mem settings show   # injection is OFF by default: memory_brief stays empty until "
+                     "`zero-mem settings set injection.enabled true`")
     return {
         "agent": agent,
         "profile": profile,
@@ -291,6 +309,7 @@ def build_registration(agent: str, profile: str, *, name: str = DEFAULT_SERVER_N
         "args": args,
         "env": env,
         "write_enabled": bool(enable_write),
+        "propose_enabled": bool(enable_propose),
         "tools": tools,
         "allow_roots": roots,
         "operator_steps": steps,
@@ -314,6 +333,7 @@ def render_text(reg: Dict[str, Any]) -> str:
     label = _CLIENT_LABEL[agent]
     lines = [
         f"# zero-mem MCP registration for {label} (profile \"{profile}\", writes {'ENABLED' if reg['write_enabled'] else 'off'}, "
+        f"proposals {'ENABLED' if reg['propose_enabled'] else 'off'}, "
         f"tools: {'memory only' if reg['tools'] == 'memory' else 'memory + 11 legacy read tools'})",
         "#",
         "# 1. Operator, once, in your own terminal (do not give agents a shell that can run these):",
@@ -325,6 +345,8 @@ def render_text(reg: Dict[str, Any]) -> str:
         "#",
         *_wrap(f"Status: {reg['verification_note']}. See docs/runbooks/agent-integration.md for the verification matrix."),
     ]
+    if reg["propose_enabled"]:
+        lines.append("# memory_propose is ENABLED: proposals are inert until the owner approves them with `zero-mem review`.")
     if reg["write_enabled"]:
         if reg["allow_roots"]:
             lines.append("# memory_ingest may read: " + ", ".join(reg["allow_roots"]))
@@ -362,7 +384,8 @@ def run_mcp_config(args) -> int:
     try:
         roots = _absolute_roots(args.allow_root, args.enable_write)
         reg = build_registration(args.agent, profile, name=args.name, enable_write=args.enable_write, allow_roots=roots,
-                                 tools=getattr(args, "tools", "memory"))
+                                 tools=getattr(args, "tools", "memory"),
+                                 enable_propose=getattr(args, "enable_propose", False))
     except UsageError as exc:
         _err(str(exc))
         return EXIT_ERROR
