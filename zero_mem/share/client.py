@@ -73,6 +73,8 @@ class PullReport:
     rejected: list = field(default_factory=list)
     tombstoned: int = 0
     tombstones_skipped: int = 0
+    withdrawn: int = 0
+    revoke_proposed: list = field(default_factory=list)
     bytes: int = 0
     omitted_by_owner: dict = field(default_factory=dict)
 
@@ -82,6 +84,7 @@ class PullReport:
                          "bytes": self.plan["bytes"], "rows": self.plan["rows"]},
                 "stored": self.stored, "proposed": self.proposed, "unchanged": self.unchanged,
                 "rejected": self.rejected, "tombstoned": self.tombstoned, "tombstones_skipped": self.tombstones_skipped,
+                "withdrawn": self.withdrawn, "revoke_proposed": self.revoke_proposed,
                 "bytes": self.bytes, "omitted_by_owner": self.omitted_by_owner}
 
 
@@ -127,7 +130,7 @@ def pull(node, owner_ref: str, *, dry_run: bool = False, confirm: Optional[Calla
                            settings_path=node._settings_path)
     try:
         _fetch_all(node, owner, todo, report, cfg, proposer)
-        _apply_tombstones(node, owner, report)
+        _apply_tombstones(node, owner, report, proposer)
     finally:
         proposer.close()
     node.audit_event("pull", owner=owner["peer_id"], new=sum(1 for r in todo if r["action"] == "new"),
@@ -168,7 +171,7 @@ def _fetch_all(node, owner, todo, report, cfg, proposer) -> None:
                 continue
             try:
                 content = importer.verify_fetched(fetched, row, max_source_bytes=cfg.max_source_bytes)
-                outcome, _detail = importer.import_source(node, owner, row, content, proposer=proposer)
+                outcome, detail = importer.import_source(node, owner, row, content, proposer=proposer)
             except ShareError as exc:
                 _reject(node, owner, report, row, exc.code)
                 continue
@@ -180,7 +183,8 @@ def _fetch_all(node, owner, todo, report, cfg, proposer) -> None:
             else:
                 report.proposed += 1
             node.audit_event("import", owner=owner["peer_id"], source_id=sid, digest=row["digest"], outcome=outcome,
-                             ref=importer.local_ref(owner["peer_id"], row["ref"]), size=len(content))
+                             ref=importer.local_ref(owner["peer_id"], row["ref"]), size=len(content),
+                             proposal_id=detail.get("proposal_id"))
         for sid in reply["missing"]:
             if sid in by_id and sid in batch:
                 _reject(node, owner, report, by_id[sid], "not_served")
@@ -194,7 +198,36 @@ def _fetch_all(node, owner, todo, report, cfg, proposer) -> None:
             break  # the owner made no progress: stop rather than loop
 
 
-def _apply_tombstones(node, owner, report) -> None:
+def _withdraw_learned(node, owner, tomb, prior, report, proposer) -> None:
+    """The owner forgot a rule / decision / gotcha that this memory imported as a PROPOSAL.
+
+    Pending proposal: withdrawn. Already approved by the local owner: never deleted silently; a revoke is only PROPOSED (an audit
+    event and ``report.revoke_proposed``; the local owner decides with ``zero-mem review revoke``). Anything else: nothing to do."""
+    from ..learning import _log_for
+
+    ref = importer.local_ref(owner["peer_id"], tomb["ref"])
+    pid = prior.get("proposal_id")
+    proposal = _log_for(node.memory).refresh().get(pid) if pid else None
+    if proposal is None:
+        report.tombstones_skipped += 1
+        return
+    if proposal.status == "pending":
+        if proposer.withdraw(pid).status != "withdrawn":
+            report.tombstones_skipped += 1
+            return
+        outcome = "withdrawn"
+        report.withdrawn += 1
+    elif proposal.status == "approved":
+        outcome = "revoke_proposed"
+        report.revoke_proposed.append({"proposal_id": pid, "ref": proposal.external_ref or ref, "source_id": proposal.source_id,
+                                       "owner": owner["peer_id"], "owner_label": owner["label"]})
+    else:  # rejected / expired / revoked / superseded: already not active
+        outcome = "tombstoned"
+    node.audit_event("import", owner=owner["peer_id"], source_id=tomb["source_id"], digest=prior["digest"], outcome=outcome,
+                     ref=ref, proposal_id=pid)
+
+
+def _apply_tombstones(node, owner, report, proposer) -> None:
     since = node.log.tombstone_cursor(owner["peer_id"])
     until = since
     for _round in range(5):
@@ -202,10 +235,10 @@ def _apply_tombstones(node, owner, report) -> None:
         reply = protocol.parse_tombstones(data)
         for tomb in reply["tombstones"]:
             prior = node.log.imported_digest(owner["peer_id"], tomb["source_id"])
-            if prior is None:
+            if prior is None or prior["outcome"] in ("tombstoned", "withdrawn", "revoke_proposed"):
                 continue
             if tomb["memory_type"] in LEARNED_TYPES or prior["outcome"] == "proposed":
-                report.tombstones_skipped += 1  # a proposal / an approved rule is the receiving owner's decision
+                _withdraw_learned(node, owner, tomb, prior, report, proposer)
                 continue
             result = node.memory._operator_forget(importer.local_ref(owner["peer_id"], tomb["ref"]))
             if result.status in ("forgotten", "already_forgotten"):

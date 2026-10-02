@@ -187,8 +187,9 @@ class ShareLog:
     def _h_import(self, m4: dict, at: str) -> None:
         owner, sid, digest = _s(m4.get("owner"), 20), _s(m4.get("source_id"), 128), _s(m4.get("digest"), 64)
         outcome = m4.get("outcome")
-        if owner and sid and digest and outcome in ("stored", "proposed", "tombstoned"):
-            self.imported[(owner, sid)] = {"digest": digest, "outcome": outcome, "ref": _s(m4.get("ref"), 512), "at": at}
+        if owner and sid and digest and outcome in ("stored", "proposed", "tombstoned", "withdrawn", "revoke_proposed"):
+            self.imported[(owner, sid)] = {"digest": digest, "outcome": outcome, "ref": _s(m4.get("ref"), 512), "at": at,
+                                           "proposal_id": _s(m4.get("proposal_id"), 64)}
 
     def _h_pull(self, m4: dict, at: str) -> None:
         owner, ts = _s(m4.get("owner"), 20), _s(m4.get("tombstones_until"), 40)

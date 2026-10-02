@@ -372,6 +372,10 @@ def _cmd_pull(args) -> int:
                   f"{len(report.rejected)} rejected.")
             for item in report.rejected[:20]:
                 print(f"  rejected {item['ref']}: {item['reason']}")
+            if report.withdrawn:
+                print(f"{report.withdrawn} pending proposal(s) withdrawn because the owner forgot them.")
+            for item in report.revoke_proposed:
+                print(f"  the owner forgot an item you approved: {item['ref']} - review it, then run: zero-mem review revoke {item['ref']}")
     if report.aborted:
         return EXIT_ERROR
     return EXIT_PARTIAL if report.rejected else EXIT_OK
