@@ -87,6 +87,9 @@ def build_parser() -> argparse.ArgumentParser:
     from .commands_config_grant import add_config_parsers
 
     add_config_parsers(subparsers)
+    from .commands_ui import add_ui_parser
+
+    add_ui_parser(subparsers)  # ui (T19: local owner control panel)
     return parser
 
 
@@ -122,6 +125,11 @@ def main(argv: list[str] | None = None) -> int:
     mcp_code = dispatch_mcp(args)
     if mcp_code is not None:
         return mcp_code
+    from .commands_ui import dispatch as dispatch_ui
+
+    ui_code = dispatch_ui(args)
+    if ui_code is not None:
+        return ui_code
     if getattr(args, "_show_version", False):
         print(__version__)
     elif getattr(args, "_setup", False):
