@@ -355,7 +355,8 @@ def _cmd_pull(args) -> int:
     from .share import client
 
     def confirm(plan: dict) -> bool:
-        _print_plan(plan)
+        if not _wants_json(args):
+            _print_plan(plan)
         return _ask(args, f"Import {plan['sources']} source(s) ({_fmt_size(plan['bytes'])}) into the quarantine space?",
                     "not confirmed; nothing was imported")
 
