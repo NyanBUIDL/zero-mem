@@ -73,6 +73,9 @@ def build_parser() -> argparse.ArgumentParser:
     from .commands_learning import add_learning_parsers
 
     add_learning_parsers(subparsers)  # settings / propose / review (learning harness)
+    from .commands_brief import add_brief_parsers
+
+    add_brief_parsers(subparsers)  # brief / eval (task briefing and its measurement)
     from .commands_mcp import add_mcp_parsers
 
     add_mcp_parsers(subparsers)  # serve / mcp-config
@@ -97,6 +100,11 @@ def main(argv: list[str] | None = None) -> int:
     learning_code = dispatch_learning(args)
     if learning_code is not None:
         return learning_code
+    from .commands_brief import dispatch as dispatch_brief
+
+    brief_code = dispatch_brief(args)
+    if brief_code is not None:
+        return brief_code
     from .commands_mcp import dispatch as dispatch_mcp
 
     mcp_code = dispatch_mcp(args)
