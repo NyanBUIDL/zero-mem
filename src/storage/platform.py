@@ -11,6 +11,7 @@ import ctypes
 import hashlib
 import math
 import os
+import random
 import stat
 import sys
 import threading
@@ -23,6 +24,12 @@ from typing import Iterator, Literal
 
 LockMode = Literal["shared", "exclusive"]
 DEFAULT_TIMEOUT = 5.0
+# T25 / DEF-190: canonical-stream locks are contended by several agents at once; the bounded wait is long
+# (30 s) and overridable (ZERO_MEM_LOCK_WAIT_SECONDS) so a slow runner never turns contention into an error.
+DEFAULT_LOCK_WAIT = 30.0
+LOCK_WAIT_ENV = "ZERO_MEM_LOCK_WAIT_SECONDS"
+_BACKOFF_MIN = 0.005
+_BACKOFF_MAX = 0.25
 NO_FOLLOW = getattr(os, "O_NOFOLLOW", 0)
 DIRECTORY_FLAG = getattr(os, "O_DIRECTORY", 0)
 # R124-07: on Windows the CRT defaults os.open/msvcrt handles to TEXT mode and
@@ -66,6 +73,31 @@ def is_transient_oserror(exc: BaseException) -> bool:
     return isinstance(exc, OSError) and (
         exc.errno in _TRANSIENT_ERRNOS or getattr(exc, "winerror", None) in _TRANSIENT_WINERRORS
     )
+
+
+def lock_wait_seconds(default: float = DEFAULT_LOCK_WAIT) -> float:
+    """Bounded wait for a canonical-stream lock: ``ZERO_MEM_LOCK_WAIT_SECONDS`` when set to a positive finite number."""
+    raw = os.environ.get(LOCK_WAIT_ENV)
+    if raw:
+        try:
+            value = float(raw)
+        except ValueError:
+            return default
+        if math.isfinite(value) and value > 0:
+            return value
+    return default
+
+
+class _Backoff:
+    """Jittered exponential poll delay (5 ms -> 250 ms) so lock waiters do not starve or move in lockstep."""
+
+    def __init__(self) -> None:
+        self._current = _BACKOFF_MIN
+
+    def next(self, end: float) -> float:
+        delay = random.uniform(self._current / 2, self._current)
+        self._current = min(self._current * 2, _BACKOFF_MAX)
+        return max(0.0, min(delay, end - time.monotonic()))
 
 
 def _retry_sleep(seconds: float) -> None:  # module level so tests can patch it
@@ -378,7 +410,9 @@ def open_regular(path: Path, flags: int, *, create: bool = False, exclusive: boo
                 error_code = ctypes.get_last_error()
                 if error_code in (2, 3):  # ERROR_FILE_NOT_FOUND / ERROR_PATH_NOT_FOUND
                     raise FileNotFoundError(error_code, "CreateFileW")
-                raise OSError(error_code, "CreateFileW")
+                failure = OSError(error_code, "CreateFileW")
+                failure.winerror = error_code  # T25: OSError(code, msg) alone leaves winerror unset, hiding sharing violations
+                raise failure
             fd_flags = os.O_RDWR if (flags & os.O_RDWR) else os.O_WRONLY if (flags & os.O_WRONLY) else os.O_RDONLY
             # R124-07: without O_BINARY, msvcrt.open_osfhandle produces a TEXT-mode
             # CRT descriptor and every os.write translates \n -> CRLF.
@@ -535,6 +569,7 @@ def locked(path: Path, *, mode: LockMode = "exclusive", timeout: float | None = 
         overlapped = _OVERLAPPED()
         flags = 0x00000001 | (0x00000002 if mode == "exclusive" else 0)
         acquired = False
+        backoff = _Backoff()
         try:
             while True:
                 ok = lock_file(
@@ -546,7 +581,7 @@ def locked(path: Path, *, mode: LockMode = "exclusive", timeout: float | None = 
                     break
                 if time.monotonic() >= end:
                     raise PlatformStorageError(PlatformErrorCode.LOCK_TIMEOUT) from None
-                time.sleep(0.001)
+                time.sleep(backoff.next(end))
             yield
         except PlatformStorageError:
             raise
@@ -567,6 +602,7 @@ def locked(path: Path, *, mode: LockMode = "exclusive", timeout: float | None = 
         raise PlatformStorageError(PlatformErrorCode.UNAVAILABLE) from None
     fd = _open_lock_file(path, end)
     operation = fcntl.LOCK_SH if mode == "shared" else fcntl.LOCK_EX
+    backoff = _Backoff()
     try:
         while True:
             try:
@@ -575,7 +611,7 @@ def locked(path: Path, *, mode: LockMode = "exclusive", timeout: float | None = 
             except BlockingIOError:
                 if time.monotonic() >= end:
                     raise PlatformStorageError(PlatformErrorCode.LOCK_TIMEOUT) from None
-                time.sleep(0.001)
+                time.sleep(backoff.next(end))
             except OSError as exc:
                 # T23: EINTR/EACCES/ENOLCK... are "try again", only a real failure is UNAVAILABLE.
                 if not is_transient_oserror(exc):
@@ -971,7 +1007,7 @@ __all__ = [
     "atomic_promote", "close_handle", "coordinated", "ensure_private_directory", "file_identity",
     "handle_identity_parts",
     "fsync_handle", "handle_info", "handle_size", "is_regular_info", "is_symlink_info", "list_relative",
-    "locked", "open_parent_dir", "open_relative", "open_regular", "paths_alias", "read_all", "read_bytes", "read_from",
+    "locked", "lock_wait_seconds", "open_parent_dir", "open_relative", "open_regular", "paths_alias", "read_all", "read_bytes", "read_from",
     "rename_relative", "safe_cleanup", "safe_unlink", "set_mode", "stat_relative", "unlink_relative", "validate_directory",
     "use_utf8_stdio", "validate_path", "write_all",
 ]

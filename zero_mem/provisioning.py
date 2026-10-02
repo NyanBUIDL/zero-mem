@@ -85,7 +85,7 @@ def append_canonical_event(stream: Path, event: Mapping[str, Any]) -> None:
     if not isinstance(event, Mapping) or not isinstance(event.get("event_id"), str) or not event["event_id"]:
         raise ProvisioningError("invalid_event", "canonical events need a string event_id")
     from src.storage.coordination import locked
-    from src.storage.platform import O_BINARY, retry_transient_io
+    from src.storage.platform import O_BINARY, lock_wait_seconds, retry_transient_io
 
     data = (json.dumps(dict(event), ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
     stream = Path(stream)
@@ -116,7 +116,7 @@ def append_canonical_event(stream: Path, event: Mapping[str, Any]) -> None:
             os.close(fd)
 
     try:
-        with locked(stream.with_name(stream.name + ".lock"), mode="exclusive", timeout=_LOCK_TIMEOUT):
+        with locked(stream.with_name(stream.name + ".lock"), mode="exclusive", timeout=lock_wait_seconds(_LOCK_TIMEOUT)):
             try:
                 retry_transient_io(_append_once)  # T23 / DEF-170: EINTR, EAGAIN, EACCES, sharing denials
             except _NoRetry as exc:
@@ -320,11 +320,12 @@ class Provisioner:
     @contextlib.contextmanager
     def _admin(self) -> Iterator[Any]:
         from src.storage.coordination import locked
+        from src.storage.platform import lock_wait_seconds
         from src.storage.sqlite_store import SQLiteStore, SQLiteStoreConfig
 
         lock = self._layout.memory_stream.with_name("provisioning.lock")
         try:
-            with locked(lock, mode="exclusive", timeout=_LOCK_TIMEOUT):
+            with locked(lock, mode="exclusive", timeout=lock_wait_seconds(_LOCK_TIMEOUT)):
                 store = SQLiteStore(SQLiteStoreConfig(path=self._layout.derived_db))
                 try:
                     store.ensure_schema()

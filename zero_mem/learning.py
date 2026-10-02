@@ -489,14 +489,18 @@ def _log_for(memory: Memory) -> ProposalLog:
 def learning_lock(layout: Layout):
     """Exclusive cross-process lock for the check-then-append sequences of the learning lifecycle."""
     from src.storage.coordination import locked
+    from src.storage.platform import PlatformErrorCode, PlatformStorageError, lock_wait_seconds
 
     try:
-        with locked(layout.memory_stream.with_name("learning.lock"), mode="exclusive", timeout=_LOCK_TIMEOUT):
+        with locked(layout.memory_stream.with_name("learning.lock"), mode="exclusive", timeout=lock_wait_seconds(_LOCK_TIMEOUT)):
             yield
     except ProvisioningError:
         raise
-    except OSError:
-        raise ProvisioningError("stream_busy", "cannot lock the learning state") from None
+    except OSError as exc:
+        if isinstance(exc, PlatformStorageError) and exc.code is PlatformErrorCode.LOCK_TIMEOUT:
+            raise ProvisioningError("stream_busy", "timed out waiting for the learning lock") from None
+        why = exc.code.value if isinstance(exc, PlatformStorageError) else type(exc).__name__
+        raise ProvisioningError("stream_busy", f"cannot lock the learning state ({why})") from None
 
 
 def _event(op: str, now: datetime, **fields: Any) -> dict:
