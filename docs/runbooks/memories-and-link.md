@@ -38,6 +38,12 @@ If `ZERO_MEM_DATA_ROOT` is set and `--memory` is given, a note says the env var 
 need it fail closed (exit 2); `doctor`, `version` and `memory ...` still run. `doctor` and `memory-status` show the active
 memory, where it came from and the registry health.
 
+## Sharing between memories (and machines)
+Every named memory has its own sharing identity, peers, grants and imports: `zero-mem share ... --memory NAME`. Two memories on one
+machine can therefore share with each other over loopback like two machines; see the quick start in
+[peer-sharing.md](peer-sharing.md#quick-start-for-two-machines). The control panel serves one memory (`zero-mem ui --memory NAME`) and
+its Sharing page acts on that memory ([control-panel.md](control-panel.md#sharing)).
+
 ## Linking agents
 ```
 zero-mem link claude-code --memory work [--profile P] [--enable-write] [--enable-propose] [--allow-root DIR]... [--print]
