@@ -24,7 +24,7 @@ Zero-Mem control panel (owner console)
 
 
 def add_ui_parser(subparsers) -> None:
-    p = subparsers.add_parser("ui", parents=[_common()], help="start the local owner control panel (loopback only)")
+    p = subparsers.add_parser("ui", parents=[_common()], help="launch the local owner control panel (loopback only)")
     p.add_argument("--port", type=int, default=0, help="port on 127.0.0.1 (default: a random free port)")
     p.add_argument("--host", default="127.0.0.1", help="loopback address to bind: 127.0.0.1 (default) or ::1; anything else is refused")
     p.add_argument("--allow-root", action="append", default=[], metavar="DIR",
