@@ -85,3 +85,8 @@ def test_env_memory_selects_too(two, monkeypatch):
     monkeypatch.setenv("ZERO_MEM_MEMORY", "alice")
     js("share", "invite", "--host", "127.0.0.1")
     assert sb["peer_id"] and js("share", "status")["peer_id"] not in (None, sb["peer_id"])
+
+
+def test_invite_for_a_public_address_is_refused(two):
+    code, _out, err = run("share", "invite", "--host", "8.8.8.8", "--memory", "alice")
+    assert code == 2 and "LAN only" in err

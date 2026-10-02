@@ -15,9 +15,13 @@ from ..memory_layout import Layout
 from . import DEFAULT_PORT, ShareDisabledError, ShareError, events as ev, identity as ident
 from .grants import validate_grant_spec
 from .invite import DEFAULT_INVITE_SECONDS, Invite, InviteStore
-from .util import PEER_ID_RE, clean_label, detect_lan_address
+from .util import PEER_ID_RE, clean_label, detect_lan_address, is_lan_address, parse_ip
 
 SERVICE_PROFILE = "zm-share"
+
+
+def ip_literal(host: str) -> bool:
+    return parse_ip(host) is not None
 
 
 def default_label() -> str:
@@ -99,6 +103,8 @@ class ShareNode:
             host = detect_lan_address()
             if host is None:
                 raise ShareError("no_lan_address", "cannot detect this machine's LAN address; pass --host")
+        if ip_literal(host) and not is_lan_address(host):  # an invite that no joiner would accept is a footgun (DEF-153)
+            raise ShareError("not_lan_address", "refusing a non-private address: sharing is LAN only")
         identity = self.identity()
         invite, invite_id = self.invites().create(
             host=host, port=port, server_fp=identity.fingerprint, label=clean_label(label, default=self.own_label()),
