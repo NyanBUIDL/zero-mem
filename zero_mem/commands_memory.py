@@ -78,6 +78,8 @@ def _common() -> argparse.ArgumentParser:
     # SUPPRESS: a value given before the subcommand survives; one given after it wins.
     common.add_argument("--profile", default=argparse.SUPPRESS, help="agent profile to act as")
     common.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help="machine-readable output")
+    common.add_argument("--memory", dest="memory_name", default=argparse.SUPPRESS, metavar="NAME",
+                        help="use the named memory (zero-mem memory list)")
     return common
 
 
@@ -482,10 +484,20 @@ def _cmd_status(args) -> int:
     except Exception:  # noqa: BLE001
         status["runtime"] = None
     runtime = status["runtime"] or {}
+    try:  # T18: which named memory this is
+        from .workspaces import active_summary
+
+        info = active_summary()
+        status["memory"] = {"name": info["memory"], "source": info["source"], "registry": info["registry"]}
+    except Exception:  # noqa: BLE001
+        status["memory"] = None
     if _wants_json(args):
         _emit(status)
         return EXIT_OK
     s = status["sources"]
+    memory_info = status.get("memory") or {}
+    print(f"memory       {memory_info.get('name') or '-'} (from {memory_info.get('source') or '?'}; "
+          f"registry {memory_info.get('registry') or '?'})")
     print(f"profile      {status['profile_id']}")
     print(f"data root    {status['data_root']}")
     print(f"sources      {s['total']} ({s['own']} yours, {s['forgotten']} forgotten); units {status['units']}")

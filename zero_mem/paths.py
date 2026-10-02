@@ -19,6 +19,9 @@ DERIVED_DB_RELATIVE = Path("data/derived/memory.sqlite3")
 # default so setup/upgrade/backup/restore/doctor agree on one location.
 CORPUS_RELATIVE = Path("data/corpus")
 CORPUS_ROOT_ENV = "ZERO_MEM_CORPUS_ROOT"
+DATA_ROOT_ENV = "ZERO_MEM_DATA_ROOT"
+# T18: a named memory keeps its own config.json (it records absolute data paths, so two data roots cannot share one).
+CONFIG_PATH_ENV = "ZERO_MEM_CONFIG_PATH"
 # Mirrors src.corpus.registry.REGISTRY_FILENAME (a test pins the equality);
 # kept local so this light module does not import the corpus package.
 CORPUS_REGISTRY_FILENAME = "corpus_sources.jsonl"
@@ -92,6 +95,12 @@ def corpus_root() -> Path:
 
 
 def config_path() -> Path:
+    explicit = (os.environ.get(CONFIG_PATH_ENV) or "").strip()
+    if explicit:
+        candidate = Path(explicit).expanduser()
+        if not candidate.is_absolute():
+            raise ConfigurationError("config path must be absolute")
+        return candidate
     return config_root() / CONFIG_FILENAME
 
 
