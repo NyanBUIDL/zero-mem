@@ -172,10 +172,10 @@ class OwnerService:
                     break
             if match is None:
                 continue
+            if is_withheld_sensitivity(rec.sensitivity):  # also for tombstones: never name a ref the peer could not have had
+                omitted["secret"] = omitted.get("secret", 0) + 1
+                continue
             if not deleted:
-                if is_withheld_sensitivity(rec.sensitivity):
-                    omitted["secret"] = omitted.get("secret", 0) + 1
-                    continue
                 if rec.source_id in expired:
                     omitted["expired"] = omitted.get("expired", 0) + 1
                     continue
@@ -257,6 +257,8 @@ class OwnerService:
                 when = parse_ts(rec.created_at)
             except ShareError:
                 continue
+            if not self._safe(rec.external_ref.encode("utf-8"), "ref:" + rec.external_ref):
+                continue  # same outgoing scan the manifest applies to a ref
             if when > since_dt:
                 rows.append((when, rec, mtype))
         rows.sort(key=lambda r: (r[0], r[1].source_id))
