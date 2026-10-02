@@ -40,6 +40,16 @@ give the owner switches to stop all of it.
 8. **Deterministic, zero dependencies.** TOML via `tomllib`; no LLM, no network; atomic settings writes (temp + `os.replace` under the DEF-090 retry);
    Windows-safe (no POSIX-only calls, UTF-8 everywhere, `/`-normalized refs).
 
+## Write path split (amendment, T17 review of PR #4)
+
+`rule` / `decision` / `gotcha` are ordinary memory types for reading, but not for agent writes. `Memory.add`, `Memory.ingest` and the MCP `memory_add` /
+`memory_ingest` refuse them (`denied`, `learned_type_requires_proposal`; the MCP enums omit them), otherwise an agent could create an immediately
+recallable source and bypass `learning.mode`, the kill switch, deny patterns and owner approval. Two paths may write them: the Reviewer's approval apply
+path, and the owner's direct write (`zero-mem add|ingest|import-notes --type ...`) through `Memory._owner_add` / `_owner_ingest`, an internal entry point
+that the default API and MCP layer never use (not a caller-supplied string). The owner CLI has the trust level of `review approve`: agents must not be given
+a shell that can run it. Approval is compensating (a failed approval record undoes the commit; retry is idempotent) and active-TTL expiry reads the
+provenance of the current version, so an owner-written replacement never expires.
+
 ## What this does and does not give
 
 - It gives an auditable, revocable, owner-gated path from "an agent noticed something" to "every agent recalls it", with the owner able to switch the

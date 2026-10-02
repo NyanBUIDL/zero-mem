@@ -9,7 +9,7 @@ Windows, macOS and Linux. Design and gates: [ADR-V170-03](../v1.6.1/decisions/AD
 
 | Term | Meaning |
 |---|---|
-| memory types `rule`, `decision`, `gotcha` | Like `workflow`: versioned by `--name` (`mem://rule/<name>`), scopes `private` / `shared` / `project`. Written by the owner with `zero-mem add --type rule ...`, or created by approving a proposal. |
+| memory types `rule`, `decision`, `gotcha` | Like `workflow`: versioned by `--name` (`mem://rule/<name>`), scopes `private` / `shared` / `project`. Written only by the owner (`zero-mem add --type rule ...`, `zero-mem ingest --type ...`) or created by approving a proposal. `Memory.add` / `Memory.ingest` and the MCP `memory_add` / `memory_ingest` refuse these three types (`denied`, reason `learned_type_requires_proposal`; the MCP enums omit them): an agent uses `memory_propose` / `zero-mem propose`. |
 | **proposal** | An agent's (or the owner's) suggestion, stored as an append-only `learning_proposal` event in the canonical stream. **Inert**: not a corpus source, so `recall`, `context`, `search` and the MCP tools can never return it. |
 | **review** | The owner's decision (`zero-mem review ...`): approve (optionally with an edit), reject, revoke, expire. |
 | **approval** | Commits the proposal through the normal write path **as the proposer's profile**. The owner's approval is itself the grant for that single write: the agent still cannot write shared memory directly. |
@@ -122,6 +122,18 @@ Exit codes as in the [quickstart](shared-memory-quickstart.md#exit-codes): 3 for
 **Do not give agents a shell that can run `zero-mem review` or `zero-mem settings`.** The confirmation is friction, not authentication: anyone who can
 write the data root can forge canonical events (the same trust boundary as ADR-V170-02). Give agents only the library / MCP surface; neither has an approve or
 settings method.
+
+The same applies to `zero-mem add|ingest --type rule|decision|gotcha`: these are the owner's direct writes (internally `Memory._owner_add` /
+`_owner_ingest`, never reachable from MCP or the default `Memory.add`), at the same trust level as `review approve`. An agent with a shell that can run
+`zero-mem add` can bypass the learning gates, exactly as it could with `review approve` or `agents grant-write`.
+
+**Approval is recoverable.** `review approve` commits the source and then records the approval event. If the record cannot be written, the commit is
+undone (a new source is forgotten; a new version of an existing name is replaced by a version with the previous text) and the command reports an error
+with the proposal still pending; running it again is idempotent (an unchanged write commits nothing new). If even the undo fails the error is
+`approval_not_recorded`; run `review approve` again to finish.
+
+**Active TTL follows the current version.** Only a source whose latest version came from an approval can expire; an owner `zero-mem add` of the same
+name replaces it with a version that never expires, and a re-approval restarts the clock.
 
 ## 6. Safety model
 
