@@ -66,6 +66,8 @@ _MODEL_CALLS_VERIFIED = frozenset({"claude-code"})
 def _json_parent() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help="machine-readable output")
+    common.add_argument("--memory", dest="memory_name", default=argparse.SUPPRESS, metavar="NAME",
+                        help="use the named memory (zero-mem memory list)")
     return common
 
 
@@ -189,6 +191,8 @@ def _pinned_env() -> Dict[str, str]:
     env = {"ZERO_MEM_DATA_ROOT": str(paths.data_root())}
     if paths.corpus_root_is_explicit():
         env["ZERO_MEM_CORPUS_ROOT"] = str(paths.corpus_root())
+    if (os.environ.get(paths.CONFIG_PATH_ENV) or "").strip():  # T18: a named memory's own config.json
+        env[paths.CONFIG_PATH_ENV] = os.environ[paths.CONFIG_PATH_ENV].strip()
     for name in _PINNED_XDG:
         value = os.environ.get(name)
         if value:
@@ -282,12 +286,12 @@ def _snippets(agent: str, name: str, command: str, args: List[str], env: Dict[st
 
 def build_registration(agent: str, profile: str, *, name: str = DEFAULT_SERVER_NAME, enable_write: bool = False,
                        allow_roots: Optional[List[str]] = None, tools: str = "memory",
-                       enable_propose: bool = False) -> Dict[str, Any]:
-    """The registration of one agent client: pure data (the CLI prints it)."""
+                       enable_propose: bool = False, env: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+    """The registration of one agent client: pure data (the CLI prints it). ``env`` overrides the pinned environment."""
     roots = list(allow_roots or [])
     command = os.path.abspath(sys.executable)  # NOT realpath: a venv interpreter is a symlink that must stay one
     args = ["-m", "zero_mem.cli", *_server_argv(profile, enable_write, roots, tools, enable_propose)]
-    env = _pinned_env()
+    env = dict(env) if env is not None else _pinned_env()
     steps = [f"zero-mem agents add {profile}"]
     if enable_write:
         steps.append(f"zero-mem agents grant-write {profile} --space {SHARED_SPACE}"

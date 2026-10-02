@@ -19,6 +19,9 @@ def build_parser() -> argparse.ArgumentParser:
     from .commands_memory import add_global_options, add_memory_parsers
 
     add_global_options(parser)
+    from .commands_workspace import add_memory_option, add_workspace_parsers
+
+    add_memory_option(parser)
     subparsers = parser.add_subparsers(dest="command")
     version_parser = subparsers.add_parser("version", help="show the installed Zero-Mem version")
     version_parser.set_defaults(_show_version=True)
@@ -87,6 +90,7 @@ def build_parser() -> argparse.ArgumentParser:
     from .commands_config_grant import add_config_parsers
 
     add_config_parsers(subparsers)
+    add_workspace_parsers(subparsers)  # memory / link (T18: named memories)
     return parser
 
 
@@ -95,6 +99,20 @@ def main(argv: list[str] | None = None) -> int:
 
     use_utf8_stdio()  # DEF-086: never depend on the Windows ANSI code page for CLI input/output
     args = build_parser().parse_args(argv)
+    from .workspaces import memory_scope
+
+    with memory_scope(args) as refused:  # T18: apply --memory / $ZERO_MEM_MEMORY / `memory use` for this command only
+        if refused is not None:
+            return refused
+        return _run(args)
+
+
+def _run(args) -> int:
+    from .commands_workspace import dispatch as dispatch_workspace
+
+    workspace_code = dispatch_workspace(args)
+    if workspace_code is not None:
+        return workspace_code
     from .commands_memory import dispatch as dispatch_memory
 
     memory_code = dispatch_memory(args)
