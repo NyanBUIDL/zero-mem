@@ -531,7 +531,7 @@ def _load_state(path: Path) -> list:
         return []
 
 
-STATE_LOCK_TIMEOUT = 10.0
+STATE_LOCK_TIMEOUT = 30.0
 
 
 def _save_state(path: Path, keys: list) -> None:
@@ -539,9 +539,10 @@ def _save_state(path: Path, keys: list) -> None:
     ``OSError`` when it cannot be taken, which ``learn`` reports as ``state_error``)."""
     from src.corpus._fsretry import retry_transient
     from src.storage.coordination import locked
+    from src.storage.platform import lock_wait_seconds
 
     try:
-        with locked(path.with_name(path.name + ".lock"), mode="exclusive", timeout=STATE_LOCK_TIMEOUT):
+        with locked(path.with_name(path.name + ".lock"), mode="exclusive", timeout=lock_wait_seconds(STATE_LOCK_TIMEOUT)):
             merged = _load_state(path)
             known = set(merged)
             for key in keys:

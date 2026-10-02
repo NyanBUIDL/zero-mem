@@ -81,7 +81,7 @@ DEFAULT_MAX_TOTAL_BYTES = 64 * 1024 * 1024
 MAX_TOTAL_BYTES_LIMIT = 1024 * 1024 * 1024
 SHARING_KEYS = ("enabled", "max_pull_sources", "max_source_bytes", "max_total_bytes", "allow_public_bind",
                 "import_into_recall", "announce_label")
-_LOCK_TIMEOUT = 15.0
+_LOCK_TIMEOUT = 30.0
 
 _OVERRIDE_KEYS = ("enabled", "max_chars", "types")
 #: ``(group)+`` / ``(a*)*`` / ``(x{2,})+``: nested unbounded quantifiers, the classic catastrophic-backtracking shape.
@@ -611,13 +611,14 @@ def render_toml(doc: Mapping[str, Any]) -> str:
 @contextlib.contextmanager
 def _settings_lock(path: Path) -> Iterator[None]:
     from src.storage.coordination import locked
+    from src.storage.platform import lock_wait_seconds
 
     try:
         paths.ensure_private_dir(path.parent, "configuration directory")
     except (paths.SetupError, paths.ConfigurationError):
         raise SettingsError("configuration directory is unusable") from None
     try:
-        with locked(path.with_name(path.name + ".lock"), mode="exclusive", timeout=_LOCK_TIMEOUT):
+        with locked(path.with_name(path.name + ".lock"), mode="exclusive", timeout=lock_wait_seconds(_LOCK_TIMEOUT)):
             yield
     except SettingsError:
         raise

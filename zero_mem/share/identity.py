@@ -108,13 +108,14 @@ def load_identity(layout) -> "Identity | None":
 def ensure_identity(layout, label: str = "zero-mem") -> Identity:
     """The identity of this memory, created on first use (race safe across processes)."""
     from src.storage.coordination import locked
+    from src.storage.platform import lock_wait_seconds
 
     existing = load_identity(layout)
     if existing is not None:
         return existing
     crypto()  # a missing dependency must fail before anything is written
     directory = share_dir(layout)
-    with locked(directory / ".identity.lock", mode="exclusive", timeout=30.0):
+    with locked(directory / ".identity.lock", mode="exclusive", timeout=lock_wait_seconds(30.0)):
         existing = load_identity(layout)
         if existing is not None:
             return existing
@@ -132,10 +133,11 @@ def rotate_identity(layout, label: str = "zero-mem") -> tuple:
     ends every pairing that depended on the old one. The private key is NOT encrypted: there is no secret store without
     adding a dependency, and a key the program must read unattended cannot be protected by a passphrase it would need to ask for."""
     from src.storage.coordination import locked
+    from src.storage.platform import lock_wait_seconds
 
     crypto()
     directory = share_dir(layout)
-    with locked(directory / ".identity.lock", mode="exclusive", timeout=30.0):
+    with locked(directory / ".identity.lock", mode="exclusive", timeout=lock_wait_seconds(30.0)):
         old = load_identity(layout)
         key_pem, cert_pem = _generate(label)
         _write_private(directory / KEY_NAME, key_pem)
