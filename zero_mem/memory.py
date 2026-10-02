@@ -36,6 +36,7 @@ from urllib.parse import quote
 
 from .memory_layout import Layout, LayoutError
 from .memory_results import (
+    BriefBundle,
     ContextBundle,
     ForgetResult,
     IngestReport,
@@ -51,11 +52,18 @@ from .provisioning import (
     valid_id,
 )
 
-MEMORY_TYPES = ("persona", "workflow", "skill", "devlog", "fact", "file")
+#: ``rule`` / ``decision`` / ``gotcha`` (learning harness, ADR-V170-03) behave like workflow memories: versioned by
+#: name (``mem://<type>/<name>``), scopes private / shared / project.
+MEMORY_TYPES = ("persona", "workflow", "skill", "devlog", "fact", "file", "rule", "decision", "gotcha")
+#: Types that only become memory through ``Memory.propose`` + owner approval (ADR-V170-03). The agent-facing direct
+#: write path (``add`` / ``ingest``, MCP ``memory_add`` / ``memory_ingest``) refuses them; the owner's own writes
+#: (``zero-mem add --type rule``, ``_owner_add`` / ``_owner_ingest``) and the Reviewer's approval apply path do not.
+LEARNED_TYPES = ("rule", "decision", "gotcha")
+LEARNED_TYPE_REASON = "learned_type_requires_proposal"
 SCOPES = ("shared", "private", "project")
 #: Text kinds ``add`` may store (structure comes from the markdown/plain adapters).
 TEXT_KINDS = ("txt", "md")
-_DEFAULT_KIND = {"persona": "md", "workflow": "md", "skill": "md"}
+_DEFAULT_KIND = {"persona": "md", "workflow": "md", "skill": "md", "rule": "md", "decision": "md", "gotcha": "md"}
 
 MAX_TEXT_BYTES = 256 * 1024
 MAX_INGEST_BYTES = 16 * 1024 * 1024
@@ -87,12 +95,17 @@ _SCOPE_FIELDS = {  # scope -> (uses project, uses shared space)
     "shared": (False, True),
     "project": (True, False),
 }
-_CONTEXT_SECTIONS = (  # (title, memory_type, share of the budget)
+_CONTEXT_SECTIONS = (  # (title, memory_type, share of the budget) - the legacy plan, used when no learned memory exists
     ("Persona", "persona", 0.35),
     ("Workflow", "workflow", 0.25),
     ("Skills", "skill", 0.20),
     ("Recent devlog", "devlog", 0.20),
 )
+#: With at least one rule / decision / gotcha the plan becomes: Persona, Rules, Workflow, Decisions, Gotchas, Skills,
+#: Recent devlog; the legacy shares are scaled by ``_LEGACY_SCALE`` and the learned sections share the rest.
+_LEARNED_SECTIONS = (("Rules", "rule", 0.16), ("Decisions", "decision", 0.12), ("Gotchas", "gotcha", 0.12))
+_LEGACY_SCALE = 0.60
+_CONTEXT_TYPES = tuple(t for _title, t, _share in _CONTEXT_SECTIONS + _LEARNED_SECTIONS)
 
 
 class MemoryConfigError(ValueError):
@@ -156,8 +169,12 @@ class Memory:
         channel: str = "library",
         clock: Optional[Callable[[], datetime]] = None,
         shared_space: str = SHARED_SPACE,
+        settings_path: Optional[Union[str, Path]] = None,
     ) -> None:
         self._profile = profile_id
+        #: learning-harness settings file (None: ``$ZERO_MEM_SETTINGS`` / the zero-mem config directory)
+        self._settings_path = Path(settings_path) if settings_path is not None else None
+        self._proposal_log = None
         self._layout = layout
         self._channel = channel
         self._clock = clock
@@ -185,6 +202,7 @@ class Memory:
         channel: str = "library",
         clock: Optional[Callable[[], datetime]] = None,
         setup: bool = True,
+        settings_path: Optional[Union[str, Path]] = None,
     ) -> "Memory":
         """Open the memory as ``profile_id``, ensuring first-run setup (private dirs, schema, corpus root).
 
@@ -201,7 +219,7 @@ class Memory:
                 layout.ensure()
         except LayoutError as exc:
             raise MemoryConfigError(str(exc)) from None
-        return cls(profile_id, layout, channel=channel, clock=clock)
+        return cls(profile_id, layout, channel=channel, clock=clock, settings_path=settings_path)
 
     @property
     def profile_id(self) -> str:
@@ -502,15 +520,30 @@ class Memory:
     ) -> WriteResult:
         """Remember ``text`` as ``memory_type`` in ``scope`` (default private; devlog is always project).
 
+        ``rule`` / ``decision`` / ``gotcha`` are refused (status ``denied``, reason ``learned_type_requires_proposal``):
+        an agent proposes them with :meth:`propose` and the owner approves.
+
         ``name`` makes the source versionable by name (``mem://<type>/<name>``): adding again with other text is
         a new version. Without a name the id is the content hash (immutable; identical text is a no-op).
         ``provenance`` adds up to 8 short scalar fields (e.g. ``{"imported_from": "notes-v1"}``) to the registry's
         provenance; it is scanned for secrets, is never part of the source identity and cannot override the pinned
         ``channel`` / ``profile`` / ``writer`` / ``tool`` fields.
         """
+        return self._add(text, memory_type, name, scope, project_id, kind=kind, provenance=provenance, owner=False)
+
+    def _owner_add(self, text: str, memory_type: str = "fact", name: Optional[str] = None,
+                   scope: Optional[str] = None, project_id: Optional[str] = None, *,
+                   kind: Optional[str] = None, provenance: Optional[dict] = None) -> WriteResult:
+        """The OWNER's direct write (``zero-mem add``, ``import-notes``): same as :meth:`add` but may store the learned
+        types. Same trust level as ``review approve``: never reachable from MCP or a default ``Memory`` caller."""
+        return self._add(text, memory_type, name, scope, project_id, kind=kind, provenance=provenance, owner=True)
+
+    def _add(self, text, memory_type, name, scope, project_id, *, kind, provenance, owner: bool) -> WriteResult:
         invalid_base = {"memory_type": memory_type if isinstance(memory_type, str) else None}
         try:
             memory_type, scope, project_id = self._check_target(memory_type, scope, project_id)
+            if memory_type in LEARNED_TYPES and not owner:
+                return WriteResult(status="denied", reason=LEARNED_TYPE_REASON, **invalid_base)
             name = self._check_name(name)
             if kind is not None and kind not in TEXT_KINDS:
                 raise _Invalid("invalid_kind")
@@ -546,16 +579,32 @@ class Memory:
         max_files: Optional[int] = None,
         max_total_bytes: int = DEFAULT_MAX_TOTAL_BYTES,
     ) -> IngestReport:
-        """Ingest a file, a directory (recursively) or raw ``bytes`` (needs ``filename`` for the format).
+        """(Learned types ``rule`` / ``decision`` / ``gotcha`` are refused: ``denied`` / ``learned_type_requires_proposal``.)
+
+        Ingest a file, a directory (recursively) or raw ``bytes`` (needs ``filename`` for the format).
 
         One authorization decision covers the whole call. Unchanged files are no-ops, changed files become new
         versions, files with a credential / unreadable content are rejected and listed (never stored), and every
         skipped path is reported with its reason.
         """
+        return self._ingest(source, filename, memory_type, scope, project_id, name=name, allow_roots=allow_roots,
+                            max_files=max_files, max_total_bytes=max_total_bytes, owner=False)
+
+    def _owner_ingest(self, source, filename=None, memory_type="fact", scope=None, project_id=None, *,
+                      name=None, allow_roots=None, max_files=None,
+                      max_total_bytes: int = DEFAULT_MAX_TOTAL_BYTES) -> IngestReport:
+        """The owner's ``zero-mem ingest``: like :meth:`ingest` but may store the learned types."""
+        return self._ingest(source, filename, memory_type, scope, project_id, name=name, allow_roots=allow_roots,
+                            max_files=max_files, max_total_bytes=max_total_bytes, owner=True)
+
+    def _ingest(self, source, filename, memory_type, scope, project_id, *, name, allow_roots, max_files,
+                max_total_bytes, owner: bool) -> IngestReport:
         from src.corpus.detect_kind import DEFAULT_MAX_FILES, IngestPathError, detect_kind, iter_ingestable
 
         try:
             memory_type, scope, project_id = self._check_target(memory_type, scope, project_id)
+            if memory_type in LEARNED_TYPES and not owner:
+                return self._report("denied", LEARNED_TYPE_REASON, [], [])
             prefix = self._check_name(name, MAX_REF_NAME_CHARS)
             if isinstance(source, (bytes, bytearray)):
                 is_bytes = True
@@ -750,14 +799,15 @@ class Memory:
             return RecallResult(status="invalid", reason=exc.reason)
         try:
             metadata = {"memory_type": types[0]} if len(types) == 1 else None
-            internal = limit if len(types) <= 1 else min(MAX_RECALL_LIMIT * 2, limit * 5)
+            expired = self._expired_sources()
+            internal = limit if len(types) <= 1 and not expired else min(MAX_RECALL_LIMIT * 2, limit * 5)
             merged, notes, errors = self._search(
                 self._read_requests(include_private, project_id), self._search_text(query), metadata, internal)
             if errors and not merged:
                 return RecallResult(status="error", reason="retrieval_failed", notes=notes)
             if notes and all(code.startswith("DENY") for code in notes.values()):
                 return RecallResult(status="denied", reason=next(iter(notes.values())), notes=notes)
-            hits = list(merged.values())
+            hits = [h for h in merged.values() if h.source_id not in expired]
             if len(types) > 1:
                 hits = [h for h in hits if h.memory_type in types]
             hits.sort(key=lambda h: (-h.combined_score, h.external_ref or "", h.unit_order, h.unit_id))
@@ -799,12 +849,33 @@ class Memory:
         try:
             requests = self._read_requests(True, project_id)
             items: dict[str, list[tuple[str, list[str]]]] = {}
-            for _title, mtype, _share in _CONTEXT_SECTIONS:
+            expired = self._expired_sources()
+            for mtype in _CONTEXT_TYPES:
                 merged, _notes, _errors = self._search(requests, "", {"memory_type": mtype}, _res_limit())
-                items[mtype] = self._group_sources(merged.values())
+                items[mtype] = self._group_sources(h for h in merged.values() if h.source_id not in expired)
             return self._assemble(items, max_chars)
         except Exception as exc:
             return ContextBundle(status="error", reason=f"internal_error:{type(exc).__name__}", max_chars=max_chars)
+
+    def brief(
+        self,
+        task: Optional[str] = None,
+        max_chars: Optional[int] = None,
+        project_id: Optional[str] = None,
+        preview: bool = False,
+    ) -> BriefBundle:
+        """Task-aware briefing for the start of a task: active rules, then decisions / gotchas / workflows / skills
+        matching ``task``, recent devlog of ``project_id``, persona last; each line carries its ``mem://`` ref.
+
+        Gated by the owner's settings (``resolve_injection``): while injection is disabled (or the kill switch is on, or
+        the settings file is unusable) the result is EMPTY with ``reason`` and nothing is read. ``preview=True`` (the
+        owner's CLI) returns what WOULD be injected plus the reason it is currently off. Never raises; never includes
+        proposals, forgotten, expired, unreadable or other profiles' private items. Deterministic, zero LLM calls.
+        ``context()`` is unchanged.
+        """
+        from .brief import build_brief
+
+        return build_brief(self, task, max_chars, project_id, preview)
 
     @staticmethod
     def _group_sources(hits: Iterable[Any]) -> list[tuple[str, list[Any]]]:
@@ -821,7 +892,8 @@ class Memory:
     def _assemble(self, items: dict, max_chars: int) -> ContextBundle:
         lines_by_section: dict[str, list[str]] = {}
         refs_by_section: dict[str, list[str]] = {}
-        for title, mtype, _share in _CONTEXT_SECTIONS:
+        plan = self._section_plan(items)
+        for title, mtype, _share in plan:
             groups = items.get(mtype, [])
             if mtype == "devlog":
                 groups = self._newest_first(groups)
@@ -841,7 +913,7 @@ class Memory:
         sources: list[str] = []
         truncated = False
         carry = 0
-        for title, mtype, share in _CONTEXT_SECTIONS:
+        for title, mtype, share in plan:
             lines = lines_by_section[mtype]
             budget = int(max_chars * share) + carry
             header = f"## {title}"
@@ -861,6 +933,16 @@ class Memory:
         status = "ok" if text else "empty"
         return ContextBundle(status=status, text=text, sections=sections, sources=sources,
                              truncated=truncated, max_chars=max_chars)
+
+    @staticmethod
+    def _section_plan(items: dict) -> tuple:
+        """The legacy plan, or - when any rule / decision / gotcha is present - the learned plan (see _LEARNED_SECTIONS)."""
+        if not any(items.get(mtype) for _title, mtype, _share in _LEARNED_SECTIONS):
+            return _CONTEXT_SECTIONS
+        legacy = {mtype: (title, share * _LEGACY_SCALE) for title, mtype, share in _CONTEXT_SECTIONS}
+        learned = {mtype: (title, share) for title, mtype, share in _LEARNED_SECTIONS}
+        order = ("persona", "rule", "workflow", "decision", "gotcha", "skill", "devlog")
+        return tuple((({**legacy, **learned})[m][0], m, ({**legacy, **learned})[m][1]) for m in order)
 
     @staticmethod
     def _fill(lines: list[str], room: int) -> tuple[list[str], bool]:
@@ -1090,6 +1172,149 @@ class Memory:
         return ForgetResult(status="forgotten", source_id=record.source_id, external_ref=record.external_ref,
                             memory_type=memory_type, version=tomb.source_version_id)
 
+    # ------------------------------------------------------------------ learning harness (ADR-V170-03)
+    def _expired_sources(self) -> frozenset:
+        """Approved learned items hidden by ``learning.active_ttl_days`` (derived at read time; never raises)."""
+        from .learning import expired_source_ids
+
+        return expired_source_ids(self)
+
+    def propose(
+        self,
+        text: str,
+        memory_type: str = "rule",
+        name: Optional[str] = None,
+        scope: str = "shared",
+        project_id: Optional[str] = None,
+        evidence: Optional[Union[str, Sequence[str]]] = None,
+        source: str = "agent",
+    ):
+        """Propose ``text`` as ``memory_type`` for the owner to review. NOTHING becomes memory: a proposal is an inert
+        canonical event that recall / context / search never return, until the owner approves it
+        (``zero-mem review approve``), which commits it through the normal write path.
+
+        Rejected (nothing stored): secrets, a ``deny_patterns`` match, the kill switch, ``learning.mode = "off"``,
+        ``allow_agent_proposals = false`` (agent / learner sources), the per-profile daily limit, invalid input, or an
+        unusable settings file (fail safe). A duplicate pending proposal (same normalized text and target) is merged:
+        its ``seen`` counter grows and ``evidence`` is appended (bounded). ``source`` is a provenance label, not
+        authentication: the safety boundary is the owner's approval. Returns a :class:`~zero_mem.learning.ProposalResult`.
+        """
+        from .learning import submit_proposal
+
+        return submit_proposal(self, text, memory_type, name, scope, project_id, evidence, source)
+
+    def proposals(self, status: Optional[str] = None) -> list:
+        """This profile's OWN proposals (dicts), optionally filtered by status; never another profile's."""
+        from .learning import own_proposals
+
+        return own_proposals(self, status)
+
+    def proposal(self, proposal_id: str) -> Optional[dict]:
+        """One of this profile's own proposals (with history) or ``None`` (also for another profile's id)."""
+        from .learning import own_proposal
+
+        return own_proposal(self, proposal_id)
+
+    def withdraw(self, proposal_id: str):
+        """Withdraw one of this profile's own pending proposals."""
+        from .learning import withdraw_own
+
+        return withdraw_own(self, proposal_id)
+
+    def injection_policy(self, project_id: Optional[str] = None):
+        """``(enabled, max_chars, types)`` the owner's settings allow for this profile (project > profile > global)."""
+        from . import learning_settings
+
+        return learning_settings.resolve_injection(self._profile, project_id, learning_settings.load_settings(
+            self._settings_path))
+
+    def _apply_approved_write(self, approval, text, memory_type, name, scope, project_id, provenance) -> WriteResult:
+        """Owner-approved write (used ONLY by :class:`zero_mem.learning.Reviewer`): the owner's approval of one
+        proposal is the authorization for this single write, so ``authorize_write`` is not consulted; every other
+        gate (schema, byte caps, secret pre-scan, scope fields, versioning) is the normal write path."""
+        from .learning import ApprovedWrite
+
+        if not isinstance(approval, ApprovedWrite) or approval.proposer != self._profile:
+            raise PermissionError("an owner approval for this profile is required")
+        invalid_base = {"memory_type": memory_type if isinstance(memory_type, str) else None}
+        try:
+            memory_type, scope, project_id = self._check_target(memory_type, scope, project_id)
+            name = self._check_name(name)
+            extra = self._check_provenance(provenance)
+            clean = self._clean_text(text)
+        except _Invalid as exc:
+            return WriteResult(status="invalid", reason=exc.reason, **invalid_base)
+        return self._write_one(
+            content=clean.encode("utf-8"), kind=_DEFAULT_KIND.get(memory_type, "txt"), memory_type=memory_type,
+            scope=scope, project_id=project_id, ref_name=name, provenance={**extra, "tool": "approve"})
+
+    def _approval_snapshot(self, text, memory_type, name, scope, project_id):
+        """What an approval is about to replace: ``(bytes, kind, provenance)`` of the current live version of the
+        target source, or ``None`` when it does not exist / is forgotten (so a compensation tombstones instead)."""
+        try:
+            from src.corpus.identity import derive_source_id, source_descriptor
+
+            memory_type, scope, project_id = self._check_target(memory_type, scope, project_id)
+            name = self._check_name(name)
+            content = self._clean_text(text).encode("utf-8")
+            fields = self._scope_fields(scope, project_id)
+            ref = self._external_ref(memory_type, name, project_id, _sha256(content))
+            kind = _DEFAULT_KIND.get(memory_type, "txt")
+            with self._lock:
+                registry, blobs = self._corpus()
+                registry.refresh()
+                sid = derive_source_id(None, source_descriptor(
+                    external_ref=ref, kind=kind, custom_meta={"memory_type": memory_type}, **fields))
+                previous = registry.get_by_source_id(sid)
+                if previous is None or previous.lifecycle_status == "deleted" or previous.blob_ref is None:
+                    return None
+                return blobs.get(previous.blob_ref), previous.kind, dict(previous.provenance or {})
+        except Exception:
+            return None
+
+    def _undo_approved_write(self, approval, written: WriteResult, snapshot, name: Optional[str]) -> bool:
+        """Compensate an approval write whose canonical approval record could not be persisted: a source this approval
+        created is forgotten; a version it added on top of an older one is replaced by a new version carrying the older
+        content (append-only, nothing is deleted). ``True`` when the live state is back to what it was."""
+        from .learning import ApprovedWrite
+
+        if not isinstance(approval, ApprovedWrite) or approval.proposer != self._profile:
+            raise PermissionError("an owner approval for this profile is required")
+        if written.status == "unchanged":
+            return True  # nothing new was committed
+        if snapshot is None:
+            return self._operator_forget(written.source_id).status in ("forgotten", "already_forgotten")
+        content, kind, prov = snapshot
+        keep = {k: v for k, v in prov.items() if k not in ("registered_at", "registry", "channel", "writer", "profile")}
+        result = self._write_one(
+            content=content, kind=kind, memory_type=written.memory_type, scope=written.scope,
+            project_id=written.project_id, ref_name=name,
+            provenance={**keep, "rolled_back_approval": approval.proposal_id})
+        return result.ok
+
+    def _operator_forget(self, ident: str) -> ForgetResult:
+        """Owner revoke (used ONLY by :class:`zero_mem.learning.Reviewer`): the forget tombstone without the
+        per-profile authorization (the owner may revoke any non-global source)."""
+        try:
+            with self._lock:
+                registry, _blobs = self._corpus()
+                registry.refresh()
+                record, problem = self._resolve(registry, ident, lambda _record: True)
+                if record is None:
+                    status, reason, candidates = problem
+                    return ForgetResult(status=status, reason=reason, candidates=candidates)
+                memory_type = (record.custom_meta or {}).get("memory_type")
+                if record.lifecycle_status == "deleted":
+                    return ForgetResult(status="already_forgotten", source_id=record.source_id,
+                                        external_ref=record.external_ref, memory_type=memory_type,
+                                        version=record.source_version_id)
+                if _scope_of(record.profile_id, record.project_id, record.knowledge_space_id, self._shared) == "global":
+                    return ForgetResult(status="denied", reason="DENY_GLOBAL_WRITE", source_id=record.source_id,
+                                        external_ref=record.external_ref, memory_type=memory_type)
+                return self._tombstone(record, memory_type)
+        except Exception as exc:
+            return ForgetResult(status="error", reason=f"internal_error:{type(exc).__name__}")
+
     # ------------------------------------------------------------------ public: status
     def status(self) -> dict:
         """Counts, this profile's grants and projection drift (no content)."""
@@ -1150,5 +1375,5 @@ def _res_limit() -> int:
 
 
 __all__ = [
-    "MAX_INGEST_BYTES", "MAX_TEXT_BYTES", "MEMORY_TYPES", "Memory", "MemoryConfigError", "SCOPES", "SHARED_SPACE",
+    "LEARNED_TYPES", "MAX_INGEST_BYTES", "MAX_TEXT_BYTES", "MEMORY_TYPES", "Memory", "MemoryConfigError", "SCOPES", "SHARED_SPACE",
 ]

@@ -1,0 +1,72 @@
+{"id": "d001", "split": "dev", "label": "rule", "text": "Always run pytest -q before committing."}
+{"id": "d002", "split": "dev", "label": "rule", "text": "From now on, use pathlib instead of os.path in this repo."}
+{"id": "d003", "split": "dev", "label": "rule", "text": "Never commit directly to main; open a PR instead."}
+{"id": "d004", "split": "dev", "label": "rule", "text": "Don't use print for logging, use the logging module."}
+{"id": "d005", "split": "dev", "label": "gotcha", "text": "Careful: the migration fails when the table is empty, so seed it first."}
+{"id": "d006", "split": "dev", "label": "decision", "text": "We decided to use SQLite instead of Postgres for the local store."}
+{"id": "d007", "split": "dev", "label": "rule", "text": "Remember to update CHANGELOG.md whenever you change a public API."}
+{"id": "d008", "split": "dev", "label": "rule", "text": "Stop adding type: ignore comments, fix the types properly."}
+{"id": "d009", "split": "dev", "label": "rule", "text": "luôn chạy lint trước khi commit."}
+{"id": "d010", "split": "dev", "label": "rule", "text": "Đừng dùng global state trong module này."}
+{"id": "d011", "split": "dev", "label": "rule", "text": "Từ giờ hãy viết test trước khi viết code."}
+{"id": "d012", "split": "dev", "label": "gotcha", "text": "Chú ý: build lỗi khi thiếu biến môi trường CI_MODE."}
+{"id": "d013", "split": "dev", "label": "decision", "text": "Chốt: dùng FastAPI cho service mới."}
+{"id": "d014", "split": "dev", "label": "rule", "text": "Nhớ cập nhật tài liệu khi đổi API."}
+{"id": "d015", "split": "dev", "label": "rule", "text": "Thanks, that looks good. One more thing: you must always open files with encoding utf-8."}
+{"id": "h016", "split": "heldout", "label": "rule", "text": "Make sure to run the formatter before every commit."}
+{"id": "h017", "split": "heldout", "label": "rule", "text": "Please never use sudo in the install scripts."}
+{"id": "h018", "split": "heldout", "label": "gotcha", "text": "Heads up, the deploy script breaks if the version tag has a leading v."}
+{"id": "h019", "split": "heldout", "label": "decision", "text": "We will use Redis for the cache layer, not memcached."}
+{"id": "h020", "split": "heldout", "label": "rule", "text": "You should always write docstrings for public functions."}
+{"id": "h021", "split": "heldout", "label": "rule", "text": "Do not modify files under vendor/ by hand."}
+{"id": "h022", "split": "heldout", "label": "rule", "text": "Instead of mocking the database, use the in-memory sqlite fixture."}
+{"id": "h023", "split": "heldout", "label": "rule", "text": "Also remember to bump the version in pyproject.toml when you cut a release."}
+{"id": "h024", "split": "heldout", "label": "rule", "text": "Bắt buộc phải có test cho mọi hàm public."}
+{"id": "h025", "split": "heldout", "label": "rule", "text": "Không được commit file .env lên git."}
+{"id": "h026", "split": "heldout", "label": "rule", "text": "Thay vì dùng requests, hãy dùng httpx."}
+{"id": "h027", "split": "heldout", "label": "decision", "text": "Quyết định: giữ Python 3.11 làm phiên bản tối thiểu."}
+{"id": "h028", "split": "heldout", "label": "gotcha", "text": "Cẩn thận: script lỗi khi đường dẫn có dấu cách."}
+{"id": "h029", "split": "heldout", "label": "rule", "text": "Từ giờ đừng tự ý đổi tên file khi chưa hỏi tôi."}
+{"id": "h030", "split": "heldout", "label": "rule", "text": "I like it. Also, don't ever delete the backups folder."}
+{"id": "d031", "split": "dev", "label": "none", "text": "Should I always run pytest before committing?"}
+{"id": "d032", "split": "dev", "label": "none", "text": "Can you explain why we never use global state here?"}
+{"id": "d033", "split": "dev", "label": "none", "text": "What does this error mean?\nTraceback (most recent call last):\n  File \"app.py\", line 3, in <module>\n    import foo\nModuleNotFoundError: No module named 'foo'"}
+{"id": "d034", "split": "dev", "label": "none", "text": "def add(a, b):\n    # always return an int\n    return int(a) + int(b)"}
+{"id": "d035", "split": "dev", "label": "none", "text": "Don't worry about it, I'll fix that myself."}
+{"id": "d036", "split": "dev", "label": "none", "text": "never mind, it works now"}
+{"id": "d037", "split": "dev", "label": "none", "text": "Thanks! That fixed it."}
+{"id": "d038", "split": "dev", "label": "none", "text": "Sure! I will always run the tests before committing, and I must remember to update the docs."}
+{"id": "d039", "split": "dev", "label": "none", "text": "If we always used tabs the diff would be huge, but we don't."}
+{"id": "d040", "split": "dev", "label": "none", "text": "I never said the build was broken."}
+{"id": "d041", "split": "dev", "label": "none", "text": "ok"}
+{"id": "d042", "split": "dev", "label": "none", "text": "Let's look at the failing test in tests/test_cache.py."}
+{"id": "d043", "split": "dev", "label": "none", "text": "$ pytest -q\nFAILED tests/test_cache.py::test_ttl - AssertionError: always expired\n1 failed, 12 passed"}
+{"id": "d044", "split": "dev", "label": "none", "text": "Hôm nay trời đẹp quá, đi uống cà phê thôi."}
+{"id": "d045", "split": "dev", "label": "none", "text": "Đừng lo, tôi tự sửa được."}
+{"id": "d046", "split": "dev", "label": "none", "text": "Bạn có nhớ file config nằm ở đâu không?"}
+{"id": "d047", "split": "dev", "label": "none", "text": "Mình không dùng được cái này, nó báo lỗi hoài."}
+{"id": "d048", "split": "dev", "label": "none", "text": "Phải rồi, đúng là lỗi ở dòng 42."}
+{"id": "d049", "split": "dev", "label": "none", "text": "Can you add a button to the settings page?"}
+{"id": "d050", "split": "dev", "label": "none", "text": "{{SECRET_RULE}}"}
+{"id": "h051", "split": "heldout", "label": "none", "text": "Do you think we should never touch the legacy module?"}
+{"id": "h052", "split": "heldout", "label": "none", "text": "Why did it fail? Is it because we must always pass --offline?"}
+{"id": "h053", "split": "heldout", "label": "none", "text": "2025-10-01 12:00:01 ERROR worker: connection failed, will always retry later\n2025-10-01 12:00:02 INFO worker: retry 1"}
+{"id": "h054", "split": "heldout", "label": "none", "text": "```python\nfor item in items:\n    # never mutate the list while iterating\n    process(item)\n```"}
+{"id": "h055", "split": "heldout", "label": "none", "text": "Don't worry, no rush."}
+{"id": "h056", "split": "heldout", "label": "none", "text": "never mind the previous message"}
+{"id": "h057", "split": "heldout", "label": "none", "text": "Great, thanks a lot for the quick turnaround."}
+{"id": "h058", "split": "heldout", "label": "none", "text": "I'll make sure to run the tests, and I should always check the logs afterwards."}
+{"id": "h059", "split": "heldout", "label": "none", "text": "Imagine we must always sign every commit; would that slow the team down?"}
+{"id": "h060", "split": "heldout", "label": "none", "text": "The docs say you should always call close(), but the code never does."}
+{"id": "h061", "split": "heldout", "label": "none", "text": "hmm"}
+{"id": "h062", "split": "heldout", "label": "none", "text": "Please summarise the diff for me."}
+{"id": "h063", "split": "heldout", "label": "none", "text": "npm ERR! code ELIFECYCLE\nnpm ERR! errno 1\nnpm ERR! app@1.0.0 build: `webpack`\nnpm ERR! Exit status 1"}
+{"id": "h064", "split": "heldout", "label": "none", "text": "Cuối tuần này mình đi đá bóng."}
+{"id": "h065", "split": "heldout", "label": "none", "text": "Không sao đâu, đừng bận tâm."}
+{"id": "h066", "split": "heldout", "label": "none", "text": "Bạn nhớ giúp mình lúc nãy làm gì không?"}
+{"id": "h067", "split": "heldout", "label": "none", "text": "Cái máy chủ không dùng được từ sáng."}
+{"id": "h068", "split": "heldout", "label": "none", "text": "Đúng rồi, phải thế."}
+{"id": "h069", "split": "heldout", "label": "none", "text": "What time is the standup tomorrow?"}
+{"id": "h070", "split": "heldout", "label": "none", "text": "Always be kind to others."}
+{"id": "d071", "split": "dev", "label": "rule", "text": "Do not use eval anywhere in this codebase."}
+{"id": "d072", "split": "dev", "label": "none", "text": "Do you want me to rerun the suite?"}

@@ -22,7 +22,7 @@ ABS_PASSWD = os.path.abspath(os.sep + "etc" + os.sep + "passwd")
 ABS_ETC = os.path.abspath(os.sep + "etc")
 ABS_ROOT = os.path.abspath(os.sep)
 
-READ_TOOLS = ["memory_recall", "memory_context"]
+READ_TOOLS = ["memory_recall", "memory_context", "memory_brief"]  # T15: + memory_brief
 WRITE_TOOLS = ["memory_add", "memory_ingest", "memory_forget"]
 
 

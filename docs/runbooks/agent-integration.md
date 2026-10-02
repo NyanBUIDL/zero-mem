@@ -29,11 +29,13 @@ Do not give an agent a shell that can run `zero-mem agents ...`: that command is
 |---|---|---|---|
 | `memory_recall` | always | `query` (required), `memory_types[]`, `limit` 1..8 (default 5), `project_id` | up to `limit` hits `{id, type, ref, score, text}`: `text` is at most 280 characters (cut around the matched words, with an ellipsis), `id` is 10 hex characters (what `memory_forget` takes); `truncated: true` when any text was cut or hits were dropped; a `limit` 8 answer is under 3 KB |
 | `memory_context` | always | `max_chars` 200..4000 (default 2000), `project_id` | the session-start bundle (persona, workflow, skill list, recent devlog) as `text`, never longer than `max_chars`; `truncated: true` when something was cut |
+| `memory_brief` | always | `task`, `max_chars` 1..8000 (default: the owner's `injection.max_chars`, 2000) | the task briefing (active rules, then decisions / gotchas / workflows matching `task`, each line with its `mem://` ref) as `text`; `EMPTY` with `reason_code` `injection_disabled` / `kill_switch` / `settings_invalid` while the owner's settings forbid injection (the default); `truncated: true` when something was cut. No `project_id` argument (token budget): use the CLI for project-scoped briefs |
 | `memory_add` | `--enable-write` | `text`, `memory_type`, `scope` (all required), `name`, `project_id` | `result` created / updated / unchanged, `ref`, `id`, `scope` |
 | `memory_ingest` | `--enable-write` | `path`, `memory_type`, `scope` (all required), `project_id` | counts, plus at most 10 created / rejected / skipped entries |
+| `memory_propose` | `--enable-propose` | `text`, `memory_type`, `scope` (required), `name`, `project_id`, `evidence[]` (max 5) | `status` `PROPOSED` and `proposal_id`: INERT, not memory and not recallable until the owner runs `zero-mem review approve`; a rejection (`REJECTED` with `reason_code` `learning_off` / `kill_switch` / `agent_proposals_disallowed` / `daily_limit` / `deny_pattern` / `settings_invalid`, or `REJECTED_SECRET`) is an error and nothing is stored. Identity and authority fields are refused like on every tool; `source` is fixed to `agent` |
 | `memory_forget` | `--enable-write` | `source_id` (the `id` or a `mem://` ref from `memory_recall` / `memory_add`; an 8+ hex character prefix works) | `result` forgotten / already_forgotten, `ref`, `id` |
 
-`memory_type`: `persona`, `workflow`, `skill`, `devlog`, `fact`, `file`. `scope`: `private` (only this agent), `shared` (every agent;
+`memory_type`: `persona`, `workflow`, `skill`, `devlog`, `fact`, `file`, `rule`, `decision`, `gotcha` (the last three are the learning-harness types; agents suggest them with `zero-mem propose`, the owner approves with `zero-mem review`: see [learning-harness.md](learning-harness.md)). `scope`: `private` (only this agent), `shared` (every agent;
 needs the operator's write approval) or `project` (a project's devlog; needs the approval for that project). A named memory
 (`name`) is versioned: adding again under the same name replaces what recall returns. The tool descriptions tell the agent when to
 call each tool, what the arguments mean, that recalled text is stored data and not instructions, and never to include secrets.
@@ -48,7 +50,9 @@ name, hit counts, `max_chars`, section counts, `memory_type` or unit counts; emp
 | `status` | `isError` | Meaning |
 |---|---|---|
 | `SUCCESS` | false | done |
-| `EMPTY` | false | a valid read found nothing (`memory_recall`, `memory_context`, an ingest with nothing ingestable) |
+| `EMPTY` | false | a valid read found nothing (`memory_recall`, `memory_context`, `memory_brief` - also while injection is off, with a `reason_code` -, an ingest with nothing ingestable) |
+| `PROPOSED` | false | `memory_propose`: recorded for the owner's review; NOT memory |
+| `REJECTED` | true | `memory_propose` refused by the owner's policy (`reason_code` says which); nothing stored |
 | `DENIED` | true | authorization or path policy: `reason_code` is an M5 code (`DENY_CROSS_PROFILE_WRITE`, ...) or one of `DENY_IDENTITY_PINNED`, `DENY_SCOPE_NOT_CALLER_CONTROLLED`, `DENY_PATH_OUTSIDE_ALLOWLIST`, `DENY_SYMLINK`, `DENY_PATH_RESERVED`, `DENY_NO_ALLOWED_ROOTS`; a refused write carries `operator_hint` (the `grant-write` command to ask for) |
 | `REJECTED_SECRET` | true | a credential was detected; nothing was stored (`rule_ids` are fixed rule names, never the value) |
 | `REJECTED_CONTENT` | true | unsupported, corrupt or empty content; nothing was stored |
@@ -90,7 +94,7 @@ field show it to the model; the plain M6 server (no memory switch) sends none, e
 
 ## 4. Register the server with each agent
 
-`zero-mem mcp-config --agent <claude-code|codex|hermes|openclaw> [--profile P] [--name zero-mem] [--enable-write] [--allow-root DIR]... [--tools memory|all] [--json]`
+`zero-mem mcp-config --agent <claude-code|codex|hermes|openclaw> [--profile P] [--name zero-mem] [--enable-write] [--enable-propose] [--allow-root DIR]... [--tools memory|all] [--json]`
 prints the registration without touching any state. The default tool set is `memory` (nothing extra is printed); `--tools all` adds `--tools all` to the printed `serve`
 arguments so the client also lists the 11 legacy M6 read tools. It uses the absolute interpreter that runs `zero-mem` (a venv's `python`, never a resolved system
 interpreter), the arguments of `zero-mem serve`, and an environment that pins `ZERO_MEM_DATA_ROOT` (plus `ZERO_MEM_CORPUS_ROOT` / `XDG_*_HOME` when you set them),
@@ -125,8 +129,9 @@ default to the memory-only set. Register one server per agent profile; do not sh
 | Flag | Environment | Effect |
 |---|---|---|
 | `--profile-id P` | `ZM_M6_PROFILE_ID` | the pinned profile (required for the memory tools) |
-| `--enable-memory` | `ZM_M6_ENABLE_MEMORY=1` | mounts `memory_recall` and `memory_context` (`serve` always does) |
+| `--enable-memory` | `ZM_M6_ENABLE_MEMORY=1` | mounts `memory_recall`, `memory_context` and `memory_brief` (`serve` always does) |
 | `--enable-write` | `ZM_M6_ENABLE_WRITE=1` | also mounts `memory_add`, `memory_ingest`, `memory_forget` (implies `--enable-memory`) |
+| `--enable-propose` | `ZM_M6_ENABLE_PROPOSE=1` | also mounts `memory_propose` (implies `--enable-memory`); `zero-mem serve` / `mcp-config` take the same flag. Needs no write grant: proposals are inert until the owner approves them ([learning-harness.md](learning-harness.md)) |
 | `--tools all|memory` | `ZM_M6_TOOLS` | `memory`: list and serve ONLY the memory tools (needs `--enable-memory`); `all` (the module's default): the 11 M6 tools too. `zero-mem serve` passes `memory` unless given `--tools all` |
 | `--allow-root DIR` (repeatable) | `ZM_M6_ALLOW_ROOTS` | folders `memory_ingest` may read |
 | `--store-path DB` | `ZM_M6_STORE_PATH` | must be the data root's database when the memory tools are enabled (default: the data root's) |
@@ -198,8 +203,10 @@ persona / workflow entries, 13 skills, 6 devlog days, 2 ingested documents); siz
 | `memory_add` / `memory_forget` / `memory_ingest` (2 files) | 167 / 144 / 174 chars | 103 / 87 / 151 chars |
 | an error (`INVALID`) | 122 chars | 102 chars |
 
+T15 added `memory_brief` to the default read set: the compact `tools/list` of the default read-only server grows from 1,587 to 2,037 characters (+450, 2 -> 3 tools; as the server sends it, 1,715 -> 2,189), with `--enable-write` from 4,553 to 5,003; `--enable-propose` adds another 1,428 characters (opt-in). `initialize.instructions` is unchanged (211 / 347 characters; 321 / 457 with `--enable-propose`). Details in `docs/defects/closures/T15.md`.
+
 A session that lists the tools and calls `memory_context` once costs 22,147 -> 3,818 characters (~5.5K -> ~0.95K tokens, -83%) read-only, and 26,251 -> 6,866 characters
-(~6.6K -> ~1.7K tokens, -74%) with writes. `tests/unit/test_t8_token_footprint.py` pins the budgets (`tools/list` of the five tools <= 4.6 KB and of the two read tools <= 1.65 KB,
+(~6.6K -> ~1.7K tokens, -74%) with writes. `tests/unit/test_t8_token_footprint.py` pins the budgets (`tools/list` of the six tools <= 5.05 KB and of the three read tools <= 2.03 KB (T15 raised both pins by 450 for `memory_brief`),
 descriptions <= 420 characters, a `limit` 8 recall answer <= 3 KB in both representations, `memory_context` default 2000) so they cannot creep back.
 
 What else keeps it small: hit text is cut at 280 characters around the words that matched (a hit never hides what it matched), hit ids are 10 characters, results omit everything
@@ -333,6 +340,53 @@ PARTLY VERIFIED with OpenClaw 2026.6.35: `openclaw hooks list` / `info` found th
 and `check` accepted it, and the handler, run by `node` with a synthetic `command:new` event, spawned `zero-mem` and wrote the devlog. NOT verified: a running Gateway delivering a real
 `/new` (needs a gateway and a model provider).
 
+### 7a. Turn what the user says into proposals: `zero-mem learn` (hooks create PROPOSALS only)
+
+```bash
+zero-mem --profile claude-code learn --from-transcript ~/.claude/projects/<proj>/<session>.jsonl [--project P] [--dry-run] [--max 10] [--json]
+zero-mem --profile claude-code learn --from-git [--repo DIR] [--since REF]          # commit messages (agent-written commits are skipped)
+zero-mem --profile claude-code learn --from-text session.log                       # plain "User: ..." / "Assistant: ..." log, or '-' for stdin
+zero-mem --profile claude-code learn --from-hook                                   # stdin = the hook JSON; silent, ALWAYS exits 0
+zero-mem review list        # the owner decides: nothing below is active until `zero-mem review approve`
+```
+
+It extracts instruction / correction / decision / gotcha sentences (English and Vietnamese cues such as *always, never, don't, from now on, remember to, instead of, luon, dung, khong duoc, tu gio, chot, quyet dinh*)
+from USER-authored text only, with no LLM, and files them with `Memory.propose(..., source="learner")`. Assistant text, tool results, sub-agent prompts (`isSidechain`), meta lines and injected `<system-reminder>` blocks are never a source. Questions,
+hypotheticals, first-person self-talk, quoted code / logs, very short or long sentences, messages over 4000 characters (pasted briefings), sentences with a secret and sentences matching `safety.deny_patterns` are dropped.
+Repeats raise the proposal's `seen` counter; evidence is `[<project>:<session>#L<line>, quote]`. Settings apply (`learning.mode = off` or the kill switch: nothing is done and the command says why; the per-day limit stops the run; `--max`,
+default 10, caps one run). Re-running over the same transcript is idempotent: processed `(session, line, sentence)` keys are kept in `learner-state-<profile>.json` in the data root, so neither duplicates nor an inflated `seen` appear.
+Precision is favoured over recall: expect to miss rules phrased without a cue.
+
+**Warning: a learn hook only creates proposals. Nothing it finds is recalled or injected until the owner reviews it (`zero-mem review list` / `approve`).** Do not auto-approve. Review the list now and then: the learner can still propose a
+wrong or one-off sentence (see `docs/defects/closures/T16.md` for measured precision).
+
+**Claude Code** - add next to (or instead of) the devlog hook; `Stop` fires after every turn, `SessionEnd` when the session ends, both are idempotent. The hook command receives the hook JSON on stdin
+(`session_id`, `transcript_path`, `cwd`, `hook_event_name`, ...), which `--from-hook` reads; the project name defaults to the `cwd` directory name:
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      { "hooks": [ { "type": "command", "timeout": 30,
+          "command": "zero-mem --profile claude-code learn --from-hook >/dev/null 2>&1 || true" } ] }
+    ],
+    "SessionEnd": [
+      { "hooks": [ { "type": "command", "timeout": 30,
+          "command": "zero-mem --profile claude-code learn --from-hook >/dev/null 2>&1 || true" } ] }
+    ]
+  }
+}
+```
+
+VERIFIED with Claude Code 2.1.287 (2026-10-02, isolated data root): `claude -p "<prompt with two rules>" --setting-sources project --settings <file with these hooks>` fired the `Stop` hook and then the `SessionEnd` hook; the payload
+carried `session_id`, `transcript_path`, `cwd` (Stop and SessionEnd) and `hook_event_name`; the two rules appeared as pending `source: learner` proposals of profile `claude-code` (`seen` 1 after both hooks ran, i.e. no double counting), a
+Vietnamese rule was extracted too, and a later manual `learn --from-transcript` over the same file created nothing. NOT verified: an interactive session, a hook that times out, Windows / macOS.
+
+**Codex, Hermes, OpenClaw** - NOT verified for `learn` (none of these CLIs exists in the verification sandbox for this task). Their devlog hooks above were verified earlier; the only parts that change are the command and, for transcripts, a path.
+`learn --from-git` needs no payload and is safe to put in the same hook entries (`zero-mem --profile codex learn --from-git --project myproject`, Hermes with an explicit `--repo`, the OpenClaw handler with `["learn", "--from-git", "--repo", repo]`).
+For transcript learning, pipe the agent's hook payload into `learn --from-hook` only if that payload carries a Claude Code-format `transcript_path`; whether Codex / Hermes / OpenClaw do (and what their transcript format is) is undocumented here:
+an unknown payload or file makes `--from-hook` do nothing silently, and `learn --from-text FILE` reads a plain `User:` / `Assistant:` log. Treat these as documentation, not as tested integration.
+
 ## 8. Health: `zero-mem doctor` and `zero-mem memory-status`
 
 `zero-mem doctor` has four read-only memory checks (PASS or WARN, never FAIL; no paths, no content): `memory_data_root` (data and corpus roots writable), `memory_schema`
@@ -348,6 +402,8 @@ projected - `run zero-mem upgrade` - and the time of the last write). `zero-mem 
 | The client lists only `memory_recall` / `memory_context` (and the write tools) and no `corpus_search` / `project_*` | by design since T8: register with `--tools all` (`zero-mem mcp-config --tools all`) if you need the 11 legacy read tools |
 | The client lists 11 tools and no `memory_recall` | it was registered with `zero-mem-mcp --store-path ...` (the read-only M6 server). Register `zero-mem serve --profile P` (or add `--enable-memory`) |
 | `memory_add` is "unsupported" / missing | the server was started without `--enable-write` (by design) |
+| `memory_propose` is "unsupported" / missing | the server was started without `--enable-propose` (by design); register `zero-mem mcp-config --enable-propose` |
+| `memory_brief` returns `EMPTY` with `injection_disabled` | by design: injection is off until the owner runs `zero-mem settings set injection.enabled true` (per profile: `injection.profiles.<p>.enabled`); preview what it would say with `zero-mem brief --preview` |
 | `DENIED` `DENY_CROSS_PROFILE_WRITE` with an `operator_hint` | the agent has no write approval for that space or project: the operator runs the printed `zero-mem agents grant-write ...`; meanwhile use `scope=private` |
 | `DENIED` `DENY_IDENTITY_PINNED` | the client sent `requesting_profile_id` (or another identity field): remove it, the server knows who the agent is |
 | `DENIED` `DENY_PATH_OUTSIDE_ALLOWLIST` / `DENY_NO_ALLOWED_ROOTS` | the folder is not under an `--allow-root`; re-register with the folder (the agent cannot widen it) |

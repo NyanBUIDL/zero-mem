@@ -177,6 +177,49 @@ class ContextBundle:
 
 
 @dataclass(frozen=True)
+class BriefBundle:
+    """Task-aware briefing (``Memory.brief``): ``text`` plus exactly what went into it.
+
+    ``status``: ``ok`` | ``empty`` (enabled, nothing to say) | ``disabled`` (the owner's settings forbid injection;
+    ``text`` is empty and ``reason`` is ``injection_disabled`` / ``kill_switch`` / ``settings_invalid``) | ``invalid``
+    | ``error``. A ``preview`` bundle carries the content that WOULD be injected even when ``enabled`` is False;
+    ``reason`` then says why it is currently off.
+    """
+
+    status: str
+    text: str = ""
+    reason: Optional[str] = None
+    enabled: bool = False
+    preview: bool = False
+    sections: dict = field(default_factory=dict)   # section title -> lines included
+    omitted: dict = field(default_factory=dict)    # section title -> candidates that did not fit (only when > 0)
+    sources: list = field(default_factory=list)    # refs included, in order
+    items: list = field(default_factory=list)      # [{"ref", "type", "why"?}] in order
+    truncated: bool = False
+    max_chars: int = 0
+
+    @property
+    def ok(self) -> bool:
+        return self.status in ("ok", "empty", "disabled")
+
+    def __str__(self) -> str:
+        return self.text
+
+    def render(self) -> str:
+        """The plain-text briefing (what an agent is given); empty when disabled."""
+        return self.text
+
+    def as_dict(self) -> dict:
+        out: dict = {"ok": self.ok, "status": self.status, "enabled": self.enabled, "preview": self.preview,
+                     "text": self.text, "chars": len(self.text), "max_chars": self.max_chars,
+                     "truncated": self.truncated, "sections": dict(self.sections), "omitted": dict(self.omitted),
+                     "sources": list(self.sources), "items": [dict(i) for i in self.items]}
+        if self.reason:
+            out["reason"] = self.reason
+        return out
+
+
+@dataclass(frozen=True)
 class ForgetResult:
     status: str  # forgotten | already_forgotten | not_found | ambiguous | denied | invalid | error
     reason: Optional[str] = None
@@ -198,6 +241,6 @@ class ForgetResult:
 
 
 __all__ = [
-    "BENIGN_SKIPS", "build_ingest_report", "ContextBundle", "ForgetResult", "IngestReport", "OK_WRITE_STATUSES", "RecallHit", "RecallResult",
+    "BENIGN_SKIPS", "BriefBundle", "build_ingest_report", "ContextBundle", "ForgetResult", "IngestReport", "OK_WRITE_STATUSES", "RecallHit", "RecallResult",
     "WRITE_STATUSES", "WriteResult",
 ]
