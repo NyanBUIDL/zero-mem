@@ -36,6 +36,7 @@ from urllib.parse import quote
 
 from .memory_layout import Layout, LayoutError
 from .memory_results import (
+    BriefBundle,
     ContextBundle,
     ForgetResult,
     IngestReport,
@@ -819,6 +820,26 @@ class Memory:
             return self._assemble(items, max_chars)
         except Exception as exc:
             return ContextBundle(status="error", reason=f"internal_error:{type(exc).__name__}", max_chars=max_chars)
+
+    def brief(
+        self,
+        task: Optional[str] = None,
+        max_chars: Optional[int] = None,
+        project_id: Optional[str] = None,
+        preview: bool = False,
+    ) -> BriefBundle:
+        """Task-aware briefing for the start of a task: active rules, then decisions / gotchas / workflows / skills
+        matching ``task``, recent devlog of ``project_id``, persona last; each line carries its ``mem://`` ref.
+
+        Gated by the owner's settings (``resolve_injection``): while injection is disabled (or the kill switch is on, or
+        the settings file is unusable) the result is EMPTY with ``reason`` and nothing is read. ``preview=True`` (the
+        owner's CLI) returns what WOULD be injected plus the reason it is currently off. Never raises; never includes
+        proposals, forgotten, expired, unreadable or other profiles' private items. Deterministic, zero LLM calls.
+        ``context()`` is unchanged.
+        """
+        from .brief import build_brief
+
+        return build_brief(self, task, max_chars, project_id, preview)
 
     @staticmethod
     def _group_sources(hits: Iterable[Any]) -> list[tuple[str, list[Any]]]:
