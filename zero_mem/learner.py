@@ -542,6 +542,12 @@ def _save_state(path: Path, keys: list) -> None:
     from src.storage.platform import lock_wait_seconds
 
     try:
+        from . import paths
+
+        try:
+            paths.ensure_lock_parent(path.with_name(path.name + ".lock"), "learner state directory")
+        except paths.SetupError:
+            raise OSError("learner state directory is unusable") from None
         with locked(path.with_name(path.name + ".lock"), mode="exclusive", timeout=lock_wait_seconds(STATE_LOCK_TIMEOUT)):
             merged = _load_state(path)
             known = set(merged)

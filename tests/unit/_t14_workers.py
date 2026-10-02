@@ -84,3 +84,29 @@ def hold_lock(path: str, seconds: float, ready, out) -> None:
     except BaseException as exc:  # noqa: BLE001
         ready.set()
         out.put(("error", f"{type(exc).__name__}: {exc}"))
+
+
+def cold_start(root: str, settings: str, kind: str, worker: int, barrier, out) -> None:
+    """T26: first-run race - ``root`` (and data/memory/traces) does not exist yet when the processes start."""
+    from zero_mem.memory import Memory
+
+    try:
+        if kind == "propose":
+            mem = Memory.open("claude-code", data_root=Path(root), settings_path=Path(settings))
+            barrier.wait(60)
+            res = mem.propose(f"cold start worker {worker} proposal", "rule", scope="shared")
+            mem.close()
+            out.put(("ok", worker, (res.status, res.reason if not res.detail else f"{res.reason}: {res.detail}")))
+            return
+        from zero_mem.learning import learning_lock
+        from zero_mem.memory_layout import Layout
+        from zero_mem.provisioning import append_canonical_event
+
+        layout = Layout.resolve(Path(root))  # deliberately NOT ensure()d: the stream directory may not exist
+        barrier.wait(60)
+        with learning_lock(layout):
+            pass
+        append_canonical_event(layout.memory_stream.with_name(f"direct-{worker}.jsonl"), {"event_id": f"cold-{worker}", "event_type": "x"})
+        out.put(("ok", worker, ("direct", "")))
+    except BaseException as exc:  # noqa: BLE001
+        out.put(("error", worker, f"{type(exc).__name__}: {exc}"))

@@ -50,8 +50,9 @@ class PlatformErrorCode(str, Enum):
 class PlatformStorageError(OSError):
     """Sanitized, domain-facing platform storage failure."""
 
-    def __init__(self, code: PlatformErrorCode, *, transient: bool = False) -> None:
+    def __init__(self, code: PlatformErrorCode, *, transient: bool = False, missing: bool = False) -> None:
         self.code = code
+        self.missing = missing  # T26: a path component did not exist (ENOENT) - may be created concurrently
         self.transient = transient  # T23: the underlying OS error was a retryable one (EINTR/EAGAIN/EACCES/sharing)
         super().__init__(code.value)
 
@@ -232,9 +233,9 @@ def _posix_parent(path: Path) -> int:
             os.close(fd)
             fd = next_fd
         return fd
-    except (OSError, ValueError):
+    except (OSError, ValueError) as exc:
         os.close(fd)
-        raise PlatformStorageError(PlatformErrorCode.UNSAFE_PATH) from None
+        raise PlatformStorageError(PlatformErrorCode.UNSAFE_PATH, missing=isinstance(exc, FileNotFoundError)) from None
 
 
 def _windows_safe(path: Path) -> None:
@@ -533,7 +534,10 @@ def _open_lock_file(path: Path, end: float) -> int:
             return open_regular(path, os.O_CREAT | os.O_RDWR, create=True)
         except PlatformStorageError as exc:
             delay = next(delays, None)  # bounded (~0.5 s): a genuinely unreadable lock file must fail fast
-            if not exc.transient or delay is None or time.monotonic() >= end:
+            # T26: a missing lock file / parent (NOT_FOUND, or ENOENT on an ancestor) may be created concurrently
+            # by a first-run bootstrap: retry inside the same bounded window, then raise the original error.
+            retryable = exc.transient or exc.missing or exc.code is PlatformErrorCode.NOT_FOUND
+            if not retryable or delay is None or time.monotonic() >= end:
                 raise
             _retry_sleep(delay)
 

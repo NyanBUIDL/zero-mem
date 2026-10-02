@@ -492,11 +492,16 @@ def learning_lock(layout: Layout):
     from src.storage.coordination import locked
     from src.storage.platform import PlatformErrorCode, PlatformStorageError, lock_wait_seconds
 
+    from . import paths
+
     try:
+        paths.ensure_lock_parent(layout.memory_stream.with_name("learning.lock"), "canonical memory directory")
         with locked(layout.memory_stream.with_name("learning.lock"), mode="exclusive", timeout=lock_wait_seconds(_LOCK_TIMEOUT)):
             yield
     except ProvisioningError:
         raise
+    except paths.SetupError as exc:
+        raise ProvisioningError("stream_busy", f"cannot lock the learning state ({exc})") from None
     except OSError as exc:
         if isinstance(exc, PlatformStorageError) and exc.code is PlatformErrorCode.LOCK_TIMEOUT:
             raise ProvisioningError("stream_busy", "timed out waiting for the learning lock") from None
