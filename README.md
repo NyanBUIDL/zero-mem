@@ -244,6 +244,8 @@ proposed is recalled until approved. See [docs/runbooks/learning-harness.md](doc
 Every memory is a corpus source read and written through the access policy, so several agents can share one store: register them with
 `zero-mem agents add`, and approve shared writes explicitly with `zero-mem agents grant-write`. See
 [docs/runbooks/shared-memory-quickstart.md](docs/runbooks/shared-memory-quickstart.md). Agents (Claude Code, Codex, Hermes, OpenClaw) connect over MCP with
+
+Several memories on one machine: `zero-mem memory create|list|use|remove|rename`, the global `--memory NAME` option and `zero-mem link AGENT --memory NAME` are in [docs/runbooks/memories-and-link.md](docs/runbooks/memories-and-link.md).
 `zero-mem serve --profile <agent>` (memory tools only by default: ~1.6 KB of `tools/list` read-only, ~4.5 KB with writes; `--tools all` adds the 11 legacy read tools);
 `zero-mem mcp-config --agent <agent>` prints the registration, and `zero-mem devlog --from-git` records dev history from agent hooks with no LLM
 ([docs/runbooks/agent-integration.md](docs/runbooks/agent-integration.md)). The retired notes store can be migrated once with
