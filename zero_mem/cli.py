@@ -87,6 +87,10 @@ def build_parser() -> argparse.ArgumentParser:
     from .commands_config_grant import add_config_parsers
 
     add_config_parsers(subparsers)
+
+    from .commands_share import add_share_parser
+
+    add_share_parser(subparsers)  # share (T20: peer sharing over the LAN)
     return parser
 
 
@@ -122,6 +126,11 @@ def main(argv: list[str] | None = None) -> int:
     mcp_code = dispatch_mcp(args)
     if mcp_code is not None:
         return mcp_code
+    from .commands_share import dispatch as dispatch_share
+
+    share_code = dispatch_share(args)
+    if share_code is not None:
+        return share_code
     if getattr(args, "_show_version", False):
         print(__version__)
     elif getattr(args, "_setup", False):
