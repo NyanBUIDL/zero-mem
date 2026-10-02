@@ -519,3 +519,8 @@ def test_audit_log_records_ui_decisions(ppanel):
     sid = re.search(r"/source\?id=([0-9a-f]{64})", ppanel.page("/search?q=PostgreSQL")).group(1)
     ppanel.post("/forget", {"id": sid, "profile": "codex", "approve": "1"})
     assert "forgotten" in ppanel.page("/audit")
+
+
+def test_overview_settings_path_is_rendered_as_code_not_escaped_markup(ppanel):
+    body = ppanel.page("/")
+    assert "&lt;code&gt;" not in body and "<code>" in body

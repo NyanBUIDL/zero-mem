@@ -242,7 +242,7 @@ def _assert_security_headers(headers, body=None):
     assert "script-src" not in csp or "script-src 'none'" in csp
     assert "form-action 'self'" in csp and "frame-ancestors 'none'" in csp and "base-uri 'none'" in csp
     assert headers["x-content-type-options"] == "nosniff"
-    assert headers["referrer-policy"] == "no-referrer"
+    assert headers["referrer-policy"] == "same-origin"  # no-referrer makes Chromium send Origin: null on form posts
     assert "no-store" in headers["cache-control"]
     assert headers["x-frame-options"] == "DENY"
     assert not any(k.startswith("access-control-") for k in headers)

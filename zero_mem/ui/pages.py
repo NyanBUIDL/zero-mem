@@ -56,8 +56,8 @@ def overview(d: dict) -> Markup:
             ("Injection", _state(s.injection_enabled, "on (default)", "off (default)")),
             ("Kill switch", h('<span class="{}">{}</span>', "bad" if s.kill_switch else "ok",
                               "ON: no proposals, approvals or injection" if s.kill_switch else "off")),
-            ("Settings file", h("<code>{}</code>", d["settings_path"])
-             + (h(' <span class="bad">unusable: {}</span>', s.error) if not s.valid else "")),
+            ("Settings file", join([h("<code>{}</code>", d["settings_path"]),
+                                   h(' <span class="bad">unusable: {}</span>', s.error) if not s.valid else ""])),
         ])),
     ]
     agents = d["agents"]

@@ -53,6 +53,7 @@ CSS = """
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#141412;--fg:#ecece6;--muted:#aaaaa2;--card:#1e1e1b;
 --border:#3b3b35;--accent:#8ab8ff;--accent-fg:#0c1a31;--danger:#ff9087;--danger-bg:#3a1b19;--ok:#7fdca5;--ok-bg:#16301f;
 --warn:#f1c76f;--warn-bg:#352a10;--code:#272721;--focus:#8ab8ff}}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) button.danger{background:#b3261e;border-color:#ff9087}}
 *{box-sizing:border-box}
 html{color-scheme:light dark}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
@@ -69,6 +70,8 @@ h1{font-size:1.5rem;margin:.2em 0 .6em}h2{font-size:1.15rem;margin:1.4em 0 .5em}
 a{color:var(--accent)}
 :focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 .card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin:0 0 14px}
+.card>h2:first-child{margin-top:0}
+progress{width:100%;height:12px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
 .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:8px;background:var(--card);margin:0 0 14px}
 table{border-collapse:collapse;width:100%;min-width:480px}
