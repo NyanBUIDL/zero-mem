@@ -12,6 +12,7 @@ from src.redaction import RedactionRejected
 from .capture_boundary import AppendResult, CaptureRejected, CaptureStoreConfig
 from .coordination import locked
 from .platform import (
+    lock_wait_seconds,
     PlatformErrorCode,
     PlatformStorageError,
     close_handle,
@@ -63,7 +64,7 @@ class JsonlCaptureStore:
 
     @contextmanager
     def _exclusive_process_lock(self):
-        with locked(self._process_lock_path, mode="exclusive", timeout=5.0):
+        with locked(self._process_lock_path, mode="exclusive", timeout=lock_wait_seconds(30.0)):
             yield
 
     def _load(self) -> None:

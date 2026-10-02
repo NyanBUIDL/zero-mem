@@ -23,6 +23,15 @@ keys or types are errors, never ignored) and every missing key has a safe defaul
     kill_switch = false           # true: no proposals, no approvals, no injection; reads of existing memory still work
     deny_patterns = []            # extra regexes; a proposal matching one is rejected
 
+    [sharing]                     # peer sharing over the LAN (ADR-V170-05); everything here is OFF / bounded by default
+    enabled = false               # master switch for serve / pull / pairing / invite / join / grant
+    max_pull_sources = 200        # sources one pull may import
+    max_source_bytes = 1048576    # one source (also enforced by the owner when serving)
+    max_total_bytes = 67108864    # bytes one pull may import
+    allow_public_bind = false     # true (and --i-know-this-is-public): `share serve` may bind a non-private address
+    import_into_recall = false    # true: recall may return peer-imported sources (to profiles granted the quarantine space)
+    announce_label = false        # true: `serve --announce` also broadcasts the owner's label
+
 Fail SAFE: a file that cannot be read, is not valid TOML or violates the schema yields :meth:`Settings.failsafe` -
 learning off, injection off, kill switch ON semantics for new proposals - and a doctor warning; it never raises into a
 read path. TODO(auto_low_risk): the mode is reserved for a later phase; today it is validated and treated EXACTLY as
@@ -64,7 +73,15 @@ MAX_DENY_PATTERNS = 50
 MAX_DENY_PATTERN_CHARS = 200
 MAX_DENY_SCAN_CHARS = 16384
 MAX_SETTINGS_BYTES = 64 * 1024
-_LOCK_TIMEOUT = 15.0
+DEFAULT_MAX_PULL_SOURCES = 200
+MAX_PULL_SOURCES_LIMIT = 5000
+DEFAULT_MAX_SOURCE_BYTES = 1024 * 1024
+MAX_SOURCE_BYTES_LIMIT = 16 * 1024 * 1024
+DEFAULT_MAX_TOTAL_BYTES = 64 * 1024 * 1024
+MAX_TOTAL_BYTES_LIMIT = 1024 * 1024 * 1024
+SHARING_KEYS = ("enabled", "max_pull_sources", "max_source_bytes", "max_total_bytes", "allow_public_bind",
+                "import_into_recall", "announce_label")
+_LOCK_TIMEOUT = 30.0
 
 _OVERRIDE_KEYS = ("enabled", "max_chars", "types")
 #: ``(group)+`` / ``(a*)*`` / ``(x{2,})+``: nested unbounded quantifiers, the classic catastrophic-backtracking shape.
@@ -114,6 +131,13 @@ class Settings:
     projects: Mapping[str, InjectionOverride] = field(default_factory=dict)
     kill_switch: bool = False
     deny_patterns: tuple = ()
+    sharing_enabled: bool = False
+    max_pull_sources: int = DEFAULT_MAX_PULL_SOURCES
+    max_source_bytes: int = DEFAULT_MAX_SOURCE_BYTES
+    max_total_bytes: int = DEFAULT_MAX_TOTAL_BYTES
+    allow_public_bind: bool = False
+    import_into_recall: bool = False
+    announce_label: bool = False
     #: False when the file could not be used: everything below is the fail-safe configuration.
     valid: bool = True
     error: Optional[str] = None
@@ -128,6 +152,11 @@ class Settings:
     def learning_enabled(self) -> bool:
         """May new proposals be accepted at all (mode, kill switch and fail-safe)?"""
         return self.valid and not self.kill_switch and self.effective_mode != "off"
+
+    @property
+    def sharing_active(self) -> bool:
+        """May peer sharing run at all (enabled, no kill switch, usable settings file)?"""
+        return self.valid and not self.kill_switch and self.sharing_enabled
 
     @classmethod
     def failsafe(cls, error: str) -> "Settings":
@@ -150,6 +179,15 @@ class Settings:
                 "projects": {k: v.as_dict() for k, v in sorted(self.projects.items())},
             },
             "safety": {"kill_switch": self.kill_switch, "deny_patterns": list(self.deny_patterns)},
+            "sharing": {
+                "enabled": self.sharing_enabled,
+                "max_pull_sources": self.max_pull_sources,
+                "max_source_bytes": self.max_source_bytes,
+                "max_total_bytes": self.max_total_bytes,
+                "allow_public_bind": self.allow_public_bind,
+                "import_into_recall": self.import_into_recall,
+                "announce_label": self.announce_label,
+            },
         }
 
 
@@ -238,11 +276,12 @@ def _overrides(table: Any, label: str) -> dict:
 
 def parse_settings(raw: Mapping[str, Any]) -> Settings:
     """Validate a parsed TOML document (closed schema) and fill the defaults. Raises :class:`SettingsError`."""
-    raw = _closed(dict(raw), "root", ("learning", "injection", "safety"))
+    raw = _closed(dict(raw), "root", ("learning", "injection", "safety", "sharing"))
     learning = _closed(raw.get("learning", {}), "learning", (
         "mode", "max_proposals_per_day", "allow_agent_proposals", "proposal_ttl_days", "active_ttl_days"))
     injection = _closed(raw.get("injection", {}), "injection", ("enabled", "max_chars", "types", "profiles", "projects"))
     safety = _closed(raw.get("safety", {}), "safety", ("kill_switch", "deny_patterns"))
+    sharing = _closed(raw.get("sharing", {}), "sharing", SHARING_KEYS)
     mode = learning.get("mode", "suggest")
     if not isinstance(mode, str) or mode not in LEARNING_MODES:
         raise SettingsError("learning.mode must be one of: " + ", ".join(LEARNING_MODES))
@@ -267,6 +306,16 @@ def parse_settings(raw: Mapping[str, Any]) -> Settings:
         projects=_overrides(injection.get("projects", {}), "injection.projects"),
         kill_switch=_bool(safety.get("kill_switch", False), "safety.kill_switch"),
         deny_patterns=tuple(patterns),
+        sharing_enabled=_bool(sharing.get("enabled", False), "sharing.enabled"),
+        max_pull_sources=_int(sharing.get("max_pull_sources", DEFAULT_MAX_PULL_SOURCES), "sharing.max_pull_sources",
+                              1, MAX_PULL_SOURCES_LIMIT),
+        max_source_bytes=_int(sharing.get("max_source_bytes", DEFAULT_MAX_SOURCE_BYTES), "sharing.max_source_bytes",
+                              1, MAX_SOURCE_BYTES_LIMIT),
+        max_total_bytes=_int(sharing.get("max_total_bytes", DEFAULT_MAX_TOTAL_BYTES), "sharing.max_total_bytes",
+                             1, MAX_TOTAL_BYTES_LIMIT),
+        allow_public_bind=_bool(sharing.get("allow_public_bind", False), "sharing.allow_public_bind"),
+        import_into_recall=_bool(sharing.get("import_into_recall", False), "sharing.import_into_recall"),
+        announce_label=_bool(sharing.get("announce_label", False), "sharing.announce_label"),
     )
 
 
@@ -390,6 +439,9 @@ _SCALAR_KEYS = {
     "learning.proposal_ttl_days": "int", "learning.active_ttl_days": "int",
     "injection.enabled": "bool", "injection.max_chars": "int", "injection.types": "types",
     "safety.kill_switch": "bool", "safety.deny_patterns": "patterns",
+    "sharing.enabled": "bool", "sharing.max_pull_sources": "int", "sharing.max_source_bytes": "int",
+    "sharing.max_total_bytes": "int", "sharing.allow_public_bind": "bool", "sharing.import_into_recall": "bool",
+    "sharing.announce_label": "bool",
 }
 KNOWN_KEYS = tuple(_SCALAR_KEYS) + (
     "injection.profiles.<name>.<enabled|max_chars|types>", "injection.projects.<name>.<enabled|max_chars|types>")
@@ -542,7 +594,7 @@ def render_toml(doc: Mapping[str, Any]) -> str:
             for k in sorted(scalars):
                 lines.append(f"{k} = {_toml_value(scalars[k])}")
 
-    for section in ("learning", "injection", "safety"):
+    for section in ("learning", "injection", "safety", "sharing"):
         table = doc.get(section)
         if not isinstance(table, dict):
             continue
@@ -559,13 +611,14 @@ def render_toml(doc: Mapping[str, Any]) -> str:
 @contextlib.contextmanager
 def _settings_lock(path: Path) -> Iterator[None]:
     from src.storage.coordination import locked
+    from src.storage.platform import lock_wait_seconds
 
     try:
         paths.ensure_private_dir(path.parent, "configuration directory")
     except (paths.SetupError, paths.ConfigurationError):
         raise SettingsError("configuration directory is unusable") from None
     try:
-        with locked(path.with_name(path.name + ".lock"), mode="exclusive", timeout=_LOCK_TIMEOUT):
+        with locked(path.with_name(path.name + ".lock"), mode="exclusive", timeout=lock_wait_seconds(_LOCK_TIMEOUT)):
             yield
     except SettingsError:
         raise

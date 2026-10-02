@@ -6,10 +6,12 @@ Domain/storage callers receive stable, sanitized ``PlatformStorageError`` codes.
 from __future__ import annotations
 
 import contextlib
+import errno
 import ctypes
 import hashlib
 import math
 import os
+import random
 import stat
 import sys
 import threading
@@ -22,6 +24,12 @@ from typing import Iterator, Literal
 
 LockMode = Literal["shared", "exclusive"]
 DEFAULT_TIMEOUT = 5.0
+# T25 / DEF-190: canonical-stream locks are contended by several agents at once; the bounded wait is long
+# (30 s) and overridable (ZERO_MEM_LOCK_WAIT_SECONDS) so a slow runner never turns contention into an error.
+DEFAULT_LOCK_WAIT = 30.0
+LOCK_WAIT_ENV = "ZERO_MEM_LOCK_WAIT_SECONDS"
+_BACKOFF_MIN = 0.005
+_BACKOFF_MAX = 0.25
 NO_FOLLOW = getattr(os, "O_NOFOLLOW", 0)
 DIRECTORY_FLAG = getattr(os, "O_DIRECTORY", 0)
 # R124-07: on Windows the CRT defaults os.open/msvcrt handles to TEXT mode and
@@ -42,9 +50,71 @@ class PlatformErrorCode(str, Enum):
 class PlatformStorageError(OSError):
     """Sanitized, domain-facing platform storage failure."""
 
-    def __init__(self, code: PlatformErrorCode) -> None:
+    def __init__(self, code: PlatformErrorCode, *, transient: bool = False, missing: bool = False) -> None:
         self.code = code
+        self.missing = missing  # T26: a path component did not exist (ENOENT) - may be created concurrently
+        self.transient = transient  # T23: the underlying OS error was a retryable one (EINTR/EAGAIN/EACCES/sharing)
         super().__init__(code.value)
+
+
+# T23 (DEF-170): errnos / WinErrors that mean "try again", never "this is broken".
+_TRANSIENT_ERRNOS = frozenset(
+    getattr(errno, name) for name in ("EINTR", "EAGAIN", "EWOULDBLOCK", "EACCES", "EBUSY", "ETIMEDOUT", "ENOLCK", "EDEADLK")
+    if hasattr(errno, name)
+)
+_TRANSIENT_WINERRORS = frozenset({5, 32, 33})
+_RETRY_DELAYS = (0.002, 0.005, 0.01, 0.02, 0.04, 0.08, 0.08, 0.08, 0.08, 0.08)  # ~0.5 s total, bounded
+
+
+def is_transient_oserror(exc: BaseException) -> bool:
+    if isinstance(exc, PlatformStorageError):
+        return exc.transient
+    if isinstance(exc, (InterruptedError, BlockingIOError, PermissionError)):
+        return True
+    return isinstance(exc, OSError) and (
+        exc.errno in _TRANSIENT_ERRNOS or getattr(exc, "winerror", None) in _TRANSIENT_WINERRORS
+    )
+
+
+def lock_wait_seconds(default: float = DEFAULT_LOCK_WAIT) -> float:
+    """Bounded wait for a canonical-stream lock: ``ZERO_MEM_LOCK_WAIT_SECONDS`` when set to a positive finite number."""
+    raw = os.environ.get(LOCK_WAIT_ENV)
+    if raw:
+        try:
+            value = float(raw)
+        except ValueError:
+            return default
+        if math.isfinite(value) and value > 0:
+            return value
+    return default
+
+
+class _Backoff:
+    """Jittered exponential poll delay (5 ms -> 250 ms) so lock waiters do not starve or move in lockstep."""
+
+    def __init__(self) -> None:
+        self._current = _BACKOFF_MIN
+
+    def next(self, end: float) -> float:
+        delay = random.uniform(self._current / 2, self._current)
+        self._current = min(self._current * 2, _BACKOFF_MAX)
+        return max(0.0, min(delay, end - time.monotonic()))
+
+
+def _retry_sleep(seconds: float) -> None:  # module level so tests can patch it
+    time.sleep(seconds)
+
+
+def retry_transient_io(op, *, delays: tuple[float, ...] = _RETRY_DELAYS):
+    """Run ``op()``; retry transient OSErrors with bounded backoff, then re-raise the last one. Others never retried."""
+    for delay in delays:
+        try:
+            return op()
+        except OSError as exc:
+            if not is_transient_oserror(exc):
+                raise
+        _retry_sleep(delay)
+    return op()
 
 
 @dataclass(frozen=True)
@@ -163,9 +233,9 @@ def _posix_parent(path: Path) -> int:
             os.close(fd)
             fd = next_fd
         return fd
-    except (OSError, ValueError):
+    except (OSError, ValueError) as exc:
         os.close(fd)
-        raise PlatformStorageError(PlatformErrorCode.UNSAFE_PATH) from None
+        raise PlatformStorageError(PlatformErrorCode.UNSAFE_PATH, missing=isinstance(exc, FileNotFoundError)) from None
 
 
 def _windows_safe(path: Path) -> None:
@@ -341,7 +411,9 @@ def open_regular(path: Path, flags: int, *, create: bool = False, exclusive: boo
                 error_code = ctypes.get_last_error()
                 if error_code in (2, 3):  # ERROR_FILE_NOT_FOUND / ERROR_PATH_NOT_FOUND
                     raise FileNotFoundError(error_code, "CreateFileW")
-                raise OSError(error_code, "CreateFileW")
+                failure = OSError(error_code, "CreateFileW")
+                failure.winerror = error_code  # T25: OSError(code, msg) alone leaves winerror unset, hiding sharing violations
+                raise failure
             fd_flags = os.O_RDWR if (flags & os.O_RDWR) else os.O_WRONLY if (flags & os.O_WRONLY) else os.O_RDONLY
             # R124-07: without O_BINARY, msvcrt.open_osfhandle produces a TEXT-mode
             # CRT descriptor and every os.write translates \n -> CRLF.
@@ -367,8 +439,8 @@ def open_regular(path: Path, flags: int, *, create: bool = False, exclusive: boo
             raise
         except FileNotFoundError:
             raise PlatformStorageError(PlatformErrorCode.NOT_FOUND) from None
-        except OSError:
-            raise PlatformStorageError(PlatformErrorCode.UNAVAILABLE) from None
+        except OSError as exc:
+            raise PlatformStorageError(PlatformErrorCode.UNAVAILABLE, transient=is_transient_oserror(exc)) from None
     parent = _posix_parent(path)
     try:
         safe_flags = flags | getattr(os, "O_NOFOLLOW", 0)
@@ -393,8 +465,8 @@ def open_regular(path: Path, flags: int, *, create: bool = False, exclusive: boo
         return fd
     except PlatformStorageError:
         raise
-    except OSError:
-        raise PlatformStorageError(PlatformErrorCode.UNSAFE_PATH) from None
+    except OSError as exc:
+        raise PlatformStorageError(PlatformErrorCode.UNSAFE_PATH, transient=is_transient_oserror(exc)) from None
     finally:
         os.close(parent)
 
@@ -454,6 +526,22 @@ def file_identity(path: Path) -> FileIdentity:
         close_handle(fd)
 
 
+def _open_lock_file(path: Path, end: float) -> int:
+    """Open/create the lock file, retrying transient errors (create races, sharing denials) until ``end``."""
+    delays = iter(_RETRY_DELAYS)
+    while True:
+        try:
+            return open_regular(path, os.O_CREAT | os.O_RDWR, create=True)
+        except PlatformStorageError as exc:
+            delay = next(delays, None)  # bounded (~0.5 s): a genuinely unreadable lock file must fail fast
+            # T26: a missing lock file / parent (NOT_FOUND, or ENOENT on an ancestor) may be created concurrently
+            # by a first-run bootstrap: retry inside the same bounded window, then raise the original error.
+            retryable = exc.transient or exc.missing or exc.code is PlatformErrorCode.NOT_FOUND
+            if not retryable or delay is None or time.monotonic() >= end:
+                raise
+            _retry_sleep(delay)
+
+
 @contextlib.contextmanager
 def locked(path: Path, *, mode: LockMode = "exclusive", timeout: float | None = None, deadline: float | None = None) -> Iterator[None]:
     if mode not in {"shared", "exclusive"}:
@@ -480,11 +568,12 @@ def locked(path: Path, *, mode: LockMode = "exclusive", timeout: float | None = 
         unlock_file = kernel32.UnlockFileEx
         unlock_file.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32, ctypes.POINTER(_OVERLAPPED)]
         unlock_file.restype = ctypes.c_int
-        fd = open_regular(path, os.O_CREAT | os.O_RDWR, create=True)
+        fd = _open_lock_file(path, end)
         handle = msvcrt.get_osfhandle(fd)
         overlapped = _OVERLAPPED()
         flags = 0x00000001 | (0x00000002 if mode == "exclusive" else 0)
         acquired = False
+        backoff = _Backoff()
         try:
             while True:
                 ok = lock_file(
@@ -496,7 +585,7 @@ def locked(path: Path, *, mode: LockMode = "exclusive", timeout: float | None = 
                     break
                 if time.monotonic() >= end:
                     raise PlatformStorageError(PlatformErrorCode.LOCK_TIMEOUT) from None
-                time.sleep(0.001)
+                time.sleep(backoff.next(end))
             yield
         except PlatformStorageError:
             raise
@@ -515,8 +604,9 @@ def locked(path: Path, *, mode: LockMode = "exclusive", timeout: float | None = 
         import fcntl
     except ImportError:
         raise PlatformStorageError(PlatformErrorCode.UNAVAILABLE) from None
-    fd = open_regular(path, os.O_CREAT | os.O_RDWR, create=True)
+    fd = _open_lock_file(path, end)
     operation = fcntl.LOCK_SH if mode == "shared" else fcntl.LOCK_EX
+    backoff = _Backoff()
     try:
         while True:
             try:
@@ -525,9 +615,14 @@ def locked(path: Path, *, mode: LockMode = "exclusive", timeout: float | None = 
             except BlockingIOError:
                 if time.monotonic() >= end:
                     raise PlatformStorageError(PlatformErrorCode.LOCK_TIMEOUT) from None
-                time.sleep(0.001)
-            except OSError:
-                raise PlatformStorageError(PlatformErrorCode.UNAVAILABLE) from None
+                time.sleep(backoff.next(end))
+            except OSError as exc:
+                # T23: EINTR/EACCES/ENOLCK... are "try again", only a real failure is UNAVAILABLE.
+                if not is_transient_oserror(exc):
+                    raise PlatformStorageError(PlatformErrorCode.UNAVAILABLE) from None
+                if time.monotonic() >= end:
+                    raise PlatformStorageError(PlatformErrorCode.LOCK_TIMEOUT) from None
+                _retry_sleep(0.002)
         yield
     except PlatformStorageError:
         raise
@@ -916,7 +1011,7 @@ __all__ = [
     "atomic_promote", "close_handle", "coordinated", "ensure_private_directory", "file_identity",
     "handle_identity_parts",
     "fsync_handle", "handle_info", "handle_size", "is_regular_info", "is_symlink_info", "list_relative",
-    "locked", "open_parent_dir", "open_relative", "open_regular", "paths_alias", "read_all", "read_bytes", "read_from",
+    "locked", "lock_wait_seconds", "open_parent_dir", "open_relative", "open_regular", "paths_alias", "read_all", "read_bytes", "read_from",
     "rename_relative", "safe_cleanup", "safe_unlink", "set_mode", "stat_relative", "unlink_relative", "validate_directory",
     "use_utf8_stdio", "validate_path", "write_all",
 ]

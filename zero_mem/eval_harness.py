@@ -40,7 +40,7 @@ MAX_TASK_CHARS = 1000
 MAX_NEEDLES = 50
 MAX_NEEDLE_CHARS = 300
 _CASE_KEYS = ("id", "task", "must_include", "must_not_include", "profile", "project", "max_chars")
-_LOCK_TIMEOUT = 15.0
+_LOCK_TIMEOUT = 30.0
 
 EXAMPLE_CASES = (
     {"id": "no-force-push", "task": "clean up the git history of main",
@@ -248,14 +248,17 @@ def append_history(data_root: Path, row: dict) -> None:
     """Append one line (private file), trimming to the newest ``HISTORY_KEEP_LINES`` past ``HISTORY_MAX_LINES``."""
     from src.corpus._fsretry import retry_transient
     from src.storage.coordination import locked
+    from src.storage.platform import lock_wait_seconds
 
     from . import paths
 
     path = history_path(data_root)
     paths.ensure_private_dir(path.parent, "data directory")
     payload = (json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
-    with locked(path.with_name(path.name + ".lock"), mode="exclusive", timeout=_LOCK_TIMEOUT):
-        fd = os.open(str(path), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+    with locked(path.with_name(path.name + ".lock"), mode="exclusive", timeout=lock_wait_seconds(_LOCK_TIMEOUT)):
+        from src.storage.platform import retry_transient_io
+
+        fd = retry_transient_io(lambda: os.open(str(path), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600))  # T23
         try:
             os.write(fd, payload)
         finally:

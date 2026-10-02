@@ -47,7 +47,8 @@ DOMAIN = "learning_proposal"
 APPROVAL_BASIS = "owner review; see docs/v1.6.1/decisions/ADR-V170-03-LEARNING-HARNESS-GATES.md"
 
 PROPOSAL_ID_RE = re.compile(r"^p-[0-9a-f]{12}$")
-PROPOSAL_SOURCES = ("agent", "user", "learner")
+#: ``peer``: imported from a paired LAN peer (ADR-V170-05); never auto-approved, subject to ``allow_agent_proposals``.
+PROPOSAL_SOURCES = ("agent", "user", "learner", "peer")
 #: ``file`` is excluded: documents are ingested by the owner, not proposed.
 PROPOSABLE_TYPES = tuple(t for t in MEMORY_TYPES if t != "file")
 STATUSES = ("pending", "approved", "rejected", "expired", "withdrawn", "revoked", "superseded")
@@ -121,6 +122,7 @@ class ProposalResult:
     project_id: Optional[str] = None
     name: Optional[str] = None
     rule_ids: tuple = ()
+    detail: Optional[str] = None  # sanitized explanation for status=error (e.g. which lock failed and why)
 
     @property
     def ok(self) -> bool:
@@ -488,14 +490,23 @@ def _log_for(memory: Memory) -> ProposalLog:
 def learning_lock(layout: Layout):
     """Exclusive cross-process lock for the check-then-append sequences of the learning lifecycle."""
     from src.storage.coordination import locked
+    from src.storage.platform import PlatformErrorCode, PlatformStorageError, lock_wait_seconds
+
+    from . import paths
 
     try:
-        with locked(layout.memory_stream.with_name("learning.lock"), mode="exclusive", timeout=_LOCK_TIMEOUT):
+        paths.ensure_lock_parent(layout.memory_stream.with_name("learning.lock"), "canonical memory directory")
+        with locked(layout.memory_stream.with_name("learning.lock"), mode="exclusive", timeout=lock_wait_seconds(_LOCK_TIMEOUT)):
             yield
     except ProvisioningError:
         raise
-    except OSError:
-        raise ProvisioningError("stream_busy", "cannot lock the learning state") from None
+    except paths.SetupError as exc:
+        raise ProvisioningError("stream_busy", f"cannot lock the learning state ({exc})") from None
+    except OSError as exc:
+        if isinstance(exc, PlatformStorageError) and exc.code is PlatformErrorCode.LOCK_TIMEOUT:
+            raise ProvisioningError("stream_busy", "timed out waiting for the learning lock") from None
+        why = exc.code.value if isinstance(exc, PlatformStorageError) else type(exc).__name__
+        raise ProvisioningError("stream_busy", f"cannot lock the learning state ({why})") from None
 
 
 def _event(op: str, now: datetime, **fields: Any) -> dict:
@@ -586,7 +597,7 @@ def submit_proposal(memory: Memory, text: Any, memory_type: Any, name: Any, scop
             return ProposalResult(status="rejected", reason="kill_switch", **echo)
         if cfg.effective_mode == "off":
             return ProposalResult(status="rejected", reason="learning_off", **echo)
-        if source in ("agent", "learner") and not cfg.allow_agent_proposals:
+        if source in ("agent", "learner", "peer") and not cfg.allow_agent_proposals:
             return ProposalResult(status="rejected", reason="agent_proposals_disallowed", **echo)
         scanned = [clean] + ([name] if name else []) + evid
         for item in scanned:
@@ -622,7 +633,7 @@ def submit_proposal(memory: Memory, text: Any, memory_type: Any, name: Any, scop
             _log_for(memory)
         return ProposalResult(status="proposed", proposal_id=proposal_id, seen=1, **echo)
     except ProvisioningError as exc:
-        return ProposalResult(status="error", reason=exc.code, **echo)
+        return ProposalResult(status="error", reason=exc.code, detail=str(exc)[:200], **echo)
     except Exception as exc:  # noqa: BLE001
         return ProposalResult(status="error", reason=f"internal_error:{type(exc).__name__}", **echo)
 

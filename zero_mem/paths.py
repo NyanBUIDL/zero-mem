@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,9 @@ DERIVED_DB_RELATIVE = Path("data/derived/memory.sqlite3")
 # default so setup/upgrade/backup/restore/doctor agree on one location.
 CORPUS_RELATIVE = Path("data/corpus")
 CORPUS_ROOT_ENV = "ZERO_MEM_CORPUS_ROOT"
+DATA_ROOT_ENV = "ZERO_MEM_DATA_ROOT"
+# T18: a named memory keeps its own config.json (it records absolute data paths, so two data roots cannot share one).
+CONFIG_PATH_ENV = "ZERO_MEM_CONFIG_PATH"
 # Mirrors src.corpus.registry.REGISTRY_FILENAME (a test pins the equality);
 # kept local so this light module does not import the corpus package.
 CORPUS_REGISTRY_FILENAME = "corpus_sources.jsonl"
@@ -92,6 +96,12 @@ def corpus_root() -> Path:
 
 
 def config_path() -> Path:
+    explicit = (os.environ.get(CONFIG_PATH_ENV) or "").strip()
+    if explicit:
+        candidate = Path(explicit).expanduser()
+        if not candidate.is_absolute():
+            raise ConfigurationError("config path must be absolute")
+        return candidate
     return config_root() / CONFIG_FILENAME
 
 
@@ -127,6 +137,26 @@ def ensure_private_dir(path: Path, label: str) -> None:
         raise
     except OSError:
         raise SetupError(f"inaccessible {label}") from None
+
+
+def ensure_lock_parent(lock_path: Path, label: str) -> None:
+    """T26: make sure the directory that will hold ``lock_path`` exists BEFORE the lock is taken (first-run races).
+
+    An existing real directory is left untouched (no chmod of a directory this call did not create); a missing one is
+    created private via ``ensure_private_dir`` (symlinks rejected), retrying a few times when a concurrent creator or
+    remover makes the attempt fail transiently. A parent that cannot exist (e.g. a regular file) fails at once."""
+    parent = lock_path.parent
+    for attempt in range(5):
+        try:
+            if parent.is_dir() and not parent.is_symlink():
+                return
+            ensure_private_dir(parent, label)
+            return
+        except SetupError as exc:
+            if str(exc).startswith("inaccessible") and attempt < 4 and not parent.is_file():
+                time.sleep(0.005 * (attempt + 1))
+                continue
+            raise
 
 
 def _validate_config(value: object) -> dict[str, Any]:

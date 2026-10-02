@@ -22,7 +22,10 @@ ocr = ["rapidocr-onnxruntime"]
 # AGPL/commercial dual-license — tooling-only (corpus PDF extraction scripts),
 # NOT a runtime dependency. Do not move into core/pdf extras.
 pdf-advanced = ["pymupdf"]
-test = ["pytest", "PyYAML"]
+# cryptography is test-only here so CI exercises the peer-sharing TLS transport on every OS; the runtime stays dependency-free.
+test = ["pytest", "PyYAML", "cryptography>=42"]
+# Peer sharing over the LAN (zero-mem share ...): self-signed certificate generation. Lazy import; the core never needs it.
+share = ["cryptography>=42"]
 ci = ["build"]
 
 [project.scripts]

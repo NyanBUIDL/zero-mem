@@ -241,9 +241,16 @@ Learning harness (owner-controlled): agents *propose* rules / decisions / gotcha
 (`zero-mem review list|approve|reject|revoke`) and controls modes, limits, injection (off by default) and a kill switch with `zero-mem settings`. Nothing
 proposed is recalled until approved. See [docs/runbooks/learning-harness.md](docs/runbooks/learning-harness.md).
 
+Peer sharing over the LAN (off by default, optional extra `pip install "zero-mem[share]"`): the owner publishes selected knowledge, a paired machine on the same
+Wi-Fi pulls a read-only quarantined copy over pinned TLS 1.3 (`zero-mem share invite|join|serve|grant|revoke|pull|audit`).
+`--memory NAME` works on every share command, and the control panel has a Sharing page (`zero-mem ui`). Quick start for two machines:
+[docs/runbooks/peer-sharing.md](docs/runbooks/peer-sharing.md#quick-start-for-two-machines); design: [ADR-V170-05](docs/v1.6.1/decisions/ADR-V170-05-PEER-SHARING.md).
+
 Every memory is a corpus source read and written through the access policy, so several agents can share one store: register them with
 `zero-mem agents add`, and approve shared writes explicitly with `zero-mem agents grant-write`. See
 [docs/runbooks/shared-memory-quickstart.md](docs/runbooks/shared-memory-quickstart.md). Agents (Claude Code, Codex, Hermes, OpenClaw) connect over MCP with
+
+Several memories on one machine: `zero-mem memory create|list|use|remove|rename`, the global `--memory NAME` option and `zero-mem link AGENT --memory NAME` are in [docs/runbooks/memories-and-link.md](docs/runbooks/memories-and-link.md).
 `zero-mem serve --profile <agent>` (memory tools only by default: ~1.6 KB of `tools/list` read-only, ~4.5 KB with writes; `--tools all` adds the 11 legacy read tools);
 `zero-mem mcp-config --agent <agent>` prints the registration, and `zero-mem devlog --from-git` records dev history from agent hooks with no LLM
 ([docs/runbooks/agent-integration.md](docs/runbooks/agent-integration.md)). The retired notes store can be migrated once with
