@@ -41,11 +41,11 @@ def h(tmp_path):
 
 
 def seed(m: Memory):
-    assert m.add("Never force push to main.", "rule", name="no-force-push", scope="shared").ok
-    assert m.add("Run the unit tests before every commit.", "rule", name="test-first", scope="shared").ok
-    assert m.add("We chose sqlite over postgres because the store is local.", "decision", name="db-choice",
+    assert m._owner_add("Never force push to main.", "rule", name="no-force-push", scope="shared").ok
+    assert m._owner_add("Run the unit tests before every commit.", "rule", name="test-first", scope="shared").ok
+    assert m._owner_add("We chose sqlite over postgres because the store is local.", "decision", name="db-choice",
                  scope="shared").ok
-    assert m.add("The derived database locks under concurrent writers; retry on busy.", "gotcha", name="db-busy",
+    assert m._owner_add("The derived database locks under concurrent writers; retry on busy.", "gotcha", name="db-busy",
                  scope="shared").ok
     assert m.add("Release flow: tag, build wheel, publish.", "workflow", name="release", scope="shared").ok
     assert m.add("The user prefers short answers.", "persona", name="style", scope="shared").ok
@@ -174,8 +174,8 @@ def test_an_unrelated_task_gets_rules_only_and_a_blank_task_is_like_none(h):
 
 def test_only_the_newest_version_of_a_named_item_appears(h):
     m = h.agent("codex", write_shared=True)
-    assert m.add("Old wording about merging.", "rule", name="merge", scope="shared").status == "created"
-    assert m.add("New wording about squash.", "rule", name="merge", scope="shared").status == "updated"
+    assert m._owner_add("Old wording about merging.", "rule", name="merge", scope="shared").status == "created"
+    assert m._owner_add("New wording about squash.", "rule", name="merge", scope="shared").status == "updated"
     h.enable()
     b = m.brief()
     assert "New wording" in b.text and "Old wording" not in b.text and b.sources == ["mem://rule/merge"]
@@ -184,7 +184,7 @@ def test_only_the_newest_version_of_a_named_item_appears(h):
 def test_ordering_is_deterministic_and_ties_break_by_ref(h):
     m = h.agent("codex", write_shared=True)
     for name in ("zeta", "alpha", "mid"):
-        assert m.add(f"Cache invalidation advice {name}.", "gotcha", name=name, scope="shared").ok
+        assert m._owner_add(f"Cache invalidation advice {name}.", "gotcha", name=name, scope="shared").ok
     h.enable(["gotcha"])
     first = m.brief("cache invalidation advice")
     assert first.sources == ["mem://gotcha/alpha", "mem://gotcha/mid", "mem://gotcha/zeta"]
@@ -209,7 +209,7 @@ def test_recent_devlog_is_newest_first_for_the_project_only(h):
 def test_the_budget_is_never_exceeded_and_truncation_is_explicit(h):
     m = h.agent("codex", write_shared=True)
     for i in range(30):
-        assert m.add(f"Rule number {i}: " + "keep every change small and reviewable. " * 4, "rule", name=f"r{i:02d}",
+        assert m._owner_add(f"Rule number {i}: " + "keep every change small and reviewable. " * 4, "rule", name=f"r{i:02d}",
                      scope="shared").ok
     h.enable()
     for limit in (1, 10, 80, 300, 777, 2000, 8000):
@@ -270,9 +270,9 @@ def test_proposals_forgotten_and_expired_items_never_appear(h):
 def test_other_profiles_private_items_never_appear_and_shared_ones_do(h):
     a = h.agent("codex", write_shared=True)
     b = h.agent("claude-code", write_shared=True)
-    assert b.add("Private rule of claude-code about walruses.", "rule", name="walrus", scope="private").ok
-    assert b.add("Shared rule about otters.", "rule", name="otter", scope="shared").ok
-    assert a.add("Private rule of codex about lemurs.", "rule", name="lemur", scope="private").ok
+    assert b._owner_add("Private rule of claude-code about walruses.", "rule", name="walrus", scope="private").ok
+    assert b._owner_add("Shared rule about otters.", "rule", name="otter", scope="shared").ok
+    assert a._owner_add("Private rule of codex about lemurs.", "rule", name="lemur", scope="private").ok
     h.enable()
     for pv in (False, True):
         text = a.brief("walruses otters lemurs", preview=pv).text
@@ -282,7 +282,7 @@ def test_other_profiles_private_items_never_appear_and_shared_ones_do(h):
 
 def test_an_unreadable_project_contributes_nothing(h):
     owner = h.agent("codex", write_projects=["secret-proj"])
-    assert owner.add("Project rule about badgers.", "rule", name="badger", scope="project",
+    assert owner._owner_add("Project rule about badgers.", "rule", name="badger", scope="project",
                      project_id="secret-proj").ok
     reader = h.agent("claude-code")
     h.enable()
@@ -315,9 +315,9 @@ def test_context_is_unchanged_by_brief(h):
 def test_a_large_rule_set_never_hides_the_task_matched_lines_and_a_small_one_wastes_nothing(h):
     m = h.agent("codex", write_shared=True)
     for i in range(40):
-        assert m.add(f"Rule {i}: " + "keep every change small and reviewable. " * 5, "rule", name=f"r{i:02d}",
+        assert m._owner_add(f"Rule {i}: " + "keep every change small and reviewable. " * 5, "rule", name=f"r{i:02d}",
                      scope="shared").ok
-    assert m.add("The derived database locks under concurrent writers; " + "back off and retry with jitter. " * 6
+    assert m._owner_add("The derived database locks under concurrent writers; " + "back off and retry with jitter. " * 6
                  + "ENDMARK", "gotcha", name="db-busy", scope="shared").ok
     h.enable()
     b = m.brief("database locks", max_chars=2000)
@@ -330,8 +330,8 @@ def test_a_large_rule_set_never_hides_the_task_matched_lines_and_a_small_one_was
 def test_a_small_rule_set_and_a_match_fit_without_truncation(h):
     m = h.agent("codex", write_shared=True)
     for i in range(5):
-        assert m.add(f"Rule {i}: keep every change small.", "rule", name=f"r{i}", scope="shared").ok
-    assert m.add("The derived database locks under concurrent writers.", "gotcha", name="db-busy", scope="shared").ok
+        assert m._owner_add(f"Rule {i}: keep every change small.", "rule", name=f"r{i}", scope="shared").ok
+    assert m._owner_add("The derived database locks under concurrent writers.", "gotcha", name="db-busy", scope="shared").ok
     h.enable()
     b = m.brief("database locks", max_chars=2000)
     assert b.sections == {"Rules": 5, "Gotchas": 1} and b.truncated is False and b.omitted == {}
