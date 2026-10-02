@@ -170,7 +170,8 @@ def _cmd_status(args) -> int:
     else:
         print(f"sharing: {'ACTIVE' if doc['active'] else 'OFF'}"
               + ("" if doc["active"] else " (enable: zero-mem settings set sharing.enabled true)"))
-        print(f"cryptography: {'installed' if crypto else 'MISSING - pip install \"zero-mem[share]\"'}")
+        crypto_state = "installed" if crypto else 'MISSING - pip install "zero-mem[share]"'
+        print(f"cryptography: {crypto_state}")
         print(f"this machine: {doc['label']}  peer id: {doc['peer_id'] or '(created on first invite/join)'}")
         print(f"paired peers: {doc['peers']}   owners joined: {doc['owners']}")
     return EXIT_OK
