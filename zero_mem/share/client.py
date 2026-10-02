@@ -73,6 +73,7 @@ class PullReport:
     rejected: list = field(default_factory=list)
     tombstoned: int = 0
     tombstones_skipped: int = 0
+    tombstones_failed: list = field(default_factory=list)
     withdrawn: int = 0
     revoke_proposed: list = field(default_factory=list)
     bytes: int = 0
@@ -84,6 +85,7 @@ class PullReport:
                          "bytes": self.plan["bytes"], "rows": self.plan["rows"]},
                 "stored": self.stored, "proposed": self.proposed, "unchanged": self.unchanged,
                 "rejected": self.rejected, "tombstoned": self.tombstoned, "tombstones_skipped": self.tombstones_skipped,
+                "tombstones_failed": self.tombstones_failed,
                 "withdrawn": self.withdrawn, "revoke_proposed": self.revoke_proposed,
                 "bytes": self.bytes, "omitted_by_owner": self.omitted_by_owner}
 
@@ -198,55 +200,86 @@ def _fetch_all(node, owner, todo, report, cfg, proposer) -> None:
             break  # the owner made no progress: stop rather than loop
 
 
-def _withdraw_learned(node, owner, tomb, prior, report, proposer) -> None:
+def _withdraw_learned(node, owner, tomb, prior, report, proposer) -> bool:
     """The owner forgot a rule / decision / gotcha that this memory imported as a PROPOSAL.
 
-    Pending proposal: withdrawn. Already approved by the local owner: never deleted silently; a revoke is only PROPOSED (an audit
-    event and ``report.revoke_proposed``; the local owner decides with ``zero-mem review revoke``). Anything else: nothing to do."""
+    Every proposal ever made for this remote source is considered (an earlier version may still be pending or approved).
+    Pending: withdrawn. Already approved by the local owner: never deleted silently; a revoke is only PROPOSED (an audit
+    event and ``report.revoke_proposed``; the local owner decides with ``zero-mem review revoke``). Anything else: nothing to do.
+    Returns False when a pending proposal could not be withdrawn (the caller must retry this tombstone on the next pull)."""
     from ..learning import _log_for
 
     ref = importer.local_ref(owner["peer_id"], tomb["ref"])
-    pid = prior.get("proposal_id")
-    proposal = _log_for(node.memory).refresh().get(pid) if pid else None
-    if proposal is None:
+    pids = list(prior.get("proposal_ids") or ([prior["proposal_id"]] if prior.get("proposal_id") else []))
+    log = _log_for(node.memory).refresh()
+    found, outcome = False, "tombstoned"
+    for pid in pids:
+        proposal = log.get(pid)
+        if proposal is None:
+            continue
+        found = True
+        if proposal.status == "pending":
+            if proposer.withdraw(pid).status != "withdrawn":
+                report.tombstones_skipped += 1
+                return False
+            report.withdrawn += 1
+            if outcome == "tombstoned":
+                outcome = "withdrawn"
+        elif proposal.status == "approved":
+            outcome = "revoke_proposed"
+            report.revoke_proposed.append({"proposal_id": pid, "ref": proposal.external_ref or ref, "source_id": proposal.source_id,
+                                           "owner": owner["peer_id"], "owner_label": owner["label"]})
+        # rejected / expired / revoked / superseded: already not active
+    if not found:
         report.tombstones_skipped += 1
-        return
-    if proposal.status == "pending":
-        if proposer.withdraw(pid).status != "withdrawn":
-            report.tombstones_skipped += 1
-            return
-        outcome = "withdrawn"
-        report.withdrawn += 1
-    elif proposal.status == "approved":
-        outcome = "revoke_proposed"
-        report.revoke_proposed.append({"proposal_id": pid, "ref": proposal.external_ref or ref, "source_id": proposal.source_id,
-                                       "owner": owner["peer_id"], "owner_label": owner["label"]})
-    else:  # rejected / expired / revoked / superseded: already not active
-        outcome = "tombstoned"
+        return True  # nothing local to withdraw; retrying cannot change that
     node.audit_event("import", owner=owner["peer_id"], source_id=tomb["source_id"], digest=prior["digest"], outcome=outcome,
-                     ref=ref, proposal_id=pid)
+                     ref=ref, proposal_id=prior.get("proposal_id"))
+    return True
 
 
 def _apply_tombstones(node, owner, report, proposer) -> None:
+    """Apply the owner's tombstones. The persisted cursor is INCLUSIVE (the timestamp of the last handled tombstone; the next pull
+    re-reads that second and skips what is already done) and never moves past a tombstone that was applicable but failed."""
     since = node.log.tombstone_cursor(owner["peer_id"])
-    until = since
+    safe = since
+    after = None
+    blocked = False
     for _round in range(5):
-        data = _call(node, owner, "GET", "/v1/tombstones?since=" + quote(since, safe=""), None, max_response=1 << 20)
-        reply = protocol.parse_tombstones(data)
+        path = "/v1/tombstones?since=" + quote(since, safe="") + ("&after=" + quote(after, safe="") if after else "")
+        reply = protocol.parse_tombstones(_call(node, owner, "GET", path, None, max_response=1 << 20))
         for tomb in reply["tombstones"]:
-            prior = node.log.imported_digest(owner["peer_id"], tomb["source_id"])
-            if prior is None or prior["outcome"] in ("tombstoned", "withdrawn", "revoke_proposed"):
-                continue
-            if tomb["memory_type"] in LEARNED_TYPES or prior["outcome"] == "proposed":
-                _withdraw_learned(node, owner, tomb, prior, report, proposer)
-                continue
-            result = node.memory._operator_forget(importer.local_ref(owner["peer_id"], tomb["ref"]))
-            if result.status in ("forgotten", "already_forgotten"):
-                node.audit_event("import", owner=owner["peer_id"], source_id=tomb["source_id"], digest=prior["digest"],
-                                 outcome="tombstoned", ref=importer.local_ref(owner["peer_id"], tomb["ref"]))
-                report.tombstoned += 1
-        until = reply["until"]
-        if not reply["more"]:
+            ok = _apply_one(node, owner, tomb, report, proposer)
+            if not ok:
+                blocked = True
+                break
+            if tomb["forgotten_at"] > safe:
+                safe = tomb["forgotten_at"]
+        if blocked or not reply["more"]:
             break
-        since = until
-    report.plan["tombstones_until"] = until
+        if not reply["next"]:  # an owner without the composite cursor cannot be paged tie-safely: stop at the timestamp
+            safe = max(safe, reply["until"])
+            break
+        after = reply["next"]
+    report.plan["tombstones_until"] = safe
+
+
+def _apply_one(node, owner, tomb, report, proposer) -> bool:
+    prior = node.log.imported_digest(owner["peer_id"], tomb["source_id"])
+    if prior is None or prior["outcome"] in ("tombstoned", "withdrawn", "revoke_proposed"):
+        return True
+    if tomb["memory_type"] in LEARNED_TYPES or prior["outcome"] == "proposed":
+        ok = _withdraw_learned(node, owner, tomb, prior, report, proposer)
+        reason = "withdraw_failed"
+    else:
+        ref = importer.local_ref(owner["peer_id"], tomb["ref"])
+        result = node.memory._operator_forget(ref)
+        ok = result.status in ("forgotten", "already_forgotten")
+        reason = str(getattr(result, "reason", None) or result.status)
+        if ok:
+            node.audit_event("import", owner=owner["peer_id"], source_id=tomb["source_id"], digest=prior["digest"],
+                             outcome="tombstoned", ref=ref)
+            report.tombstoned += 1
+    if not ok:
+        report.tombstones_failed.append({"source_id": tomb["source_id"], "ref": tomb["ref"], "reason": reason})
+    return ok
