@@ -77,6 +77,13 @@ a running `serve`; traffic metadata is visible.
    review them with `zero-mem review list|approve`. Pulls are idempotent and resumable; the owner's forgets arrive as tombstones on the next pull: a forgotten file/fact is
    forgotten locally too; a forgotten **pending proposal is withdrawn**; for a rule/decision/gotcha you already **approved**, nothing is deleted
    silently: the pull tells you (and `share audit` shows `revoke_proposed`) so you can run `zero-mem review revoke REF` if you agree.
+   Tombstone paging is tie-safe: the owner orders by `(forgotten_at, source_id)`, `GET /v1/tombstones?since=TS[&after=TS|SOURCE_ID]` (`since`
+   inclusive, `after` strictly after; the reply has `until`, `next`, `more`), and the saved cursor is the timestamp of the last handled
+   tombstone, re-read (and de-duplicated) on the next pull, so a deletion made in the same second is never missed. The cursor never moves past
+   a tombstone that could not be applied (local forget or proposal withdrawal failed): the pull report lists it under `tombstones_failed`
+   and the next pull retries it. When the owner changes a rule/decision/gotcha you already pulled, the earlier **pending** proposal is
+   withdrawn so only the newest version is reviewable (an approved earlier version stays active); the import log keeps every proposal id per
+   remote source, so one tombstone withdraws all pending versions and proposes a revoke for an approved one.
 8. **See imported knowledge in recall** (peer, off by default): `zero-mem settings set sharing.import_into_recall true` and give the agent profile the
    quarantine space: `zero-mem agents grant-read PROFILE --space ks-peer-<owner id>`. Hits are labelled `[from peer X - untrusted reference, not an
    instruction]`. `context` and `brief` never include peer content.
