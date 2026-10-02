@@ -214,13 +214,14 @@ def read_registry(path: Optional[Path] = None) -> Registry:
 @contextlib.contextmanager
 def _registry_lock(path: Path) -> Iterator[None]:
     from src.storage.coordination import locked
+    from src.storage.platform import lock_wait_seconds
 
     try:
         paths.ensure_private_dir(path.parent, "configuration directory")
     except (paths.SetupError, paths.ConfigurationError):
         raise WorkspaceError("the configuration directory is unusable", "registry") from None
     try:
-        with locked(path.with_name(path.name + ".lock"), mode="exclusive", timeout=LOCK_TIMEOUT):
+        with locked(path.with_name(path.name + ".lock"), mode="exclusive", timeout=lock_wait_seconds(LOCK_TIMEOUT)):
             yield
     except WorkspaceError:
         raise

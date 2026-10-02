@@ -328,13 +328,52 @@ def test_sharing_disabled_or_kill_switch_stops_serving_and_pairing(served):
         owner.node.create_invite(host="127.0.0.1")
 
 
+def _wait_for_op(site, op, seconds=20.0):
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if op in ops(site):
+            return True
+        time.sleep(0.1)
+    return op in ops(site)
+
+
 def test_server_stops_after_duration(sites):
     owner, _ = sites
     server = ShareServer(owner.node, bind="127.0.0.1", port=0, duration=1).start()
     t = threading.Thread(target=server.serve_forever)
     t.start()
-    t.join(timeout=5)
+    t.join(timeout=20)
     assert not t.is_alive()
+    # T25 / DEF-192: serve_forever() must not return before serve_stop is audited
+    assert "serve_stop" in ops(owner), ops(owner)
+    assert _wait_for_op(owner, "serve_stop")
     with pytest.raises(OSError):
         socket.create_connection(("127.0.0.1", server.port), timeout=1)
-    assert "serve_stop" in ops(owner)
+
+
+def test_server_stops_on_time_while_a_client_holds_an_idle_connection(sites):
+    owner, _ = sites
+    server = ShareServer(owner.node, bind="127.0.0.1", port=0, duration=1).start()
+    idle = socket.create_connection(("127.0.0.1", server.port))  # never sends a ClientHello
+    try:
+        started = time.monotonic()
+        t = threading.Thread(target=server.serve_forever)
+        t.start()
+        t.join(timeout=20)
+        assert not t.is_alive()
+        assert time.monotonic() - started < 8  # duration (1 s) + bounded grace, not the 5 s hello timeout
+        assert "serve_stop" in ops(owner), ops(owner)
+    finally:
+        idle.close()
+
+
+def test_concurrent_stop_callers_all_return_after_serve_stop_is_audited(sites):
+    owner, _ = sites
+    server = ShareServer(owner.node, bind="127.0.0.1", port=0, duration=60).start()
+    seen = []
+    callers = [threading.Thread(target=lambda: (server.stop(), seen.append("serve_stop" in ops(owner)))) for _ in range(4)]
+    for c in callers:
+        c.start()
+    for c in callers:
+        c.join(20)
+    assert seen == [True] * 4

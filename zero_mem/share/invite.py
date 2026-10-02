@@ -94,8 +94,9 @@ class InviteStore:
     @contextlib.contextmanager
     def _locked(self):
         from src.storage.coordination import locked
+        from src.storage.platform import lock_wait_seconds
 
-        with _LOCK, locked(self._dir / ".invites.lock", mode="exclusive", timeout=15.0):
+        with _LOCK, locked(self._dir / ".invites.lock", mode="exclusive", timeout=lock_wait_seconds(30.0)):
             yield
 
     def _load(self) -> list:

@@ -54,11 +54,25 @@ def test_flock_transient_errors_are_retried(env, monkeypatch, code):
 
 
 def test_lock_file_open_transient_denial_is_retried(env, monkeypatch):
-    state = _fail_first(monkeypatch, os, "open", lambda: PermissionError(errno.EACCES, "denied"), 2,
-                        match=lambda path, *a, **k: str(path).endswith(".lock"))
+    # T25 / DEF-191: patching os.open only exercises the POSIX branch - the Windows branch opens through
+    # CreateFileW and never calls os.open, so the injected fault never fired there (state["left"] stayed 2).
+    # open_regular is the one entry point both branches share, so inject at that seam (a sharing denial).
+    def denied():
+        return P.PlatformStorageError(P.PlatformErrorCode.UNAVAILABLE, transient=True)
+
+    state = _fail_first(monkeypatch, P, "open_regular", denied, 2, match=lambda path, *a, **k: str(path).endswith(".lock"))
     res = _mem(env).propose("a retried lock-open text", "rule", scope="shared")
     assert res.status == "proposed", (res.status, res.reason)
     assert state["left"] == 0
+
+
+@pytest.mark.parametrize("winerror", [5, 32, 33])
+def test_windows_createfile_denials_are_transient(winerror):
+    # T25: the Windows branch raises OSError(code, "CreateFileW"); without .winerror the sharing violations
+    # (errno 32 == EPIPE on POSIX) were classified as fatal.
+    exc = OSError(winerror, "CreateFileW")
+    exc.winerror = winerror
+    assert P.is_transient_oserror(exc)
 
 
 @pytest.mark.parametrize("code", [errno.EINTR, errno.EAGAIN, errno.EACCES])
